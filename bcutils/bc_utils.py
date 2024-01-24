@@ -446,4 +446,4 @@ if __name__ == "__main__":
         save_directory=bc_config.get(BARCHART_OUTPUT_DIR, "./data"),
         start_year=int(bc_config.get(BARCHART_START_YEAR, "2018")),
         end_year=int(bc_config.get(BARCHART_END_YEAR, "2023")),
-        dry_run=bool(bc_config.get(BARCHART_DRY_RUN, "False")))
+        dry_run=bc_config.get(BARCHART_DRY_RUN, "False") == "True")
