@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import json
 import enum
 import os
@@ -16,7 +18,14 @@ import requests
 from bs4 import BeautifulSoup
 import pandas as pd
 
-from bcutils.config import CONTRACT_MAP
+from config import CONTRACT_MAP
+
+BARCHART_PASSWORD = "BARCHART_PASSWORD"
+BARCHART_USERNAME = "BARCHART_USERNAME"
+BARCHART_DRY_RUN = "BARCHART_DRY_RUN"
+BARCHART_END_YEAR = "BARCHART_END_YEAR"
+BARCHART_START_YEAR = "BARCHART_START_YEAR"
+BARCHART_OUTPUT_DIR = "BARCHART_OUTPUT_DIR"
 
 
 class HistoricalDataResult(enum.Enum):
@@ -52,8 +61,8 @@ def create_bc_session(config_obj: dict, do_login=True):
     session = requests.Session()
     session.headers.update({'User-Agent': 'Mozilla/5.0'})
     if do_login is True and \
-            "barchart_username" not in config_obj or \
-            "barchart_password" not in config_obj:
+            BARCHART_USERNAME not in config_obj or \
+            BARCHART_PASSWORD not in config_obj:
         raise Exception('Barchart credentials are required')
 
     if do_login:
@@ -67,8 +76,8 @@ def create_bc_session(config_obj: dict, do_login=True):
 
         # login to site
         payload = {
-            'email': config_obj['barchart_username'],
-            'password': config_obj['barchart_password'],
+            'email': config_obj[BARCHART_USERNAME],
+            'password': config_obj[BARCHART_PASSWORD],
             '_token': csrf_token
         }
         resp = session.post(BARCHART_URL + 'login', data=payload)
@@ -288,6 +297,12 @@ def get_barchart_downloads(
         else:
             download_dir = save_directory
 
+        logging.info(f"save_directory: {save_directory}")
+        logging.info(f"start_year: {start_year}")
+        logging.info(f"end_year: {end_year}")
+        logging.info(f"dry_run: {dry_run}")
+        logging.info(f"force_daily: {force_daily}")
+
         for contract in contract_list:
 
             # calculate earliest date for which we have hourly data
@@ -412,19 +427,23 @@ if __name__ == "__main__":
 
     logging.basicConfig(
         level=logging.INFO,
-        format='%(asctime)s %(levelname)s %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S')
+        format="%(asctime)s %(levelname)s %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S")
 
-    config = {
-        'barchart_username': 'BARCHART_USERNAME',
-        'barchart_password': 'BARCHART_PASSWORD'
-    }
-    bc_config = {k: os.environ.get(v) for k, v in config.items() if v in os.environ}
+    env_vars = [
+        BARCHART_USERNAME,
+        BARCHART_PASSWORD,
+        BARCHART_OUTPUT_DIR,
+        BARCHART_START_YEAR,
+        BARCHART_END_YEAR,
+        BARCHART_DRY_RUN,
+    ]
+    bc_config = {v: os.environ.get(v) for v in env_vars if v in os.environ}
 
     get_barchart_downloads(
         create_bc_session(config_obj=bc_config),
-        contract_map={"AUD": {"code": "A6", "cycle": "HMUZ", "tick_date": "2009-11-24"}},
-        save_directory="/home/user/barchart_data",
-        start_year=2020,
-        end_year=2022,
-        dry_run=False)
+        contract_map=CONTRACT_MAP,
+        save_directory=bc_config.get(BARCHART_OUTPUT_DIR, "./data"),
+        start_year=int(bc_config.get(BARCHART_START_YEAR, "2018")),
+        end_year=int(bc_config.get(BARCHART_END_YEAR, "2023")),
+        dry_run=bool(bc_config.get(BARCHART_DRY_RUN, "False")))
