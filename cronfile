@@ -1,0 +1,1 @@
+00 08 * * 1-7 . $HOME/.profile; cd /bc-utils; . bcutils_env/bin/activate; python bcutils/bc_utils.py 2>&1 | tee -a ./barchart_download.txt
