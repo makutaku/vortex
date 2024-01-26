@@ -30,11 +30,10 @@ ENV BARCHART_USERNAME="" \
 # Copy cron configuration and set permissions
 COPY cronfile /etc/cron.d/mycron
 RUN chmod 0644 /etc/cron.d/mycron && \
-    crontab /etc/cron.d/mycron
+    crontab /etc/cron.d/mycron && \
+    chmod +x entrypoint.sh && \
+    chmod +x show_input.sh && \
+    chmod +x run_bc_utils.sh
 
-# Run cron in the foreground
-CMD . $HOME/.profile && \
-    cd /bc-utils && \
-    . bcutils_env/bin/activate && \
-    python bcutils/bc_utils.py 2>&1 | tee -a ./barchart_download.txt && \
-    cron -f
+
+ENTRYPOINT ["/bc-utils/entrypoint.sh"]

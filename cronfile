@@ -1,1 +1,8 @@
-00 08 * * 1-7 . $HOME/.profile; cd /bc-utils; . bcutils_env/bin/activate; python bcutils/bc_utils.py 2>&1 | tee -a ./barchart_download.txt
+SHELL=/bin/bash
+BASH_ENV=./container.env
+
+# Schedule job to download quotes from Barchart every day at 8 AM UTC
+00 08 * * * cd /bc-utils && ./run_bc_utils.sh 2>&1 | tee -a /proc/1/fd/1 >> ./run_bc_utils.log
+
+# Schedule job to display input environment variables every 2 minutes
+# */2 * * * * cd /bc-utils && ./show_input.sh 2>&1 | tee -a /proc/1/fd/1 >> ./show_input.log

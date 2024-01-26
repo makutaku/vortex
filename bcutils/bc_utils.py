@@ -430,6 +430,9 @@ if __name__ == "__main__":
         format="%(asctime)s %(levelname)s %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S")
 
+    logging.info(f"Script starting.")
+    #logging.info(f"environment variables={os.environ}")
+
     env_vars = [
         BARCHART_USERNAME,
         BARCHART_PASSWORD,
@@ -447,3 +450,5 @@ if __name__ == "__main__":
         start_year=int(bc_config.get(BARCHART_START_YEAR, "2018")),
         end_year=int(bc_config.get(BARCHART_END_YEAR, "2023")),
         dry_run=bc_config.get(BARCHART_DRY_RUN, "False") == "True")
+
+    logging.info(f"Script finished.")
