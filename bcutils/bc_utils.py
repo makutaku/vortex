@@ -1,22 +1,21 @@
 #!/usr/bin/env python
 
-import json
+import calendar
 import enum
+import io
+import json
+import logging
 import os
 import os.path
-from itertools import cycle
-import calendar
-import logging
-import io
-import urllib.parse
-from random import randint
-import traceback
-from datetime import datetime, timedelta
 import time
+import urllib.parse
+from datetime import datetime, timedelta
+from itertools import cycle
+from random import randint
 
+import pandas as pd
 import requests
 from bs4 import BeautifulSoup
-import pandas as pd
 
 from config import CONTRACT_MAP
 
@@ -120,7 +119,6 @@ def save_prices_for_contract_(
         tick_date=None,
         days=120,
         dry_run=False):
-
     logging.info(f"Considering downloading historic {period.value} prices for {contract}")
 
     year = get_contract_year(contract)
@@ -353,7 +351,6 @@ def get_barchart_downloads(
         end_year=2025,
         dry_run=False,
         force_daily=False):
-
     logging.info(f"Processing downloads from {start_year} to {end_year} ...")
     logging.info(f"directory: {save_directory}  dry_run: {dry_run}  force_daily: {force_daily}")
 
@@ -447,8 +444,10 @@ def get_earliest_tick_date(force_daily, instr_config):
 
 
 def logout(session):
+    logging.info(f"Logging out ...")
     resp = session.get(BARCHART_LOGOUT_URL, timeout=10)
     logging.info(f"GET {BARCHART_LOGOUT_URL}, status: {resp.status_code}")
+    logging.info(f"Logged out.")
 
 
 def build_contract_list(start_year, end_year, contract_map=None):
