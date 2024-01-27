@@ -19,7 +19,12 @@ from bs4 import BeautifulSoup
 
 from config import CONTRACT_MAP
 
-DATE_TIME_COLUMN = 'Time'
+BARCHART_CLOSE_COLUMN = "Last"
+
+CLOSE_COLUMN = "Close"
+
+BARCHART_DATE_TIME_COLUMN = 'Time'
+DATE_TIME_COLUMN = 'DATETIME'
 
 SOURCE_TIME_ZONE = 'US/Central'
 
@@ -167,7 +172,7 @@ def save_prices_for_contract_(
         return HistoricalDataResult.EXCEED
 
     if not allowance['success']:
-        logging.info(f"No downloadable data available for contract '{contract}'\n")
+        logging.info(f"No downloadable data available for contract '{contract}'")
         return HistoricalDataResult.NONE
 
     if dry_run:
@@ -178,7 +183,7 @@ def save_prices_for_contract_(
     low_data = download_data(xsf_token, hist_csrf_token, contract, period, session, start_date, end_date, url,
                              full_path)
 
-    logging.info(f"Finished downloading historic {period.value} prices for {contract}\n")
+    logging.info(f"Finished downloading historic {period.value} prices for {contract}")
 
     return HistoricalDataResult.LOW if low_data else HistoricalDataResult.OK
 
@@ -230,7 +235,7 @@ def download_data(xsrf_token, hist_csrf_token, contract, period, session, start_
     low_data = False
     if resp.status_code == 200:
         if 'Error retrieving data' not in resp.text:
-            low_data = save_price_data(full_path, period, resp)
+            low_data = save_price_data(full_path, period, resp.text)
         else:
             logging.info(f"Barchart error retrieving data for '{full_path}'")
 
@@ -305,7 +310,7 @@ def build_download_request_headers(url, xsrf_token):
     return headers
 
 
-def save_price_data(full_path, period, resp):
+def save_price_data(full_path, period, data):
     if period == Period.Daily:
         date_format = '%Y-%m-%d'
     elif period == Period.Hourly:
@@ -314,15 +319,16 @@ def save_price_data(full_path, period, resp):
         raise NotImplemented
 
     low_data = False
-    iostr = io.StringIO(resp.text)
+    iostr = io.StringIO(data)
     df = pd.read_csv(iostr, skipfooter=1, engine='python')
+    df = df.rename(columns={BARCHART_DATE_TIME_COLUMN: DATE_TIME_COLUMN})
     df[DATE_TIME_COLUMN] = pd.to_datetime(df[DATE_TIME_COLUMN], format=date_format)
     df.set_index(DATE_TIME_COLUMN, inplace=True)
     df.index = df.index.tz_localize(tz=SOURCE_TIME_ZONE).tz_convert('UTC')
-    df = df.rename(columns={"Last": "Close"})
+    df = df.rename(columns={BARCHART_CLOSE_COLUMN: CLOSE_COLUMN})
     if len(df) < 3:
         low_data = True
-    logging.info(f"writing to: {full_path}")
+    logging.info(f"writing data to: {full_path}")
     df.to_csv(full_path, date_format='%Y-%m-%dT%H:%M:%S%z')
     return low_data
 
@@ -414,7 +420,7 @@ def save_prices_for_contract(contract, contract_map, download_dir, dry_run, forc
     days_count = get_days_count(instr_config)
     result = save_prices_for_contract_(contract, session, download_dir, inv_contract_map,
                                        tick_date=tick_date, days=days_count, dry_run=dry_run)
-    logging.info(f"Processed contract {contract}")
+    logging.info(f"Processed contract {contract}\n")
     return result
 
 
@@ -543,8 +549,8 @@ if __name__ == "__main__":
         bc_session,
         contract_map=CONTRACT_MAP,
         save_directory=bc_config.get(BARCHART_OUTPUT_DIR, "./data"),
-        start_year=int(bc_config.get(BARCHART_START_YEAR, "2022")),
-        end_year=int(bc_config.get(BARCHART_END_YEAR, "2023")),
+        start_year=int(bc_config.get(BARCHART_START_YEAR, "2023")),
+        end_year=int(bc_config.get(BARCHART_END_YEAR, "2024")),
         dry_run=bc_config.get(BARCHART_DRY_RUN, "False") == "True")
 
     logging.info(f"Done!")
