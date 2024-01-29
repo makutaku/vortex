@@ -18,6 +18,9 @@ import requests
 from bs4 import BeautifulSoup
 
 from config import CONTRACT_MAP
+import re
+
+CONTRACT_PATTERN = r"[A-Za-z]{2}[FGHJKMNQUVXZ]\d{2}"
 
 BARCHART_CLOSE_COLUMN = "Last"
 
@@ -35,10 +38,50 @@ BARCHART_END_YEAR = "BARCHART_END_YEAR"
 BARCHART_START_YEAR = "BARCHART_START_YEAR"
 BARCHART_OUTPUT_DIR = "BARCHART_OUTPUT_DIR"
 
+MIN_DAYS_TO_TRIGGER_UPDATE = timedelta(days=7)
+
 
 class Period(enum.Enum):
-    Hourly = 'Hourly'
-    Daily = 'Daily'
+    Minute_1 = '1m'
+    Minute_2 = '2m'
+    Minute_5 = '5m'
+    Minute_15 = '15m'
+    Minute_30 = '30m'
+    Hourly = '1h'
+    Daily = '1d'
+    Weekly = '1W'
+    Monthly = '1M'
+    Quarterly = '3M'
+
+    def to_string(self):
+        return self.value
+
+    def max_historical_days(self):
+        trading_days_per_week = 5
+        trading_hours_per_day = 7
+
+        hour_bars_in_period = {
+            '1m': 1.0 / 60,
+            '2m': 1.0 / 30,
+            '5m': 1.0 / 12,
+            '15m': 1.0 / 4,
+            '30m': 1.0 / 2,
+            '1h': 1.0,
+            '1d': trading_hours_per_day * 1.0,  # Adjust for trading hours per day
+            '1W': trading_days_per_week * trading_hours_per_day * 1.0,  # Adjust for trading hours per day
+            '1M': trading_days_per_week * trading_hours_per_day * 1.0 * 4,  # Adjust for trading hours per day
+            '3M': trading_days_per_week * trading_hours_per_day * 1.0 * 4 * 3,  # Adjust for trading hours per day
+        }
+
+        # Calculate the minimum number of days to cover 10,000 bars
+        days_required = 10000 * hour_bars_in_period[self.value] / trading_hours_per_day
+
+        return int(days_required)
+
+
+class InstrumentType(enum.StrEnum):
+    Future = 'future'
+    Stock = 'stock'
 
 
 class HistoricalDataResult(enum.Enum):
@@ -115,7 +158,7 @@ def build_login_payload(csrf_token, config_obj):
     return payload
 
 
-def save_prices_for_contract_(
+def save_prices_for_future(
         contract,
         session,
         path,
@@ -129,11 +172,12 @@ def save_prices_for_contract_(
     year = get_contract_year(contract)
     month = get_contract_month(contract)
     instrument = get_contract_instrument(contract, inv_map)
-    full_path = make_full_path(month, year, instrument, path)
+    file_path = make_file_path_for_futures(month, year, instrument, path)
+    create_full_path(file_path)
 
     # do we have this file already?
-    if os.path.isfile(full_path):
-        if file_is_placeholder_for_no_hourly_data(full_path):
+    if os.path.isfile(file_path):
+        if file_is_placeholder_for_no_hourly_data(file_path):
             logging.info("Placeholder found indicating missing hourly data, switching to daily")
             period = Period.Daily
         else:
@@ -181,9 +225,99 @@ def save_prices_for_contract_(
 
     hist_csrf_token = scrape_csrf_token(hist_resp)
     low_data = download_data(xsf_token, hist_csrf_token, contract, period, session, start_date, end_date, url,
-                             full_path)
+                             file_path)
 
-    logging.info(f"Finished downloading historic {period.value} prices for {contract}")
+    logging.info(f"Finished downloading historic {period.value} prices for contract '{contract}'")
+
+    return HistoricalDataResult.LOW if low_data else HistoricalDataResult.OK
+
+
+def is_data_update_needed(contract, start_date, end_date, backfill_date, file_path):
+    df = pd.read_csv(file_path)
+    df[DATE_TIME_COLUMN] = pd.to_datetime(df[DATE_TIME_COLUMN], format='%Y-%m-%dT%H:%M:%S%z')
+    df.set_index(DATE_TIME_COLUMN, inplace=True)
+    if len(df) > 0:
+        first_date = df.index[0].to_pydatetime()
+        last_date = df.index[-1].to_pydatetime()
+        logging.info(f"Existing data for stock '{contract}' is from {first_date} to {last_date}")
+
+        start_date_diff = first_date - start_date
+        end_date_diff = end_date - last_date
+
+        if (end_date_diff < MIN_DAYS_TO_TRIGGER_UPDATE and
+                (start_date_diff < MIN_DAYS_TO_TRIGGER_UPDATE or (first_date - backfill_date) < timedelta(days=1))):
+            logging.info(f"Data for stock '{contract}' is older than backfill_date, skipping")
+            return False
+
+        logging.info(f"Data for stock '{contract}' is earlier than backfill_date, not skipping")
+    else:
+        logging.info(f"Data for stock '{contract}' already downloaded but low data, not skipping")
+
+    return True
+
+
+def save_prices_for_stock(
+        contract,
+        session,
+        path,
+        inv_map,
+        backfill_date,
+        period=Period.Hourly,
+        dry_run=False):
+    logging.info(f"Considering downloading historic {period.value} prices for '{contract}'")
+
+    # Fetch current month and year
+    current_date = datetime.now()
+    month = current_date.month
+    year = current_date.year
+    instrument = get_contract_instrument(contract, inv_map)
+    days = period.max_historical_days()
+
+    # we need to work out a date range for which we want the prices
+    start_date, end_date = calculate_date_range(days, month, year)
+
+    file_path = make_file_path_for_stock(instrument, path, period)
+    create_full_path(file_path)
+
+    # do we have this file already?
+    if os.path.isfile(file_path):
+        logging.info(f"Data for stock '{contract}' already downloaded, evaluating ...")
+        if not is_data_update_needed(contract, start_date, end_date, backfill_date, file_path):
+            return HistoricalDataResult.EXISTS
+
+    logging.info(f"Getting historic {period.value} prices for stock '{contract}', "
+                 f"from {start_date.strftime('%Y-%m-%d')} "
+                 f"to {end_date.strftime('%Y-%m-%d')}")
+
+    # open historic data download page for required contract
+    url = get_historic_quote_stocks_url(contract)
+    hist_resp = session.get(url)
+    logging.info(f"GET {url}, status {hist_resp.status_code}")
+
+    if hist_resp.status_code != 200:
+        logging.info(f"No downloadable data available for stock '{contract}'")
+        return HistoricalDataResult.NONE
+
+    # check allowance
+    xsf_token = extract_xsrf_token(hist_resp)
+    allowance, xsf_token = check_allowance(session, url, xsf_token)
+
+    if allowance.get('error') is not None:
+        return HistoricalDataResult.EXCEED
+
+    if not allowance['success']:
+        logging.info(f"No downloadable data available for stock '{contract}'")
+        return HistoricalDataResult.NONE
+
+    if dry_run:
+        logging.info(f"Skipping data download: dry_run")
+        return HistoricalDataResult.OK
+
+    hist_csrf_token = scrape_csrf_token(hist_resp)
+    low_data = download_data(xsf_token, hist_csrf_token, contract, period, session, start_date, end_date, url,
+                             file_path)
+
+    logging.info(f"Finished downloading historic {period.value} prices for stock '{contract}'")
 
     return HistoricalDataResult.LOW if low_data else HistoricalDataResult.OK
 
@@ -191,7 +325,8 @@ def save_prices_for_contract_(
 def calculate_date_range(days, month, year):
     # for expired contracts the end date would be the expiry date;
     # for KISS sake, lets assume expiry is last date of contract month
-    end_date = datetime(year, month, calendar.monthrange(year, month)[1])
+    last_day_of_the_month = calendar.monthrange(year, month)[1]
+    end_date = datetime(year, month, last_day_of_the_month)
     # but, if that end_date is in the future, then we may as well make it today...
     now = datetime.now()
     if now.date() < end_date.date():
@@ -199,30 +334,69 @@ def calculate_date_range(days, month, year):
     # assumption no.2: lets set start date at <day_count> days before end date
     day_count = timedelta(days=days)
     start_date = end_date - day_count
+
+    import pytz
+    timezone = pytz.UTC
+    start_date = timezone.localize(start_date)
+    end_date = timezone.localize(end_date)
+
     return start_date, end_date
 
 
-def make_full_path(month, year, instrument, path):
+def make_file_path_for_futures(month, year, instrument, path):
     date_code = str(year) + '{0:02d}'.format(month)
     filename = f"{instrument}_{date_code}00.csv"
-    full_path = f"{path}/{filename}"
+    full_path = f"{path}/futures/{filename}"
     return full_path
 
 
+def make_file_path_for_stock(symbol, path, period):
+    filename = f"{symbol}.csv"
+    full_path = f"{path}/stocks/{period.value}/{filename}"
+    return full_path
+
+
+def create_full_path(file_path):
+    # Get the directory part of the file path
+    directory = os.path.dirname(file_path)
+
+    # Create the full path if it doesn't exist
+    if not os.path.exists(directory):
+        logging.info(f"Creating directory '{directory}'")
+        os.makedirs(directory)
+
+    return file_path
+
+
 def get_contract_instrument(contract, inv_map):
-    market_code = contract[:len(contract) - 3]
-    instrument = inv_map[market_code.upper()]
+    market_code = market_code_from_contract(contract)
+    instrument = inv_map[market_code]
     return instrument
 
 
+def market_code_from_contract(contract):
+    market_code = contract[:-3] if re.match(CONTRACT_PATTERN, contract) else contract
+    return market_code
+
+
+def month_code_from_contract(contract):
+    market_code = contract[-3] if re.match(CONTRACT_PATTERN, contract) else None
+    return market_code
+
+
+def year_code_from_contract(contract):
+    year_code = int(contract[-2:]) if re.match(CONTRACT_PATTERN, contract) else None
+    return year_code
+
+
 def get_contract_month(contract):
-    month_code = contract[len(contract) - 3]
-    month = month_from_contract_letter(month_code.upper())
+    month_code = month_code_from_contract(contract)
+    month = month_from_contract_letter(month_code)
     return month
 
 
 def get_contract_year(contract):
-    year_code = int(contract[len(contract) - 2:])
+    year_code = year_code_from_contract(contract)
     if year_code > 30:
         year = 1900 + year_code
     else:
@@ -295,6 +469,15 @@ def build_download_request_payload(hist_csrf_token, contract, period, start_date
     elif period == Period.Hourly:
         payload['type'] = 'minutes'
         payload['interval'] = 60
+    elif period == Period.Minute_30:
+        payload['type'] = 'minutes'
+        payload['interval'] = 30
+    elif period == Period.Minute_15:
+        payload['type'] = 'minutes'
+        payload['interval'] = 15
+    elif period == Period.Minute_5:
+        payload['type'] = 'minutes'
+        payload['interval'] = 5
     else:
         raise NotImplemented
     return payload
@@ -310,15 +493,13 @@ def build_download_request_headers(url, xsrf_token):
     return headers
 
 
-def save_price_data(full_path, period, data):
-    if period == Period.Daily:
-        date_format = '%Y-%m-%d'
-    elif period == Period.Hourly:
-        date_format = '%m/%d/%Y %H:%M'
-    else:
-        raise NotImplemented
+def save_price_data(file_path, period, data):
 
-    low_data = False
+    if period in [Period.Daily, Period.Weekly, Period.Monthly, Period.Quarterly]:
+        date_format = '%Y-%m-%d'
+    else:
+        date_format = '%m/%d/%Y %H:%M'
+
     iostr = io.StringIO(data)
     df = pd.read_csv(iostr, skipfooter=1, engine='python')
     df = df.rename(columns={BARCHART_DATE_TIME_COLUMN: DATE_TIME_COLUMN})
@@ -326,11 +507,18 @@ def save_price_data(full_path, period, data):
     df.set_index(DATE_TIME_COLUMN, inplace=True)
     df.index = df.index.tz_localize(tz=SOURCE_TIME_ZONE).tz_convert('UTC')
     df = df.rename(columns={BARCHART_CLOSE_COLUMN: CLOSE_COLUMN})
-    if len(df) < 3:
-        low_data = True
-    logging.info(f"writing data to: {full_path}")
-    df.to_csv(full_path, date_format='%Y-%m-%dT%H:%M:%S%z')
-    return low_data
+
+    # If data already exists, merge new data with existing data
+    if os.path.isfile(file_path):
+        existing_df = pd.read_csv(file_path)
+        existing_df[DATE_TIME_COLUMN] = pd.to_datetime(df[DATE_TIME_COLUMN], format='%Y-%m-%dT%H:%M:%S%z')
+        existing_df.set_index(DATE_TIME_COLUMN, inplace=True)
+        existing_df.update(df)
+        df = existing_df
+
+    logging.info(f"writing data to: {file_path}")
+    df.to_csv(file_path, date_format='%Y-%m-%dT%H:%M:%S%z')
+    return len(df) < 3
 
 
 def extract_xsrf_token(hist_resp):
@@ -346,6 +534,11 @@ def scrape_csrf_token(hist_resp):
 
 def get_historic_quote_futures_url(contract):
     url = f"{BARCHART_URL}futures/quotes/{contract}/historical-download"
+    return url
+
+
+def get_historic_quote_stocks_url(symbol):
+    url = f"{BARCHART_URL}stocks/quotes/{symbol}/historical-download"
     return url
 
 
@@ -370,12 +563,8 @@ def get_barchart_downloads(
     try:
         init_logging()
 
+        download_dir = resolve_output_directory(save_directory)
         contract_list = build_contract_list(start_year, end_year, contract_map=contract_map)
-
-        if save_directory is None:
-            download_dir = os.getcwd()
-        else:
-            download_dir = save_directory
 
         for contract in contract_list:
 
@@ -404,6 +593,16 @@ def get_barchart_downloads(
         logging.error(f"Error {e}")
 
 
+def resolve_output_directory(save_directory):
+    if save_directory is None:
+        download_dir = os.getcwd()
+    else:
+        download_dir = save_directory
+    if not os.path.exists(download_dir) or not os.path.isdir(download_dir):
+        raise Exception(f"Output directory '{download_dir}' does not exist.")
+    return download_dir
+
+
 def init_logging():
     logging.basicConfig(
         level=logging.INFO,
@@ -413,15 +612,34 @@ def init_logging():
 
 def save_prices_for_contract(contract, contract_map, download_dir, dry_run, force_daily, inv_contract_map, session):
     logging.info(f"Processing contract {contract} ...")
-    instr = inv_contract_map[contract[:-3]]
-    instr_config = contract_map[instr]
-    # calculate the earliest date for which we have hourly data
-    tick_date = get_earliest_tick_date(force_daily, instr_config)
-    days_count = get_days_count(instr_config)
-    result = save_prices_for_contract_(contract, session, download_dir, inv_contract_map,
-                                       tick_date=tick_date, days=days_count, dry_run=dry_run)
+
+    result = HistoricalDataResult.NONE
+    instr_config = get_instrument_config(contract, contract_map, inv_contract_map)
+    instrument_type = get_instrument_type(instr_config)
+    backfill_date = get_instrument_backfill_date(instr_config)
+
+    if instrument_type == InstrumentType.Future:
+        # calculate the earliest date for which we have hourly data
+        tick_date = get_earliest_tick_date(force_daily, instr_config)
+        days_count = get_days_count(instr_config)
+        result = save_prices_for_future(contract, session, download_dir, inv_contract_map, period=Period.Hourly,
+                                        tick_date=tick_date, days=days_count, dry_run=dry_run)
+    elif instrument_type == InstrumentType.Stock:
+        # calculate the earliest date for which we have hourly data
+        # days_count = get_days_count(instr_config)
+        instrument_type = get_instrument_type(instr_config)
+        result = save_prices_for_stock(contract, session, download_dir, inv_contract_map, backfill_date,
+                                       period=Period.Minute_30, dry_run=dry_run)
+
     logging.info(f"Processed contract {contract}\n")
     return result
+
+
+def get_instrument_config(contract, contract_map, inv_contract_map):
+    market_code = market_code_from_contract(contract)
+    instr = inv_contract_map[market_code]
+    instr_config = contract_map[instr]
+    return instr_config
 
 
 def random_sleep(dry_run):
@@ -434,6 +652,18 @@ def get_days_count(instr_config):
     else:
         days_count = 120
     return days_count
+
+
+def get_instrument_type(instr_config):
+    return InstrumentType(instr_config.get('type', InstrumentType.Future.value))
+
+
+def get_instrument_backfill_date(instr_config):
+    backfill_date_str = instr_config.get('backfill_date', "2000-01-01")
+    backfill_date = datetime.strptime(backfill_date_str, '%Y-%m-%d')
+    import pytz
+    timezone = pytz.UTC
+    return timezone.localize(backfill_date)
 
 
 def get_earliest_tick_date(force_daily, instr_config):
@@ -466,15 +696,19 @@ def build_contract_list(start_year, end_year, contract_map=None):
 
     for instr in contract_map.keys():
         config_obj = contract_map[instr]
-        futures_code = config_obj['code']
+        futures_code = config_obj.get('code', 'none')
         if futures_code == 'none':
             continue
-        rollcycle = config_obj['cycle']
+        roll_cycle = config_obj.get('cycle', None)
+        instrument_type = get_instrument_type(config_obj)
         instrument_list = []
 
-        for year in range(start_year, end_year):
-            for month_code in list(rollcycle):
-                instrument_list.append(f"{futures_code}{month_code}{str(year)[len(str(year)) - 2:]}")
+        if instrument_type == InstrumentType.Future and roll_cycle:
+            for year in range(start_year, end_year):
+                for month_code in list(roll_cycle):
+                    instrument_list.append(f"{futures_code}{month_code}{str(year)[-2:]}")
+        elif instrument_type == InstrumentType.Stock:
+            instrument_list.append(futures_code)
 
         contracts_per_instrument[instr] = instrument_list
         count = count + len(instrument_list)
@@ -492,13 +726,17 @@ def build_contract_list(start_year, end_year, contract_map=None):
             continue
         instr_list = contracts_per_instrument[instr]
         config_obj = contract_map[instr]
-        rollcycle = config_obj['cycle']
-        if len(rollcycle) > 10:
-            max_count = 3
-        elif len(rollcycle) > 7:
-            max_count = 2
-        else:
+        roll_cycle = config_obj.get('cycle', None)
+
+        if not roll_cycle:
             max_count = 1
+        else:
+            if len(roll_cycle) > 10:
+                max_count = 3
+            elif len(roll_cycle) > 7:
+                max_count = 2
+            else:
+                max_count = 1
 
         for _ in range(0, max_count):
             if len(instr_list) > 0:
