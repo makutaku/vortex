@@ -1,6 +1,7 @@
 import os
 import pytest
-from bcutils.bc_utils import get_barchart_downloads, create_bc_session
+from bcutils.bc_utils import get_barchart_downloads
+from bcutils.bc_api import create_bc_session
 
 
 @pytest.fixture(autouse=True)
