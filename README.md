@@ -6,7 +6,7 @@ format. Individual contracts must be downloaded separately, which is laborious a
 ## Quickstart
 
 ```
-from bcutils.bc_utils import get_barchart_downloads, create_bc_session
+from bc_utils import get_barchart_downloads, create_bc_session
 
 CONTRACTS={
     "AUD":{"code":"A6","cycle":"HMUZ","tick_date":"2009-11-24"},

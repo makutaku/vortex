@@ -1,3 +1,3 @@
-. bcutils_env/bin/activate && python bcutils/bc_utils.py #2>&1 | tee -a ./bc_utils.log
+. bcutils_env/bin/activate && cd bcutils && python bc_utils.py #2>&1 | tee -a ./bc_utils.log
 
 

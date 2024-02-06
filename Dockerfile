@@ -1,24 +1,6 @@
 # Use an official Python runtime as a parent image
 FROM python:3.11-slim
 
-# Set the working directory
-WORKDIR /bc-utils
-
-# Install apt-utils to address warning
-RUN apt-get update && \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends apt-utils && \
-    rm -rf /var/lib/apt/lists/*
-
-# Copy source code, install dependencies, and clean up in one step
-COPY . /bc-utils
-RUN apt-get update && \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends cron && \
-    rm -rf /var/lib/apt/lists/* && \
-    python -m venv bcutils_env && \
-    . bcutils_env/bin/activate && \
-    pip install --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
-
 # Set default values for environment variables
 ENV BARCHART_USERNAME="" \
     BARCHART_PASSWORD="" \
@@ -27,13 +9,31 @@ ENV BARCHART_USERNAME="" \
     BARCHART_END_YEAR=2022 \
     BARCHART_DRY_RUN=True
 
-# Copy cron configuration and set permissions
+# Set the working directory
+WORKDIR /bc-utils
+
+# Install apt-utils and cron
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    apt-utils cron && \
+    rm -rf /var/lib/apt/lists/* && \
+    usermod -u 99 -g 100 nobody
+
+# Copy source code, install dependencies, and set permissions
+COPY --chown=nobody . /bc-utils
 COPY cronfile /etc/cron.d/mycron
 RUN chmod 0644 /etc/cron.d/mycron && \
-    crontab /etc/cron.d/mycron && \
-    chmod +x entrypoint.sh && \
-    chmod +x show_input.sh && \
-    chmod +x run_bc_utils.sh
+    crontab -u nobody /etc/cron.d/mycron && \
+    chmod u+s /usr/sbin/cron && \
+    chmod +x entrypoint.sh show_input.sh run_bc_utils.sh
 
+# Install and upgrade dependencies within a virtual environment
+RUN python -m venv bcutils_env && \
+    . bcutils_env/bin/activate && \
+    pip install --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
+
+# Switch to the nobody user
+USER nobody
 
 ENTRYPOINT ["/bc-utils/entrypoint.sh"]

@@ -1,7 +1,7 @@
 import os
 import pytest
-from bcutils.bc_utils import get_barchart_downloads
-from bcutils.bc_api import create_bc_session
+from bc_utils import download_from_barchart
+from data_providers.bc_data_provider import create_bc_session
 
 
 @pytest.fixture(autouse=True)
@@ -15,7 +15,7 @@ class TestDownloader:
 
     def test_no_credentials(self, download_dir):
         with pytest.raises(Exception):
-            get_barchart_downloads(
+            download_from_barchart(
                 create_bc_session(config_obj={}),
                 contract_map={"AUD": {"code": "A6", "cycle": "HMUZ", "tick_date": "2009-11-24"}},
                 save_directory=download_dir,
@@ -25,7 +25,7 @@ class TestDownloader:
 
     def test_bad_credentials(self, download_dir):
         with pytest.raises(Exception):
-            get_barchart_downloads(
+            download_from_barchart(
                 create_bc_session(config_obj=dict(
                     barchart_username="user@domain.com",
                     barchart_password="s3cr3t_321")
@@ -47,7 +47,7 @@ class TestDownloader:
         if len(bc_config) == 0:
             pytest.skip('Skipping good_credentials test, no Barchart credentials found in env')
         else:
-            get_barchart_downloads(
+            download_from_barchart(
                 create_bc_session(config_obj=bc_config),
                 contract_map={"AUD": {"code": "A6", "cycle": "H", "tick_date": "2009-11-24"}},
                 save_directory=download_dir,
