@@ -94,3 +94,18 @@ def convert_date_strings_to_datetime(input_dict):
 
     return output_dict
 
+
+def is_list_of_strings(variable):
+    if isinstance(variable, list):
+        return all(isinstance(item, str) for item in variable)
+    return False
+
+
+def merge_dicts(list_of_dicts):
+    merged_dict = {}
+    for d in list_of_dicts:
+        for key, value in d.items():
+            if key in merged_dict:
+                raise ValueError(f"Duplicate key found: {key}")
+            merged_dict[key] = value
+    return merged_dict

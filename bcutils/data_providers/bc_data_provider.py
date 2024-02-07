@@ -2,9 +2,7 @@ import io
 import json
 import logging
 import urllib.parse
-from datetime import datetime, timedelta
-
-from utils import random_sleep
+from datetime import datetime
 
 import pandas as pd
 import requests
@@ -13,9 +11,10 @@ from bs4 import BeautifulSoup
 from data_providers.data_provider import DataProvider, NotFoundError, AllowanceLimitExceeded, DownloadError, \
     LowDataError
 from data_storage.metadata import Metadata
-from price_series import PriceSeries, CLOSE_COLUMN, DATE_TIME_COLUMN, SOURCE_TIME_ZONE
 from logging_utils import LoggingContext
 from period import Period
+from price_series import PriceSeries, CLOSE_COLUMN, DATE_TIME_COLUMN, SOURCE_TIME_ZONE
+from utils import random_sleep
 
 
 class BarchartDataProvider(DataProvider):
@@ -31,11 +30,11 @@ class BarchartDataProvider(DataProvider):
     BARCHART_CLOSE_COLUMN = "Last"
 
     def __init__(self, username, password, dry_run,
-                 max_allowance=SELF_IMPOSED_DOWNLOAD_DAILY_LIMIT, sleep_random_seconds=None):
-        self.sleep_random_seconds = sleep_random_seconds if sleep_random_seconds > 0 else None
+                 daily_download_limit=SELF_IMPOSED_DOWNLOAD_DAILY_LIMIT, random_sleep_in_sec=None):
+        self.sleep_random_seconds = random_sleep_in_sec if random_sleep_in_sec > 0 else None
         self.last_download_timestamp = None
         self.dry_run = dry_run
-        self.max_allowance = max_allowance
+        self.max_allowance = daily_download_limit
         session = BarchartDataProvider._create_bc_session()
         self.session = session
         if not username or not password:
@@ -131,9 +130,9 @@ class BarchartDataProvider(DataProvider):
         payload = BarchartDataProvider.build_download_request_payload(hist_csrf_token, symbol, period,
                                                                       start_date, end_date)
         resp = self.session.post(BarchartDataProvider.BARCHART_DOWNLOAD_URL, headers=headers, data=payload)
-        logging.info(f"POST {BarchartDataProvider.BARCHART_DOWNLOAD_URL}, "
-                     f"status: {resp.status_code}, "
-                     f"data length: {len(resp.content)}")
+        logging.debug(f"POST {BarchartDataProvider.BARCHART_DOWNLOAD_URL}, "
+                      f"status: {resp.status_code}, "
+                      f"data length: {len(resp.content)}")
         return resp
 
     def _download_data(self, xsrf_token: str, hist_csrf_token: str, symbol: str, period: Period,
@@ -282,7 +281,7 @@ class BarchartDataProvider(DataProvider):
         else:
             date_format = '%m/%d/%Y %H:%M'
         new_df = pd.read_csv(iostr, skipfooter=1, engine='python')
-        logging.info(f"Received data {new_df.shape} from Barchart")
+        logging.debug(f"Received data {new_df.shape} from Barchart")
         new_df = new_df.rename(columns={BarchartDataProvider.BARCHART_DATE_TIME_COLUMN: DATE_TIME_COLUMN})
         new_df[DATE_TIME_COLUMN] = pd.to_datetime(new_df[DATE_TIME_COLUMN], format=date_format)
         new_df.set_index(DATE_TIME_COLUMN, inplace=True)

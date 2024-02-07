@@ -1,27 +1,22 @@
-from abc import ABC, abstractmethod
-
 from contracts import StockContract, FutureContract
+from data_storage.data_storage import DataStorage
 from period import Period
 from price_series import PriceSeries
 
 
-class DataStorage(ABC):
-
+class ParquetStorage(DataStorage):
     def __init__(self, dry_run: bool):
-        self.dry_run = dry_run
+        super().__init__(dry_run)
+        raise NotImplemented
 
-    @abstractmethod
     def load_futures(self, contract: FutureContract, period: Period) -> PriceSeries:
-        pass
+        raise NotImplemented
 
-    @abstractmethod
     def load_stock(self, contract: StockContract, period: Period) -> PriceSeries:
-        pass
+        raise NotImplemented
 
-    @abstractmethod
     def persist_futures(self, downloaded_data: PriceSeries, contract: FutureContract, period: Period):
-        pass
+        raise NotImplemented
 
-    @abstractmethod
     def persist_stock(self, df, contract: StockContract, period):
-        pass
+        raise NotImplemented

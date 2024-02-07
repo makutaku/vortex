@@ -12,7 +12,8 @@ from data_storage.data_storage import DataStorage
 from download_job import DownloadJob, StockDownloadJob, FutureDownloadJob
 from logging_utils import LoggingContext
 from period import Period
-from utils import date_range_generator, calculate_date_range, convert_download_range_to_datetime
+from utils import date_range_generator, calculate_date_range, convert_download_range_to_datetime, is_list_of_strings, \
+    merge_dicts
 
 
 class Downloader:
@@ -74,7 +75,8 @@ class Downloader:
                     continue
                 finally:
                     downloads_processed += 1
-                    logging.info(f"--------------------------- {downloads_processed}/{len(job_list)} jobs processed ---------------------------")
+                    logging.info(
+                        f"--------------------------- {downloads_processed}/{len(job_list)} jobs processed ---------------------------")
 
             if low_data:
                 formatted_jobs = [f"({j})" for j in low_data]
@@ -190,9 +192,19 @@ class Downloader:
 
         return job_list
 
-    def download(self, contract_map, start_year, end_year):
+    def download(self, instr_configs_or_market_metadata_files, start_year, end_year):
         logging.info(f"Download from {start_year} to {end_year} ...")
         try:
+            if is_list_of_strings(instr_configs_or_market_metadata_files):
+                market_metadata_files = instr_configs_or_market_metadata_files
+                contract_map = merge_dicts(InstrumentConfig.load_from_json(file) for file in market_metadata_files)
+            elif isinstance(instr_configs_or_market_metadata_files, str):
+                contract_map = InstrumentConfig.load_from_json(instr_configs_or_market_metadata_files)
+            elif isinstance(instr_configs_or_market_metadata_files, dict):
+                contract_map = instr_configs_or_market_metadata_files
+            else:
+                raise TypeError(instr_configs_or_market_metadata_files)
+
             job_list = self.create_download_jobs(contract_map, start_year, end_year)
             self.process_download_jobs(job_list)
         except AllowanceLimitExceeded as e:  # absorbing exception by design

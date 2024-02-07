@@ -10,7 +10,7 @@ declare -p \
     | grep -E 'BARCHART_DRY_RUN' \
     | grep -E 'BARCHART_END_YEAR' \
     | grep -E 'BARCHART_START_YEAR' \
-    | grep -E 'BARCHART_INPUT_DIR' \
+    | grep -E 'MARKET_METADATA_FILES' \
     | grep -E 'BARCHART_OUTPUT_DIR' \
     | grep -E 'DAILY_DOWNLOAD_LIMIT' \
     | grep -E 'RANDOM_SLEEP_IN_SEC' \
