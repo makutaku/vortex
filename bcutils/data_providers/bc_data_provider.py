@@ -32,7 +32,6 @@ class BarchartDataProvider(DataProvider):
     def __init__(self, username, password, dry_run,
                  daily_download_limit=SELF_IMPOSED_DOWNLOAD_DAILY_LIMIT, random_sleep_in_sec=None):
         self.sleep_random_seconds = random_sleep_in_sec if random_sleep_in_sec > 0 else None
-        self.last_download_timestamp = None
         self.dry_run = dry_run
         self.max_allowance = daily_download_limit
         session = BarchartDataProvider._create_bc_session()
@@ -97,7 +96,7 @@ class BarchartDataProvider(DataProvider):
 
             hist_resp = self.session.get(url)
             if hist_resp.status_code != 200:
-                raise NotFoundError(hist_resp.status_code)
+                raise NotFoundError(symbol, period, start_date, end_date, hist_resp.status_code)
 
             # check allowance
             xsf_token = BarchartDataProvider.extract_xsrf_token(hist_resp)
@@ -151,12 +150,11 @@ class BarchartDataProvider(DataProvider):
         return df
 
     def pretend_not_a_bot(self):
-        if self.sleep_random_seconds is not None and self.last_download_timestamp is not None:
+        if self.sleep_random_seconds is not None:
             # cursory attempt to not appear like a bot
             random_sleep(self.sleep_random_seconds)
         else:
-            logging.warning("Not sleeping. We could be flagged as a robot.")
-        self.last_download_timestamp = datetime.utcnow()
+            logging.warning("Random sleep is disabled. Enable to avoid bot detection.")
 
     def _fetch_download_token(self, url, xsf_token):
         allowance, xsf_token = self._fetch_allowance(url, xsf_token)

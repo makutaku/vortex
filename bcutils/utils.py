@@ -11,7 +11,7 @@ from dateutil import parser
 
 def random_sleep(n=15):
     secs = randint(1, 1 + n)
-    logging.info(f"Waiting for {secs}s to pretend this is not a robot ...")
+    logging.info(f"Waiting for {secs}s to avoid bot detection ...")
     time.sleep(secs)
 
 
@@ -27,17 +27,11 @@ def create_full_path(file_path):
     return file_path
 
 
-def last_day_of_year(year, timezone_info=timezone.utc):
-    # Create a datetime object for the first day of the next year
-    next_year = datetime(year + 1, 1, 1, tzinfo=timezone.utc)
+def get_first_and_last_day_of_years(start_year, end_year, tz=timezone.utc):
+    start_date = datetime(start_year, 1, 1, tzinfo=tz)
+    end_date = datetime(end_year, 12, 31, 23, 59, 59, tzinfo=tz)
 
-    # Subtract one day to get the last day of the input year
-    last_day = next_year - timedelta(days=1)
-
-    # Convert to the specified timezone
-    last_day_tz_aware = last_day.astimezone(timezone_info)
-
-    return last_day_tz_aware
+    return start_date, end_date
 
 
 def date_range_generator(start_date, end_date, delta):
@@ -67,15 +61,6 @@ def calculate_date_range(days, month, year):
     start_date = pytz.UTC.localize(start_date)
     end_date = pytz.UTC.localize(end_date)
 
-    return start_date, end_date
-
-
-def convert_download_range_to_datetime(start_year, end_year):
-    first_day_of_start_year = last_day_of_year(start_year - 1) + timedelta(days=1)
-    start_date = first_day_of_start_year
-    last_day_of_end_year = last_day_of_year(end_year)
-    utc_now = datetime.now(timezone.utc)
-    end_date = utc_now if last_day_of_end_year > utc_now else last_day_of_end_year
     return start_date, end_date
 
 
@@ -109,3 +94,21 @@ def merge_dicts(list_of_dicts):
                 raise ValueError(f"Duplicate key found: {key}")
             merged_dict[key] = value
     return merged_dict
+
+
+def get_absolute_path(directory: str) -> str:
+    return os.path.abspath(os.path.expanduser(directory))
+
+
+def total_elements_in_dict_of_lists(dictionary):
+    if not dictionary:
+        return 0
+
+    total_elements = 0
+    for value in dictionary.values():
+        if isinstance(value, list):
+            total_elements += len(value)
+        else:
+            raise ValueError("Dictionary values must be lists")
+
+    return total_elements

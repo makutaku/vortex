@@ -20,8 +20,8 @@ class DownloadJob(ABC):
     end_date: datetime
 
     def __str__(self):
-        return (f"{self.contract}, {self.period}, "
-                f"{self.start_date.strftime('%Y-%m-%d')}, {self.end_date.strftime('%Y-%m-%d')}")
+        return (f"{self.contract}|{self.period}|"
+                f"{self.start_date.strftime('%Y-%m-%d')}|{self.end_date.strftime('%Y-%m-%d')}")
 
     @abstractmethod
     def load(self) -> PriceSeries:

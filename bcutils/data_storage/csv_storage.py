@@ -66,11 +66,11 @@ class CsvStorage(DataStorage):
             if not os.path.exists(file_path):
                 raise FileNotFoundError(file_path)
             if not os.path.isfile(file_path):
-                raise Exception(f"Path '{file_path}' exists but it's not a file!")
+                raise FileNotFoundError(f"Path '{file_path}' exists but it's not a file!")
 
             metadata = CsvStorage.load_metadata(file_path)
             if not metadata:
-                raise Exception(f"Metadata file not found for '{file_path}'")
+                raise FileNotFoundError(f"Metadata file not found for '{file_path}'")
 
             df = pd.read_csv(file_path)
             df[DATE_TIME_COLUMN] = pd.to_datetime(df[DATE_TIME_COLUMN], format='%Y-%m-%dT%H:%M:%S%z')

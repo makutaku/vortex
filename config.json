@@ -1,6 +1,6 @@
 {
   "future": {
-    "AEX": {"code": "AE", "cycle": "FGHJKMNQUVXZ", "tick_date": "2008-05-05", "periods": ""},
+    "AEX": {"code": "AE", "cycle": "FGHJKMNQUVXZ", "tick_date": "2008-05-05", "start_date": "2005-09-01", "periods": "1d"},
     "ASX": {"code": "AP", "cycle": "HMUZ", "tick_date": "2019-11-03", "periods": ""},
     "AUD": {"code": "A6", "cycle": "HMUZ", "tick_date": "2009-11-24", "periods": ""},
     "BITCOIN": {"code": "BA", "cycle": "FGHJKMNQUVXZ", "tick_date": "2024-01-01", "periods": ""},
@@ -85,7 +85,7 @@
   "stock": {
     "GOOG": {"code": "GOOG", "tick_date": "2008-05-05", "start_date": "2014-03-27", "periods": ""},
     "GOOGL": {"code": "GOOGL", "tick_date": "2008-05-05", "start_date": "2014-03-27", "periods": ""},
-    "AMZN": {"code": "AMZN", "tick_date": "2008-05-05", "start_date": "1997-05-15", "periods": ""},
+    "AMZN": {"code": "AMZN", "tick_date": "2008-05-05", "start_date": "1997-05-15", "periods": "1d"},
     "MSFT": {"code": "MSFT", "tick_date": "2008-05-05", "start_date": "1986-03-13", "periods": ""},
     "IBM": {"code": "IBM", "tick_date": "2008-05-05", "start_date": "1915-06-29", "periods": ""},
     "AAPL": {"code": "AAPL", "tick_date": "2008-05-05", "start_date": "1980-12-12", "periods": ""},

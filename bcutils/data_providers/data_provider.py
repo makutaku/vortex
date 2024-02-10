@@ -1,6 +1,9 @@
 import enum
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from datetime import datetime
 
+from period import Period
 from price_series import PriceSeries
 
 
@@ -22,8 +25,13 @@ class LowDataError(Exception):
     pass
 
 
+@dataclass
 class NotFoundError(Exception):
-    pass
+    symbol: str
+    period: Period
+    start_date: datetime
+    end_date: datetime
+    http_code: int
 
 
 class AllowanceLimitExceeded(Exception):
@@ -55,6 +63,9 @@ class DataProvider(ABC):
 
     @abstractmethod
     def get_stock_timeframes(self):
+        pass
+
+    def login(self):
         pass
 
     def logout(self):

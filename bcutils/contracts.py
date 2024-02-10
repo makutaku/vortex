@@ -9,7 +9,7 @@ class AbstractContract(ABC):
 
     @abstractmethod
     def __str__(self) -> str:
-        return f"{self.instrument:<7}"
+        return f"{self.instrument}"
 
     @abstractmethod
     def get_symbol(self):
@@ -37,7 +37,7 @@ class FutureContract(AbstractContract):
         self.month = FutureContract.get_month_from_code(self.month_code)
 
     def __str__(self) -> str:
-        return f"Futures, {self.instrument:<7}, {self.contract_code:<7}"
+        return f"F|{self.instrument}|{self.contract_code}"
 
     def is_dated(self):
         return True
@@ -68,7 +68,7 @@ class StockContract(AbstractContract):
     contract_code: str
 
     def __str__(self) -> str:
-        return f"Stock, {self.instrument:<7}, {self.contract_code:<7}"
+        return f"S|{self.instrument}|{self.contract_code}"
 
     def is_dated(self):
         return False

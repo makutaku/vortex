@@ -36,6 +36,9 @@ class Period(enum.Enum):
         }
         return time_units[self]
 
+    def is_intraday(self):
+        return self.get_delta_time() < Period.Daily.get_delta_time()
+
     def periods_in_timedelta(self, timedelta_value):
         period_delta = self.get_delta_time()
         return int(timedelta_value / period_delta)
