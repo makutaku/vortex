@@ -2,9 +2,7 @@ SHELL=/bin/bash
 BASH_ENV=/bc-utils/container.env
 
 # Schedule job to download quotes from Barchart every day at 8 AM UTC
-#00 08 * * * TZ=America/Chicago /bc-utils/run_bc_utils.sh 2>&1 | tee -a "$BARCHART_OUTPUT_DIR/bc_utils.log" >> /proc/1/fd/1
-*/60 * * * * TZ=America/Chicago /bc-utils/run_bc_utils.sh 2>&1 | tee -a "$BARCHART_OUTPUT_DIR/bc_utils.log" >> /proc/1/fd/1
+00 08 * * * TZ=America/Chicago /bc-utils/run_bc_utils.sh 2>&1 | tee -a "$BARCHART_OUTPUT_DIR/bc_utils.log" >> /proc/1/fd/1
 
 # Schedule job to check input environment variables and display "PING" runs at the top of every hour
 0 * * * * TZ=America/Chicago /bc-utils/ping.sh 2>&1 | tee -a "$BARCHART_OUTPUT_DIR/ping.log" >> /proc/1/fd/1
-

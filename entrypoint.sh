@@ -22,7 +22,6 @@ else
   exit
 fi
 
-
 timestamp=$(date +"%Y-%m-%d %H:%M:%S")
 if [ "$BARCHART_LOGGING_LEVEL" = "debug" ]; then
   echo "$timestamp DEBUG Saving BARCHART_* environment variables."
@@ -33,21 +32,20 @@ if [ "$BARCHART_LOGGING_LEVEL" = "debug" ]; then
   echo "$timestamp DEBUG Saved BARCHART_* environment variables."
 fi
 
-
-timestamp=$(date +"%Y-%m-%d %H:%M:%S")
-echo "$timestamp DEBUG Log file truncated at Docker entrypoint" > "$BARCHART_OUTPUT_DIR/bc_utils.log"
-echo "$timestamp DEBUG Log file truncated at Docker entrypoint" > "$BARCHART_OUTPUT_DIR/ping.log"
-
 cd /bc-utils || exit
 
+mv -f "$BARCHART_OUTPUT_DIR/bc_utils.log" "$BARCHART_OUTPUT_DIR/bc_utils.previous.log"
+mv -f "$BARCHART_OUTPUT_DIR/ping.log" "$BARCHART_OUTPUT_DIR/ping.previous.log"
+rm "$BARCHART_OUTPUT_DIR/bc_utils.log"
+rm "$BARCHART_OUTPUT_DIR/ping.log"
 
+timestamp=$(date +"%Y-%m-%d %H:%M:%S")
 if [ "$RUN_ON_STARTUP" = "True" ]; then
   echo "$timestamp INFO Running script on startup - RUN_ON_STARTUP environment variable is set to 'True'."
   ./run_bc_utils.sh 2>&1 | tee -a "$BARCHART_OUTPUT_DIR/bc_utils.log"
 else
   echo "$timestamp INFO Skipping running script on startup. To run on start up, set RUN_ON_STARTUP environment variable to 'True'."
 fi
-
 
 timestamp=$(date +"%Y-%m-%d %H:%M:%S")
 if [ "$BARCHART_LOGGING_LEVEL" = "debug" ]; then
@@ -59,7 +57,5 @@ fi
 cron -L /dev/stdout
 echo "$timestamp INFO Scheduled cron jobs"
 
-
 # Run forever
 tail -f /dev/null
-
