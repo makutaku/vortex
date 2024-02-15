@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import cast
 
-from contracts import AbstractContract, FutureContract, StockContract
+from contracts import AbstractContract, FutureContract, StockContract, Forex
 from data_providers.data_provider import DataProvider
 from data_storage.data_storage import DataStorage
 from period import Period
@@ -59,4 +59,17 @@ class StockDownloadJob(DownloadJob):
     def fetch(self) -> PriceSeries:
         contract: StockContract = cast(StockContract, self.contract)
         return self.data_provider.fetch_stock_historical_data(contract.get_symbol(), self.period, self.start_date,
+                                                              self.end_date)
+
+
+class ForexDownloadJob(DownloadJob):
+    def load(self) -> PriceSeries:
+        return self.data_storage.load_forex(cast(Forex, self.contract), self.period)
+
+    def persist(self, downloaded_data: PriceSeries):
+        self.data_storage.persist_forex(downloaded_data, cast(Forex, self.contract), self.period)
+
+    def fetch(self) -> PriceSeries:
+        contract: Forex = cast(Forex, self.contract)
+        return self.data_provider.fetch_forex_historical_data(contract.get_symbol(), self.period, self.start_date,
                                                               self.end_date)

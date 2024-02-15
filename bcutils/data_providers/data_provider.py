@@ -58,11 +58,19 @@ class DataProvider(ABC):
         pass
 
     @abstractmethod
+    def fetch_forex_historical_data(self, symbol: str, period, start_date, end_date) -> PriceSeries:
+        pass
+
+    @abstractmethod
     def get_futures_timeframes(self):
         pass
 
     @abstractmethod
     def get_stock_timeframes(self):
+        pass
+
+    @abstractmethod
+    def get_forex_timeframes(self):
         pass
 
     def login(self):

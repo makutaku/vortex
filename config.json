@@ -82,6 +82,20 @@
     "WHEAT": {"code": "ZW", "cycle": "HKNUZ", "tick_date": "2008-05-04", "periods": ""},
     "WHEAT_ICE": {"code": "LW", "cycle": "FHKNUX", "tick_date": "2021-05-01", "days_count": 400, "periods": ""}
   },
+  "forex": {
+    "AUDUSD": {"code": "^AUDUSD", "tick_date": "2000-01-01", "start_date": "2000-01-01", "periods": ""},
+    "CADUSD": {"code": "^CADUSD", "tick_date": "2000-01-01", "start_date": "2000-01-01", "periods": ""},
+    "CHFUSD": {"code": "^AUDUSD", "tick_date": "2000-01-01", "start_date": "2000-01-01", "periods": ""},
+    "CNHUSD": {"code": "^CADUSD", "tick_date": "2000-01-01", "start_date": "2000-01-01", "periods": ""},
+    "EURUSD": {"code": "^EURUSD", "tick_date": "2000-01-01", "start_date": "2000-01-01", "periods": ""},
+    "GBPUSD": {"code": "^GBPUSD", "tick_date": "2000-01-01", "start_date": "2000-01-01", "periods": ""},
+    "HKDUSD": {"code": "^HKDUSD", "tick_date": "2000-01-01", "start_date": "2000-01-01", "periods": ""},
+    "JPYUSD": {"code": "^JPYUSD", "tick_date": "2000-01-01", "start_date": "2000-01-01", "periods": ""},
+    "KRWUSD": {"code": "^KRWUSD", "tick_date": "2000-01-01", "start_date": "2000-01-01", "periods": ""},
+    "MXPUSD": {"code": "^MXPUSD", "tick_date": "2000-01-01", "start_date": "2000-01-01", "periods": ""},
+    "SEKUSD": {"code": "^SEKUSD", "tick_date": "2000-01-01", "start_date": "2000-01-01", "periods": ""},
+    "SGDUSD": {"code": "^SGDUSD", "tick_date": "2000-01-01", "start_date": "2000-01-01", "periods": ""}
+  },
   "stock": {
     "GOOG": {"code": "GOOG", "tick_date": "2008-05-05", "start_date": "2014-03-27", "periods": ""},
     "GOOGL": {"code": "GOOGL", "tick_date": "2008-05-05", "start_date": "2014-03-27", "periods": ""},

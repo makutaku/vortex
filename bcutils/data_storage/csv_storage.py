@@ -3,7 +3,7 @@ import os
 
 import pandas as pd
 
-from contracts import FutureContract, StockContract
+from contracts import FutureContract, StockContract, Forex
 from data_storage.data_storage import DataStorage
 from data_storage.metadata import Metadata, MetadataHandler
 from logging_utils import LoggingContext
@@ -28,12 +28,21 @@ class CsvStorage(DataStorage):
         create_full_path(file_path)
         CsvStorage.persist(downloaded_data, file_path)
 
+    def persist_forex(self, downloaded_data: PriceSeries, contract: Forex, period: Period):
+        file_path = self._make_file_path_for_forex(contract.instrument, period)
+        create_full_path(file_path)
+        CsvStorage.persist(downloaded_data, file_path)
+
     def load_futures(self, contract: FutureContract, period: Period) -> PriceSeries:
         file_path = self._make_file_path_for_futures(contract.instrument, contract.month, contract.year, period)
         return CsvStorage.load(file_path)
 
     def load_stock(self, contract: StockContract, period: Period) -> PriceSeries:
         file_path = self._make_file_path_for_stock(contract.instrument, period)
+        return CsvStorage.load(file_path)
+
+    def load_forex(self, contract: Forex, period: Period) -> PriceSeries:
+        file_path = self._make_file_path_for_forex(contract.instrument, period)
         return CsvStorage.load(file_path)
 
     def _make_file_path_for_futures(self, instrument: str, month: int, year: int, period: Period):
@@ -45,6 +54,11 @@ class CsvStorage(DataStorage):
     def _make_file_path_for_stock(self, symbol, period):
         filename = f"{symbol}.csv"
         full_path = f"{self.base_path}/stocks/{period.value}/{filename}"
+        return full_path
+
+    def _make_file_path_for_forex(self, symbol, period):
+        filename = f"{symbol}.csv"
+        full_path = f"{self.base_path}/forex/{period.value}/{filename}"
         return full_path
 
     @staticmethod

@@ -75,3 +75,17 @@ class StockContract(AbstractContract):
 
     def get_symbol(self):
         return self.contract_code
+
+
+@dataclass
+class Forex(AbstractContract):
+    contract_code: str
+
+    def __str__(self) -> str:
+        return f"C|{self.instrument}|{self.contract_code}"
+
+    def is_dated(self):
+        return False
+
+    def get_symbol(self):
+        return self.contract_code

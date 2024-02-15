@@ -11,6 +11,7 @@ from utils import convert_date_strings_to_datetime
 
 
 class InstrumentType(enum.StrEnum):
+    Forex = 'forex'
     Future = 'future'
     Stock = 'stock'
 

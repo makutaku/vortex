@@ -61,6 +61,21 @@ class BarchartDataProvider(DataProvider):
             Period.Monthly
         ]
 
+    def get_forex_timeframes(self):
+        return [
+            Period.Minute_1,
+            Period.Minute_2,
+            Period.Minute_5,
+            Period.Minute_10,
+            Period.Minute_15,
+            Period.Minute_20,
+            Period.Minute_30,
+            Period.Hourly,
+            Period.Daily,
+            Period.Weekly,
+            Period.Monthly
+        ]
+
     def login(self, username, password):
         with LoggingContext(entry_msg=f"Logging in ...", success_msg=f"Logged in."):
             # GET the login page, scrape to get CSRF token
@@ -84,6 +99,10 @@ class BarchartDataProvider(DataProvider):
 
     def fetch_stock_historical_data(self, symbol: str, period, start_date, end_date) -> PriceSeries | None:
         url = BarchartDataProvider.get_stocks_historical_quote_url(symbol)
+        return self.fetch_historical_data(symbol, period, start_date, end_date, url)
+
+    def fetch_forex_historical_data(self, symbol: str, period, start_date, end_date) -> PriceSeries | None:
+        url = BarchartDataProvider.get_forex_historical_quote_url(symbol)
         return self.fetch_historical_data(symbol, period, start_date, end_date, url)
 
     def fetch_historical_data(self, symbol: str, period: Period,
@@ -191,6 +210,10 @@ class BarchartDataProvider(DataProvider):
     @staticmethod
     def get_stocks_historical_quote_url(symbol: str) -> str:
         return f"{BarchartDataProvider.BARCHART_URL}/stocks/quotes/{symbol}/historical-download"
+
+    @staticmethod
+    def get_forex_historical_quote_url(symbol: str) -> str:
+        return f"{BarchartDataProvider.BARCHART_URL}/forex/quotes/{symbol}/historical-download"
 
     @staticmethod
     def build_login_payload(csrf_token, username, password):
