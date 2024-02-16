@@ -12,7 +12,7 @@ from session_config import OsEnvironSessionConfig, SessionConfig
 
 
 def create_barchart_csv_downloader(cfg: SessionConfig) -> UpdatingDownloader:
-    data_storage = CsvStorage(cfg.download_directory, cfg.dry_run)
+    data_storage = ParquetStorage(cfg.download_directory, cfg.dry_run)
     data_provider = BarchartDataProvider(
         username=cfg.username,
         password=cfg.password,

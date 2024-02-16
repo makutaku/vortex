@@ -11,7 +11,7 @@ from contracts import FutureContract, StockContract, Forex
 from data_providers.bc_data_provider import BarchartDataProvider
 from data_providers.data_provider import DataProvider, LowDataError, AllowanceLimitExceeded, NotFoundError
 from data_storage.data_storage import DataStorage
-from download_job import DownloadJob, FutureDownloadJob, StockDownloadJob, ForexDownloadJob
+from download_job import DownloadJob, DownloadJob, DownloadJob, DownloadJob
 from logging_utils import LoggingContext
 from period import Period
 from utils import calculate_date_range, date_range_generator, total_elements_in_dict_of_lists, \
@@ -88,7 +88,7 @@ class BaseDownloader(ABC):
             raise ValueError(f"Instrument type '{instrument_type}' is not supported.")
 
     def _create_future_jobs(self, futures_code, instr, start_date: datetime, end_date: datetime, periods,
-                            tick_date, roll_cycle, days_count) -> List[FutureDownloadJob]:
+                            tick_date, roll_cycle, days_count) -> List[DownloadJob]:
 
         if not roll_cycle:
             raise ValueError(f"{instr} does not have a roll_cycle. Only dated future is currently supported.")
@@ -120,14 +120,14 @@ class BaseDownloader(ABC):
                     if period.is_intraday and tick_date and contract_start_date < tick_date:
                         continue
 
-                    job = FutureDownloadJob(self.data_provider, self.data_storage,
+                    job = DownloadJob(self.data_provider, self.data_storage,
                                             futures_contract, period, contract_start_date, contract_end_date)
                     jobs.append(job)
 
         return jobs
 
     def _create_stock_jobs(self, futures_code, instr, instr_end_date, instr_start_date,
-                           periods, tick_date) -> List[StockDownloadJob]:
+                           periods, tick_date) -> List[DownloadJob]:
 
         supported_periods = self.data_provider.get_stock_timeframes()
         stock_contract = StockContract(instr, futures_code)
@@ -148,14 +148,14 @@ class BaseDownloader(ABC):
 
             for (step_start_date, step_end_date) in (
                     date_range_generator(instr_start_date, instr_end_date, timedelta_value)):
-                job = StockDownloadJob(self.data_provider, self.data_storage,
+                job = DownloadJob(self.data_provider, self.data_storage,
                                        stock_contract, period, step_start_date, step_end_date)
                 jobs.append(job)
 
         return jobs
 
     def _create_forex_jobs(self, futures_code, instr, instr_end_date, instr_start_date,
-                           periods, tick_date) -> List[ForexDownloadJob]:
+                           periods, tick_date) -> List[DownloadJob]:
 
         supported_periods = self.data_provider.get_forex_timeframes()
         stock_contract = Forex(instr, futures_code)
@@ -176,7 +176,7 @@ class BaseDownloader(ABC):
 
             for (step_start_date, step_end_date) in (
                     date_range_generator(instr_start_date, instr_end_date, timedelta_value)):
-                job = ForexDownloadJob(self.data_provider, self.data_storage,
+                job = DownloadJob(self.data_provider, self.data_storage,
                                        stock_contract, period, step_start_date, step_end_date)
                 jobs.append(job)
 

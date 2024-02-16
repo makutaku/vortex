@@ -3,3 +3,4 @@ numpy
 pandas~=2.1.4
 beautifulsoup4==4.*
 pytz
+pyarrow

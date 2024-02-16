@@ -23,53 +23,13 @@ class DownloadJob(ABC):
         return (f"{self.contract}|{self.period}|"
                 f"{self.start_date.strftime('%Y-%m-%d')}|{self.end_date.strftime('%Y-%m-%d')}")
 
-    @abstractmethod
     def load(self) -> PriceSeries:
-        pass
-
-    @abstractmethod
-    def persist(self, downloaded_data: PriceSeries):
-        pass
-
-    @abstractmethod
-    def fetch(self) -> PriceSeries:
-        pass
-
-
-class FutureDownloadJob(DownloadJob):
-    def load(self) -> PriceSeries:
-        return self.data_storage.load_futures(cast(FutureContract, self.contract), self.period)
+        return self.data_storage.load(self.contract, self.period)
 
     def persist(self, downloaded_data: PriceSeries):
-        self.data_storage.persist_futures(downloaded_data, cast(FutureContract, self.contract), self.period)
+        self.data_storage.persist(downloaded_data, self.contract, self.period)
 
     def fetch(self) -> PriceSeries:
-        contract: FutureContract = cast(FutureContract, self.contract)
-        return self.data_provider.fetch_futures_historical_data(contract.get_symbol(), self.period, self.start_date,
-                                                                self.end_date)
+        return self.data_provider.fetch_historical_data(
+            self.contract, self.period, self.start_date, self.end_date)
 
-
-class StockDownloadJob(DownloadJob):
-    def load(self) -> PriceSeries:
-        return self.data_storage.load_stock(cast(StockContract, self.contract), self.period)
-
-    def persist(self, downloaded_data: PriceSeries):
-        self.data_storage.persist_stock(downloaded_data, cast(StockContract, self.contract), self.period)
-
-    def fetch(self) -> PriceSeries:
-        contract: StockContract = cast(StockContract, self.contract)
-        return self.data_provider.fetch_stock_historical_data(contract.get_symbol(), self.period, self.start_date,
-                                                              self.end_date)
-
-
-class ForexDownloadJob(DownloadJob):
-    def load(self) -> PriceSeries:
-        return self.data_storage.load_forex(cast(Forex, self.contract), self.period)
-
-    def persist(self, downloaded_data: PriceSeries):
-        self.data_storage.persist_forex(downloaded_data, cast(Forex, self.contract), self.period)
-
-    def fetch(self) -> PriceSeries:
-        contract: Forex = cast(Forex, self.contract)
-        return self.data_provider.fetch_forex_historical_data(contract.get_symbol(), self.period, self.start_date,
-                                                              self.end_date)

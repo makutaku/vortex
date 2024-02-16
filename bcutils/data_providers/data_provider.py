@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime
 
+from contracts import AbstractContract
 from period import Period
 from price_series import PriceSeries
 
@@ -50,15 +51,10 @@ class DataProvider(ABC):
         pass
 
     @abstractmethod
-    def fetch_futures_historical_data(self, symbol: str, period, start_date, end_date) -> PriceSeries:
-        pass
-
-    @abstractmethod
-    def fetch_stock_historical_data(self, symbol: str, period, start_date, end_date) -> PriceSeries:
-        pass
-
-    @abstractmethod
-    def fetch_forex_historical_data(self, symbol: str, period, start_date, end_date) -> PriceSeries:
+    def fetch_historical_data(self,
+                              instrument: AbstractContract,
+                              period,
+                              start_date, end_date) -> PriceSeries:
         pass
 
     @abstractmethod

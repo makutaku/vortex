@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from contracts import StockContract, FutureContract, Forex
+from contracts import AbstractContract
 from period import Period
 from price_series import PriceSeries
 
@@ -11,25 +11,9 @@ class DataStorage(ABC):
         self.dry_run = dry_run
 
     @abstractmethod
-    def load_futures(self, contract: FutureContract, period: Period) -> PriceSeries:
+    def load(self, contract: AbstractContract, period: Period) -> PriceSeries:
         pass
 
     @abstractmethod
-    def load_stock(self, contract: StockContract, period: Period) -> PriceSeries:
-        pass
-
-    @abstractmethod
-    def load_forex(self, contract: Forex, period: Period) -> PriceSeries:
-        pass
-
-    @abstractmethod
-    def persist_futures(self, downloaded_data: PriceSeries, contract: FutureContract, period: Period):
-        pass
-
-    @abstractmethod
-    def persist_stock(self, df, contract: StockContract, period):
-        pass
-
-    @abstractmethod
-    def persist_forex(self, df, contract: Forex, period):
+    def persist(self, downloaded_data: PriceSeries, contract: AbstractContract, period: Period):
         pass

@@ -3,11 +3,13 @@ import json
 import logging
 import urllib.parse
 from datetime import datetime
+from functools import singledispatchmethod, singledispatch
 
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
 
+from contracts import AbstractContract, FutureContract, Forex, StockContract
 from data_providers.data_provider import DataProvider, NotFoundError, AllowanceLimitExceeded, DownloadError, \
     LowDataError
 from data_storage.metadata import Metadata
@@ -93,21 +95,16 @@ class BarchartDataProvider(DataProvider):
         with LoggingContext(entry_msg=f"Logging out ...", success_msg=f"Logged out."):
             self.session.get(BarchartDataProvider.BARCHART_LOGOUT_URL, timeout=10)
 
-    def fetch_futures_historical_data(self, symbol: str, period, start_date, end_date) -> PriceSeries | None:
-        url = BarchartDataProvider.get_futures_historical_quote_url(symbol)
-        return self.fetch_historical_data(symbol, period, start_date, end_date, url)
+    def fetch_historical_data(self,
+                              instrument: AbstractContract,
+                              period,
+                              start_date, end_date) -> PriceSeries:
+        url = self.get_historical_quote_url(instrument)
+        return self._fetch_historical_data(instrument.get_symbol(), period, start_date, end_date, url)
 
-    def fetch_stock_historical_data(self, symbol: str, period, start_date, end_date) -> PriceSeries | None:
-        url = BarchartDataProvider.get_stocks_historical_quote_url(symbol)
-        return self.fetch_historical_data(symbol, period, start_date, end_date, url)
-
-    def fetch_forex_historical_data(self, symbol: str, period, start_date, end_date) -> PriceSeries | None:
-        url = BarchartDataProvider.get_forex_historical_quote_url(symbol)
-        return self.fetch_historical_data(symbol, period, start_date, end_date, url)
-
-    def fetch_historical_data(self, symbol: str, period: Period,
-                              start_date: datetime, end_date: datetime, url: str) -> PriceSeries | None:
-        with LoggingContext(entry_msg=f"Fetching historical {period} data from Barchart for {symbol} "
+    def _fetch_historical_data(self, instrument: str, period: Period, start_date: datetime,
+                               end_date: datetime, url: str) -> PriceSeries | None:
+        with LoggingContext(entry_msg=f"Fetching historical {period} data from Barchart for {instrument} "
                                       f"from {start_date.strftime('%Y-%m-%d')} "
                                       f"to {end_date.strftime('%Y-%m-%d')} ...",
                             success_msg=f"{'(dryrun) ' if self.dry_run else ''}Fetched historical data from Barchart",
@@ -115,7 +112,7 @@ class BarchartDataProvider(DataProvider):
 
             hist_resp = self.session.get(url)
             if hist_resp.status_code != 200:
-                raise NotFoundError(symbol, period, start_date, end_date, hist_resp.status_code)
+                raise NotFoundError(instrument, period, start_date, end_date, hist_resp.status_code)
 
             # check allowance
             xsf_token = BarchartDataProvider.extract_xsrf_token(hist_resp)
@@ -125,8 +122,8 @@ class BarchartDataProvider(DataProvider):
                 return None
 
             hist_csrf_token = BarchartDataProvider.scrape_csrf_token(hist_resp)
-            df = self._download_data(xsf_token, hist_csrf_token, symbol, period, start_date, end_date, url)
-            metadata = self.create_metadata(symbol, period, df, start_date, end_date)
+            df = self._download_data(xsf_token, hist_csrf_token, instrument, period, start_date, end_date, url)
+            metadata = self.create_metadata(instrument, period, df, start_date, end_date)
             return PriceSeries(df, metadata)
 
     def create_metadata(self, symbol, period, df, start_date, end_date):
@@ -203,16 +200,19 @@ class BarchartDataProvider(DataProvider):
             logging.debug(f"allowance: {allowance}")
             return allowance, xsf_token
 
-    @staticmethod
-    def get_futures_historical_quote_url(symbol: str) -> str:
+    @singledispatchmethod
+    def get_historical_quote_url(self, future: FutureContract) -> str:
+        symbol = future.get_symbol()
         return f"{BarchartDataProvider.BARCHART_URL}/futures/quotes/{symbol}/historical-download"
 
-    @staticmethod
-    def get_stocks_historical_quote_url(symbol: str) -> str:
+    @get_historical_quote_url.register
+    def _(self, stock: StockContract) -> str:
+        symbol = stock.get_symbol()
         return f"{BarchartDataProvider.BARCHART_URL}/stocks/quotes/{symbol}/historical-download"
 
-    @staticmethod
-    def get_forex_historical_quote_url(symbol: str) -> str:
+    @get_historical_quote_url.register
+    def _(self, forex: Forex) -> str:
+        symbol = forex.get_symbol()
         return f"{BarchartDataProvider.BARCHART_URL}/forex/quotes/{symbol}/historical-download"
 
     @staticmethod

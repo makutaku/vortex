@@ -1,5 +1,4 @@
 import json
-import logging
 import os
 from dataclasses import dataclass, asdict
 from datetime import datetime
@@ -47,7 +46,6 @@ class MetadataHandler:
             metadata_dict = json.load(json_file)
             metadata_dict = convert_date_strings_to_datetime(metadata_dict)
             return Metadata(**metadata_dict)
-
 
 #
 # # Example usage:
