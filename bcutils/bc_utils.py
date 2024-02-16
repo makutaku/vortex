@@ -11,19 +11,20 @@ from logging_utils import init_logging, LoggingContext
 from session_config import OsEnvironSessionConfig, SessionConfig
 
 
-def create_barchart_csv_downloader(cfg: SessionConfig) -> UpdatingDownloader:
-    data_storage = ParquetStorage(cfg.download_directory, cfg.dry_run)
+def create_barchart_downloader(cfg: SessionConfig) -> UpdatingDownloader:
+    data_storage = CsvStorage(cfg.download_directory, cfg.dry_run)
+    backup_data_storage = ParquetStorage(cfg.download_directory, cfg.dry_run) if cfg.backup_data else None
     data_provider = BarchartDataProvider(
         username=cfg.username,
         password=cfg.password,
         dry_run=cfg.dry_run,
         daily_download_limit=cfg.daily_download_limit,
         random_sleep_in_sec=cfg.random_sleep_in_sec)
-    return UpdatingDownloader(data_storage, data_provider)
+    return UpdatingDownloader(data_storage, data_provider, backup_data_storage)
 
 
 def create_yahoo_parquet_downloader(cfg: OsEnvironSessionConfig) -> UpdatingDownloader:
-    data_storage = ParquetStorage(cfg.dry_run)
+    data_storage = ParquetStorage(cfg.download_directory, cfg.dry_run)
     data_provider = YahooDataProvider()
     return UpdatingDownloader(data_storage, data_provider)
 
@@ -41,7 +42,7 @@ def main():
         init_logging(config.log_level)
 
         with LoggingContext(entry_msg=f"Starting ...", exit_msg=f"Done!"):
-            downloader = create_barchart_csv_downloader(config)
+            downloader = create_barchart_downloader(config)
             downloader.download(config.market_metadata_files, config.start_year, config.end_year)
             downloader.logout()
     except NotFoundError as e:

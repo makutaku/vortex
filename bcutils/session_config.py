@@ -29,6 +29,7 @@ class BarchartVars(Enum):
     BARCHART_DRY_RUN = "BARCHART_DRY_RUN"
     BARCHART_LOGGING_LEVEL = "BARCHART_LOGGING_LEVEL"
     BARCHART_RANDOM_SLEEP_IN_SEC = "BARCHART_RANDOM_SLEEP_IN_SEC"
+    BARCHART_BACKUP_DATA = "BARCHART_BACKUP_DATA"
 
 
 @dataclass(frozen=False)
@@ -43,6 +44,7 @@ class SessionConfig(ABC):
     dry_run: bool = DEFAULT_DRY_RUN
     log_level: str = DEFAULT_LOGGING_LEVEL
     random_sleep_in_sec: int = DEFAULT_RANDOM_SLEEP_IN_SEC
+    backup_data: bool = False
 
     def __post_init__(self):
         self.market_metadata_files = self.market_metadata_files \
@@ -100,6 +102,9 @@ class OsEnvironSessionConfig(SessionConfig):
 
         self.dry_run = (x == "True") if (x := bc_config.get(BarchartVars.BARCHART_DRY_RUN.value, None)) \
             else self.dry_run
+
+        self.backup_data = (x == "True") if (x := bc_config.get(BarchartVars.BARCHART_BACKUP_DATA.value, None)) \
+            else self.backup_data
 
         self.log_level = logging.getLevelName(
             bc_config.get(BarchartVars.BARCHART_LOGGING_LEVEL.value, self.log_level).upper())

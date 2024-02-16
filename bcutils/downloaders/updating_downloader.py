@@ -27,8 +27,8 @@ class UpdatingDownloader(BaseDownloader):
                     logging.info(f"Existing data {existing_download.df.shape} satisfies requested range. "
                                  f"Skipping download.")
 
-                    #job.persist(existing_download)
-                    #logging.info(f"Persisted data: {existing_download}")
+                    if self.backup_data_storage:
+                        job.persist(existing_download)
 
                     return HistoricalDataResult.EXISTS
                 logging.debug(f"Existing data {existing_download.df.shape} does NOT satisfy requested range. "

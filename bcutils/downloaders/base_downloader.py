@@ -11,7 +11,7 @@ from contracts import FutureContract, StockContract, Forex
 from data_providers.bc_data_provider import BarchartDataProvider
 from data_providers.data_provider import DataProvider, LowDataError, AllowanceLimitExceeded, NotFoundError
 from data_storage.data_storage import DataStorage
-from download_job import DownloadJob, DownloadJob, DownloadJob, DownloadJob
+from download_job import DownloadJob
 from logging_utils import LoggingContext
 from period import Period
 from utils import calculate_date_range, date_range_generator, total_elements_in_dict_of_lists, \
@@ -21,9 +21,10 @@ from utils import is_list_of_strings, merge_dicts
 
 class BaseDownloader(ABC):
 
-    def __init__(self, data_storage, data_provider):
+    def __init__(self, data_storage, data_provider, backup_data_storage=None):
         self.data_storage: DataStorage = data_storage
         self.data_provider: DataProvider = data_provider
+        self.backup_data_storage = backup_data_storage
 
     def login(self):
         self.data_provider.login()
@@ -121,7 +122,9 @@ class BaseDownloader(ABC):
                         continue
 
                     job = DownloadJob(self.data_provider, self.data_storage,
-                                            futures_contract, period, contract_start_date, contract_end_date)
+                                      futures_contract, period,
+                                      contract_start_date, contract_end_date,
+                                      self.backup_data_storage)
                     jobs.append(job)
 
         return jobs
@@ -149,7 +152,8 @@ class BaseDownloader(ABC):
             for (step_start_date, step_end_date) in (
                     date_range_generator(instr_start_date, instr_end_date, timedelta_value)):
                 job = DownloadJob(self.data_provider, self.data_storage,
-                                       stock_contract, period, step_start_date, step_end_date)
+                                  stock_contract, period, step_start_date, step_end_date,
+                                  backup_data_storage=self.backup_data_storage)
                 jobs.append(job)
 
         return jobs
@@ -177,7 +181,8 @@ class BaseDownloader(ABC):
             for (step_start_date, step_end_date) in (
                     date_range_generator(instr_start_date, instr_end_date, timedelta_value)):
                 job = DownloadJob(self.data_provider, self.data_storage,
-                                       stock_contract, period, step_start_date, step_end_date)
+                                  stock_contract, period, step_start_date, step_end_date,
+                                  backup_data_storage=self.backup_data_storage)
                 jobs.append(job)
 
         return jobs
