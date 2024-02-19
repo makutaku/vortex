@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
 
-from contracts import AbstractContract
-from period import Period
-from price_series import PriceSeries
+from instruments.instrument import Instrument
+from instruments.period import Period
+from instruments.price_series import PriceSeries
 
 
 class DataStorage(ABC):
@@ -11,9 +11,9 @@ class DataStorage(ABC):
         self.dry_run = dry_run
 
     @abstractmethod
-    def load(self, contract: AbstractContract, period: Period) -> PriceSeries:
+    def load(self, contract: Instrument, period: Period) -> PriceSeries:
         pass
 
     @abstractmethod
-    def persist(self, downloaded_data: PriceSeries, contract: AbstractContract, period: Period):
+    def persist(self, downloaded_data: PriceSeries, contract: Instrument, period: Period):
         pass

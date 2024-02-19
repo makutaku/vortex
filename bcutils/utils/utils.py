@@ -1,11 +1,9 @@
-import calendar
 import logging
 import os
 import time
-from datetime import timezone, datetime, timedelta
+from datetime import timezone, datetime
 from random import randint
 
-import pytz
 from dateutil import parser
 
 
@@ -48,20 +46,22 @@ def reverse_date_range_generator(start_date, end_date, delta):
         current_date -= delta
 
 
-def calculate_date_range(days, month, year):
-    # for expired contracts the end date would be the expiry date;
-    # for KISS sake, lets assume expiry is last date of contract month
-    last_day_of_the_month = calendar.monthrange(year, month)[1]
-    end_date = datetime(year, month, last_day_of_the_month)
-
-    # assumption no.2: lets set start date at <day_count> days before end date
-    day_count = timedelta(days=days)
-    start_date = end_date - day_count
-
-    start_date = pytz.UTC.localize(start_date)
-    end_date = pytz.UTC.localize(end_date)
-
-    return start_date, end_date
+#
+# def calculate_date_range(days, month, year):
+#
+#     # for expired contracts the end date would be the expiry date;
+#     # for KISS’ sake, lets assume expiry is last date of contract month
+#     last_day_of_the_month = calendar.monthrange(year, month)[1]
+#     end = datetime(year, month, last_day_of_the_month)
+#
+#     # assumption no.2: lets set start date at <duration> days before end date
+#     duration = timedelta(days=days)
+#     start = end - duration
+#
+#     start = pytz.UTC.localize(start)
+#     end = pytz.UTC.localize(end)
+#
+#     return start, end
 
 
 def convert_date_strings_to_datetime(input_dict):

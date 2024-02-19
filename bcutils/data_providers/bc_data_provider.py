@@ -2,21 +2,25 @@ import io
 import json
 import logging
 import urllib.parse
-from datetime import datetime
-from functools import singledispatchmethod, singledispatch
+from datetime import datetime, timedelta, timezone
+from functools import singledispatchmethod
 
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
+from pandas import DataFrame
 
-from contracts import AbstractContract, FutureContract, Forex, StockContract
 from data_providers.data_provider import DataProvider, NotFoundError, AllowanceLimitExceeded, DownloadError, \
     LowDataError
-from data_storage.metadata import Metadata
-from logging_utils import LoggingContext
-from period import Period
-from price_series import PriceSeries, CLOSE_COLUMN, DATE_TIME_COLUMN, SOURCE_TIME_ZONE
-from utils import random_sleep
+from instruments.columns import CLOSE_COLUMN, DATE_TIME_COLUMN
+from instruments.forex import Forex
+from instruments.future import Future
+from instruments.instrument import Instrument
+from instruments.period import Period
+from instruments.price_series import SOURCE_TIME_ZONE
+from instruments.stock import Stock
+from utils.logging_utils import LoggingContext
+from utils.utils import random_sleep
 
 
 class BarchartDataProvider(DataProvider):
@@ -45,25 +49,13 @@ class BarchartDataProvider(DataProvider):
     def get_name(self) -> str:
         return BarchartDataProvider.PROVIDER_NAME
 
-    def get_futures_timeframes(self):
-        return [Period.Hourly, Period.Daily]
+    def get_max_range(self, period: Period) -> timedelta:
+        return period.get_delta_time() * BarchartDataProvider.MAX_BARS_PER_DOWNLOAD
 
-    def get_stock_timeframes(self):
-        return [
-            Period.Minute_1,
-            Period.Minute_2,
-            Period.Minute_5,
-            Period.Minute_10,
-            Period.Minute_15,
-            Period.Minute_20,
-            Period.Minute_30,
-            Period.Hourly,
-            Period.Daily,
-            Period.Weekly,
-            Period.Monthly
-        ]
+    def get_min_start(self, period: Period) -> datetime | None:
+        return datetime(year=2000, month=1, day=1, tzinfo=timezone.utc) if period.is_intraday() else None
 
-    def get_forex_timeframes(self):
+    def get_supported_timeframes(self, instrument: Instrument) -> list[Period]:
         return [
             Period.Minute_1,
             Period.Minute_2,
@@ -96,14 +88,14 @@ class BarchartDataProvider(DataProvider):
             self.session.get(BarchartDataProvider.BARCHART_LOGOUT_URL, timeout=10)
 
     def fetch_historical_data(self,
-                              instrument: AbstractContract,
+                              instrument: Instrument,
                               period,
-                              start_date, end_date) -> PriceSeries:
+                              start_date, end_date) -> DataFrame | None:
         url = self.get_historical_quote_url(instrument)
         return self._fetch_historical_data(instrument.get_symbol(), period, start_date, end_date, url)
 
     def _fetch_historical_data(self, instrument: str, period: Period, start_date: datetime,
-                               end_date: datetime, url: str) -> PriceSeries | None:
+                               end_date: datetime, url: str) -> DataFrame | None:
         with LoggingContext(entry_msg=f"Fetching historical {period} data from Barchart for {instrument} "
                                       f"from {start_date.strftime('%Y-%m-%d')} "
                                       f"to {end_date.strftime('%Y-%m-%d')} ...",
@@ -123,21 +115,7 @@ class BarchartDataProvider(DataProvider):
 
             hist_csrf_token = BarchartDataProvider.scrape_csrf_token(hist_resp)
             df = self._download_data(xsf_token, hist_csrf_token, instrument, period, start_date, end_date, url)
-            metadata = self.create_metadata(instrument, period, df, start_date, end_date)
-            return PriceSeries(df, metadata)
-
-    def create_metadata(self, symbol, period, df, start_date, end_date):
-        first_row_date = df.index[0].to_pydatetime()
-        last_row_date = df.index[-1].to_pydatetime()
-        expiration_date = None
-        if df["Volume"].iloc[-1] == 0:
-            logging.debug(
-                f"Detected possible contract expiration: last bar has volume 0. Adjusting expected end date.")
-            expiration_date = last_row_date
-        metadata = Metadata(symbol, period.value, start_date, end_date, first_row_date, last_row_date,
-                            data_provider=self.get_name(),
-                            expiration_date=expiration_date)
-        return metadata
+            return df
 
     def request_download(self, xsrf_token: str, hist_csrf_token: str, symbol: str, period: Period, url: str,
                          start_date: datetime, end_date: datetime) -> requests.Response:
@@ -159,7 +137,7 @@ class BarchartDataProvider(DataProvider):
         if resp.status_code != 200 or 'Error retrieving data' in resp.text:
             raise DownloadError(resp.status_code, "Barchart error retrieving data")
 
-        df = BarchartDataProvider.convert_downloaded_csv_to_df(period, resp.text)
+        df = self.convert_downloaded_csv_to_df(period, resp.text)
         if len(df) < 3:
             raise LowDataError()
 
@@ -201,12 +179,12 @@ class BarchartDataProvider(DataProvider):
             return allowance, xsf_token
 
     @singledispatchmethod
-    def get_historical_quote_url(self, future: FutureContract) -> str:
+    def get_historical_quote_url(self, future: Future) -> str:
         symbol = future.get_symbol()
         return f"{BarchartDataProvider.BARCHART_URL}/futures/quotes/{symbol}/historical-download"
 
     @get_historical_quote_url.register
-    def _(self, stock: StockContract) -> str:
+    def _(self, stock: Stock) -> str:
         symbol = stock.get_symbol()
         return f"{BarchartDataProvider.BARCHART_URL}/stocks/quotes/{symbol}/historical-download"
 
@@ -294,18 +272,18 @@ class BarchartDataProvider(DataProvider):
         session.headers.update({'User-Agent': 'Mozilla/5.0'})
         return session
 
-    @staticmethod
-    def convert_downloaded_csv_to_df(period, data):
+    def convert_downloaded_csv_to_df(self, period, data):
         iostr = io.StringIO(data)
-        if period in [Period.Daily, Period.Weekly, Period.Monthly, Period.Quarterly]:
-            date_format = '%Y-%m-%d'
-        else:
-            date_format = '%m/%d/%Y %H:%M'
-        new_df = pd.read_csv(iostr, skipfooter=1, engine='python')
-        logging.debug(f"Received data {new_df.shape} from Barchart")
-        new_df = new_df.rename(columns={BarchartDataProvider.BARCHART_DATE_TIME_COLUMN: DATE_TIME_COLUMN})
-        new_df[DATE_TIME_COLUMN] = pd.to_datetime(new_df[DATE_TIME_COLUMN], format=date_format)
-        new_df.set_index(DATE_TIME_COLUMN, inplace=True)
-        new_df.index = new_df.index.tz_localize(tz=SOURCE_TIME_ZONE).tz_convert('UTC')
-        new_df = new_df.rename(columns={BarchartDataProvider.BARCHART_CLOSE_COLUMN: CLOSE_COLUMN})
-        return new_df.sort_index()
+        date_format = '%m/%d/%Y %H:%M' if period.is_intraday() else '%Y-%m-%d'
+        df = pd.read_csv(iostr, skipfooter=1, engine='python')
+        logging.debug(f"Received data {df.shape} from Barchart")
+
+        columns = {
+            BarchartDataProvider.BARCHART_DATE_TIME_COLUMN: DATE_TIME_COLUMN,
+            BarchartDataProvider.BARCHART_CLOSE_COLUMN: CLOSE_COLUMN,
+        }
+        df = df.rename(columns=columns)
+        df[DATE_TIME_COLUMN] = (pd.to_datetime(df[DATE_TIME_COLUMN], format=date_format, errors='coerce')
+                                .dt.tz_localize(SOURCE_TIME_ZONE).dt.tz_convert('UTC'))
+        df.set_index(DATE_TIME_COLUMN, inplace=True)
+        return df

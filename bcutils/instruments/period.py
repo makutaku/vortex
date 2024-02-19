@@ -21,15 +21,15 @@ class Period(enum.Enum):
 
     def get_delta_time(self):
         time_units = {
-            Period.Minute_1: 24*timedelta(minutes=1)/5,
-            Period.Minute_2: 24*timedelta(minutes=2)/5,
-            Period.Minute_5: 24*timedelta(minutes=5)/5,
-            Period.Minute_10: 24*timedelta(minutes=10)/5,
-            Period.Minute_15: 24*timedelta(minutes=15)/5,
-            Period.Minute_20: 24*timedelta(minutes=20)/5,
-            Period.Minute_30: 24*timedelta(minutes=30)/5,
-            Period.Hourly: 24*timedelta(hours=1)/5,
-            Period.Daily: 7*timedelta(days=1)/5,
+            Period.Minute_1: 24 * timedelta(minutes=1) / 5,
+            Period.Minute_2: 24 * timedelta(minutes=2) / 5,
+            Period.Minute_5: 24 * timedelta(minutes=5) / 5,
+            Period.Minute_10: 24 * timedelta(minutes=10) / 5,
+            Period.Minute_15: 24 * timedelta(minutes=15) / 5,
+            Period.Minute_20: 24 * timedelta(minutes=20) / 5,
+            Period.Minute_30: 24 * timedelta(minutes=30) / 5,
+            Period.Hourly: 24 * timedelta(hours=1) / 5,
+            Period.Daily: 7 * timedelta(days=1) / 5,
             Period.Weekly: timedelta(weeks=1),
             Period.Monthly: timedelta(days=30),  # Approximate for a month
             Period.Quarterly: timedelta(days=90)  # Approximate for a quarter

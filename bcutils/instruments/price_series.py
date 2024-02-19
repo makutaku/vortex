@@ -8,10 +8,9 @@ import pandas as pd
 from pandas import DataFrame
 
 from data_storage.metadata import Metadata
+from instruments.columns import DATE_TIME_COLUMN
 
 MIN_DAYS_TO_TRIGGER_UPDATE = timedelta(days=7)
-CLOSE_COLUMN = "Close"
-DATE_TIME_COLUMN = 'DATETIME'
 SOURCE_TIME_ZONE = 'US/Central'
 
 
@@ -98,4 +97,3 @@ def is_placeholder_for_no_data(df):
 
 def check_row_date(row_date):
     return row_date.year == 1970 and row_date.month == 1 and row_date.day == 1
-

@@ -5,9 +5,9 @@ from datetime import datetime, timedelta
 
 import pytz
 
-from logging_utils import LoggingContext
-from period import Period
-from utils import convert_date_strings_to_datetime
+from instruments.period import Period
+from utils.logging_utils import LoggingContext
+from utils.utils import convert_date_strings_to_datetime
 
 
 class InstrumentType(enum.StrEnum):
@@ -31,10 +31,13 @@ class InstrumentConfig:
         # we want to push tick_date slightly into the future to try and resolve issues around the switchover date
         self.tick_date = tick_date + timedelta(days=90) if tick_date else None
         self.start_date = start_date if start_date else datetime(year=2000, month=1, day=1, tzinfo=pytz.UTC)
-        self.periods = Period.get_periods_from_str(periods) if periods is not None else [Period.Daily]
+        self.periods = Period.get_periods_from_str(periods) if periods is not None else None
         self.cycle = cycle
         self.asset_class = InstrumentType(asset_class)
         self.days_count = days_count if days_count else 120
+
+    def __str__(self):
+        return f"{self.name}|{self.code}|{self.periods}"
 
     @staticmethod
     def load_from_json(file_path: str):
@@ -51,7 +54,9 @@ class InstrumentConfig:
                     details['name'] = instrument_name
                     details['asset_class'] = class_name
                     details = convert_date_strings_to_datetime(details)
-                    config_dict[instrument_name] = InstrumentConfig(**details)
+                    config = InstrumentConfig(**details)
+                    logging.debug(f"Added {config} to configuration dictionary")
+                    config_dict[instrument_name] = config
 
             return config_dict
 

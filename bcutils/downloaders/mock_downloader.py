@@ -3,7 +3,7 @@ import logging
 from data_providers.data_provider import HistoricalDataResult
 from download_job import DownloadJob
 from downloaders.base_downloader import BaseDownloader
-from logging_utils import LoggingContext
+from utils.logging_utils import LoggingContext
 
 
 class MockDownloader(BaseDownloader):

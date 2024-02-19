@@ -1,11 +1,12 @@
 import enum
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 
-from contracts import AbstractContract
-from period import Period
-from price_series import PriceSeries
+from pandas import DataFrame
+
+from instruments.instrument import Instrument
+from instruments.period import Period
 
 
 class HistoricalDataResult(enum.Enum):
@@ -51,22 +52,22 @@ class DataProvider(ABC):
         pass
 
     @abstractmethod
+    def get_max_range(self, period: Period) -> timedelta:
+        pass
+
+    @abstractmethod
+    def get_min_start(self, period: Period) -> datetime | None:
+        pass
+
+    @abstractmethod
     def fetch_historical_data(self,
-                              instrument: AbstractContract,
+                              instrument: Instrument,
                               period,
-                              start_date, end_date) -> PriceSeries:
+                              start_date, end_date) -> DataFrame | None:
         pass
 
     @abstractmethod
-    def get_futures_timeframes(self):
-        pass
-
-    @abstractmethod
-    def get_stock_timeframes(self):
-        pass
-
-    @abstractmethod
-    def get_forex_timeframes(self):
+    def get_supported_timeframes(self, instrument: Instrument) -> list[Period]:
         pass
 
     def login(self):

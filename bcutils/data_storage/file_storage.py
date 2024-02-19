@@ -5,13 +5,16 @@ from functools import singledispatchmethod
 
 from pandas import DataFrame
 
-from contracts import AbstractContract, FutureContract, StockContract, Forex
 from data_storage.data_storage import DataStorage
 from data_storage.metadata import Metadata, MetadataHandler
-from logging_utils import LoggingContext
-from period import Period
-from price_series import PriceSeries
-from utils import create_full_path
+from instruments.forex import Forex
+from instruments.future import Future
+from instruments.instrument import Instrument
+from instruments.period import Period
+from instruments.price_series import PriceSeries
+from instruments.stock import Stock
+from utils.logging_utils import LoggingContext
+from utils.utils import create_full_path
 
 DATE_TIME_FORMAT = '%Y-%m-%dT%H:%M:%S%z'
 
@@ -24,10 +27,10 @@ class FileStorage(DataStorage):
 
     def persist(self,
                 downloaded_data: PriceSeries,
-                future: AbstractContract,
+                instrument: Instrument,
                 period: Period):
         df = downloaded_data.df
-        file_path = self._make_file_path_for_instrument(future, period)
+        file_path = self._make_file_path_for_instrument(instrument, period)
 
         with LoggingContext(entry_msg=f"Saving data {df.shape} to '{file_path}'",
                             success_msg=f"Saved data {df.shape} to '{file_path}'",
@@ -36,7 +39,7 @@ class FileStorage(DataStorage):
             self._persist(df, file_path)
             FileStorage.persist_metadata(file_path, downloaded_data.metadata)
 
-    def load(self, instrument: AbstractContract, period: Period) -> PriceSeries:
+    def load(self, instrument: Instrument, period: Period) -> PriceSeries:
         file_path = self._make_file_path_for_instrument(instrument, period)
 
         with LoggingContext(entry_msg=f"Loading data from '{file_path}'",
@@ -62,19 +65,19 @@ class FileStorage(DataStorage):
         pass
 
     @singledispatchmethod
-    def _make_file_path_for_instrument(self, future: FutureContract, period: Period):
+    def _make_file_path_for_instrument(self, future: Future, period: Period):
         date_code = str(future.year) + '{0:02d}'.format(future.month)
-        full_path = f"{self.base_path}/futures/{period.value}/{future.instrument}_{date_code}00"
+        full_path = f"{self.base_path}/futures/{period.value}/{future.id}_{date_code}00"
         return full_path
 
     @_make_file_path_for_instrument.register
-    def _(self, stock: StockContract, period):
-        full_path = f"{self.base_path}/stocks/{period.value}/{stock.instrument}"
+    def _(self, stock: Stock, period):
+        full_path = f"{self.base_path}/stocks/{period.value}/{stock.id}"
         return full_path
 
     @_make_file_path_for_instrument.register
     def _(self, forex: Forex, period):
-        full_path = f"{self.base_path}/forex/{period.value}/{forex.instrument}"
+        full_path = f"{self.base_path}/forex/{period.value}/{forex.id}"
         return full_path
 
     @staticmethod

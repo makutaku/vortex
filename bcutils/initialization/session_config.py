@@ -5,16 +5,17 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import List
 
-from utils import get_absolute_path
+from utils.utils import get_absolute_path
 
 DEFAULT_MARKET_METADATA_FILE: str = "../config.json"
 DEFAULT_DOWNLOAD_DIRECTORY: str = "~/bc-utils/data"
 DEFAULT_DAILY_DOWNLOAD_LIMIT: int = 100
 DEFAULT_START_YEAR: int = 2020
-DEFAULT_END_YEAR: int = 2023
+DEFAULT_END_YEAR: int = 2025
 DEFAULT_DRY_RUN: bool = False
 DEFAULT_RANDOM_SLEEP_IN_SEC: int = 10
 DEFAULT_LOGGING_LEVEL: str = "INFO"
+DEFAULT_DOWNLOADER_FACTORY: str = "create_barchart_downloader"
 PATH_SEPARATOR: str = ','
 
 
@@ -30,6 +31,8 @@ class BarchartVars(Enum):
     BARCHART_LOGGING_LEVEL = "BARCHART_LOGGING_LEVEL"
     BARCHART_RANDOM_SLEEP_IN_SEC = "BARCHART_RANDOM_SLEEP_IN_SEC"
     BARCHART_BACKUP_DATA = "BARCHART_BACKUP_DATA"
+    BARCHART_FORCE_BACKUP = "BARCHART_FORCE_BACKUP"
+    BARCHART_DOWNLOADER_FACTORY = "BARCHART_DOWNLOADER_FACTORY"
 
 
 @dataclass(frozen=False)
@@ -45,6 +48,8 @@ class SessionConfig(ABC):
     log_level: str = DEFAULT_LOGGING_LEVEL
     random_sleep_in_sec: int = DEFAULT_RANDOM_SLEEP_IN_SEC
     backup_data: bool = False
+    force_backup: bool = False
+    downloader_factory: str = DEFAULT_DOWNLOADER_FACTORY
 
     def __post_init__(self):
         self.market_metadata_files = self.market_metadata_files \
@@ -105,6 +110,12 @@ class OsEnvironSessionConfig(SessionConfig):
 
         self.backup_data = (x == "True") if (x := bc_config.get(BarchartVars.BARCHART_BACKUP_DATA.value, None)) \
             else self.backup_data
+
+        self.force_backup = (x == "True") if (x := bc_config.get(BarchartVars.BARCHART_FORCE_BACKUP.value, None)) \
+            else self.force_backup
+
+        self.downloader_factory = bc_config.get(BarchartVars.BARCHART_DOWNLOADER_FACTORY.value,
+                                                DEFAULT_DOWNLOADER_FACTORY)
 
         self.log_level = logging.getLevelName(
             bc_config.get(BarchartVars.BARCHART_LOGGING_LEVEL.value, self.log_level).upper())

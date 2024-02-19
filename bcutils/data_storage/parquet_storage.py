@@ -1,10 +1,9 @@
 import pandas as pd
 from pandas import DataFrame
 
-from contracts import AbstractContract
-from data_storage.file_storage import FileStorage, DATE_TIME_FORMAT
-from period import Period
-from price_series import DATE_TIME_COLUMN
+from data_storage.file_storage import FileStorage
+from instruments.instrument import Instrument
+from instruments.period import Period
 
 
 class ParquetStorage(FileStorage):
@@ -12,7 +11,7 @@ class ParquetStorage(FileStorage):
     def __init__(self, base_path: str, dry_run: bool):
         super().__init__(base_path, dry_run)
 
-    def _make_file_path_for_instrument(self, instrument: AbstractContract, period: Period):
+    def _make_file_path_for_instrument(self, instrument: Instrument, period: Period):
         base_file_path = super()._make_file_path_for_instrument(instrument, period)
         return f"{base_file_path}.parquet"
 

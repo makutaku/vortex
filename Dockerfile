@@ -41,7 +41,8 @@ RUN chown -R nobody:users /bc-utils
 RUN python -m venv bcutils_env && \
     . bcutils_env/bin/activate && \
     pip install --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+    pip install --no-cache-dir -r requirements.txt && \
+    pip install yfinance
 
 # Switch to the nobody user
 USER nobody

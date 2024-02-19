@@ -1,9 +1,9 @@
 import logging
 
 from data_providers.data_provider import HistoricalDataResult
-from download_job import DownloadJob
 from downloaders.base_downloader import BaseDownloader
-from logging_utils import LoggingContext
+from downloaders.download_job import DownloadJob
+from utils.logging_utils import LoggingContext
 
 
 class UpdatingDownloader(BaseDownloader):
@@ -27,7 +27,7 @@ class UpdatingDownloader(BaseDownloader):
                     logging.info(f"Existing data {existing_download.df.shape} satisfies requested range. "
                                  f"Skipping download.")
 
-                    if self.backup_data_storage:
+                    if self.force_backup and self.backup_data_storage:
                         job.persist(existing_download)
 
                     return HistoricalDataResult.EXISTS
