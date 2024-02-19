@@ -3,7 +3,7 @@ import logging
 
 from data_providers.bc_data_provider import BarchartDataProvider
 from data_providers.data_provider import NotFoundError
-from data_providers.yh_data_provider import YahooDataProvider
+from data_providers.yf_data_provider import YahooDataProvider
 from data_storage.csv_storage import CsvStorage
 from data_storage.parquet_storage import ParquetStorage
 from downloaders.updating_downloader import UpdatingDownloader
