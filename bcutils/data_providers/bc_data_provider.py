@@ -276,7 +276,7 @@ class BarchartDataProvider(DataProvider):
         iostr = io.StringIO(data)
         date_format = '%m/%d/%Y %H:%M' if period.is_intraday() else '%Y-%m-%d'
         df = pd.read_csv(iostr, skipfooter=1, engine='python')
-        logging.debug(f"Received data {df.shape} from Barchart")
+        logging.debug(f"Received data {df.shape} from {self.get_name()}")
 
         columns = {
             BarchartDataProvider.BARCHART_DATE_TIME_COLUMN: DATE_TIME_COLUMN,

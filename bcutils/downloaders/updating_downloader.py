@@ -34,7 +34,7 @@ class UpdatingDownloader(BaseDownloader):
                 logging.debug(f"Existing data {existing_download.df.shape} does NOT satisfy requested range. "
                               f"Getting more data.")
             except FileNotFoundError as e:
-                logging.debug(f"Existing data was NOT found. Starting fresh download.", e)
+                logging.debug(f"Existing data was NOT found. Starting fresh download.")
                 pass
 
             new_download = job.fetch()
