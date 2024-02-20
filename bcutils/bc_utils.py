@@ -29,24 +29,25 @@ def create_barchart_downloader(cfg: SessionConfig) -> UpdatingDownloader:
         username=cfg.username,
         password=cfg.password,
         dry_run=cfg.dry_run,
-        daily_download_limit=cfg.daily_download_limit,
-        random_sleep_in_sec=cfg.random_sleep_in_sec)
-    return UpdatingDownloader(data_storage, data_provider, backup_data_storage, force_backup=cfg.force_backup)
+        daily_download_limit=cfg.daily_download_limit)
+    return UpdatingDownloader(data_storage, data_provider, backup_data_storage,
+                              force_backup=cfg.force_backup, random_sleep_in_sec=cfg.random_sleep_in_sec)
 
 
 def create_yahoo_downloader(cfg: OsEnvironSessionConfig) -> UpdatingDownloader:
     data_storage = CsvStorage(cfg.download_directory, cfg.dry_run)
     backup_data_storage = ParquetStorage(cfg.download_directory, cfg.dry_run) if cfg.backup_data else None
-    data_provider = YahooDataProvider(dry_run=cfg.dry_run, random_sleep_in_sec=cfg.random_sleep_in_sec)
-    return UpdatingDownloader(data_storage, data_provider, backup_data_storage, force_backup=cfg.force_backup)
+    data_provider = YahooDataProvider(dry_run=cfg.dry_run)
+    return UpdatingDownloader(data_storage, data_provider, backup_data_storage,
+                              force_backup=cfg.force_backup, random_sleep_in_sec=cfg.random_sleep_in_sec)
 
 
 def create_ibkr_downloader(cfg: OsEnvironSessionConfig) -> UpdatingDownloader:
     data_storage = CsvStorage(cfg.download_directory, cfg.dry_run)
     backup_data_storage = ParquetStorage(cfg.download_directory, cfg.dry_run) if cfg.backup_data else None
-    data_provider = IbkrDataProvider(ipaddress="192.168.1.13", port="8888",
-                                     dry_run=cfg.dry_run, random_sleep_in_sec=cfg.random_sleep_in_sec)
-    return UpdatingDownloader(data_storage, data_provider, backup_data_storage, force_backup=cfg.force_backup)
+    data_provider = IbkrDataProvider(ipaddress="192.168.1.13", port="8888", dry_run=cfg.dry_run)
+    return UpdatingDownloader(data_storage, data_provider, backup_data_storage,
+                              force_backup=cfg.force_backup, random_sleep_in_sec=cfg.random_sleep_in_sec)
 
 
 def main():

@@ -20,7 +20,6 @@ from instruments.period import Period
 from instruments.price_series import SOURCE_TIME_ZONE
 from instruments.stock import Stock
 from utils.logging_utils import LoggingContext
-from utils.utils import random_sleep
 
 
 class BarchartDataProvider(DataProvider):
@@ -36,8 +35,7 @@ class BarchartDataProvider(DataProvider):
     BARCHART_CLOSE_COLUMN = "Last"
 
     def __init__(self, username, password, dry_run,
-                 daily_download_limit=SELF_IMPOSED_DOWNLOAD_DAILY_LIMIT, random_sleep_in_sec=None):
-        self.sleep_random_seconds = random_sleep_in_sec if random_sleep_in_sec > 0 else None
+                 daily_download_limit=SELF_IMPOSED_DOWNLOAD_DAILY_LIMIT):
         self.dry_run = dry_run
         self.max_allowance = daily_download_limit
         session = BarchartDataProvider._create_bc_session()
@@ -131,7 +129,6 @@ class BarchartDataProvider(DataProvider):
     def _download_data(self, xsrf_token: str, hist_csrf_token: str, symbol: str, period: Period,
                        start_date: datetime, end_date: datetime, url: str) -> pd.DataFrame:
 
-        self.pretend_not_a_bot()
         resp = self.request_download(xsrf_token, hist_csrf_token, symbol, period, url, start_date, end_date)
 
         if resp.status_code != 200 or 'Error retrieving data' in resp.text:
@@ -142,13 +139,6 @@ class BarchartDataProvider(DataProvider):
             raise LowDataError()
 
         return df
-
-    def pretend_not_a_bot(self):
-        if self.sleep_random_seconds is not None:
-            # cursory attempt to not appear like a bot
-            random_sleep(self.sleep_random_seconds)
-        else:
-            logging.warning("Random sleep is disabled. Enable to avoid bot detection.")
 
     def _fetch_download_token(self, url, xsf_token):
         allowance, xsf_token = self._fetch_allowance(url, xsf_token)

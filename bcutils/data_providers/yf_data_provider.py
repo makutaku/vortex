@@ -1,4 +1,3 @@
-import logging
 import os
 import tempfile
 from datetime import timedelta, datetime, timezone
@@ -11,7 +10,6 @@ from data_providers.data_provider import DataProvider
 from instruments.columns import DATE_TIME_COLUMN
 from instruments.instrument import Instrument
 from instruments.period import Period
-from utils.utils import random_sleep
 
 
 class YahooDataProvider(DataProvider):
@@ -31,8 +29,7 @@ class YahooDataProvider(DataProvider):
         Period.Quarterly: None
     }
 
-    def __init__(self, dry_run, random_sleep_in_sec=None):
-        self.sleep_random_seconds = random_sleep_in_sec if random_sleep_in_sec > 0 else None
+    def __init__(self, dry_run):
         self.dry_run = dry_run
         YahooDataProvider.set_yf_tz_cache()
 
@@ -51,16 +48,8 @@ class YahooDataProvider(DataProvider):
         return list(self.EARLIEST_AVAILABLE_PER_PERIOD.keys())
 
     def fetch_historical_data(self, instrument: Instrument, period, start, end) -> DataFrame:
-        self.pretend_not_a_bot()
         df = YahooDataProvider.fetch_historical_data_for_symbol(instrument.get_symbol(), period, start, end)
         return df
-
-    def pretend_not_a_bot(self):
-        if self.sleep_random_seconds is not None:
-            # cursory attempt to not appear like a bot
-            random_sleep(self.sleep_random_seconds)
-        else:
-            logging.warning("Random sleep is disabled. Enable to avoid bot detection.")
 
     @staticmethod
     def fetch_historical_data_for_symbol(symbol: str, period, start_date, end_date) -> DataFrame:

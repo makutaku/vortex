@@ -4,12 +4,11 @@ from datetime import timedelta, datetime, timezone
 from functools import singledispatchmethod
 
 import pandas as pd
-from ib_insync import IB, util, Contract
+from ib_insync import IB, util
 from ib_insync import Stock as IB_Stock, Future as IB_Future, Forex as IB_Forex
 from pandas import DataFrame
 
 from data_providers.data_provider import DataProvider
-from instruments import period
 from instruments.columns import DATE_TIME_COLUMN, VOLUME_COLUMN
 from instruments.forex import Forex
 from instruments.future import Future
@@ -17,7 +16,6 @@ from instruments.instrument import Instrument
 from instruments.period import Period
 from instruments.price_series import SOURCE_TIME_ZONE
 from instruments.stock import Stock
-from utils.utils import random_sleep
 
 TIMEOUT_SECONDS_ON_HISTORICAL_DATA = 60
 
@@ -38,8 +36,7 @@ class IbkrDataProvider(DataProvider):
         Period.Monthly: None
     }
 
-    def __init__(self, ipaddress, port, dry_run, random_sleep_in_sec=None):
-        self.sleep_random_seconds = random_sleep_in_sec if random_sleep_in_sec > 0 else None
+    def __init__(self, ipaddress, port, dry_run):
         self.dry_run = dry_run
 
         self.ib = IB()
@@ -85,19 +82,10 @@ class IbkrDataProvider(DataProvider):
 
     @fetch_historical_data.register
     def _(self, forex: Forex, period, start, end) -> DataFrame:
-        self.pretend_not_a_bot()
         ib_contract = IB_Forex(pair=forex.get_symbol())
         return self.fetch_historical_data_for_symbol(ib_contract, period, start, end)
 
-    def pretend_not_a_bot(self):
-        if self.sleep_random_seconds is not None:
-            # cursory attempt to not appear like a bot
-            random_sleep(self.sleep_random_seconds)
-        else:
-            logging.warning("Random sleep is disabled. Enable to avoid bot detection.")
-
     def fetch_historical_data_for_symbol(self, contract, period, start_date, end_date) -> DataFrame:
-
         ## If live data is available a request for delayed data would be ignored by TWS.
         self.ib.reqMarketDataType(3)
         bars = self.ib.reqHistoricalData(
@@ -149,7 +137,6 @@ class IbkrDataProvider(DataProvider):
 
     @staticmethod
     def to_ibkr_finance_duration_str(period: Period) -> str:
-
         duration_lookup = dict(
             [
                 (Period.Quarterly, "50 Y"),

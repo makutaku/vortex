@@ -4,9 +4,15 @@ from data_providers.data_provider import HistoricalDataResult
 from downloaders.base_downloader import BaseDownloader
 from downloaders.download_job import DownloadJob
 from utils.logging_utils import LoggingContext
+from utils.utils import random_sleep
 
 
 class UpdatingDownloader(BaseDownloader):
+
+    def __init__(self, data_storage, data_provider, backup_data_storage=None, force_backup=False,
+                 random_sleep_in_sec=None):
+        super().__init__(data_storage, data_provider, backup_data_storage, force_backup)
+        self.random_sleep_in_sec = random_sleep_in_sec if random_sleep_in_sec > 0 else None
 
     def _process_job(self, job: DownloadJob):
         with LoggingContext(
@@ -37,6 +43,7 @@ class UpdatingDownloader(BaseDownloader):
                 logging.debug(f"Existing data was NOT found. Starting fresh download.")
                 pass
 
+            self.pretend_not_a_bot()
             new_download = job.fetch()
             if not new_download:
                 return HistoricalDataResult.NONE
@@ -46,3 +53,11 @@ class UpdatingDownloader(BaseDownloader):
             job.persist(merged_download)
             logging.info(f"Persisted data: {merged_download}")
             return HistoricalDataResult.OK
+
+    def pretend_not_a_bot(self):
+        if self.random_sleep_in_sec is not None:
+            # cursory attempt to not appear like a bot
+            random_sleep(self.random_sleep_in_sec)
+        else:
+            logging.warning("Random sleep is disabled. Enable to avoid bot detection.")
+

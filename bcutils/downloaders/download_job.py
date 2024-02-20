@@ -52,5 +52,3 @@ class DownloadJob(ABC):
             self.start_date,
             self.end_date)
         return PriceSeries(df, metadata)
-
-
