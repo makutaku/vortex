@@ -1,17 +1,22 @@
 import logging
 import time
 from datetime import timedelta, datetime, timezone
+from functools import singledispatchmethod
 
 import pandas as pd
-from ib_insync import IB, util
+from ib_insync import IB, util, Contract
+from ib_insync import Stock as IB_Stock, Future as IB_Future, Forex as IB_Forex
 from pandas import DataFrame
 
 from data_providers.data_provider import DataProvider
 from instruments import period
 from instruments.columns import DATE_TIME_COLUMN, VOLUME_COLUMN
+from instruments.forex import Forex
+from instruments.future import Future
 from instruments.instrument import Instrument
 from instruments.period import Period
 from instruments.price_series import SOURCE_TIME_ZONE
+from instruments.stock import Stock
 from utils.utils import random_sleep
 
 TIMEOUT_SECONDS_ON_HISTORICAL_DATA = 60
@@ -27,7 +32,7 @@ class IbkrDataProvider(DataProvider):
         Period.Minute_5: timedelta(days=90),
         Period.Minute_15: timedelta(days=365),
         Period.Minute_30: timedelta(days=365),
-        Period.Hourly: timedelta(days=10*365),
+        Period.Hourly: timedelta(days=10 * 365),
         Period.Daily: None,
         Period.Weekly: None,
         Period.Monthly: None
@@ -66,10 +71,23 @@ class IbkrDataProvider(DataProvider):
     def get_supported_timeframes(self, instrument: Instrument) -> list[Period]:
         return list(self.EARLIEST_AVAILABLE_PER_PERIOD.keys())
 
-    def fetch_historical_data(self, instrument: Instrument, period, start, end) -> DataFrame:
+    @singledispatchmethod
+    def fetch_historical_data(self, stock: Stock, period, start, end) -> DataFrame:
         self.pretend_not_a_bot()
-        df = self.fetch_historical_data_for_symbol(instrument.get_symbol(), period, start, end)
-        return df
+        ib_contract = IB_Stock(stock.get_symbol(), 'SMART', 'USD')
+        return self.fetch_historical_data_for_symbol(ib_contract, period, start, end)
+
+    @fetch_historical_data.register
+    def _(self, future: Future, period, start, end) -> DataFrame:
+        self.pretend_not_a_bot()
+        ib_contract = IB_Future(future.futures_code)
+        return self.fetch_historical_data_for_symbol(ib_contract, period, start, end)
+
+    @fetch_historical_data.register
+    def _(self, forex: Forex, period, start, end) -> DataFrame:
+        self.pretend_not_a_bot()
+        ib_contract = IB_Forex(pair=forex.get_symbol())
+        return self.fetch_historical_data_for_symbol(ib_contract, period, start, end)
 
     def pretend_not_a_bot(self):
         if self.sleep_random_seconds is not None:
@@ -78,19 +96,16 @@ class IbkrDataProvider(DataProvider):
         else:
             logging.warning("Random sleep is disabled. Enable to avoid bot detection.")
 
-    def fetch_historical_data_for_symbol(self, symbol: str, period, start_date, end_date) -> DataFrame:
-
-        from ib_insync import Stock
-        stock = Stock(symbol, 'SMART', 'USD')
+    def fetch_historical_data_for_symbol(self, contract, period, start_date, end_date) -> DataFrame:
 
         ## If live data is available a request for delayed data would be ignored by TWS.
         self.ib.reqMarketDataType(3)
         bars = self.ib.reqHistoricalData(
-            stock,
+            contract,
             endDateTime="",
             durationStr=IbkrDataProvider.to_ibkr_finance_duration_str(period),
             barSizeSetting=IbkrDataProvider.to_ibkr_finance_bar_size(period),
-            whatToShow='TRADES',
+            whatToShow='MIDPOINT',
             useRTH=True,
             formatDate=2,
             timeout=TIMEOUT_SECONDS_ON_HISTORICAL_DATA,
