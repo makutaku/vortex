@@ -33,6 +33,11 @@ def get_first_and_last_day_of_years(start_year, end_year, tz=timezone.utc):
 
 
 def date_range_generator(start_date, end_date, delta):
+
+    if delta is None:
+        yield start_date, end_date
+        return
+
     current_date = start_date
     while current_date < end_date:
         yield current_date, min(current_date + delta, end_date)
@@ -40,6 +45,11 @@ def date_range_generator(start_date, end_date, delta):
 
 
 def reverse_date_range_generator(start_date, end_date, delta):
+
+    if delta is None:
+        yield start_date, end_date
+        return
+
     current_date = end_date
     while current_date > start_date:
         yield max(current_date - delta, start_date), current_date

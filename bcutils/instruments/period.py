@@ -1,5 +1,7 @@
 import enum
-from datetime import timedelta
+from dataclasses import dataclass
+from datetime import timedelta, datetime, timezone
+from typing import Tuple, Any
 
 
 class Period(enum.Enum):
@@ -46,3 +48,26 @@ class Period(enum.Enum):
     @staticmethod
     def get_periods_from_str(period_values: str):
         return [Period(val) for val in period_values.split(',')] if period_values else []
+
+
+@dataclass
+class FrequencyAttributes:
+    frequency: Period
+    min_start: timedelta | datetime | None = None
+    max_window: timedelta | None = None
+    properties: dict | None = None
+
+    def get_min_start(self) -> datetime | None:
+
+        min_start = self.min_start
+        if not min_start:
+            return None
+
+        if isinstance(min_start, datetime):
+            return min_start
+
+        if not isinstance(min_start, timedelta):
+            raise ValueError(min_start)
+
+        return datetime.now(timezone.utc) - min_start
+

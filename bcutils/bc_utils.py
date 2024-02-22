@@ -28,26 +28,28 @@ def create_barchart_downloader(cfg: SessionConfig) -> UpdatingDownloader:
     data_provider = BarchartDataProvider(
         username=cfg.username,
         password=cfg.password,
-        dry_run=cfg.dry_run,
         daily_download_limit=cfg.daily_download_limit)
     return UpdatingDownloader(data_storage, data_provider, backup_data_storage,
-                              force_backup=cfg.force_backup, random_sleep_in_sec=cfg.random_sleep_in_sec)
+                              force_backup=cfg.force_backup, random_sleep_in_sec=cfg.random_sleep_in_sec,
+                              dry_run=cfg.dry_run)
 
 
 def create_yahoo_downloader(cfg: OsEnvironSessionConfig) -> UpdatingDownloader:
     data_storage = CsvStorage(cfg.download_directory, cfg.dry_run)
     backup_data_storage = ParquetStorage(cfg.download_directory, cfg.dry_run) if cfg.backup_data else None
-    data_provider = YahooDataProvider(dry_run=cfg.dry_run)
+    data_provider = YahooDataProvider()
     return UpdatingDownloader(data_storage, data_provider, backup_data_storage,
-                              force_backup=cfg.force_backup, random_sleep_in_sec=cfg.random_sleep_in_sec)
+                              force_backup=cfg.force_backup, random_sleep_in_sec=cfg.random_sleep_in_sec,
+                              dry_run=cfg.dry_run)
 
 
 def create_ibkr_downloader(cfg: OsEnvironSessionConfig) -> UpdatingDownloader:
     data_storage = CsvStorage(cfg.download_directory, cfg.dry_run)
     backup_data_storage = ParquetStorage(cfg.download_directory, cfg.dry_run) if cfg.backup_data else None
-    data_provider = IbkrDataProvider(ipaddress="192.168.1.13", port="8888", dry_run=cfg.dry_run)
+    data_provider = IbkrDataProvider(ipaddress="192.168.1.13", port="8888")
     return UpdatingDownloader(data_storage, data_provider, backup_data_storage,
-                              force_backup=cfg.force_backup, random_sleep_in_sec=cfg.random_sleep_in_sec)
+                              force_backup=cfg.force_backup, random_sleep_in_sec=cfg.random_sleep_in_sec,
+                              dry_run=cfg.dry_run)
 
 
 def main():

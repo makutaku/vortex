@@ -6,7 +6,8 @@ from typing import List, Dict
 
 import pytz
 
-from data_providers.data_provider import DataProvider, LowDataError, AllowanceLimitExceeded, NotFoundError
+from data_providers.data_provider import DataProvider, LowDataError, AllowanceLimitExceeded, NotFoundError, \
+    HistoricalDataResult
 from data_storage.data_storage import DataStorage
 from downloaders.download_job import DownloadJob
 from initialization.config_utils import InstrumentConfig, InstrumentType
@@ -122,7 +123,7 @@ class BaseDownloader(ABC):
         return jobs
 
     def filter_periods(self, instrument, periods):
-        supported_periods = self.data_provider.get_supported_timeframes(instrument)
+        supported_periods = self.data_provider.get_supported_timeframes()
         filtered_periods = []
         for period in periods:
             if period not in supported_periods:
@@ -163,7 +164,7 @@ class BaseDownloader(ABC):
     def create_jobs_for_undated_instrument(self, instrument, start, end, periods, tick_date):
 
         jobs = []
-        supported_periods = self.data_provider.get_supported_timeframes(instrument)
+        supported_periods = self.data_provider.get_supported_timeframes()
         periods = periods if periods is not None else supported_periods
 
         for period in periods:
@@ -235,7 +236,8 @@ class BaseDownloader(ABC):
 
         low_data = []
         not_found = []
-        downloads_processed = 0
+        jobs_processed = 0
+        jobs_downloaded = 0
 
         with LoggingContext(
                 entry_msg=f"--------------------------- processing {len(job_list)} jobs ---------------------------",
@@ -244,7 +246,8 @@ class BaseDownloader(ABC):
 
             for job in job_list:
                 try:
-                    self._process_job(job)
+                    result = self._process_job(job)
+                    jobs_downloaded += 1 if result == HistoricalDataResult.OK else 0
                 except LowDataError:
                     logging.warning(f"Downloaded data is too low. {job}")
                     low_data.append(job)
@@ -254,9 +257,10 @@ class BaseDownloader(ABC):
                     not_found.append(job)
                     continue
                 finally:
-                    downloads_processed += 1
+                    jobs_processed += 1
                     logging.info(f"--------------------------- "
-                                 f"{downloads_processed}/{len(job_list)} jobs processed ---------------------------")
+                                 f"{jobs_processed}/{len(job_list)} jobs processed ----  "
+                                 f"{jobs_downloaded} downloads -----------------------")
 
             if low_data:
                 formatted_jobs = [f"({j})" for j in low_data]

@@ -16,7 +16,7 @@ from instruments.columns import CLOSE_COLUMN, DATE_TIME_COLUMN
 from instruments.forex import Forex
 from instruments.future import Future
 from instruments.instrument import Instrument
-from instruments.period import Period
+from instruments.period import Period, FrequencyAttributes
 from instruments.price_series import SOURCE_TIME_ZONE
 from instruments.stock import Stock
 from utils.logging_utils import LoggingContext
@@ -34,41 +34,61 @@ class BarchartDataProvider(DataProvider):
     BARCHART_DATE_TIME_COLUMN = 'Time'
     BARCHART_CLOSE_COLUMN = "Last"
 
-    def __init__(self, username, password, dry_run,
-                 daily_download_limit=SELF_IMPOSED_DOWNLOAD_DAILY_LIMIT):
-        self.dry_run = dry_run
+    def __init__(self, username, password, daily_download_limit=SELF_IMPOSED_DOWNLOAD_DAILY_LIMIT):
+
+        if not username or not password:
+            raise Exception('Barchart credentials are required')
+
+        self.username = username
+        self.password = password
         self.max_allowance = daily_download_limit
         session = BarchartDataProvider._create_bc_session()
         self.session = session
-        if not username or not password:
-            raise Exception('Barchart credentials are required')
-        self.login(username, password)
+        self.login()
 
     def get_name(self) -> str:
         return BarchartDataProvider.PROVIDER_NAME
 
-    def get_max_range(self, period: Period) -> timedelta:
-        return period.get_delta_time() * BarchartDataProvider.MAX_BARS_PER_DOWNLOAD
+    def _get_frequency_attributes(self) -> list[FrequencyAttributes]:
 
-    def get_min_start(self, period: Period) -> datetime | None:
-        return datetime(year=2000, month=1, day=1, tzinfo=timezone.utc) if period.is_intraday() else None
+        def get_min_start_date(period):
+            return datetime(year=2000, month=1, day=1, tzinfo=timezone.utc) if period.is_intraday() else None
 
-    def get_supported_timeframes(self, instrument: Instrument) -> list[Period]:
+        def get_max_range(period: Period) -> timedelta:
+            return period.get_delta_time() * BarchartDataProvider.MAX_BARS_PER_DOWNLOAD
+
         return [
-            Period.Minute_1,
-            Period.Minute_2,
-            Period.Minute_5,
-            Period.Minute_10,
-            Period.Minute_15,
-            Period.Minute_20,
-            Period.Minute_30,
-            Period.Hourly,
-            Period.Daily,
-            Period.Weekly,
-            Period.Monthly
+            FrequencyAttributes(Period.Monthly,
+                                min_start=get_min_start_date(Period.Monthly),
+                                max_window=get_max_range(Period.Monthly),
+                                properties={'type': '1 month', 'period': Period.Monthly}),
+            FrequencyAttributes(Period.Weekly,
+                                min_start=get_min_start_date(Period.Weekly),
+                                max_window=get_max_range(Period.Weekly),
+                                properties={'type': '1 week', 'period': Period.Weekly}),
+            FrequencyAttributes(Period.Daily,
+                                min_start=get_min_start_date(Period.Monthly),
+                                max_window=get_max_range(Period.Daily),
+                                properties={'type': 'eod', 'period': Period.Daily}),
+            FrequencyAttributes(Period.Hourly,
+                                min_start=get_min_start_date(Period.Hourly),
+                                max_window=get_max_range(Period.Hourly),
+                                properties={'type': 'minutes', 'period': 60}),
+            FrequencyAttributes(Period.Minute_30,
+                                min_start=get_min_start_date(Period.Minute_30),
+                                max_window=get_max_range(Period.Minute_30),
+                                properties={'type': 'minutes', 'period': 30}),
+            FrequencyAttributes(Period.Minute_15,
+                                min_start=get_min_start_date(Period.Minute_15),
+                                max_window=get_max_range(Period.Minute_15),
+                                properties={'type': 'minutes', 'period': 15}),
+            FrequencyAttributes(Period.Minute_5,
+                                min_start=get_min_start_date(Period.Minute_5),
+                                max_window=get_max_range(Period.Minute_5),
+                                properties={'type': 'minutes', 'period': 5}),
         ]
 
-    def login(self, username, password):
+    def login(self):
         with LoggingContext(entry_msg=f"Logging in ...", success_msg=f"Logged in."):
             # GET the login page, scrape to get CSRF token
             resp = self.session.get(BarchartDataProvider.BARCHART_LOGIN_URL)
@@ -76,7 +96,7 @@ class BarchartDataProvider(DataProvider):
             tag = soup.find(type='hidden')
             csrf_token = tag.attrs['value']
             # login to site
-            payload = BarchartDataProvider.build_login_payload(csrf_token, username, password)
+            payload = BarchartDataProvider.build_login_payload(csrf_token, self.username, self.password)
             resp = self.session.post(BarchartDataProvider.BARCHART_LOGIN_URL, data=payload)
             if resp.url == BarchartDataProvider.BARCHART_LOGIN_URL:
                 raise Exception('Invalid Barchart credentials')
@@ -85,40 +105,40 @@ class BarchartDataProvider(DataProvider):
         with LoggingContext(entry_msg=f"Logging out ...", success_msg=f"Logged out."):
             self.session.get(BarchartDataProvider.BARCHART_LOGOUT_URL, timeout=10)
 
-    def fetch_historical_data(self,
-                              instrument: Instrument,
-                              period,
-                              start_date, end_date) -> DataFrame | None:
+    def _fetch_historical_data(self,
+                               instrument: Instrument,
+                               frequency_attributes: FrequencyAttributes,
+                               start_date, end_date) -> DataFrame | None:
         url = self.get_historical_quote_url(instrument)
-        return self._fetch_historical_data(instrument.get_symbol(), period, start_date, end_date, url)
+        return self._fetch_historical_data_(instrument.get_symbol(), frequency_attributes, start_date, end_date, url)
 
-    def _fetch_historical_data(self, instrument: str, period: Period, start_date: datetime,
-                               end_date: datetime, url: str) -> DataFrame | None:
-        with LoggingContext(entry_msg=f"Fetching historical {period} data from Barchart for {instrument} "
+    def _fetch_historical_data_(self, instrument: str,
+                                freq_attrs: FrequencyAttributes,
+                                start_date: datetime,
+                                end_date: datetime,
+                                url: str) -> DataFrame | None:
+        with LoggingContext(entry_msg=f"Fetching historical {freq_attrs.frequency} data from Barchart for {instrument} "
                                       f"from {start_date.strftime('%Y-%m-%d')} "
                                       f"to {end_date.strftime('%Y-%m-%d')} ...",
-                            success_msg=f"{'(dryrun) ' if self.dry_run else ''}Fetched historical data from Barchart",
+                            success_msg=f"Fetched historical data from Barchart",
                             failure_msg=f"Failed to fetch historical data from Barchart"):
-
             hist_resp = self.session.get(url)
             if hist_resp.status_code != 200:
-                raise NotFoundError(instrument, period, start_date, end_date, hist_resp.status_code)
+                raise NotFoundError(instrument, freq_attrs.frequency, start_date, end_date, hist_resp.status_code)
 
             # check allowance
             xsf_token = BarchartDataProvider.extract_xsrf_token(hist_resp)
             xsf_token = self._fetch_download_token(url, xsf_token)
 
-            if self.dry_run:
-                return None
-
             hist_csrf_token = BarchartDataProvider.scrape_csrf_token(hist_resp)
-            df = self._download_data(xsf_token, hist_csrf_token, instrument, period, start_date, end_date, url)
+            df = self._download_data(xsf_token, hist_csrf_token, instrument, freq_attrs, start_date, end_date, url)
             return df
 
-    def request_download(self, xsrf_token: str, hist_csrf_token: str, symbol: str, period: Period, url: str,
+    def request_download(self, xsrf_token: str, hist_csrf_token: str, symbol: str,
+                         freq_attrs: FrequencyAttributes, url: str,
                          start_date: datetime, end_date: datetime) -> requests.Response:
         headers = BarchartDataProvider.build_download_request_headers(xsrf_token, url)
-        payload = BarchartDataProvider.build_download_request_payload(hist_csrf_token, symbol, period,
+        payload = BarchartDataProvider.build_download_request_payload(hist_csrf_token, symbol, freq_attrs,
                                                                       start_date, end_date)
         resp = self.session.post(BarchartDataProvider.BARCHART_DOWNLOAD_URL, headers=headers, data=payload)
         logging.debug(f"POST {BarchartDataProvider.BARCHART_DOWNLOAD_URL}, "
@@ -126,15 +146,15 @@ class BarchartDataProvider(DataProvider):
                       f"data length: {len(resp.content)}")
         return resp
 
-    def _download_data(self, xsrf_token: str, hist_csrf_token: str, symbol: str, period: Period,
+    def _download_data(self, xsrf_token: str, hist_csrf_token: str, symbol: str, freq_attrs: FrequencyAttributes,
                        start_date: datetime, end_date: datetime, url: str) -> pd.DataFrame:
 
-        resp = self.request_download(xsrf_token, hist_csrf_token, symbol, period, url, start_date, end_date)
+        resp = self.request_download(xsrf_token, hist_csrf_token, symbol, freq_attrs, url, start_date, end_date)
 
         if resp.status_code != 200 or 'Error retrieving data' in resp.text:
             raise DownloadError(resp.status_code, "Barchart error retrieving data")
 
-        df = self.convert_downloaded_csv_to_df(period, resp.text)
+        df = self.convert_downloaded_csv_to_df(freq_attrs.frequency, resp.text)
         if len(df) < 3:
             raise LowDataError()
 
@@ -203,7 +223,8 @@ class BarchartDataProvider(DataProvider):
         return payload
 
     @staticmethod
-    def build_download_request_payload(hist_csrf_token, symbol, period, start_date, end_date):
+    def build_download_request_payload(hist_csrf_token, symbol, freq_attrs: FrequencyAttributes, start_date, end_date):
+
         payload = {'_token': hist_csrf_token,
                    'fileName': symbol + '_Daily_Historical Data',
                    'symbol': symbol,
@@ -215,24 +236,10 @@ class BarchartDataProvider(DataProvider):
                    'method': 'historical',
                    'limit': '10000',
                    'customView': 'true',
-                   'pageTitle': 'Historical Data'}
-        if period == Period.Daily:
-            payload['type'] = 'eod'
-            payload['period'] = Period.Daily
-        elif period == Period.Hourly:
-            payload['type'] = 'minutes'
-            payload['interval'] = 60
-        elif period == Period.Minute_30:
-            payload['type'] = 'minutes'
-            payload['interval'] = 30
-        elif period == Period.Minute_15:
-            payload['type'] = 'minutes'
-            payload['interval'] = 15
-        elif period == Period.Minute_5:
-            payload['type'] = 'minutes'
-            payload['interval'] = 5
-        else:
-            raise NotImplemented
+                   'pageTitle': 'Historical Data',
+                   'type': freq_attrs.properties.get('type'),
+                   'period': freq_attrs.properties.get('period')}
+
         return payload
 
     @staticmethod

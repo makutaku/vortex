@@ -10,8 +10,9 @@ from utils.utils import random_sleep
 class UpdatingDownloader(BaseDownloader):
 
     def __init__(self, data_storage, data_provider, backup_data_storage=None, force_backup=False,
-                 random_sleep_in_sec=None):
+                 random_sleep_in_sec=None, dry_run=False):
         super().__init__(data_storage, data_provider, backup_data_storage, force_backup)
+        self.dry_run = dry_run
         self.random_sleep_in_sec = random_sleep_in_sec if random_sleep_in_sec > 0 else None
 
     def _process_job(self, job: DownloadJob):
