@@ -6,6 +6,8 @@ from random import randint
 
 from dateutil import parser
 
+from instruments.period import Period
+
 
 def random_sleep(n=15):
     secs = randint(1, 1 + n)
@@ -85,6 +87,14 @@ def convert_date_strings_to_datetime(input_dict):
             except ValueError:
                 # Handle invalid datetime strings gracefully
                 logging.warning(f"Unable to convert '{value}' to datetime for key '{key}'")
+        elif key == "period":
+            try:
+                # Convert the value to a datetime object
+                value = Period(value) if value else None
+            except ValueError:
+                # Handle invalid datetime strings gracefully
+                logging.warning(f"Unable to convert '{value}' to Period for key '{key}'")
+
         output_dict[key] = value
 
     return output_dict

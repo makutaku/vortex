@@ -10,8 +10,9 @@ from pandas import DataFrame
 from data_storage.metadata import Metadata
 from instruments.columns import DATE_TIME_COLUMN
 
-MIN_DAYS_TO_TRIGGER_UPDATE = timedelta(days=7)
-SOURCE_TIME_ZONE = 'US/Central'
+EXPIRATION_THRESHOLD = timedelta(days=7)
+FUTURES_SOURCE_TIME_ZONE = 'US/Central'
+STOCK_SOURCE_TIME_ZONE = 'America/New_York'
 
 
 @dataclass
@@ -30,13 +31,21 @@ class PriceSeries(ABC):
             logging.debug(
                 f"Expected range: {start_date.strftime('%Y-%m-%d')} - {end_date.strftime('%Y-%m-%d')}")
 
+            if self.metadata.end_date - self.metadata.last_row_date > EXPIRATION_THRESHOLD:
+                logging.debug(f"Coverage is acceptable since its last bar is lagging "
+                              f"more than the expiration threshold of {EXPIRATION_THRESHOLD}")
+                return True
+
             # If positive then existing data is missing enough bars to cover input range.
             # We pretend existing data is larger in order avoid too frequent updates.
-            start_date_diff = (self.metadata.start_date - MIN_DAYS_TO_TRIGGER_UPDATE) - start_date
-            end_date_diff = end_date - (self.metadata.end_date + MIN_DAYS_TO_TRIGGER_UPDATE)
+            trigger_threshold = self.metadata.period.get_bar_time_delta()
+            start_date_diff = (self.metadata.start_date - trigger_threshold) - start_date
+            end_date_diff = end_date - (self.metadata.end_date + trigger_threshold)
             if end_date_diff.days < 0 and start_date_diff.days < 0:
-                logging.debug(f"Coverage is acceptable.")
+                logging.debug(f"Coverage is acceptable since its range "
+                              f"is within {trigger_threshold} tolerance.")
                 return True
+
         else:
             logging.debug(f"Low data.")
 

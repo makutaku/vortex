@@ -13,15 +13,13 @@ from instruments.columns import DATE_TIME_COLUMN, VOLUME_COLUMN
 from instruments.forex import Forex
 from instruments.future import Future
 from instruments.period import Period, FrequencyAttributes
-from instruments.price_series import SOURCE_TIME_ZONE
+from instruments.price_series import FUTURES_SOURCE_TIME_ZONE
 from instruments.stock import Stock
 
 TIMEOUT_SECONDS_ON_HISTORICAL_DATA = 60
 
 
 class IbkrDataProvider(DataProvider):
-    MAX_BARS_PER_DOWNLOAD = 10000
-    YAHOO_DATE_TIME_COLUMN = "Date"
     PROVIDER_NAME = "InteractiveBrokers"
 
     def __init__(self, ipaddress, port):
@@ -129,7 +127,7 @@ class IbkrDataProvider(DataProvider):
 
         if not freq_attrs.frequency.is_intraday():
             df[DATE_TIME_COLUMN] = (pd.to_datetime(df[DATE_TIME_COLUMN], format='%Y-%m-%d', errors='coerce')
-                                    .dt.tz_localize(SOURCE_TIME_ZONE).dt.tz_convert('UTC'))
+                                    .dt.tz_localize(FUTURES_SOURCE_TIME_ZONE).dt.tz_convert('UTC'))
 
         df.set_index(DATE_TIME_COLUMN, inplace=True)
 

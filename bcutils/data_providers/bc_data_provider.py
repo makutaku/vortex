@@ -15,16 +15,15 @@ from data_providers.data_provider import DataProvider, NotFoundError, AllowanceL
 from instruments.columns import CLOSE_COLUMN, DATE_TIME_COLUMN
 from instruments.forex import Forex
 from instruments.future import Future
-from instruments.instrument import Instrument
 from instruments.period import Period, FrequencyAttributes
-from instruments.price_series import SOURCE_TIME_ZONE
+from instruments.price_series import FUTURES_SOURCE_TIME_ZONE, STOCK_SOURCE_TIME_ZONE
 from instruments.stock import Stock
 from utils.logging_utils import LoggingContext
 
 
 class BarchartDataProvider(DataProvider):
     PROVIDER_NAME = "Barchart"
-    SELF_IMPOSED_DOWNLOAD_DAILY_LIMIT = 150
+    DEFAULT_SELF_IMPOSED_DOWNLOAD_DAILY_LIMIT = 150
     MAX_BARS_PER_DOWNLOAD: int = 20000
     BARCHART_URL = 'https://www.barchart.com'
     BARCHART_LOGIN_URL = BARCHART_URL + '/login'
@@ -34,7 +33,7 @@ class BarchartDataProvider(DataProvider):
     BARCHART_DATE_TIME_COLUMN = 'Time'
     BARCHART_CLOSE_COLUMN = "Last"
 
-    def __init__(self, username, password, daily_download_limit=SELF_IMPOSED_DOWNLOAD_DAILY_LIMIT):
+    def __init__(self, username, password, daily_download_limit=DEFAULT_SELF_IMPOSED_DOWNLOAD_DAILY_LIMIT):
 
         if not username or not password:
             raise Exception('Barchart credentials are required')
@@ -61,31 +60,35 @@ class BarchartDataProvider(DataProvider):
             FrequencyAttributes(Period.Monthly,
                                 min_start=get_min_start_date(Period.Monthly),
                                 max_window=get_max_range(Period.Monthly),
-                                properties={'type': '1 month', 'period': Period.Monthly}),
+                                properties={'type': 'eod', 'period': 'monthly'}),
             FrequencyAttributes(Period.Weekly,
                                 min_start=get_min_start_date(Period.Weekly),
                                 max_window=get_max_range(Period.Weekly),
-                                properties={'type': '1 week', 'period': Period.Weekly}),
+                                properties={'type': 'eod', 'period': 'weekly'}),
             FrequencyAttributes(Period.Daily,
-                                min_start=get_min_start_date(Period.Monthly),
+                                min_start=get_min_start_date(Period.Daily),
                                 max_window=get_max_range(Period.Daily),
-                                properties={'type': 'eod', 'period': Period.Daily}),
+                                properties={'type': 'eod', 'period': 'daily'}),
             FrequencyAttributes(Period.Hourly,
                                 min_start=get_min_start_date(Period.Hourly),
                                 max_window=get_max_range(Period.Hourly),
-                                properties={'type': 'minutes', 'period': 60}),
+                                properties={'type': 'minutes', 'interval': 60}),
             FrequencyAttributes(Period.Minute_30,
                                 min_start=get_min_start_date(Period.Minute_30),
                                 max_window=get_max_range(Period.Minute_30),
-                                properties={'type': 'minutes', 'period': 30}),
+                                properties={'type': 'minutes', 'interval': 30}),
             FrequencyAttributes(Period.Minute_15,
                                 min_start=get_min_start_date(Period.Minute_15),
                                 max_window=get_max_range(Period.Minute_15),
-                                properties={'type': 'minutes', 'period': 15}),
+                                properties={'type': 'minutes', 'interval': 15}),
             FrequencyAttributes(Period.Minute_5,
                                 min_start=get_min_start_date(Period.Minute_5),
                                 max_window=get_max_range(Period.Minute_5),
-                                properties={'type': 'minutes', 'period': 5}),
+                                properties={'type': 'minutes', 'interval': 5}),
+            FrequencyAttributes(Period.Minute_1,
+                                min_start=get_min_start_date(Period.Minute_1),
+                                max_window=get_max_range(Period.Minute_1),
+                                properties={'type': 'minutes', 'interval': 1}),
         ]
 
     def login(self):
@@ -105,18 +108,39 @@ class BarchartDataProvider(DataProvider):
         with LoggingContext(entry_msg=f"Logging out ...", success_msg=f"Logged out."):
             self.session.get(BarchartDataProvider.BARCHART_LOGOUT_URL, timeout=10)
 
+    @singledispatchmethod
     def _fetch_historical_data(self,
-                               instrument: Instrument,
+                               instrument: Future,
                                frequency_attributes: FrequencyAttributes,
                                start_date, end_date) -> DataFrame | None:
         url = self.get_historical_quote_url(instrument)
-        return self._fetch_historical_data_(instrument.get_symbol(), frequency_attributes, start_date, end_date, url)
+        return self._fetch_historical_data_(instrument.get_symbol(), frequency_attributes,
+                                            start_date, end_date, url, FUTURES_SOURCE_TIME_ZONE)
+
+    @_fetch_historical_data.register
+    def _(self,
+          instrument: Stock,
+          frequency_attributes: FrequencyAttributes,
+          start_date, end_date) -> DataFrame | None:
+        url = self.get_historical_quote_url(instrument)
+        return self._fetch_historical_data_(instrument.get_symbol(), frequency_attributes,
+                                            start_date, end_date, url, STOCK_SOURCE_TIME_ZONE)
+
+    @_fetch_historical_data.register
+    def _(self,
+          instrument: Forex,
+          frequency_attributes: FrequencyAttributes,
+          start_date, end_date) -> DataFrame | None:
+        url = self.get_historical_quote_url(instrument)
+        return self._fetch_historical_data_(instrument.get_symbol(), frequency_attributes,
+                                            start_date, end_date, url, FUTURES_SOURCE_TIME_ZONE)
 
     def _fetch_historical_data_(self, instrument: str,
                                 freq_attrs: FrequencyAttributes,
                                 start_date: datetime,
                                 end_date: datetime,
-                                url: str) -> DataFrame | None:
+                                url: str,
+                                tz: str) -> DataFrame | None:
         with LoggingContext(entry_msg=f"Fetching historical {freq_attrs.frequency} data from Barchart for {instrument} "
                                       f"from {start_date.strftime('%Y-%m-%d')} "
                                       f"to {end_date.strftime('%Y-%m-%d')} ...",
@@ -131,7 +155,7 @@ class BarchartDataProvider(DataProvider):
             xsf_token = self._fetch_download_token(url, xsf_token)
 
             hist_csrf_token = BarchartDataProvider.scrape_csrf_token(hist_resp)
-            df = self._download_data(xsf_token, hist_csrf_token, instrument, freq_attrs, start_date, end_date, url)
+            df = self._download_data(xsf_token, hist_csrf_token, instrument, freq_attrs, start_date, end_date, url, tz)
             return df
 
     def request_download(self, xsrf_token: str, hist_csrf_token: str, symbol: str,
@@ -147,14 +171,14 @@ class BarchartDataProvider(DataProvider):
         return resp
 
     def _download_data(self, xsrf_token: str, hist_csrf_token: str, symbol: str, freq_attrs: FrequencyAttributes,
-                       start_date: datetime, end_date: datetime, url: str) -> pd.DataFrame:
+                       start_date: datetime, end_date: datetime, url: str, tz: str) -> pd.DataFrame:
 
         resp = self.request_download(xsrf_token, hist_csrf_token, symbol, freq_attrs, url, start_date, end_date)
 
         if resp.status_code != 200 or 'Error retrieving data' in resp.text:
             raise DownloadError(resp.status_code, "Barchart error retrieving data")
 
-        df = self.convert_downloaded_csv_to_df(freq_attrs.frequency, resp.text)
+        df = self.convert_downloaded_csv_to_df(freq_attrs.frequency, resp.text, tz)
         if len(df) < 3:
             raise LowDataError()
 
@@ -225,20 +249,26 @@ class BarchartDataProvider(DataProvider):
     @staticmethod
     def build_download_request_payload(hist_csrf_token, symbol, freq_attrs: FrequencyAttributes, start_date, end_date):
 
-        payload = {'_token': hist_csrf_token,
-                   'fileName': symbol + '_Daily_Historical Data',
-                   'symbol': symbol,
-                   'fields': 'tradeTime.format(Y-m-d),openPrice,highPrice,lowPrice,lastPrice,volume',
-                   'startDate': start_date.strftime("%Y-%m-%d"),
-                   'endDate': end_date.strftime("%Y-%m-%d"),
-                   'orderBy': 'tradeTime',
-                   'orderDir': 'asc',
-                   'method': 'historical',
-                   'limit': '10000',
-                   'customView': 'true',
-                   'pageTitle': 'Historical Data',
-                   'type': freq_attrs.properties.get('type'),
-                   'period': freq_attrs.properties.get('period')}
+        freq_type = freq_attrs.properties.get('type')
+        key = 'interval' if freq_attrs.frequency.is_intraday() else 'period'
+        value = freq_attrs.properties.get(key)
+
+        payload = {
+            '_token': hist_csrf_token,
+            'fileName': symbol + '_Daily_Historical Data',
+            'symbol': symbol,
+            'fields': 'tradeTime.format(Y-m-d),openPrice,highPrice,lowPrice,lastPrice,volume',
+            'startDate': start_date.strftime("%Y-%m-%d"),
+            'endDate': end_date.strftime("%Y-%m-%d"),
+            'orderBy': 'tradeTime',
+            'orderDir': 'asc',
+            'method': 'historical',
+            'limit': ('%d' % BarchartDataProvider.MAX_BARS_PER_DOWNLOAD),
+            key: value,
+            'customView': 'true',
+            'pageTitle': 'Historical Data',
+            'type': freq_type
+        }
 
         return payload
 
@@ -269,7 +299,7 @@ class BarchartDataProvider(DataProvider):
         session.headers.update({'User-Agent': 'Mozilla/5.0'})
         return session
 
-    def convert_downloaded_csv_to_df(self, period, data):
+    def convert_downloaded_csv_to_df(self, period, data, tz):
         iostr = io.StringIO(data)
         date_format = '%m/%d/%Y %H:%M' if period.is_intraday() else '%Y-%m-%d'
         df = pd.read_csv(iostr, skipfooter=1, engine='python')
@@ -281,6 +311,6 @@ class BarchartDataProvider(DataProvider):
         }
         df = df.rename(columns=columns)
         df[DATE_TIME_COLUMN] = (pd.to_datetime(df[DATE_TIME_COLUMN], format=date_format, errors='coerce')
-                                .dt.tz_localize(SOURCE_TIME_ZONE).dt.tz_convert('UTC'))
+                                .dt.tz_localize(tz).dt.tz_convert('UTC'))
         df.set_index(DATE_TIME_COLUMN, inplace=True)
         return df

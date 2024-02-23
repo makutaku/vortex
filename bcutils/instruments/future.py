@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 import pytz
 
 from instruments.instrument import Instrument
+from instruments.price_series import EXPIRATION_THRESHOLD
 
 
 @dataclass
@@ -41,6 +42,9 @@ class Future(Instrument):
         # for KISS' sake, lets assume expiry is last date of contract month
         last_day_of_the_month = calendar.monthrange(self.year, self.month)[1]
         end = datetime(self.year, self.month, last_day_of_the_month)
+
+        # let's add 7 days to end, so that we can detect later that there's no need to update the data:
+        end = end + EXPIRATION_THRESHOLD
 
         # assumption no.2: lets set start date at <duration> days before end date
         duration = timedelta(days=self.days_count)

@@ -3,15 +3,17 @@ import logging
 import os
 from dataclasses import dataclass, asdict
 from datetime import datetime
+from enum import Enum
 
 from instruments.columns import VOLUME_COLUMN
+from instruments.period import Period
 from utils.utils import convert_date_strings_to_datetime
 
 
 @dataclass
 class Metadata:
     symbol: str
-    period: str
+    period: Period
     start_date: datetime
     end_date: datetime
     first_row_date: datetime
@@ -21,11 +23,11 @@ class Metadata:
     created_date: datetime = datetime.utcnow()
 
     def __str__(self):
-        return (f"{self.symbol}, {self.period}, "
+        return (f"{self.symbol}, {self.period.value}, "
                 f"{self.start_date.strftime('%Y-%m-%d')}, {self.end_date.strftime('%Y-%m-%d')}")
 
     @staticmethod
-    def create_metadata(df, provider_name, symbol, period, start, end):
+    def create_metadata(df, provider_name, symbol, period: Period, start, end):
         df = df.sort_index()
         first_row_date = df.index[0].to_pydatetime()
         last_row_date = df.index[-1].to_pydatetime()
@@ -34,7 +36,7 @@ class Metadata:
             logging.debug(
                 f"Detected possible contract expiration: last bar has volume 0. Adjusting expected end date.")
             expiration_date = last_row_date
-        metadata = Metadata(symbol, period.value, start, end, first_row_date, last_row_date,
+        metadata = Metadata(symbol, period, start, end, first_row_date, last_row_date,
                             data_provider=provider_name,
                             expiration_date=expiration_date)
         return metadata
@@ -45,6 +47,8 @@ def default_serializer(obj):
         return obj.isoformat()
     elif isinstance(obj, (str, int, float)):
         return obj  # Serialize strings, ints, and floats as-is
+    elif isinstance(obj, Enum):
+        return obj.value
     raise TypeError("Type not serializable")
 
 

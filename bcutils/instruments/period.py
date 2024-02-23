@@ -1,7 +1,6 @@
 import enum
 from dataclasses import dataclass
 from datetime import timedelta, datetime, timezone
-from typing import Tuple, Any
 
 
 class Period(enum.Enum):
@@ -20,6 +19,23 @@ class Period(enum.Enum):
 
     def __str__(self):
         return self.value
+
+    def get_bar_time_delta(self):
+        time_units = {
+            Period.Minute_1: timedelta(minutes=1),
+            Period.Minute_2: timedelta(minutes=2),
+            Period.Minute_5: timedelta(minutes=5),
+            Period.Minute_10: timedelta(minutes=10),
+            Period.Minute_15: timedelta(minutes=15),
+            Period.Minute_20: timedelta(minutes=20),
+            Period.Minute_30: timedelta(minutes=30),
+            Period.Hourly: timedelta(hours=1),
+            Period.Daily: timedelta(days=1),
+            Period.Weekly: timedelta(weeks=1),
+            Period.Monthly: timedelta(days=30),  # Approximate for a month
+            Period.Quarterly: timedelta(days=90)  # Approximate for a quarter
+        }
+        return time_units[self]
 
     def get_delta_time(self):
         time_units = {
