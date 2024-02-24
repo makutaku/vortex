@@ -7,6 +7,7 @@ from pandas import DataFrame
 
 from instruments.instrument import Instrument
 from instruments.period import Period, FrequencyAttributes
+from retrying import retry
 
 
 class HistoricalDataResult(enum.Enum):
@@ -47,6 +48,9 @@ class AllowanceLimitExceeded(Exception):
 
 class DataProvider(ABC):
 
+    def __str__(self):
+        return self.get_name()
+
     @abstractmethod
     def get_name(self) -> str:
         pass
@@ -69,6 +73,7 @@ class DataProvider(ABC):
         freq_dict = self._get_frequency_attr_dict()
         return freq_dict.get(period).get_min_start()
 
+    @retry(wait_exponential_multiplier=3000, wait_exponential_max=60000)
     def fetch_historical_data(self,
                               instrument: Instrument,
                               period,
