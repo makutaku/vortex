@@ -36,6 +36,9 @@ def get_first_and_last_day_of_years(start_year, end_year, tz=timezone.utc):
 
 def date_range_generator(start_date, end_date, delta):
 
+    if start_date > end_date:
+        raise ValueError(f"start_date must come before end_date")
+
     if delta is None:
         yield start_date, end_date
         return

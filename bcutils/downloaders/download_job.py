@@ -20,6 +20,10 @@ class DownloadJob(ABC):
     end_date: datetime
     backup_data_storage: DataStorage = None
 
+    def __post_init__(self):
+        if self.start_date > self.end_date:
+            raise ValueError(f"start_date must come before end_date")
+
     def __str__(self):
         return (f"{self.instrument}|{self.period}|"
                 f"{self.start_date.strftime('%Y-%m-%d')}|{self.end_date.strftime('%Y-%m-%d')}")
