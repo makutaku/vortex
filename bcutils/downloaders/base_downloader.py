@@ -170,7 +170,7 @@ class BaseDownloader(ABC):
         for period in periods:
 
             if period not in supported_periods:
-                logging.warning(f"{self.data_provider} does not support {period} for {instrument}")
+                logging.warning(f"{self.data_provider} does not support {period} for {instrument} @{period}")
                 continue
 
             # intraday data only goes back to a certain date, depending on the exchange
@@ -181,6 +181,12 @@ class BaseDownloader(ABC):
             start = max(start, tick_date) if period.is_intraday() and tick_date else start
 
             provider_min_start = self.data_provider.get_min_start(period)
+            if provider_min_start and provider_min_start > end:
+                logging.warning(f"{self.data_provider} does not support start before {provider_min_start} "
+                                f"for {instrument} @{period}")
+                # nothing to do.
+                continue
+
             start = max(start, provider_min_start) if provider_min_start else start
 
             timedelta_value: timedelta = self.data_provider.get_max_range(period)
@@ -190,9 +196,6 @@ class BaseDownloader(ABC):
                                   instrument, period, step_start_date, step_end_date,
                                   backup_data_storage=self.backup_data_storage)
                 jobs.append(job)
-            else:
-                logging.debug(f"Skipping {period} for {instrument} because no range was generated with start={start} , "
-                              f"end={end} and timedelta={timedelta_value}")
 
         return jobs
 

@@ -10,7 +10,7 @@ from utils.utils import get_absolute_path
 DEFAULT_MARKET_METADATA_FILE: str = "../config.json"
 DEFAULT_DOWNLOAD_DIRECTORY: str = "~/bc-utils/data"
 DEFAULT_DAILY_DOWNLOAD_LIMIT: int = 100
-DEFAULT_START_YEAR: int = 2020
+DEFAULT_START_YEAR: int = 2000
 DEFAULT_END_YEAR: int = 2025
 DEFAULT_DRY_RUN: bool = False
 DEFAULT_RANDOM_SLEEP_IN_SEC: int = 10
