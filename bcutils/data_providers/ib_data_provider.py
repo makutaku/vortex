@@ -16,7 +16,7 @@ from instruments.period import Period, FrequencyAttributes
 from instruments.price_series import FUTURES_SOURCE_TIME_ZONE
 from instruments.stock import Stock
 
-TIMEOUT_SECONDS_ON_HISTORICAL_DATA = 60
+TIMEOUT_SECONDS_ON_HISTORICAL_DATA = 120
 
 
 class IbkrDataProvider(DataProvider):
@@ -24,22 +24,26 @@ class IbkrDataProvider(DataProvider):
 
     def __init__(self, ipaddress, port):
         self.ib = IB()
-
-        client_id = 999
-        self.ib.connect(ipaddress, port, clientId=client_id, readonly=True)
-
-        # Sometimes takes a few seconds to resolve... only have to do this once per process so no biggie
-        time.sleep(5)
-
-        # logging.debug("Terminating %s" % str(self._ib_connection_config))
-        # try:
-        #     # Try and disconnect IB client
-        #     self.ib.disconnect()
-        # except BaseException:
-        #     logging.warning("Trying to disconnect IB client failed... ensure process is killed")
+        self.ipaddress = ipaddress
+        self.port = port
+        self.login()
 
     def get_name(self) -> str:
         return IbkrDataProvider.PROVIDER_NAME
+
+    def login(self):
+        client_id = 998
+        self.ib.connect(self.ipaddress, self.port, clientId=client_id, readonly=True, timeout=20)
+        # Sometimes takes a few seconds to resolve... only have to do this once per process so no biggie
+        time.sleep(10)
+
+    def logout(self):
+        try:
+            # Try and disconnect IB client
+            self.ib.disconnect()
+        except BaseException:
+            logging.warning("Trying to disconnect IB client failed... ensure process is killed")
+        pass
 
     def _get_frequency_attributes(self) -> list[FrequencyAttributes]:
         return [
