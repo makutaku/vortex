@@ -73,7 +73,7 @@ class DataProvider(ABC):
         freq_dict = self._get_frequency_attr_dict()
         return freq_dict.get(period).get_min_start()
 
-    @retry(wait_exponential_multiplier=3000, wait_exponential_max=60000)
+    @retry(wait_exponential_multiplier=2000, stop_max_attempt_number=7)
     def fetch_historical_data(self,
                               instrument: Instrument,
                               period,
