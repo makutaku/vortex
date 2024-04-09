@@ -52,7 +52,6 @@ class UpdatingDownloader(BaseDownloader):
                 if job.end_date < existing_download.metadata.start_date:
                     job.end_date = existing_download.metadata.start_date
 
-
             except FileNotFoundError as e:
                 logging.debug(f"Existing data was NOT found. Starting fresh download.")
                 pass

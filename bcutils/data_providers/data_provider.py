@@ -46,6 +46,10 @@ class AllowanceLimitExceeded(Exception):
         return f"Allowance limit exceeded. Allowance is {self.current_allowance}. Limit is {self.max_allowance}."
 
 
+def should_retry(exception):
+    return not isinstance(exception, (NotFoundError, AllowanceLimitExceeded, LowDataError))
+
+
 class DataProvider(ABC):
 
     def __str__(self):
@@ -73,7 +77,9 @@ class DataProvider(ABC):
         freq_dict = self._get_frequency_attr_dict()
         return freq_dict.get(period).get_min_start()
 
-    @retry(wait_exponential_multiplier=2000, stop_max_attempt_number=7)
+    @retry(wait_exponential_multiplier=2000,
+           stop_max_attempt_number=5,
+           retry_on_exception=should_retry)
     def fetch_historical_data(self,
                               instrument: Instrument,
                               period,

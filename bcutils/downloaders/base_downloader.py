@@ -85,7 +85,7 @@ class BaseDownloader(ABC):
 
         start = max(start, config.start_date) if config.start_date else start
 
-        # if that end_date is in the future, then we may as well make it today...
+        # if end_date is in the future, then we may as well make it today...
         end = min(end, pytz.UTC.localize(datetime.utcnow()))
 
         if instrument_type == InstrumentType.Future:
