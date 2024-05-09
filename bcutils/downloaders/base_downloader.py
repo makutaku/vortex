@@ -13,6 +13,7 @@ from downloaders.download_job import DownloadJob
 from initialization.config_utils import InstrumentConfig, InstrumentType
 from instruments.forex import Forex
 from instruments.future import Future
+from instruments.price_series import LOW_DATA_THRESHOLD
 from instruments.stock import Stock
 from utils.logging_utils import LoggingContext
 from utils.utils import date_range_generator, total_elements_in_dict_of_lists, \
@@ -83,15 +84,17 @@ class BaseDownloader(ABC):
         periods = config.periods
         tick_date = config.tick_date
 
+        # if start is before instrument became available, use the latter
         start = max(start, config.start_date) if config.start_date else start
 
-        # if end_date is in the future, then we may as well make it today...
-        end = min(end, pytz.UTC.localize(datetime.utcnow()))
+        # if end is in the future, then we may as well make it today
+        now_at_exchange = datetime.now(config.tz)
+        end = min(end, now_at_exchange)
 
         if instrument_type == InstrumentType.Future:
             days_count = config.days_count
             jobs = self._create_future_jobs(futures_code, instr, start, end, periods, tick_date,
-                                            roll_cycle, days_count)
+                                            roll_cycle, days_count, config.tz)
         elif instrument_type == InstrumentType.Stock:
             stock = Stock(instr, futures_code)
             jobs = self.create_jobs_for_undated_instrument(stock, start, end, periods, tick_date)
@@ -105,7 +108,7 @@ class BaseDownloader(ABC):
         return jobs
 
     def _create_future_jobs(self, futures_code, instr, start: datetime, end: datetime, periods,
-                            tick_date, roll_cycle, days_count) -> List[DownloadJob]:
+                            tick_date, roll_cycle, days_count, tz) -> List[DownloadJob]:
         if not roll_cycle:
             raise ValueError(f"{instr} does not have a roll_cycle. "
                              f"Futures are dated instruments and require roll cycle.")
@@ -116,7 +119,7 @@ class BaseDownloader(ABC):
             for month_code in list(roll_cycle):
                 future = Future(instr, futures_code, year, month_code, tick_date, days_count)
                 periods = self.filter_periods(future, periods)
-                instr_jobs = self.create_jobs_for_dated_instrument(future, periods, start, end)
+                instr_jobs = self.create_jobs_for_dated_instrument(future, periods, start, end, tz)
                 for instr_job in instr_jobs:
                     jobs.append(instr_job)
 
@@ -133,12 +136,12 @@ class BaseDownloader(ABC):
                 filtered_periods.append(period)
         return filtered_periods
 
-    def create_jobs_for_dated_instrument(self, future: Future, periods, start, end):
+    def create_jobs_for_dated_instrument(self, future: Future, periods, start, end, tz):
         _jobs = []
-        contract_start_date, contract_end_date = future.get_date_range()
+        contract_start_date, contract_end_date = future.get_date_range(tz)
         start = max(start, contract_start_date)
         end = min(end, contract_end_date)
-        if start > end:
+        if (end - start) < LOW_DATA_THRESHOLD:
             return _jobs
 
         tick_date = future.tick_date
@@ -157,6 +160,7 @@ class BaseDownloader(ABC):
                               future, period,
                               start, end,
                               self.backup_data_storage)
+            logging.debug(f"Created: {job}")
             _jobs.append(job)
 
         return _jobs

@@ -37,21 +37,22 @@ class Future(Instrument):
     def get_symbol(self):
         return self.symbol
 
-    def get_date_range(self):
+    def get_date_range(self, tz):
         # for expired contracts the end date would be the expiry date;
         # for KISS' sake, lets assume expiry is last date of contract month
         last_day_of_the_month = calendar.monthrange(self.year, self.month)[1]
         end = datetime(self.year, self.month, last_day_of_the_month)
 
-        # let's add 7 days to end, so that we can detect later that there's no need to update the data:
-        end = end + EXPIRATION_THRESHOLD
+        # let's add some days to end,
+        # so that we can detect later that there's no need to update the data:
+        end = end #+ EXPIRATION_THRESHOLD
 
         # assumption no.2: lets set start date at <duration> days before end date
         duration = timedelta(days=self.days_count)
         start = end - duration
 
-        start = pytz.UTC.localize(start)
-        end = pytz.UTC.localize(end)
+        start = tz.localize(start)
+        end = tz.localize(end)
 
         return start, end
 

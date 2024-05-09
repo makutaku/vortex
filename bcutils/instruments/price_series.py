@@ -11,6 +11,7 @@ from data_storage.metadata import Metadata
 from instruments.columns import DATE_TIME_COLUMN
 
 EXPIRATION_THRESHOLD = timedelta(days=7)
+LOW_DATA_THRESHOLD = timedelta(days=3)
 FUTURES_SOURCE_TIME_ZONE = 'US/Central'
 STOCK_SOURCE_TIME_ZONE = 'America/New_York'
 

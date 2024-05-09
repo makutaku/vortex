@@ -179,7 +179,7 @@ class BarchartDataProvider(DataProvider):
             raise DownloadError(resp.status_code, "Barchart error retrieving data")
 
         df = self.convert_downloaded_csv_to_df(freq_attrs.frequency, resp.text, tz)
-        if len(df) < 3:
+        if len(df) <= 1:
             raise LowDataError()
 
         return df

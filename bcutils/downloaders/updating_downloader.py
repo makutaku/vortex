@@ -4,6 +4,7 @@ from datetime import timedelta
 from data_providers.data_provider import HistoricalDataResult
 from downloaders.base_downloader import BaseDownloader
 from downloaders.download_job import DownloadJob
+from instruments.price_series import LOW_DATA_THRESHOLD
 from utils.logging_utils import LoggingContext
 from utils.utils import random_sleep
 
@@ -43,8 +44,9 @@ class UpdatingDownloader(BaseDownloader):
                               f"Getting more data.")
 
                 # In order to avoid fetching data that we already have, and also to avoid creating holes,
-                # we use last row date as a magnet for new job start date, subtracting 1 days to avoid missing any data:
-                new_start = existing_download.metadata.last_row_date - timedelta(days=1)
+                # we use last row date as a magnet for new job start date, subtracting some days to avoid
+                # missing any data:
+                new_start = existing_download.metadata.last_row_date - LOW_DATA_THRESHOLD
                 if job.start_date >= existing_download.metadata.start_date:
                     job.start_date = new_start
 
