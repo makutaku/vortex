@@ -20,6 +20,8 @@ PATH_SEPARATOR: str = ','
 
 
 class BarchartVars(Enum):
+    PROVIDER_HOST = "PROVIDER_HOST"
+    PROVIDER_PORT = "PROVIDER_PORT"
     BARCHART_USERNAME = "BARCHART_USERNAME"
     BARCHART_PASSWORD = "BARCHART_PASSWORD"
     BARCHART_MARKET_FILES = "BARCHART_MARKET_FILES"
@@ -85,6 +87,8 @@ class OsEnvironSessionConfig(SessionConfig):
 
         self.username = bc_config.get(BarchartVars.BARCHART_USERNAME.value, None)
         self.password = bc_config.get(BarchartVars.BARCHART_PASSWORD.value, None)
+        self.provider_host = bc_config.get(BarchartVars.PROVIDER_HOST.value, None)
+        self.provider_port = bc_config.get(BarchartVars.PROVIDER_PORT.value, "8888")
 
         market_metadata_files = \
             bc_config.get(BarchartVars.BARCHART_MARKET_FILES.value, DEFAULT_MARKET_METADATA_FILE).split(PATH_SEPARATOR)

@@ -46,7 +46,7 @@ def create_yahoo_downloader(cfg: OsEnvironSessionConfig) -> UpdatingDownloader:
 def create_ibkr_downloader(cfg: OsEnvironSessionConfig) -> UpdatingDownloader:
     data_storage = CsvStorage(cfg.download_directory, cfg.dry_run)
     backup_data_storage = ParquetStorage(cfg.download_directory, cfg.dry_run) if cfg.backup_data else None
-    data_provider = IbkrDataProvider(ipaddress="192.168.1.13", port="8888")
+    data_provider = IbkrDataProvider(ipaddress=cfg.provider_host, port=cfg.provider_port)
     return UpdatingDownloader(data_storage, data_provider, backup_data_storage,
                               force_backup=cfg.force_backup, random_sleep_in_sec=cfg.random_sleep_in_sec,
                               dry_run=cfg.dry_run)
