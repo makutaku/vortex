@@ -38,3 +38,5 @@ inc/
 /.env
 /.venv
 /data
+/env-files/.*.env
+/**/__pycache__
