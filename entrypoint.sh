@@ -4,34 +4,49 @@ timestamp() {
   date +"%Y-%m-%d %H:%M:%S"
 }
 
-# Function to check write permissions in the output directory
-check_write_permission() {
-  local testfile="$BARCHART_OUTPUT_DIR/.test_write_permissions"
-  if ! touch "$testfile" 2>/dev/null; then
-    echo "$(timestamp) ERROR Unable to write to $BARCHART_OUTPUT_DIR."
+# Function to log diagnostic information
+log_diagnostics() {
     echo "Diagnostic Info:"
     echo "- User ID (UID): $(id -u)"
     echo "- Group ID (GID): $(id -g)"
     echo "- Directory Permissions: $(ls -ld "$BARCHART_OUTPUT_DIR" | awk '{print $1}')"
     echo "- Directory Owner: $(ls -ld "$BARCHART_OUTPUT_DIR" | awk '{print $3}')"
     echo "- Directory Group: $(ls -ld "$BARCHART_OUTPUT_DIR" | awk '{print $4}')"
+    echo "- Disk Usage of Output Directory's Disk: $(df -h "$BARCHART_OUTPUT_DIR" | tail -1 | awk '{print "Used: " $3 " Available: " $4 " Use%: " $5}')"
+    echo "- Mounted File System Details: $(df -hT "$BARCHART_OUTPUT_DIR" | tail -1)"
+    echo "- Effective Permissions (Access Control List):"
+    getfacl "$BARCHART_OUTPUT_DIR" 2>/dev/null
+    echo "- SELinux Context: $(ls -Zd "$BARCHART_OUTPUT_DOMAIN" | awk '{print $1}')"
+    echo "- Filesystem Mount Options: $(mount | grep " $BARCHART_OUTPUT_DIR " | awk '{print $NF}')"
+    echo "- Inode Usage: $(df -i "$BARCHART_OUTPUT_DIR" | tail -1 | awk '{print "Used: " $3 " Free: " $4 " Use%: " $5}')"
+    echo "- Recent Disk Errors (dmesg):"
+    dmesg | grep -i "error"
+}
+
+# Function to check write permissions in the output directory
+check_write_permission() {
+  local testfile="$BARCHART_OUTPUT_DIR/.test_write_permissions"
+  if ! touch "$testfile" 2>/dev/null; then
+    echo "$(timestamp) ERROR Unable to write to $BARCHART_OUTPUT_DIR."
+    log_diagnostics
     exit 1
+  else
+    if [ "$BARCHART_LOGGING_LEVEL" = "DEBUG" ]; then
+      echo "$(timestamp) DEBUG Write permission test passed for $BARCHART_OUTPUT_DIR."
+      log_diagnostics
+    fi
   fi
   rm -f "$testfile"
 }
 
 # Check environment variable is set and directory is writable
 if [ -n "$BARCHART_OUTPUT_DIR" ]; then
-  if [ "$BARCHART_LOGGING_LEVEL" = "DEBUG" ]; then
-    echo "$timestamp DEBUG The environment variable BARCHART_OUTPUT_DIR is set to $BARCHART_OUTPUT_DIR."
-  fi
   check_write_permission
 else
   echo "$(timestamp) ERROR The environment variable BARCHART_OUTPUT_DIR is not set or empty."
   sleep 60
   exit 1
 fi
-
 
 timestamp=$(date +"%Y-%m-%d %H:%M:%S")
 
