@@ -1,10 +1,37 @@
 #!/bin/bash
 
+timestamp() {
+  date +"%Y-%m-%d %H:%M:%S"
+}
+
+# Function to check write permissions in the output directory
+check_write_permission() {
+  local testfile="$BARCHART_OUTPUT_DIR/.test_write_permissions"
+  if ! touch "$testfile" 2>/dev/null; then
+    echo "$(timestamp) ERROR Unable to write to $BARCHART_OUTPUT_DIR. Check permissions or disk space."
+    exit 1
+  fi
+  rm -f "$testfile"
+}
+
+# Check environment variable is set and directory is writable
+if [ -n "$BARCHART_OUTPUT_DIR" ]; then
+  if [ "$BARCHART_LOGGING_LEVEL" = "DEBUG" ]; then
+    echo "$timestamp DEBUG The environment variable BARCHART_OUTPUT_DIR is set to $BARCHART_OUTPUT_DIR."
+  fi
+  check_write_permission
+else
+  echo "$(timestamp) ERROR The environment variable BARCHART_OUTPUT_DIR is not set or empty."
+  sleep 60
+  exit 1
+fi
+
+
 timestamp=$(date +"%Y-%m-%d %H:%M:%S")
 
 if [ -n "$BC_UTILS_REPO_DIR" ]; then
   if [ "$BARCHART_LOGGING_LEVEL" = "DEBUG" ]; then
-    echo "$timestamp DEBUG The environment variable BC_UTILS_REPO_DIR is set and not empty."
+    echo "$timestamp DEBUG The environment variable BC_UTILS_REPO_DIR is set to $BC_UTILS_REPO_DIR."
   fi
 else
   echo "$timestamp ERROR The environment variable BC_UTILS_REPO_DIR is either not set or empty."
@@ -14,8 +41,7 @@ fi
 
 if [ -n "$BARCHART_USERNAME" ]; then
   if [ "$BARCHART_LOGGING_LEVEL" = "DEBUG" ]; then
-    echo "$timestamp DEBUG The environment variable BARCHART_USERNAME is set and not empty."
-    echo "$timestamp DEBUG Value of BARCHART_USERNAME: $BARCHART_USERNAME"
+    echo "$timestamp DEBUG The environment variable BARCHART_USERNAME is set to $BARCHART_USERNAME"
   fi
 else
   echo "$timestamp ERROR The environment variable BARCHART_USERNAME is either not set or empty."
