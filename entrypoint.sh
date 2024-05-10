@@ -2,7 +2,7 @@
 
 timestamp=$(date +"%Y-%m-%d %H:%M:%S")
 if [ -n "$BARCHART_USERNAME" ]; then
-  if [ "$BARCHART_LOGGING_LEVEL" = "debug" ]; then
+  if [ "$BARCHART_LOGGING_LEVEL" = "DEBUG" ]; then
     echo "$timestamp DEBUG The environment variable BARCHART_USERNAME is set and not empty."
     echo "$timestamp DEBUG Value of BARCHART_USERNAME: $BARCHART_USERNAME"
   fi
@@ -13,7 +13,7 @@ else
 fi
 
 if [ -n "$BARCHART_PASSWORD" ]; then
-  if [ "$BARCHART_LOGGING_LEVEL" = "debug" ]; then
+  if [ "$BARCHART_LOGGING_LEVEL" = "DEBUG" ]; then
     echo "$timestamp DEBUG The environment variable BARCHART_PASSWORD is set and not empty."
   fi
 else
@@ -23,11 +23,11 @@ else
 fi
 
 timestamp=$(date +"%Y-%m-%d %H:%M:%S")
-if [ "$BARCHART_LOGGING_LEVEL" = "debug" ]; then
+if [ "$BARCHART_LOGGING_LEVEL" = "DEBUG" ]; then
   echo "$timestamp DEBUG Saving BARCHART_* environment variables."
 fi
 declare -p | grep -v -E "_xspecs=" | grep -E "declare -x BARCHART_" > /bc-utils/container.env
-if [ "$BARCHART_LOGGING_LEVEL" = "debug" ]; then
+if [ "$BARCHART_LOGGING_LEVEL" = "DEBUG" ]; then
   cat /bc-utils/container.env
   echo "$timestamp DEBUG Saved BARCHART_* environment variables."
 fi
@@ -48,7 +48,7 @@ else
 fi
 
 timestamp=$(date +"%Y-%m-%d %H:%M:%S")
-if [ "$BARCHART_LOGGING_LEVEL" = "debug" ]; then
+if [ "$BARCHART_LOGGING_LEVEL" = "DEBUG" ]; then
   timestamp=$(date +"%Y-%m-%d %H:%M:%S")
   echo "$timestamp DEBUG Scheduling cron jobs."
 fi
