@@ -8,7 +8,13 @@ timestamp() {
 check_write_permission() {
   local testfile="$BARCHART_OUTPUT_DIR/.test_write_permissions"
   if ! touch "$testfile" 2>/dev/null; then
-    echo "$(timestamp) ERROR Unable to write to $BARCHART_OUTPUT_DIR. Check permissions or disk space."
+    echo "$(timestamp) ERROR Unable to write to $BARCHART_OUTPUT_DIR."
+    echo "Diagnostic Info:"
+    echo "- User ID (UID): $(id -u)"
+    echo "- Group ID (GID): $(id -g)"
+    echo "- Directory Permissions: $(ls -ld "$BARCHART_OUTPUT_DIR" | awk '{print $1}')"
+    echo "- Directory Owner: $(ls -ld "$BARCHART_OUTPUT_DIR" | awk '{print $3}')"
+    echo "- Directory Group: $(ls -ld "$BARCHART_OUTPUT_DIR" | awk '{print $4}')"
     exit 1
   fi
   rm -f "$testfile"
