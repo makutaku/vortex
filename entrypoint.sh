@@ -60,25 +60,25 @@ else
   exit
 fi
 
-if [ -n "$BARCHART_USERNAME" ]; then
-  if [ "$BARCHART_LOGGING_LEVEL" = "DEBUG" ]; then
-    echo "$timestamp DEBUG The environment variable BARCHART_USERNAME is set to $BARCHART_USERNAME"
-  fi
-else
-  echo "$timestamp ERROR The environment variable BARCHART_USERNAME is either not set or empty."
-  sleep 60
-  exit
-fi
-
-if [ -n "$BARCHART_PASSWORD" ]; then
-  if [ "$BARCHART_LOGGING_LEVEL" = "DEBUG" ]; then
-    echo "$timestamp DEBUG The environment variable BARCHART_PASSWORD is set and not empty."
-  fi
-else
-  echo "$timestamp ERROR The environment variable BARCHART_PASSWORD is either not set or empty."
-  sleep 60
-  exit
-fi
+#if [ -n "$BARCHART_USERNAME" ]; then
+#  if [ "$BARCHART_LOGGING_LEVEL" = "DEBUG" ]; then
+#    echo "$timestamp DEBUG The environment variable BARCHART_USERNAME is set to $BARCHART_USERNAME"
+#  fi
+#else
+#  echo "$timestamp ERROR The environment variable BARCHART_USERNAME is either not set or empty."
+#  sleep 60
+#  exit
+#fi
+#
+#if [ -n "$BARCHART_PASSWORD" ]; then
+#  if [ "$BARCHART_LOGGING_LEVEL" = "DEBUG" ]; then
+#    echo "$timestamp DEBUG The environment variable BARCHART_PASSWORD is set and not empty."
+#  fi
+#else
+#  echo "$timestamp ERROR The environment variable BARCHART_PASSWORD is either not set or empty."
+#  sleep 60
+#  exit
+#fi
 
 timestamp=$(date +"%Y-%m-%d %H:%M:%S")
 if [ "$BARCHART_LOGGING_LEVEL" = "DEBUG" ]; then
