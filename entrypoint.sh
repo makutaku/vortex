@@ -112,6 +112,15 @@ rotate_log "$BARCHART_OUTPUT_DIR/bc_utils.log"
 rotate_log "$BARCHART_OUTPUT_DIR/ping.log"
 
 timestamp=$(date +"%Y-%m-%d %H:%M:%S")
+
+if [ "$RUN_ON_STARTUP" = "True" ]; then
+  echo "$timestamp INFO Running script on startup - RUN_ON_STARTUP environment variable is set to 'True'."
+  "$BC_UTILS_REPO_DIR/run_bc_utils.sh" 2>&1 | tee -a "$BARCHART_OUTPUT_DIR/bc_utils.log"
+else
+  echo "$timestamp INFO Skipping running script on startup. To run on start up, set RUN_ON_STARTUP environment variable to 'True'."
+fi
+
+
 if [ "$BARCHART_LOGGING_LEVEL" = "DEBUG" ]; then
   timestamp=$(date +"%Y-%m-%d %H:%M:%S")
   echo "$timestamp DEBUG Scheduling cron jobs."
