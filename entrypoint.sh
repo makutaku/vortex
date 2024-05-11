@@ -14,12 +14,12 @@ log_diagnostics() {
     echo "- Directory Group: $(ls -ld "$BARCHART_OUTPUT_DIR" | awk '{print $4}')"
     echo "- Disk Usage of Output Directory's Disk: $(df -h "$BARCHART_OUTPUT_DIR" | tail -1 | awk '{print "Used: " $3 " Available: " $4 " Use%: " $5}')"
     echo "- Mounted File System Details: $(df -hT "$BARCHART_OUTPUT_DIR" | tail -1)"
-    echo "- Effective Permissions (Access Control List):"
-    getfacl "$BARCHART_OUTPUT_DIR" 2>/dev/null
+#    echo "- Effective Permissions (Access Control List):"
+#    getfacl "$BARCHART_OUTPUT_DIR" 2>/dev/null
     echo "- SELinux Context: $(ls -Zd "$BARCHART_OUTPUT_DOMAIN" | awk '{print $1}')"
     echo "- Filesystem Mount Options: $(mount | grep " $BARCHART_OUTPUT_DIR " | awk '{print $NF}')"
     echo "- Inode Usage: $(df -i "$BARCHART_OUTPUT_DIR" | tail -1 | awk '{print "Used: " $3 " Free: " $4 " Use%: " $5}')"
-    echo "- Recent Disk Errors (dmesg):"
+#    echo "- Recent Disk Errors (dmesg):"
     dmesg | grep -i "error"
 }
 
