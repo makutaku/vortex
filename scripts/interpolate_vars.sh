@@ -37,7 +37,7 @@ while IFS= read -r line || [[ -n "$line" ]]; do
     # Preserve comments and empty lines
     if [[ "$line" =~ ^# ]] || [[ -z "$line" ]]; then
         processed_lines+=("$line")
-        echo "$line"
+        #echo "$line"
         continue
     fi
 
@@ -92,7 +92,7 @@ while IFS= read -r line || [[ -n "$line" ]]; do
     fi
     vars["$key"]="$resolved_value"
     processed_lines+=("$key=$resolved_value")
-    echo "$key=$resolved_value"  # Echo for output to terminal
+    #echo "$key=$resolved_value"  # Echo for output to terminal
 done < "$input_file"
 
 # Write the processed lines to the output file

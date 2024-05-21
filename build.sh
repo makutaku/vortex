@@ -1,21 +1,21 @@
 #!/bin/bash
 
-# Function to check environment variables and issue warnings
-check_env_var() {
-  local var_name="$1"
-
-  # Check if the variable is set
-  if [ -z "${!var_name}" ]; then
-    echo "Error: $var_name is not set. Please set this environment variable." >&2
-
-    # Check if running as superuser and the variable is missing
-    if [ "$(id -u)" -eq 0 ]; then
-      echo "Notice: Running as superuser. If $var_name is set in your usual environment, consider using 'sudo -E' to preserve it." >&2
-    fi
-
-    exit 1
-  fi
-}
+## Function to check environment variables and issue warnings
+#check_env_var() {
+#  local var_name="$1"
+#
+#  # Check if the variable is set
+#  if [ -z "${!var_name}" ]; then
+#    echo "Error: $var_name is not set. Please set this environment variable." >&2
+#
+#    # Check if running as superuser and the variable is missing
+#    if [ "$(id -u)" -eq 0 ]; then
+#      echo "Notice: Running as superuser. If $var_name is set in your usual environment, consider using 'sudo -E' to preserve it." >&2
+#    fi
+#
+#    exit 1
+#  fi
+#}
 
 # Define the function to process each .env file
 process_env_file() {
@@ -41,6 +41,9 @@ process_env_file() {
   echo "$output_file"
 }
 
+
+echo "Building bc-utils"
+
 # Check for command-line argument and use it to override ENV if provided
 if [ ! -z "$1" ]; then
   ENV="$1"
@@ -50,19 +53,26 @@ elif [ -z "$ENV" ]; then
 fi
 
 
-# Check both VAULT_ADDR and VAULT_TOKEN
-check_env_var "VAULT_ADDR"
-check_env_var "VAULT_TOKEN"
+## Check both VAULT_ADDR and VAULT_TOKEN
+#check_env_var "VAULT_ADDR"
+#check_env_var "VAULT_TOKEN"
+
+# Output directory for processed files
+DEST_DIR="./build"
+if [[ -d "$DEST_DIR" ]]; then
+  echo "Removing existing build directory: $DEST_DIR"
+  rm -rf "$DEST_DIR"
+fi
+mkdir -p "$DEST_DIR"
+
+
+echo "Generating env files"
 
 # Directory containing source environment files
 ENV_DIR="./env_files"
-# Output directory for processed files
-OUTPUT_DIR="./build"
-
-rm -rf "$OUTPUT_DIR"
 
 # Create output directory if it does not exist
-env_output_path="$OUTPUT_DIR"/env_files
+env_output_path="$DEST_DIR"/env_files
 mkdir -p "$env_output_path"
 
 # Process all .env files in the directory
@@ -70,15 +80,19 @@ for env_file in "$ENV_DIR"/*.env; do
   output_env_file=$(process_env_file "$env_file" "$env_output_path")
 done
 
-#  # copy bc_utils configs to build folder
-#  output_dir="$env_output_path/bc-utils"
-#  mkdir -p "$output_dir"
-#  cp ./bc-utils/"$ENV"/*.json  "$output_dir"/
+echo "Copying bc-utils"
+cp -r ./bcutils  "$DEST_DIR"/
+cp ./cronfile \
+  ./requirements.txt \
+  ./entrypoint.sh \
+  ./run_bc_utils.sh \
+  ./ping.sh \
+  "$DEST_DIR"/
 
-  cp -r ./bcutils  "$OUTPUT_DIR"/
-  cp ./cronfile \
-    ./requirements.txt \
-    ./entrypoint.sh \
-    ./run_bc_utils.sh \
-    ./ping.sh \
-    "$OUTPUT_DIR"/
+echo "Copying configs"
+CONFIG_PROJECT_NAME="pysystemtrade_config"
+CONFIG_PROJECT_DIR="../$CONFIG_PROJECT_NAME"
+mkdir -p "$DEST_DIR/configs"
+cp -r "$CONFIG_PROJECT_DIR/build/bc-utils/." "$DEST_DIR/configs/"
+
+echo "DONE!"
