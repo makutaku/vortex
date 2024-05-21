@@ -40,3 +40,4 @@ inc/
 /data
 /env-files/.*.env
 /**/__pycache__
+build/
