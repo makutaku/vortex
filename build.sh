@@ -44,13 +44,13 @@ process_env_file() {
 
 echo "Building bc-utils"
 
-# Check for command-line argument and use it to override ENV if provided
-if [ ! -z "$1" ]; then
-  ENV="$1"
-elif [ -z "$ENV" ]; then
-  echo "Error: ENV variable is not set and no command-line argument provided."
-  exit 1
-fi
+## Check for command-line argument and use it to override ENV if provided
+#if [ ! -z "$1" ]; then
+#  ENV="$1"
+#elif [ -z "$ENV" ]; then
+#  echo "Error: ENV variable is not set and no command-line argument provided."
+#  exit 1
+#fi
 
 
 ## Check both VAULT_ADDR and VAULT_TOKEN
