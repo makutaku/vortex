@@ -61,13 +61,13 @@ else
 fi
 
 timestamp=$(date +"%Y-%m-%d %H:%M:%S")
-if [ "$BARCHART_LOGGING_LEVEL" = "DEBUG" ]; then
-  echo "$timestamp DEBUG Saving BARCHART_* environment variables."
-fi
-declare -p | grep -v -E "_xspecs=" | grep -E "declare -x BARCHART_" > "$BC_UTILS_REPO_DIR/container.env"
+#if [ "$BARCHART_LOGGING_LEVEL" = "DEBUG" ]; then
+#  echo "$timestamp DEBUG Saving BARCHART_* environment variables."
+#fi
+#declare -p | grep -v -E "_xspecs=" | grep -E "declare -x BARCHART_" > "$BC_UTILS_REPO_DIR/container.env"
 if [ "$BARCHART_LOGGING_LEVEL" = "DEBUG" ]; then
   cat "$BC_UTILS_REPO_DIR/container.env"
-  echo "$timestamp DEBUG Saved BARCHART_* environment variables."
+  #echo "$timestamp DEBUG Saved BARCHART_* environment variables."
 fi
 
 cd "$BC_UTILS_REPO_DIR" || exit
