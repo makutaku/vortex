@@ -2,6 +2,7 @@ import logging
 import time
 from datetime import timedelta, datetime
 from functools import singledispatchmethod
+from retrying import retry
 
 import pandas as pd
 from ib_insync import IB, util
@@ -31,6 +32,8 @@ class IbkrDataProvider(DataProvider):
     def get_name(self) -> str:
         return IbkrDataProvider.PROVIDER_NAME
 
+    @retry(wait_exponential_multiplier=2000,
+           stop_max_attempt_number=5)
     def login(self):
         client_id = 998
         self.ib.connect(self.ipaddress, self.port, clientId=client_id, readonly=True, timeout=20)
