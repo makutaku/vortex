@@ -20,21 +20,21 @@ PATH_SEPARATOR: str = ','
 
 
 class BarchartVars(Enum):
-    PROVIDER_HOST = "PROVIDER_HOST"
-    PROVIDER_PORT = "PROVIDER_PORT"
-    BARCHART_USERNAME = "BARCHART_USERNAME"
-    BARCHART_PASSWORD = "BARCHART_PASSWORD"
-    BARCHART_MARKET_FILES = "BARCHART_MARKET_FILES"
-    BARCHART_OUTPUT_DIR = "BARCHART_OUTPUT_DIR"
-    BARCHART_START_YEAR = "BARCHART_START_YEAR"
-    BARCHART_END_YEAR = "BARCHART_END_YEAR"
-    BARCHART_DAILY_DOWNLOAD_LIMIT = "BARCHART_DAILY_DOWNLOAD_LIMIT"
-    BARCHART_DRY_RUN = "BARCHART_DRY_RUN"
-    BARCHART_LOGGING_LEVEL = "BARCHART_LOGGING_LEVEL"
-    BARCHART_RANDOM_SLEEP_IN_SEC = "BARCHART_RANDOM_SLEEP_IN_SEC"
-    BARCHART_BACKUP_DATA = "BARCHART_BACKUP_DATA"
-    BARCHART_FORCE_BACKUP = "BARCHART_FORCE_BACKUP"
-    BARCHART_DOWNLOADER_FACTORY = "BARCHART_DOWNLOADER_FACTORY"
+    BCU_PROVIDER_HOST = "BCU_PROVIDER_HOST"
+    BCU_PROVIDER_PORT = "BCU_PROVIDER_PORT"
+    BCU_USERNAME = "BCU_USERNAME"
+    BCU_PASSWORD = "BCU_PASSWORD"
+    BCU_CONFIG_FILE = "BCU_CONFIG_FILE"
+    BCU_OUTPUT_DIR = "BCU_OUTPUT_DIR"
+    BCU_START_YEAR = "BCU_START_YEAR"
+    BCU_END_YEAR = "BCU_END_YEAR"
+    BCU_DAILY_DOWNLOAD_LIMIT = "BCU_DAILY_DOWNLOAD_LIMIT"
+    BCU_DRY_RUN = "BCU_DRY_RUN"
+    BCU_LOGGING_LEVEL = "BCU_LOGGING_LEVEL"
+    BCU_RANDOM_SLEEP_IN_SEC = "BCU_RANDOM_SLEEP_IN_SEC"
+    BCU_BACKUP_DATA = "BCU_BACKUP_DATA"
+    BCU_FORCE_BACKUP = "BCU_FORCE_BACKUP"
+    BCU_DOWNLOADER = "BCU_DOWNLOADER"
 
 
 @dataclass(frozen=False)
@@ -85,45 +85,45 @@ class OsEnvironSessionConfig(SessionConfig):
         env_vars = [member.value for member in BarchartVars]
         bc_config = {v: os.environ.get(v) for v in env_vars if v in os.environ}
 
-        self.username = bc_config.get(BarchartVars.BARCHART_USERNAME.value, None)
-        self.password = bc_config.get(BarchartVars.BARCHART_PASSWORD.value, None)
-        self.provider_host = bc_config.get(BarchartVars.PROVIDER_HOST.value, None)
-        self.provider_port = bc_config.get(BarchartVars.PROVIDER_PORT.value, "8888")
+        self.username = bc_config.get(BarchartVars.BCU_USERNAME.value, None)
+        self.password = bc_config.get(BarchartVars.BCU_PASSWORD.value, None)
+        self.provider_host = bc_config.get(BarchartVars.BCU_PROVIDER_HOST.value, None)
+        self.provider_port = bc_config.get(BarchartVars.BCU_PROVIDER_PORT.value, "8888")
 
         market_metadata_files = \
-            bc_config.get(BarchartVars.BARCHART_MARKET_FILES.value, DEFAULT_MARKET_METADATA_FILE).split(PATH_SEPARATOR)
+            bc_config.get(BarchartVars.BCU_CONFIG_FILE.value, DEFAULT_MARKET_METADATA_FILE).split(PATH_SEPARATOR)
         self.market_metadata_files = [SessionConfig.verify_file_exists(file) for file in market_metadata_files]
 
-        download_directory = bc_config.get(BarchartVars.BARCHART_OUTPUT_DIR.value, DEFAULT_DOWNLOAD_DIRECTORY)
+        download_directory = bc_config.get(BarchartVars.BCU_OUTPUT_DIR.value, DEFAULT_DOWNLOAD_DIRECTORY)
         self.download_directory = SessionConfig.verify_directory_exists(download_directory)
 
         self.start_year = int(x) \
-            if (x := bc_config.get(BarchartVars.BARCHART_START_YEAR.value, None)) \
+            if (x := bc_config.get(BarchartVars.BCU_START_YEAR.value, None)) \
             else self.start_year
 
         self.end_year = int(x) \
-            if (x := bc_config.get(BarchartVars.BARCHART_END_YEAR.value, None)) \
+            if (x := bc_config.get(BarchartVars.BCU_END_YEAR.value, None)) \
             else self.end_year
 
         self.daily_download_limit = int(x) \
-            if (x := bc_config.get(BarchartVars.BARCHART_DAILY_DOWNLOAD_LIMIT.value, None)) \
+            if (x := bc_config.get(BarchartVars.BCU_DAILY_DOWNLOAD_LIMIT.value, None)) \
             else self.daily_download_limit
 
-        self.dry_run = (x == "True") if (x := bc_config.get(BarchartVars.BARCHART_DRY_RUN.value, None)) \
+        self.dry_run = (x == "True") if (x := bc_config.get(BarchartVars.BCU_DRY_RUN.value, None)) \
             else self.dry_run
 
-        self.backup_data = (x == "True") if (x := bc_config.get(BarchartVars.BARCHART_BACKUP_DATA.value, None)) \
+        self.backup_data = (x == "True") if (x := bc_config.get(BarchartVars.BCU_BACKUP_DATA.value, None)) \
             else self.backup_data
 
-        self.force_backup = (x == "True") if (x := bc_config.get(BarchartVars.BARCHART_FORCE_BACKUP.value, None)) \
+        self.force_backup = (x == "True") if (x := bc_config.get(BarchartVars.BCU_FORCE_BACKUP.value, None)) \
             else self.force_backup
 
-        self.downloader_factory = bc_config.get(BarchartVars.BARCHART_DOWNLOADER_FACTORY.value,
+        self.downloader_factory = bc_config.get(BarchartVars.BCU_DOWNLOADER.value,
                                                 DEFAULT_DOWNLOADER_FACTORY)
 
         self.log_level = logging.getLevelName(
-            bc_config.get(BarchartVars.BARCHART_LOGGING_LEVEL.value, self.log_level).upper())
+            bc_config.get(BarchartVars.BCU_LOGGING_LEVEL.value, self.log_level).upper())
 
         self.random_sleep_in_sec = int(x) \
-            if (x := bc_config.get(BarchartVars.BARCHART_RANDOM_SLEEP_IN_SEC.value, None)) \
+            if (x := bc_config.get(BarchartVars.BCU_RANDOM_SLEEP_IN_SEC.value, None)) \
             else self.random_sleep_in_sec

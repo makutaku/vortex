@@ -55,8 +55,8 @@ def create_ibkr_downloader(cfg: OsEnvironSessionConfig) -> UpdatingDownloader:
 def main():
     try:
         # config = SessionConfig(
-        #     username=os.environ.get(BarchartVars.BARCHART_USERNAME.value),
-        #     password=os.environ.get(BarchartVars.BARCHART_PASSWORD.value),
+        #     username=os.environ.get(BarchartVars.BCU_USERNAME.value),
+        #     password=os.environ.get(BarchartVars.BCU_PASSWORD.value),
         #     download_directory=tempfile.gettempdir(),
         #     start_year=2005, end_year=2007, dry_run=True)
 

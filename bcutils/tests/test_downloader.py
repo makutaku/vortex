@@ -39,8 +39,8 @@ class TestDownloader:
     def test_good_credentials(self, download_dir):
 
         config = {
-            'barchart_username': 'BARCHART_USERNAME',
-            'barchart_password': 'BARCHART_PASSWORD'
+            'barchart_username': 'BCU_USERNAME',
+            'barchart_password': 'BCU_PASSWORD'
         }
         bc_config = {k: os.environ.get(v) for k, v in config.items() if v in os.environ}
 

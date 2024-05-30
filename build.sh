@@ -63,7 +63,7 @@ cp ./cronfile \
 echo "Copying configs"
 CONFIG_PROJECT_NAME="pysystemtrade_config"
 CONFIG_PROJECT_DIR="../$CONFIG_PROJECT_NAME"
-mkdir -p "$DEST_DIR/configs"
-cp -r "$CONFIG_PROJECT_DIR/build/bc-utils/." "$DEST_DIR/configs/"
+mkdir -p "$DEST_DIR/config"
+cp -r "$CONFIG_PROJECT_DIR/build/bc-utils/." "$DEST_DIR/config/"
 
 echo "DONE!"
