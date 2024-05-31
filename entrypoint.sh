@@ -106,8 +106,6 @@ if [ "$BCU_LOGGING_LEVEL" = "DEBUG" ]; then
   echo "$timestamp DEBUG Scheduling cron jobs."
 fi
 
-echo "BCU_REPO_DIR=$BCU_REPO_DIR" >> /etc/environment
-
 # Start cron in the foreground and log to /dev/stdout
 #cron -f -L /dev/stdout
 cron -L /dev/stdout
