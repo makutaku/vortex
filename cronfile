@@ -5,4 +5,4 @@ BASH_ENV="$BCU_REPO_DIR/container.env"
 00 08 * * * TZ=America/Chicago "$BCU_REPO_DIR/run_bc_utils.sh" 2>&1 | tee -a "$BCU_OUTPUT_DIR/bc_utils.log" >> /proc/1/fd/1
 
 # Schedule job to check input environment variables and display "PING" runs at the top of every hour
-0 * * * * TZ=America/Chicago "$BCU_REPO_DIR/ping.sh" 2>&1 | tee -a "$BCU_OUTPUT_DIR/ping.log" >> /proc/1/fd/1
+* * * * * TZ=America/Chicago echo "BCU_REPO_DIR=$BCU_REPO_DIR"; cat "$BCU_REPO_DIR/container.env";  "$BCU_REPO_DIR/ping.sh" 2>&1 | tee -a "$BCU_OUTPUT_DIR/ping.log" >> /proc/1/fd/1
