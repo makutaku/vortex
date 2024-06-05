@@ -4,8 +4,6 @@ from datetime import datetime, timedelta
 from itertools import cycle
 from typing import List, Dict
 
-import pytz
-
 from data_providers.data_provider import DataProvider, LowDataError, AllowanceLimitExceeded, NotFoundError, \
     HistoricalDataResult
 from data_storage.data_storage import DataStorage
