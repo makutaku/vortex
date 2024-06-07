@@ -67,7 +67,7 @@ class FileStorage(DataStorage):
     @singledispatchmethod
     def _make_file_path_for_instrument(self, future: Future, period: Period):
         date_code = str(future.year) + '{0:02d}'.format(future.month)
-        full_path = f"{self.base_path}/futures/{period.value}/{future.id}_{date_code}00"
+        full_path = f"{self.base_path}/futures/{period.value}/{future.id}/{future.id}_{date_code}00"
         return full_path
 
     @_make_file_path_for_instrument.register
