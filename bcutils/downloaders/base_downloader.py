@@ -147,7 +147,7 @@ class BaseDownloader(ABC):
         for period in periods:
             # intraday data only goes back to a certain date, depending on the exchange
             # if our dates are before that date, skip intraday timeframes
-            if period.is_intraday and tick_date and start < tick_date:
+            if period.is_intraday() and tick_date and start < tick_date:
                 continue
 
             provider_min_start = self.data_provider.get_min_start(period)
