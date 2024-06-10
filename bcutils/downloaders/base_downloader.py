@@ -15,7 +15,7 @@ from instruments.price_series import LOW_DATA_THRESHOLD
 from instruments.stock import Stock
 from utils.logging_utils import LoggingContext
 from utils.utils import date_range_generator, total_elements_in_dict_of_lists, \
-    get_first_and_last_day_of_years
+    get_first_and_last_day_of_years, generate_year_month_tuples
 from utils.utils import is_list_of_strings, merge_dicts
 
 
@@ -87,7 +87,9 @@ class BaseDownloader(ABC):
 
         # if end is in the future, then we may as well make it today
         now_at_exchange = datetime.now(config.tz)
-        end = min(end, now_at_exchange)
+        days_count = config.days_count
+        future_date = now_at_exchange + timedelta(days=days_count)
+        end = min(end, future_date)
 
         if instrument_type == InstrumentType.Future:
             days_count = config.days_count
@@ -113,8 +115,10 @@ class BaseDownloader(ABC):
 
         jobs = []
 
-        for year in range(start.year, end.year + 1):
-            for month_code in list(roll_cycle):
+        year_month_gen = generate_year_month_tuples(start, end)
+        for year, month in year_month_gen:
+            month_code = Future.get_code_for_month(month)
+            if month_code in list(roll_cycle):
                 future = Future(instr, futures_code, year, month_code, tick_date, days_count)
                 periods = self.filter_periods(future, periods)
                 instr_jobs = self.create_jobs_for_dated_instrument(future, periods, start, end, tz)

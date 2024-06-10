@@ -1,7 +1,7 @@
 import logging
 import os
 import time
-from datetime import timezone, datetime
+from datetime import timezone, datetime, date
 from random import randint
 
 from dateutil import parser
@@ -135,3 +135,26 @@ def total_elements_in_dict_of_lists(dictionary):
             raise ValueError("Dictionary values must be lists")
 
     return total_elements
+
+
+def generate_year_month_tuples(start_date, end_date):
+    # Ensure both start_date and end_date are of type datetime.date
+    if isinstance(start_date, datetime):
+        start_date = start_date.date()
+    if isinstance(end_date, datetime):
+        end_date = end_date.date()
+
+    # Ensure start_date is set to the beginning of its month to include the entire range
+    start_date = date(start_date.year, start_date.month, 1)
+
+    # Yield each year and month tuple only as needed, until the current date exceeds the end date
+    while start_date <= end_date:
+        yield start_date.year, start_date.month
+        # Calculate the first day of the next month
+        # Check if the current month is December
+        if start_date.month == 12:
+            # Move to January of the next year
+            start_date = date(start_date.year + 1, 1, 1)
+        else:
+            # Move to the next month in the same year
+            start_date = date(start_date.year, start_date.month + 1, 1)

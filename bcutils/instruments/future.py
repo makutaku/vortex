@@ -58,7 +58,7 @@ class Future(Instrument):
 
     @staticmethod
     def get_code_for_month(month: int) -> str:
-        return Future.MONTH_LIST[month]
+        return Future.MONTH_LIST[month - 1]
 
     @staticmethod
     def get_month_from_code(month_code: str) -> int:
