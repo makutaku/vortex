@@ -37,7 +37,8 @@ class InstrumentConfig:
         self.periods = Period.get_periods_from_str(periods) if periods is not None else None
         self.cycle = cycle
         self.asset_class = InstrumentType(asset_class)
-        self.days_count = days_count if days_count else DEFAULT_CONTRACT_DURATION_IN_DAYS
+        default_duration_in_days = DEFAULT_CONTRACT_DURATION_IN_DAYS if self.asset_class == InstrumentType.Future else 0
+        self.days_count = days_count if days_count else default_duration_in_days
 
     def __str__(self):
         return f"{self.name}|{self.code}|{self.periods}"
