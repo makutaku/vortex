@@ -28,9 +28,9 @@ class PriceSeries(ABC):
         df = self.df
         if len(df) > 0:
             logging.debug(
-                f"Actual range: {self.metadata.start_date.strftime('%Y-%m-%d')} - {self.metadata.end_date.strftime('%Y-%m-%d')}")
+                f"Current range: {self.metadata.start_date.strftime('%Y-%m-%d')} - {self.metadata.end_date.strftime('%Y-%m-%d')}")
             logging.debug(
-                f"Expected range: {start_date.strftime('%Y-%m-%d')} - {end_date.strftime('%Y-%m-%d')}")
+                f"Desired range: {start_date.strftime('%Y-%m-%d')} - {end_date.strftime('%Y-%m-%d')}")
 
             if self.metadata.end_date - self.metadata.last_row_date > EXPIRATION_THRESHOLD:
                 logging.debug(f"Coverage is acceptable. Last search indicates no more data is available, "
