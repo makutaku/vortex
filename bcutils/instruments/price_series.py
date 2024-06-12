@@ -33,18 +33,19 @@ class PriceSeries(ABC):
                 f"Expected range: {start_date.strftime('%Y-%m-%d')} - {end_date.strftime('%Y-%m-%d')}")
 
             if self.metadata.end_date - self.metadata.last_row_date > EXPIRATION_THRESHOLD:
-                logging.debug(f"Coverage is acceptable since its last bar is lagging "
-                              f"more than the expiration threshold of {EXPIRATION_THRESHOLD}")
+                logging.debug(f"Coverage is acceptable. Last search indicates no more data is available, "
+                              f"since last bar is {EXPIRATION_THRESHOLD} behind the end of the "
+                              f"previous download request.")
                 return True
 
-            # If positive then existing data is missing enough bars to cover input range.
             # We pretend existing data is larger in order avoid too frequent updates.
             trigger_threshold = self.metadata.period.get_bar_time_delta()
             start_date_diff = (self.metadata.start_date - trigger_threshold) - start_date
             end_date_diff = end_date - (self.metadata.end_date + trigger_threshold)
+            # If either diff is positive then existing data is missing enough bars to cover requested range.
             if end_date_diff.days < 0 and start_date_diff.days < 0:
-                logging.debug(f"Coverage is acceptable since its range "
-                              f"is within {trigger_threshold} tolerance.")
+                logging.debug(f"Coverage is acceptable since range of existing data "
+                              f"is within {trigger_threshold} tolerance when comparing with requested range.")
                 return True
 
         else:

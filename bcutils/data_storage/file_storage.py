@@ -1,8 +1,10 @@
 import logging
 import os
 from abc import abstractmethod
+from datetime import datetime
 from functools import singledispatchmethod
 
+import pytz
 from pandas import DataFrame
 
 from data_storage.data_storage import DataStorage
@@ -84,6 +86,8 @@ class FileStorage(DataStorage):
     def load_metadata(file_path: str) -> Metadata:
         metadata_handler = MetadataHandler(file_path)
         retrieved_metadata = metadata_handler.get_metadata()
+        # Following is a temporary hack to force some back-filling:
+        retrieved_metadata.end_date = datetime.now(pytz.timezone('America/Chicago'))
         return retrieved_metadata
 
     @staticmethod

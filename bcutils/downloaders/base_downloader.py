@@ -85,11 +85,9 @@ class BaseDownloader(ABC):
         # if start is before instrument became available, use the latter
         start = max(start, config.start_date) if config.start_date else start
 
-        # if end is in the future, then we may as well make it today
+        # if end is in the future, then we cap it since we will never get prices that didn't happen yet!
         now_at_exchange = datetime.now(config.tz)
-        days_count = config.days_count
-        future_date = now_at_exchange + timedelta(days=days_count)
-        end = min(end, future_date)
+        end = min(end, now_at_exchange)
 
         if instrument_type == InstrumentType.Future:
             days_count = config.days_count
@@ -115,7 +113,12 @@ class BaseDownloader(ABC):
 
         jobs = []
 
-        year_month_gen = generate_year_month_tuples(start, end)
+        # When looking for futures contracts, we have to consider that although they may expire
+        # in the future, they might have prices today. Therefore, by adding contract length
+        # we will include these contracts. Beyond days_count, their prices didn't start yet.
+        future_end_date = end + timedelta(days=days_count)
+
+        year_month_gen = generate_year_month_tuples(start, future_end_date)
         for year, month in year_month_gen:
             month_code = Future.get_code_for_month(month)
             if month_code in list(roll_cycle):
