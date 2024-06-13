@@ -87,7 +87,7 @@ class FileStorage(DataStorage):
         metadata_handler = MetadataHandler(file_path)
         retrieved_metadata = metadata_handler.get_metadata()
         # Following is a temporary hack to force some back-filling:
-        retrieved_metadata.end_date = datetime.now(pytz.timezone('America/Chicago')) - timedelta(days=2)
+        # retrieved_metadata.end_date = datetime.now(pytz.timezone('America/Chicago')) - timedelta(days=2)
         return retrieved_metadata
 
     @staticmethod
