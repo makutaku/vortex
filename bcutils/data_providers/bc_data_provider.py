@@ -16,7 +16,7 @@ from instruments.columns import CLOSE_COLUMN, DATE_TIME_COLUMN
 from instruments.forex import Forex
 from instruments.future import Future
 from instruments.period import Period, FrequencyAttributes
-from instruments.price_series import FUTURES_SOURCE_TIME_ZONE, STOCK_SOURCE_TIME_ZONE
+from instruments.price_series import FUTURES_SOURCE_TIME_ZONE, STOCK_SOURCE_TIME_ZONE, LOW_DATA_THRESHOLD
 from instruments.stock import Stock
 from utils.logging_utils import LoggingContext
 
@@ -179,7 +179,7 @@ class BarchartDataProvider(DataProvider):
             raise DownloadError(resp.status_code, "Barchart error retrieving data")
 
         df = self.convert_downloaded_csv_to_df(freq_attrs.frequency, resp.text, tz)
-        if len(df) <= 1:
+        if len(df) <= LOW_DATA_THRESHOLD:
             raise LowDataError()
 
         return df
