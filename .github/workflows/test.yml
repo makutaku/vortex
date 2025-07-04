@@ -39,7 +39,7 @@ jobs:
 
     - name: Unit tests with pytest
       env:
-        BARCHART_USERNAME: ${{ secrets.BARCHART_USERNAME }}
-        BARCHART_PASSWORD: ${{ secrets.BARCHART_PASSWORD }}
+        BCU_USERNAME: ${{ secrets.BCU_USERNAME }}
+        BCU_PASSWORD: ${{ secrets.BCU_PASSWORD }}
       run: |
         python -m poetry run python -m pytest
