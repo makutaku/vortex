@@ -136,52 +136,25 @@ graph TB
     style ParseData fill:#e8f5e8
 ```
 
-#### Data Fetching Implementation
-```python
-def fetch_instrument_data(job: DownloadJob) -> RawDataResponse:
-    """Fetch data from provider with error handling"""
-    provider = job.provider
-    
-    try:
-        # 1. Check rate limits
-        provider.check_rate_limit()
-        
-        # 2. Build request parameters
-        request_params = provider.build_request_params(
-            instrument=job.instrument,
-            start_date=job.date_range.start,
-            end_date=job.date_range.end
-        )
-        
-        # 3. Execute request with retry logic
-        response = provider.execute_request(request_params)
-        
-        # 4. Validate response format
-        if not provider.validate_response(response):
-            raise DataProviderError("Invalid response format")
-        
-        return RawDataResponse(
-            data=response.content,
-            headers=response.headers,
-            metadata=provider.extract_metadata(response),
-            timestamp=datetime.utcnow()
-        )
-        
-    except RateLimitError:
-        # Wait and retry
-        time.sleep(provider.get_rate_limit_wait_time())
-        return fetch_instrument_data(job)  # Recursive retry
-        
-    except AuthenticationError:
-        # Re-authenticate and retry
-        provider.authenticate()
-        return fetch_instrument_data(job)
-        
-    except Exception as e:
-        # Log error and try fallback provider
-        logger.error(f"Fetch failed for {job.instrument}: {e}")
-        raise DataAcquisitionError(f"Failed to fetch data: {e}")
-```
+#### Data Fetching Strategy
+The data fetching process implements several resilience patterns:
+
+**Rate Limit Management:**
+- Check provider limits before requests
+- Automatic retry with appropriate delays
+- Daily and hourly quota tracking
+
+**Authentication Handling:**
+- Automatic re-authentication on failures
+- Session management for session-based providers
+- Token refresh for OAuth providers
+
+**Error Recovery:**
+- Exponential backoff for transient errors
+- Provider fallback for critical failures
+- Graceful degradation when possible
+
+*Detailed data fetching implementation available in [Data Processing Implementation](../lld/02-data-processing-implementation.md)*
 
 ### 2.3 Data Parsing and Validation
 
@@ -217,70 +190,33 @@ graph LR
     style StandardFormat fill:#e8f5e8
 ```
 
-#### Data Validation Pipeline
-```python
-class DataValidator:
-    """Comprehensive data validation pipeline"""
-    
-    def validate_data(self, data: pd.DataFrame, instrument: Instrument) -> ValidationResult:
-        """Apply all validation rules to dataset"""
-        errors = []
-        warnings = []
-        
-        # 1. Schema validation
-        schema_result = self._validate_schema(data)
-        errors.extend(schema_result.errors)
-        
-        # 2. Business logic validation
-        business_result = self._validate_business_rules(data, instrument)
-        errors.extend(business_result.errors)
-        warnings.extend(business_result.warnings)
-        
-        # 3. Statistical validation
-        stats_result = self._validate_statistical_properties(data)
-        warnings.extend(stats_result.warnings)
-        
-        # 4. Temporal validation
-        temporal_result = self._validate_temporal_consistency(data)
-        errors.extend(temporal_result.errors)
-        
-        return ValidationResult(
-            is_valid=len(errors) == 0,
-            errors=errors,
-            warnings=warnings,
-            quality_score=self._calculate_quality_score(data, errors, warnings)
-        )
-    
-    def _validate_business_rules(self, data: pd.DataFrame, instrument: Instrument):
-        """Validate financial data business rules"""
-        errors = []
-        warnings = []
-        
-        # Price relationship validation
-        invalid_prices = data[
-            (data['high'] < data['open']) |
-            (data['high'] < data['close']) |
-            (data['low'] > data['open']) |
-            (data['low'] > data['close'])
-        ]
-        
-        if len(invalid_prices) > 0:
-            errors.append(f"Invalid OHLC relationships in {len(invalid_prices)} rows")
-        
-        # Volume validation
-        negative_volume = data[data['volume'] < 0]
-        if len(negative_volume) > 0:
-            errors.append(f"Negative volume in {len(negative_volume)} rows")
-        
-        # Price movement validation
-        price_changes = data['close'].pct_change().abs()
-        extreme_moves = price_changes > instrument.max_daily_move
-        
-        if extreme_moves.any():
-            warnings.append(f"Extreme price movements detected: {extreme_moves.sum()} instances")
-        
-        return ValidationResult(errors=errors, warnings=warnings)
-```
+#### Data Validation Strategy
+The validation pipeline applies multiple layers of data quality checks:
+
+**Schema Validation:**
+- Required column presence verification
+- Data type consistency checking
+- Format validation (timestamps, numeric ranges)
+
+**Business Rule Validation:**
+- OHLC price relationship consistency
+- Volume non-negativity constraints
+- Instrument-specific business rules
+- Market hours and trading calendar validation
+
+**Statistical Validation:**
+- Outlier detection using statistical methods
+- Price movement reasonableness checks
+- Volume pattern analysis
+- Data completeness assessment
+
+**Temporal Validation:**
+- Timestamp monotonicity verification
+- Duplicate timestamp detection
+- Market schedule compliance
+- Data freshness validation
+
+*Detailed validation implementation available in [Data Processing Implementation](../lld/02-data-processing-implementation.md)*
 
 ### 2.4 Data Transformation and Standardization
 
@@ -322,50 +258,30 @@ graph TB
     style Quality fill:#fff3e0
 ```
 
-#### Transformation Implementation
-```python
-class DataTransformer:
-    """Transform provider-specific data to standard format"""
-    
-    STANDARD_COLUMNS = ['timestamp', 'open', 'high', 'low', 'close', 'volume', 'symbol', 'provider']
-    
-    def transform_to_standard(self, data: pd.DataFrame, provider: str, instrument: Instrument) -> pd.DataFrame:
-        """Transform data to standard OHLCV format"""
-        
-        # 1. Apply provider-specific column mapping
-        mapped_data = self._apply_column_mapping(data, provider)
-        
-        # 2. Standardize timestamps
-        mapped_data['timestamp'] = self._standardize_timestamps(
-            mapped_data['timestamp'], 
-            provider
-        )
-        
-        # 3. Convert data types
-        mapped_data = self._convert_data_types(mapped_data)
-        
-        # 4. Add metadata columns
-        mapped_data['symbol'] = instrument.symbol
-        mapped_data['provider'] = provider
-        
-        # 5. Sort by timestamp
-        mapped_data = mapped_data.sort_values('timestamp').reset_index(drop=True)
-        
-        # 6. Select only standard columns
-        return mapped_data[self.STANDARD_COLUMNS]
-    
-    def _standardize_timestamps(self, timestamps: pd.Series, provider: str) -> pd.Series:
-        """Convert timestamps to UTC ISO format"""
-        if provider == 'barchart':
-            # Barchart uses EST/EDT, convert to UTC
-            return pd.to_datetime(timestamps).dt.tz_localize('US/Eastern').dt.tz_convert('UTC')
-        elif provider == 'yahoo':
-            # Yahoo already in UTC
-            return pd.to_datetime(timestamps, utc=True)
-        elif provider == 'ibkr':
-            # IBKR uses Unix timestamps
-            return pd.to_datetime(timestamps, unit='s', utc=True)
-```
+#### Data Transformation Architecture
+The transformation layer converts provider-specific formats into the standard OHLCV schema:
+
+**Column Standardization:**
+- Provider-specific column mapping to standard names
+- Data type normalization (float64 for prices, int64 for volume)
+- Unit conversion where necessary
+
+**Timestamp Standardization:**
+- All timestamps converted to UTC
+- Provider-specific timezone handling
+- ISO 8601 format enforcement
+
+**Metadata Enrichment:**
+- Provider attribution for audit trails
+- Symbol normalization across providers
+- Data quality scoring
+
+**Output Format:**
+- Standard OHLCV columns: timestamp, open, high, low, close, volume
+- Metadata columns: symbol, provider
+- Sorted by timestamp for consistency
+
+*Detailed transformation implementation available in [Data Processing Implementation](../lld/02-data-processing-implementation.md)*
 
 ### 2.5 Deduplication and Storage
 
@@ -389,51 +305,30 @@ graph TB
     style Save fill:#e8f5e8
 ```
 
-#### Storage Operation Flow
-```python
-def save_with_deduplication(data: pd.DataFrame, filepath: str, storage: DataStorage) -> SaveResult:
-    """Save data with automatic deduplication"""
-    
-    # 1. Check if file already exists
-    if storage.file_exists(filepath):
-        # Load existing data
-        existing_data = storage.load(filepath)
-        
-        # Merge with new data
-        combined_data = pd.concat([existing_data, data])
-        
-        # Remove duplicates (keep last occurrence)
-        deduped_data = combined_data.drop_duplicates(
-            subset=['timestamp', 'symbol'], 
-            keep='last'
-        )
-        
-        # Sort by timestamp
-        final_data = deduped_data.sort_values('timestamp').reset_index(drop=True)
-        
-    else:
-        final_data = data.sort_values('timestamp').reset_index(drop=True)
-    
-    # 2. Validate data before saving
-    if len(final_data) < MIN_DATA_THRESHOLD:
-        return SaveResult(success=False, reason="Insufficient data")
-    
-    # 3. Atomic save operation
-    temp_filepath = f"{filepath}.tmp"
-    storage.save(final_data, temp_filepath)
-    storage.move_file(temp_filepath, filepath)
-    
-    # 4. Update metadata
-    metadata = DatasetMetadata(
-        filepath=filepath,
-        row_count=len(final_data),
-        date_range=(final_data['timestamp'].min(), final_data['timestamp'].max()),
-        last_updated=datetime.utcnow()
-    )
-    storage.update_metadata(metadata)
-    
-    return SaveResult(success=True, row_count=len(final_data))
-```
+#### Storage Operation Strategy
+The storage layer implements several patterns for data integrity and performance:
+
+**Deduplication Strategy:**
+- Timestamp and symbol-based duplicate detection
+- Conflict resolution using provider preference
+- Last-update-wins for conflicting data points
+
+**Atomic Operations:**
+- Temporary file staging for atomic writes
+- Rollback capability on storage failures
+- Metadata consistency with data files
+
+**Data Validation:**
+- Minimum data threshold enforcement
+- Pre-storage validation checks
+- Quality gate before persistence
+
+**Metadata Management:**
+- Automatic metadata generation and updates
+- Dataset statistics tracking
+- Audit trail maintenance
+
+*Detailed storage implementation available in [Storage Implementation](../lld/04-storage-implementation.md)*
 
 ## 3. Error Handling and Recovery
 
@@ -489,72 +384,55 @@ graph TB
 - **Memory Management:** Explicit DataFrame cleanup after processing
 - **Disk I/O Optimization:** Batch writes and temporary file management
 
-### 4.2 Caching Strategy
-```python
-class DataCache:
-    """Intelligent caching for frequently accessed data"""
-    
-    def __init__(self, max_size_mb: int = 512):
-        self.cache = {}
-        self.max_size_mb = max_size_mb
-        self.access_times = {}
-    
-    def get_cached_data(self, cache_key: str) -> Optional[pd.DataFrame]:
-        """Retrieve cached data if available and fresh"""
-        if cache_key in self.cache:
-            # Update access time
-            self.access_times[cache_key] = time.time()
-            
-            # Check if data is still fresh
-            cached_item = self.cache[cache_key]
-            if self._is_fresh(cached_item):
-                return cached_item.data
-        
-        return None
-    
-    def cache_data(self, cache_key: str, data: pd.DataFrame, ttl_seconds: int = 3600):
-        """Cache data with TTL and size management"""
-        # Check cache size and evict if necessary
-        self._manage_cache_size()
-        
-        self.cache[cache_key] = CachedItem(
-            data=data.copy(),
-            timestamp=time.time(),
-            ttl=ttl_seconds
-        )
-        self.access_times[cache_key] = time.time()
-```
+### 4.2 Performance Optimization Strategy
+The data flow pipeline implements several optimization patterns:
+
+**Caching Strategy:**
+- Intelligent memory-based caching with LRU eviction
+- TTL-based cache invalidation for data freshness
+- Size-aware cache management to prevent memory issues
+
+**Parallel Processing:**
+- Concurrent provider requests within rate limits
+- Parallel data transformation and validation
+- Asynchronous storage operations
+
+**Memory Management:**
+- Streaming data processing for large datasets
+- Explicit DataFrame cleanup after processing
+- Memory usage monitoring and alerting
+
+**I/O Optimization:**
+- Batch storage operations to reduce overhead
+- Temporary file management for atomic writes
+- Efficient file format selection (CSV vs Parquet)
+
+*Detailed performance implementation available in [Data Processing Implementation](../lld/02-data-processing-implementation.md)*
 
 ## 5. Data Flow Monitoring
 
-### 5.1 Flow Metrics
-```python
-@dataclass
-class FlowMetrics:
-    """Track data flow performance metrics"""
-    job_id: str
-    instrument: str
-    start_time: datetime
-    end_time: Optional[datetime] = None
-    
-    # Stage timings
-    fetch_duration: Optional[float] = None
-    parse_duration: Optional[float] = None
-    validate_duration: Optional[float] = None
-    save_duration: Optional[float] = None
-    
-    # Data metrics
-    raw_data_size: Optional[int] = None
-    processed_rows: Optional[int] = None
-    validation_errors: int = 0
-    quality_score: Optional[float] = None
-    
-    @property
-    def total_duration(self) -> Optional[float]:
-        if self.start_time and self.end_time:
-            return (self.end_time - self.start_time).total_seconds()
-        return None
-```
+### 5.1 Flow Monitoring Strategy
+The data flow monitoring provides comprehensive visibility into system performance:
+
+**Performance Metrics:**
+- Stage-level timing for bottleneck identification
+- Throughput metrics (rows per second, MB per second)
+- Error rates and failure pattern analysis
+- Resource utilization (CPU, memory, disk I/O)
+
+**Quality Metrics:**
+- Data validation success rates
+- Quality score distributions
+- Provider-specific reliability metrics
+- Data completeness and accuracy tracking
+
+**Operational Metrics:**
+- Job completion rates and durations
+- Provider availability and response times
+- Storage performance and capacity utilization
+- System health and alerting thresholds
+
+*Detailed monitoring implementation available in [Data Processing Implementation](../lld/02-data-processing-implementation.md)*
 
 ### 5.2 Flow Observability
 ```mermaid

@@ -90,36 +90,15 @@ class UpdatingDownloader:
 - **Validation Service:** Data quality assurance
 - **Configuration:** Instrument and system settings
 
-#### Implementation Details
-```python
-# Core workflow implementation
-def download_instrument_data(self, config):
-    try:
-        # 1. Create download job
-        job = DownloadJob.from_config(config)
-        
-        # 2. Check for existing data
-        if self.storage.has_recent_data(job):
-            return self._handle_incremental_update(job)
-        
-        # 3. Fetch from provider
-        raw_data = self.provider.get_data(job.instrument, job.date_range)
-        
-        # 4. Validate data quality
-        validated_data = self.validator.validate(raw_data)
-        
-        # 5. Store data
-        self.storage.save(validated_data, job.output_path)
-        
-        # 6. Update metadata
-        self.metadata.record_download(job, success=True)
-        
-        return True
-        
-    except Exception as e:
-        self._handle_download_error(job, e)
-        return False
-```
+#### Workflow Overview
+The Download Manager orchestrates a five-stage process:
+1. **Job Creation** - Convert configuration to executable download jobs
+2. **Data Acquisition** - Fetch data from appropriate provider
+3. **Quality Validation** - Ensure data meets business rules
+4. **Storage Operations** - Persist to primary and backup storage
+5. **Metadata Management** - Track download history and status
+
+*Detailed implementation specifications available in [Component Implementation](../lld/01-component-implementation.md)*
 
 ### 2.2 Data Provider Interface (`data_providers/data_provider.py`)
 
@@ -173,32 +152,25 @@ Each provider must implement:
 4. **Error Handling:** Classify and handle provider-specific errors
 5. **Metadata Extraction:** Capture provider-specific attributes
 
-#### Barchart Provider Implementation
-```python
-class BarchartDataProvider(DataProvider):
-    def __init__(self, username, password, daily_download_limit=150):
-        self.session = self._create_authenticated_session(username, password)
-        self.rate_limiter = RateLimiter(daily_download_limit)
-    
-    def get_data(self, instrument, date_range):
-        # 1. Check rate limits
-        self.rate_limiter.check_availability()
-        
-        # 2. Build request URL
-        url = self._build_download_url(instrument, date_range)
-        
-        # 3. Get CSRF tokens for security
-        csrf_token = self._get_csrf_token(url)
-        
-        # 4. Submit download request
-        response = self._submit_download_request(url, csrf_token, instrument)
-        
-        # 5. Parse and validate response
-        data = self._parse_csv_data(response.content)
-        
-        # 6. Convert to standard format
-        return self._standardize_format(data)
-```
+#### Provider Implementation Patterns
+Each provider implements the common interface but handles provider-specific concerns:
+
+**Barchart Provider:**
+- Session-based authentication with CSRF protection
+- Rate limiting (150 downloads/day default)
+- CSV response parsing and standardization
+
+**Yahoo Provider:**
+- No authentication required for basic data
+- JSON API with automatic retry logic
+- Real-time and historical data support
+
+**IBKR Provider:**
+- TWS Gateway connection management
+- Binary protocol handling
+- Contract specification and market data
+
+*Detailed provider implementations available in [Provider Implementation](../lld/03-provider-implementation.md)*
 
 ### 2.3 Storage Architecture (`data_storage/`)
 
@@ -240,50 +212,28 @@ graph TB
     style Parquet fill:#fff3e0
 ```
 
-#### CSV Storage Implementation
-```python
-class CsvStorage(FileStorage):
-    def save(self, data: pd.DataFrame, filepath: str):
-        # 1. Validate data schema
-        self._validate_schema(data)
-        
-        # 2. Check for existing data
-        if self.file_exists(filepath) and not self.overwrite:
-            existing_data = self.load(filepath)
-            data = self._merge_with_existing(existing_data, data)
-        
-        # 3. Apply data transformations
-        data = self._standardize_columns(data)
-        data = self._sort_by_timestamp(data)
-        
-        # 4. Write atomically
-        temp_file = f"{filepath}.tmp"
-        data.to_csv(temp_file, index=False, encoding='utf-8')
-        os.rename(temp_file, filepath)
-        
-        # 5. Update metadata
-        self.metadata.record_save(filepath, len(data))
-```
+#### Storage Implementation Strategy
+The storage layer uses a dual-format approach:
 
-#### Parquet Storage Implementation
-```python
-class ParquetStorage(FileStorage):
-    def save(self, data: pd.DataFrame, filepath: str):
-        # 1. Optimize data types
-        data = self._optimize_dtypes(data)
-        
-        # 2. Add partitioning columns
-        data['year'] = data['timestamp'].dt.year
-        data['month'] = data['timestamp'].dt.month
-        
-        # 3. Write with compression
-        data.to_parquet(
-            filepath,
-            compression='snappy',
-            partition_cols=['year', 'month'],
-            engine='pyarrow'
-        )
-```
+**CSV Storage:**
+- Human-readable format for debugging and manual analysis
+- Atomic write operations with temporary files
+- Automatic data merging and deduplication
+- UTF-8 encoding with proper escaping
+
+**Parquet Storage:**
+- Columnar format optimized for analytical workloads
+- Snappy compression for space efficiency
+- Date-based partitioning for query performance
+- Schema evolution support
+
+**Common Features:**
+- Pluggable backend architecture
+- Metadata tracking and integrity verification
+- Backup and recovery capabilities
+- Transaction-like semantics with rollback
+
+*Detailed storage implementations available in [Storage Implementation](../lld/04-storage-implementation.md)*
 
 ### 2.4 Instrument Model (`instruments/`)
 
@@ -328,37 +278,28 @@ classDiagram
     Instrument <|-- Forex
 ```
 
-#### Future Contract Implementation
-```python
-class Future(Instrument):
-    def __init__(self, symbol, code, cycle, tick_date, exchange):
-        super().__init__(symbol)
-        self.code = code  # e.g., "GC" for Gold
-        self.cycle = cycle  # e.g., "GJMQVZ"
-        self.tick_date = tick_date
-        self.exchange = exchange
-    
-    def get_active_contracts(self, start_date, end_date):
-        """Generate list of active contracts in date range"""
-        contracts = []
-        for month_code in self.cycle:
-            for year in range(start_date.year, end_date.year + 1):
-                contract = FutureContract(
-                    symbol=f"{self.code}{month_code}{year%100:02d}",
-                    expiry=self._calculate_expiry(month_code, year)
-                )
-                if self._is_active_during(contract, start_date, end_date):
-                    contracts.append(contract)
-        return contracts
-    
-    def _calculate_expiry(self, month_code, year):
-        """Calculate contract expiry based on exchange rules"""
-        month_map = {'F': 1, 'G': 2, 'H': 3, 'J': 4, 'K': 5, 'M': 6,
-                    'N': 7, 'Q': 8, 'U': 9, 'V': 10, 'X': 11, 'Z': 12}
-        month = month_map[month_code]
-        # Exchange-specific expiry logic
-        return datetime(year, month, self._get_expiry_day(month))
-```
+#### Instrument Model Hierarchy
+The instrument models encapsulate business logic for different financial instrument types:
+
+**Future Contracts:**
+- Contract cycle management (GJMQVZ months)
+- Expiry date calculation with exchange-specific rules
+- Active contract generation for date ranges
+- Rollover handling and chain construction
+
+**Stock Instruments:**
+- Corporate action handling (splits, dividends)
+- Exchange-specific symbol mapping
+- Currency conversion support
+- Sector and industry classification
+
+**Forex Pairs:**
+- Base/quote currency management
+- Pip value calculations
+- Market hours and weekend gap handling
+- Central bank intervention periods
+
+*Detailed instrument implementations available in [Component Implementation](../lld/01-component-implementation.md)*
 
 ### 2.5 Configuration Management (`initialization/`)
 
@@ -401,39 +342,28 @@ graph LR
     style Loader fill:#e1f5fe
 ```
 
-#### Session Configuration
-```python
-@dataclass
-class SessionConfig:
-    # Provider settings
-    username: str = None
-    password: str = None
-    provider_host: str = None
-    provider_port: str = "8888"
-    
-    # Download settings
-    download_directory: str = DEFAULT_DOWNLOAD_DIRECTORY
-    start_year: int = DEFAULT_START_YEAR
-    end_year: int = DEFAULT_END_YEAR
-    daily_download_limit: int = DEFAULT_DAILY_DOWNLOAD_LIMIT
-    
-    # Operational settings
-    dry_run: bool = DEFAULT_DRY_RUN
-    backup_data: bool = False
-    force_backup: bool = False
-    random_sleep_in_sec: int = DEFAULT_RANDOM_SLEEP_IN_SEC
-    log_level: str = DEFAULT_LOGGING_LEVEL
-    
-    def validate(self):
-        """Validate configuration completeness and correctness"""
-        if not self.username and not self.provider_host:
-            raise ValueError("Either username or provider_host must be specified")
-        
-        if self.start_year > self.end_year:
-            raise ValueError("start_year must be <= end_year")
-        
-        Path(self.download_directory).mkdir(parents=True, exist_ok=True)
-```
+#### Configuration Architecture
+The configuration system supports multiple input sources with a clear precedence hierarchy:
+
+**Configuration Sources (in precedence order):**
+1. Command-line arguments (highest priority)
+2. Environment variables
+3. Configuration files (JSON)
+4. Default values (lowest priority)
+
+**Configuration Categories:**
+- **Provider Settings:** Authentication and connection parameters
+- **Download Settings:** Date ranges, limits, and output locations
+- **Operational Settings:** Logging, dry-run mode, backup preferences
+- **Instrument Settings:** Symbol definitions and data requirements
+
+**Validation and Defaults:**
+- Schema validation for all configuration inputs
+- Automatic directory creation for output paths
+- Credential validation before data operations
+- Comprehensive error reporting for invalid configurations
+
+*Detailed configuration implementation available in [Component Implementation](../lld/01-component-implementation.md)*
 
 ## 3. Component Interactions
 
@@ -577,49 +507,29 @@ BCU_DOWNLOAD_DIRECTORY=/data/futures
 }
 ```
 
-### 5.2 Component Factory
-```python
-class ComponentFactory:
-    @staticmethod
-    def create_downloader(config: SessionConfig) -> UpdatingDownloader:
-        # Create storage components
-        primary_storage = CsvStorage(config.download_directory, config.dry_run)
-        backup_storage = ParquetStorage(config.download_directory, config.dry_run) \
-            if config.backup_data else None
-        
-        # Create data provider
-        provider = ComponentFactory._create_provider(config)
-        
-        # Create downloader with dependencies
-        return UpdatingDownloader(
-            data_storage=primary_storage,
-            data_provider=provider,
-            backup_data_storage=backup_storage,
-            force_backup=config.force_backup,
-            random_sleep_in_sec=config.random_sleep_in_sec,
-            dry_run=config.dry_run
-        )
-    
-    @staticmethod
-    def _create_provider(config: SessionConfig) -> DataProvider:
-        provider_type = config.downloader_factory
-        
-        if provider_type == "create_barchart_downloader":
-            return BarchartDataProvider(
-                username=config.username,
-                password=config.password,
-                daily_download_limit=config.daily_download_limit
-            )
-        elif provider_type == "create_yahoo_downloader":
-            return YahooDataProvider()
-        elif provider_type == "create_ibkr_downloader":
-            return IbkrDataProvider(
-                ipaddress=config.provider_host,
-                port=config.provider_port
-            )
-        else:
-            raise ValueError(f"Unknown provider type: {provider_type}")
-```
+### 5.2 Component Assembly
+The system uses dependency injection and factory patterns for component assembly:
+
+**Factory Responsibilities:**
+- Create configured component instances
+- Wire dependencies between components
+- Apply configuration settings to components
+- Handle provider-specific initialization
+
+**Dependency Injection Pattern:**
+- Components receive dependencies through constructors
+- Interfaces used instead of concrete classes where possible
+- Configuration drives component selection and setup
+- Testable design with easy mock injection
+
+**Component Lifecycle:**
+1. Configuration loading and validation
+2. Factory creates component instances
+3. Dependencies injected during construction
+4. Components initialized and ready for use
+5. Cleanup and resource disposal on shutdown
+
+*Detailed factory implementations available in [Component Implementation](../lld/01-component-implementation.md)*
 
 ## 6. Testing Strategy
 
@@ -639,34 +549,28 @@ tests/
     └── mock_providers/
 ```
 
-### 6.2 Component Mocking Strategy
-```python
-class MockDataProvider(DataProvider):
-    def __init__(self, mock_data: Dict[str, pd.DataFrame]):
-        self.mock_data = mock_data
-        self.call_count = 0
-    
-    def get_data(self, instrument, date_range):
-        self.call_count += 1
-        if instrument.symbol in self.mock_data:
-            return self.mock_data[instrument.symbol]
-        raise NotFoundError(f"No mock data for {instrument.symbol}")
+### 6.2 Component Testing Strategy
+The testing approach emphasizes component isolation and integration validation:
 
-# Usage in tests
-@pytest.fixture
-def mock_provider():
-    sample_data = {
-        "GOLD": pd.DataFrame({
-            'timestamp': pd.date_range('2024-01-01', periods=100, freq='D'),
-            'open': np.random.uniform(1800, 1900, 100),
-            'high': np.random.uniform(1900, 2000, 100),
-            'low': np.random.uniform(1700, 1800, 100),
-            'close': np.random.uniform(1800, 1900, 100),
-            'volume': np.random.randint(1000, 10000, 100)
-        })
-    }
-    return MockDataProvider(sample_data)
-```
+**Unit Testing:**
+- Component isolation through dependency injection
+- Mock implementations for external dependencies
+- Interface contract validation
+- Error condition testing
+
+**Integration Testing:**
+- Component interaction validation
+- End-to-end workflow testing
+- Provider integration testing with test accounts
+- Storage system integration testing
+
+**Test Infrastructure:**
+- Mock provider implementations for reliable testing
+- Test data fixtures for various scenarios
+- Automated test data generation
+- Test environment isolation
+
+*Detailed testing implementations available in [Testing Implementation](../lld/06-testing-implementation.md)*
 
 ## Related Documents
 

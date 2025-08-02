@@ -50,103 +50,49 @@ graph TB
 ## 2. Provider Interface Design
 
 ### 2.1 Core Interface Definition
-```python
-from abc import ABC, abstractmethod
-from typing import Optional, Dict, List, Any
-import pandas as pd
+The DataProvider abstract base class defines the contract that all providers must implement:
 
-class DataProvider(ABC):
-    """Abstract base class for all data providers"""
-    
-    def __init__(self, **config):
-        self.config = config
-        self.session = None
-        self.rate_limiter = None
-        self.authentication_state = AuthenticationState.UNAUTHENTICATED
-    
-    @abstractmethod
-    def authenticate(self, credentials: Dict[str, str]) -> bool:
-        """Authenticate with the data provider"""
-        pass
-    
-    @abstractmethod
-    def get_data(self, instrument: Instrument, date_range: DateRange) -> pd.DataFrame:
-        """Retrieve data for specified instrument and date range"""
-        pass
-    
-    @abstractmethod
-    def get_supported_instruments(self) -> List[str]:
-        """Return list of supported instrument types"""
-        pass
-    
-    @abstractmethod
-    def validate_instrument(self, instrument: Instrument) -> bool:
-        """Validate if instrument is supported by this provider"""
-        pass
-    
-    @abstractmethod
-    def get_rate_limits(self) -> RateLimitInfo:
-        """Return current rate limit information"""
-        pass
-    
-    # Optional methods with default implementations
-    def health_check(self) -> HealthStatus:
-        """Check provider availability and health"""
-        try:
-            response = self._execute_health_check()
-            return HealthStatus.HEALTHY if response else HealthStatus.DEGRADED
-        except Exception:
-            return HealthStatus.UNHEALTHY
-    
-    def get_metadata(self, instrument: Instrument) -> Dict[str, Any]:
-        """Get provider-specific metadata for instrument"""
-        return {}
-    
-    def cleanup(self):
-        """Clean up resources (connections, sessions, etc.)"""
-        if self.session:
-            self.session.close()
-```
+**Required Methods:**
+- `authenticate(credentials)` - Provider-specific authentication
+- `get_data(instrument, date_range)` - Retrieve financial data
+- `get_supported_instruments()` - Return supported instrument types
+- `validate_instrument(instrument)` - Validate instrument compatibility
+- `get_rate_limits()` - Return current rate limit status
+
+**Optional Methods:**
+- `health_check()` - Provider availability verification
+- `get_metadata(instrument)` - Provider-specific metadata
+- `cleanup()` - Resource cleanup and connection management
+
+**State Management:**
+- Authentication state tracking
+- Rate limit monitoring
+- Session and connection management
+- Configuration parameter handling
+
+*Detailed interface implementation available in [Provider Implementation](../lld/03-provider-implementation.md)*
 
 ### 2.2 Provider Registration System
-```python
-class ProviderRegistry:
-    """Central registry for data provider implementations"""
-    
-    _providers: Dict[str, Type[DataProvider]] = {}
-    _instances: Dict[str, DataProvider] = {}
-    
-    @classmethod
-    def register_provider(cls, name: str, provider_class: Type[DataProvider]):
-        """Register a new provider implementation"""
-        if not issubclass(provider_class, DataProvider):
-            raise TypeError("Provider must inherit from DataProvider")
-        
-        cls._providers[name] = provider_class
-        logger.info(f"Registered provider: {name}")
-    
-    @classmethod
-    def create_provider(cls, name: str, **config) -> DataProvider:
-        """Create provider instance with configuration"""
-        if name not in cls._providers:
-            raise ValueError(f"Unknown provider: {name}")
-        
-        provider_class = cls._providers[name]
-        instance = provider_class(**config)
-        cls._instances[name] = instance
-        
-        return instance
-    
-    @classmethod
-    def get_available_providers(cls) -> List[str]:
-        """Get list of registered provider names"""
-        return list(cls._providers.keys())
+The provider registry manages available data providers and enables runtime provider selection:
 
-# Provider registration
-ProviderRegistry.register_provider("barchart", BarchartDataProvider)
-ProviderRegistry.register_provider("yahoo", YahooDataProvider)
-ProviderRegistry.register_provider("ibkr", IbkrDataProvider)
-```
+**Registry Features:**
+- Dynamic provider registration and discovery
+- Type validation for provider implementations
+- Instance management and configuration
+- Provider availability enumeration
+
+**Registration Process:**
+1. Provider classes inherit from DataProvider
+2. Registration validates interface compliance
+3. Registry stores provider classes by name
+4. Factory creates configured instances on demand
+
+**Supported Providers:**
+- `barchart` - Barchart.com futures and options data
+- `yahoo` - Yahoo Finance stocks and ETFs
+- `ibkr` - Interactive Brokers multi-asset data
+
+*Detailed registry implementation available in [Provider Implementation](../lld/03-provider-implementation.md)*
 
 ## 3. Provider Implementations
 
