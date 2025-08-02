@@ -10,13 +10,17 @@ bc-utils is a Python automation library for downloading historic futures contrac
 
 ### Environment Setup
 ```bash
-# Create virtual environment
-python -m venv bcutils_env
+# Using uv (recommended - faster and more reliable)
+# Install uv if not already installed: curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Create virtual environment and install dependencies
+uv venv bcutils_env
 source bcutils_env/bin/activate  # Linux/Mac
 # or bcutils_env\Scripts\activate  # Windows
+uv pip install -r requirements.txt
 
-# Install dependencies
-pip install -r requirements.txt
+# Alternative: use uv sync if pyproject.toml has dependencies defined
+# uv sync
 ```
 
 ### Testing
