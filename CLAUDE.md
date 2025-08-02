@@ -43,8 +43,13 @@ flake8 bcutils/
 
 ### Building and Deployment
 ```bash
-# Build the project (creates build/ directory with processed files)
+# Build the project (copies application files to build/ directory)
 ./build.sh
+
+# Set environment variables (see ENV_EXAMPLE.md)
+export BCU_USERNAME="your_username"
+export BCU_PASSWORD="your_password"
+export BCU_OUTPUT_DIR="/path/to/data"
 
 # Run the main application
 ./run_bc_utils.sh

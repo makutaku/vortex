@@ -7,3 +7,5 @@ pyarrow
 scipy
 ib-insync==0.9.86
 retrying
+yfinance
+pytest

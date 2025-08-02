@@ -1,45 +1,59 @@
-[tool.poetry]
+[project]
 name = "bc-utils"
 version = "0.1.3"
 description = "Python utility automation scripts for Barchart.com"
-authors = ["Andy Geach <andy@bugorfeature.net>"]
-license = "BSD-3-Clause"
+authors = [{name = "Andy Geach", email = "andy@bugorfeature.net"}]
+license = {text = "BSD-3-Clause"}
 readme = "README.md"
-homepage = "https://github.com/bug-or-feature/bc-utils"
-repository = "https://github.com/bug-or-feature/bc-utils"
-keywords = ["trading"]
+requires-python = ">=3.8"
+keywords = ["trading", "finance", "data", "barchart"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Environment :: Console",
     "Intended Audience :: Science/Research",
     "Intended Audience :: Developers",
     "Operating System :: OS Independent",
-    "Programming Language :: Cython",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
     "Topic :: Scientific/Engineering",
     "Topic :: Software Development :: Libraries",
     "License :: OSI Approved :: BSD License",
 ]
-packages = [
-    { include = "bcutils" }
+dependencies = [
+    "requests>=2.26",
+    "numpy>=1.19.4,<1.24.0",
+    "pandas~=2.1.4",
+    "beautifulsoup4>=4.0",
+    "pytz",
+    "pyarrow",
+    "scipy",
+    "ib-insync==0.9.86",
+    "retrying",
+    "yfinance",
 ]
 
-[tool.poetry.dependencies]
-python = "^3.8"
-requests = "^2.26"
-numpy = ">=1.19.4,<1.24.0"
-pandas = ">1,<=1.0.5"
-beautifulsoup4 = "^4"
+[project.optional-dependencies]
+dev = [
+    "pytest>=6.2",
+    "flake8>=4.0.1",
+]
 
-[tool.poetry.dev-dependencies]
-pytest = "^6.2"
-flake8 = "^4.0.1"
+[project.urls]
+Homepage = "https://github.com/bug-or-feature/bc-utils"
+Repository = "https://github.com/bug-or-feature/bc-utils"
+Issues = "https://github.com/bug-or-feature/bc-utils/issues"
 
-[tool.poetry.urls]
-"Issues" = "https://github.com/bug-or-feature/bc-utils/issues"
 
 [build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["bcutils*"]
+
+[tool.setuptools.package-data]
+bcutils = ["py.typed"]
