@@ -63,15 +63,15 @@ else
     fi
 fi
 
-# Test 4: Test CLI commands
-echo -e "${YELLOW}Test 4: Testing CLI commands...${NC}"
+# Test 4: Test CLI help command
+echo -e "${YELLOW}Test 4: Testing 'bcutils --help' command...${NC}"
 timeout 20s docker run --rm --entrypoint="" bcutils-test:latest bcutils --help
-echo -e "${GREEN}✓ CLI help works${NC}\n"
+echo -e "${GREEN}✓ CLI help command works${NC}\n"
 
 # Test 5: Test providers list
-echo -e "${YELLOW}Test 5: Testing providers command...${NC}"
+echo -e "${YELLOW}Test 5: Testing 'bcutils providers --list' command...${NC}"
 if timeout 20s docker run --rm --entrypoint="" bcutils-test:latest bcutils providers --list; then
-    echo -e "${GREEN}✓ Providers command works${NC}\n"
+    echo -e "${GREEN}✓ Providers list command works${NC}\n"
 else
     echo -e "${RED}✗ Providers command failed${NC}"
     exit 1
@@ -134,13 +134,13 @@ else
 fi
 
 # Test 10: Quick smoke test with Yahoo provider
-echo -e "${YELLOW}Test 10: Smoke test with Yahoo provider...${NC}"
+echo -e "${YELLOW}Test 10: Testing 'bcutils download' with Yahoo provider (dry-run)...${NC}"
 if timeout 30s docker run --rm \
     -e BCU_PROVIDER=yahoo \
     --entrypoint="" \
     bcutils-test:latest \
     bcutils download --provider yahoo --symbol AAPL --yes --dry-run 2>/dev/null || true; then
-    echo -e "${GREEN}✓ Smoke test completed${NC}\n"
+    echo -e "${GREEN}✓ Download command dry-run completed${NC}\n"
 fi
 
 # Test 11: Test entrypoint with startup disabled
