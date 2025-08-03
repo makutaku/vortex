@@ -20,7 +20,8 @@
       "Bash(cp:*)",
       "Bash(uv run:*)",
       "Bash(chmod:*)",
-      "Bash(docker build:*)"
+      "Bash(docker build:*)",
+      "Bash(docker run:*)"
     ],
     "deny": []
   }

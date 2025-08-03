@@ -18,10 +18,8 @@ WORKDIR /app
 COPY pyproject.toml setup.py README.md ./
 COPY src/ ./src/
 
-# Create virtual environment and install dependencies
-RUN uv venv /opt/venv
-ENV PATH="/opt/venv/bin:${PATH}"
-RUN uv pip install -e .
+# Install dependencies using uv directly
+RUN uv pip install --system -e .
 
 # Runtime stage
 FROM python:3.11-slim
@@ -32,18 +30,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     tini \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy virtual environment from builder
-COPY --from=builder /opt/venv /opt/venv
-ENV PATH="/opt/venv/bin:${PATH}"
+# Copy installed packages from builder
+COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
 
-# Ensure bcutils is properly installed by copying source and reinstalling
+# Copy application source code
 COPY --from=builder /app/pyproject.toml /app/setup.py /app/
 COPY --from=builder /app/src /app/src
-RUN /opt/venv/bin/pip install -e /app
 
-# Create app user
+# Create app user and ensure data directories exist
 RUN useradd -m -r bcutils && \
-    mkdir -p /app /data /config && \
+    mkdir -p /app /data /config /app/data && \
     chown -R bcutils:bcutils /app /data /config
 
 # Set working directory
@@ -69,8 +66,8 @@ ENV BCU_PROVIDER=barchart \
 # Volume mounts
 VOLUME ["/data", "/config"]
 
-# Switch to app user
-USER bcutils
+# Stay as root for cron and permissions
+# USER bcutils  # Keep as root for cron functionality
 
 # Use tini as init system
 ENTRYPOINT ["/usr/bin/tini", "--", "/app/entrypoint.sh"]
