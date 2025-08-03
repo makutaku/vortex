@@ -9,6 +9,7 @@ from rich.table import Table
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from ..utils.config_manager import ConfigManager
+from ...plugins import get_provider_registry
 
 console = Console()
 logger = logging.getLogger(__name__)
@@ -67,8 +68,92 @@ def providers(
         show_provider_info(config_manager, info)
 
 def show_providers_list(config_manager: ConfigManager) -> None:
-    """Display list of available providers."""
+    """Display list of available providers using plugin registry."""
     table = Table(title="Available Data Providers")
+    table.add_column("Provider", style="cyan")
+    table.add_column("Status", style="green")
+    table.add_column("Data Types", style="blue")
+    table.add_column("Authentication")
+    table.add_column("Rate Limits")
+    
+    try:
+        registry = get_provider_registry()
+        config = config_manager.load_config()
+        
+        # Get all available providers from plugin registry
+        for provider_name in registry.list_plugins():
+            try:
+                plugin_info = registry.get_plugin_info(provider_name)
+                provider_config = config.get("providers", {}).get(provider_name, {})
+                
+                # Check if configured based on plugin requirements
+                if plugin_info["requires_auth"]:
+                    # Check for required authentication fields
+                    if provider_name == "barchart":
+                        configured = bool(provider_config.get("username"))
+                    elif provider_name == "ibkr":
+                        configured = bool(provider_config.get("host"))
+                    else:
+                        # Generic check for any configuration
+                        configured = len(provider_config) > 0
+                else:
+                    configured = True  # No auth required
+                
+                status = "✓ Available" if configured else "⚠ Not configured"
+                
+                # Format supported assets
+                assets_str = ", ".join(plugin_info["supported_assets"][:3])
+                if len(plugin_info["supported_assets"]) > 3:
+                    assets_str += f", +{len(plugin_info['supported_assets']) - 3} more"
+                
+                # Format authentication info
+                auth_info = "None required" if not plugin_info["requires_auth"] else "Required"
+                if provider_name == "barchart":
+                    auth_info = "Username/Password"
+                elif provider_name == "ibkr":
+                    auth_info = "TWS/Gateway"
+                
+                # Format rate limits
+                rate_limits = plugin_info.get("rate_limits", "Not specified")
+                
+                table.add_row(
+                    provider_name.upper(),
+                    status,
+                    assets_str.title(),
+                    auth_info,
+                    rate_limits
+                )
+                
+            except Exception as e:
+                logger.warning(f"Error getting info for provider '{provider_name}': {e}")
+                # Add minimal row for problematic providers
+                table.add_row(
+                    provider_name.upper(),
+                    "✗ Error",
+                    "Unknown",
+                    "Unknown",
+                    "Unknown"
+                )
+        
+        console.print(table)
+        console.print("\n[dim]Use 'vortex config --provider PROVIDER --set-credentials' to configure[/dim]")
+        
+        # Show available providers count
+        provider_count = len(registry.list_plugins())
+        console.print(f"\n[dim]Total providers available: {provider_count}[/dim]")
+        
+    except Exception as e:
+        logger.error(f"Failed to load provider registry: {e}")
+        console.print(f"[red]Error loading providers: {e}[/red]")
+        console.print("[yellow]Falling back to built-in provider list...[/yellow]")
+        
+        # Fallback to hardcoded list if plugin system fails
+        _show_fallback_providers_list(config_manager)
+
+
+def _show_fallback_providers_list(config_manager: ConfigManager) -> None:
+    """Fallback provider list when plugin system fails."""
+    table = Table(title="Available Data Providers (Fallback)")
     table.add_column("Provider", style="cyan")
     table.add_column("Status", style="green")
     table.add_column("Data Types", style="blue")
@@ -124,11 +209,103 @@ def show_providers_list(config_manager: ConfigManager) -> None:
     console.print(table)
     console.print("\n[dim]Use 'vortex config --provider PROVIDER --set-credentials' to configure[/dim]")
 
+
 def test_providers(config_manager: ConfigManager, provider: str) -> None:
-    """Test provider connectivity."""
+    """Test provider connectivity using plugin registry."""
+    try:
+        registry = get_provider_registry()
+        
+        if provider == "all":
+            providers_to_test = registry.list_plugins()
+        else:
+            providers_to_test = [provider]
+        
+        console.print(f"[bold]Testing provider connectivity...[/bold]")
+        
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=console
+        ) as progress:
+            
+            for prov in providers_to_test:
+                task = progress.add_task(f"Testing {prov.upper()}...", total=None)
+                
+                try:
+                    result = test_single_provider_via_plugin(config_manager, prov, registry)
+                    
+                    if result["success"]:
+                        progress.update(task, description=f"✓ {prov.upper()} - {result['message']}")
+                    else:
+                        progress.update(task, description=f"✗ {prov.upper()} - {result['message']}")
+                        
+                except Exception as e:
+                    progress.update(task, description=f"✗ {prov.upper()} - Error: {e}")
+                    
+    except Exception as e:
+        logger.error(f"Failed to load plugin registry for testing: {e}")
+        console.print(f"[red]Error loading plugin registry: {e}[/red]")
+        console.print("[yellow]Falling back to legacy testing...[/yellow]")
+        _test_providers_fallback(config_manager, provider)
+
+
+def test_single_provider_via_plugin(config_manager: ConfigManager, provider: str, registry) -> dict:
+    """Test connectivity to a single provider via plugin system."""
+    try:
+        # Get provider configuration
+        config = config_manager.load_config()
+        provider_config = config.get("providers", {}).get(provider, {})
+        
+        # Get plugin info to check requirements
+        plugin_info = registry.get_plugin_info(provider)
+        
+        # Check if provider requires configuration
+        if plugin_info["requires_auth"]:
+            if provider == "barchart":
+                if not provider_config.get("username") or not provider_config.get("password"):
+                    return {
+                        "success": False,
+                        "message": "Not configured (missing username/password)"
+                    }
+            elif provider == "ibkr":
+                if not provider_config.get("host"):
+                    return {
+                        "success": False,
+                        "message": "Not configured (missing host)"
+                    }
+            elif not provider_config:
+                return {
+                    "success": False,
+                    "message": "Not configured (authentication required)"
+                }
+        
+        # Test connection via plugin
+        test_result = registry.test_provider(provider, provider_config)
+        
+        if test_result:
+            return {
+                "success": True,
+                "message": "Connection successful"
+            }
+        else:
+            return {
+                "success": False,
+                "message": "Connection failed"
+            }
+            
+    except Exception as e:
+        logger.error(f"Plugin test failed for {provider}: {e}")
+        return {
+            "success": False,
+            "message": f"Test error: {str(e)[:50]}..."
+        }
+
+
+def _test_providers_fallback(config_manager: ConfigManager, provider: str) -> None:
+    """Fallback testing when plugins fail."""
     providers_to_test = ["barchart", "yahoo", "ibkr"] if provider == "all" else [provider]
     
-    console.print(f"[bold]Testing provider connectivity...[/bold]")
+    console.print(f"[bold]Testing provider connectivity (fallback)...[/bold]")
     
     with Progress(
         SpinnerColumn(),

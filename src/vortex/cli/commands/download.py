@@ -9,9 +9,10 @@ from rich.console import Console
 from rich.table import Table
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
-from ...data_providers.bc_data_provider import BarchartDataProvider
-from ...data_providers.ib_data_provider import IbkrDataProvider
-from ...data_providers.yf_data_provider import YahooDataProvider
+# Provider imports replaced with plugin system
+# from ...data_providers.bc_data_provider import BarchartDataProvider
+# from ...data_providers.ib_data_provider import IbkrDataProvider
+# from ...data_providers.yf_data_provider import YahooDataProvider
 from ...data_storage.csv_storage import CsvStorage
 from ...data_storage.parquet_storage import ParquetStorage
 from ...downloaders.updating_downloader import UpdatingDownloader
@@ -22,6 +23,7 @@ from ...exceptions import (
 from ...initialization.config_utils import InstrumentConfig
 from ...config import ConfigManager
 from ...logging_integration import get_module_logger, get_module_performance_logger
+from ...plugins import get_provider_registry
 from ..utils.instrument_parser import parse_instruments
 from ..ux import get_ux, enhanced_error_handler, validate_symbols
 from ..completion import complete_provider, complete_symbol, complete_symbols_file, complete_assets_file, complete_date
@@ -373,7 +375,7 @@ def get_download_config(
     }
 
 def create_downloader(provider: str, download_config: dict):
-    """Create the appropriate downloader for the provider."""
+    """Create the appropriate downloader for the provider using plugin system."""
     
     vortex_config = download_config['vortex_config']
     output_dir = download_config['output_dir']
@@ -384,24 +386,51 @@ def create_downloader(provider: str, download_config: dict):
     data_storage = CsvStorage(str(output_dir), False)  # dry_run handled at CLI level
     backup_data_storage = ParquetStorage(str(output_dir), False) if backup else None
     
-    # Create provider-specific data provider
-    if provider == "barchart":
-        barchart_config = vortex_config.providers.barchart
-        data_provider = BarchartDataProvider(
-            username=barchart_config.username,
-            password=barchart_config.password,
-            daily_download_limit=barchart_config.daily_limit
-        )
-    elif provider == "yahoo":
-        data_provider = YahooDataProvider()
-    elif provider == "ibkr":
-        ibkr_config = vortex_config.providers.ibkr
-        data_provider = IbkrDataProvider(
-            ipaddress=ibkr_config.host, 
-            port=str(ibkr_config.port)
-        )
-    else:
-        raise ValueError(f"Unknown provider: {provider}")
+    # Create data provider using plugin system
+    try:
+        registry = get_provider_registry()
+        
+        # Get provider-specific configuration from vortex config
+        provider_config = {}
+        
+        if provider == "barchart":
+            barchart_config = vortex_config.providers.barchart
+            provider_config = {
+                "username": barchart_config.username,
+                "password": barchart_config.password,
+                "daily_limit": barchart_config.daily_limit,
+                "timeout": vortex_config.general.timeout,
+                "max_retries": vortex_config.general.max_retries,
+            }
+        elif provider == "yahoo":
+            provider_config = {
+                "timeout": vortex_config.general.timeout,
+                "max_retries": vortex_config.general.max_retries,
+            }
+        elif provider == "ibkr":
+            ibkr_config = vortex_config.providers.ibkr
+            provider_config = {
+                "host": ibkr_config.host,
+                "port": ibkr_config.port,
+                "client_id": getattr(ibkr_config, 'client_id', 1),
+                "timeout": vortex_config.general.timeout,
+                "max_retries": vortex_config.general.max_retries,
+            }
+        else:
+            # For unknown providers, try to create with minimal config
+            provider_config = {
+                "timeout": getattr(vortex_config.general, 'timeout', 30),
+                "max_retries": getattr(vortex_config.general, 'max_retries', 3),
+            }
+        
+        # Create data provider through plugin system
+        data_provider = registry.create_provider(provider, provider_config)
+        
+        logger.info(f"Created data provider '{provider}' using plugin system")
+        
+    except Exception as e:
+        logger.error(f"Failed to create provider '{provider}' via plugin system: {e}")
+        raise DataProviderError(f"Provider '{provider}' initialization failed: {e}")
     
     # Create and return the downloader
     return UpdatingDownloader(
