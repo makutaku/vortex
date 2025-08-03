@@ -10,17 +10,18 @@ bc-utils is a Python automation library for downloading historic futures contrac
 
 ### Environment Setup
 ```bash
-# Using uv (recommended - faster and more reliable)
+# Method 1: Using uv (recommended - faster and more reliable)
 # Install uv if not already installed: curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Create virtual environment and install dependencies
 uv venv bcutils_env
 source bcutils_env/bin/activate  # Linux/Mac
 # or bcutils_env\Scripts\activate  # Windows
-uv pip install -r requirements.txt
+uv pip install -e .
 
-# Alternative: use uv sync if pyproject.toml has dependencies defined
-# uv sync
+# Method 2: Using pip
+pip install -e .
+
+# Method 3: Install from PyPI (when published)
+pip install bc-utils
 ```
 
 ### Testing
@@ -41,21 +42,41 @@ flake8 bcutils/
 # No specific type checker configured, but code uses type hints
 ```
 
-### Building and Deployment
+### Modern CLI Usage
 ```bash
-# Build the project (copies application files to build/ directory)
-./build.sh
+# After installation, use the modern CLI interface:
 
-# Set environment variables (see ENV_EXAMPLE.md)
+# Get help
+bcutils --help
+bcutils download --help
+
+# Configure credentials
+bcutils config --provider barchart --set-credentials
+bcutils config --show
+
+# Download data
+bcutils download --provider barchart --symbol GC --start-date 2024-01-01
+bcutils download --provider yahoo --symbol AAPL GOOGL MSFT
+bcutils download --provider ibkr --symbols-file symbols.txt
+
+# Manage providers
+bcutils providers --list
+bcutils providers --test barchart
+bcutils providers --info barchart
+
+# Validate data
+bcutils validate --path ./data
+bcutils validate --path ./data/GC.csv --provider barchart
+```
+
+### Legacy Shell Script Usage (Deprecated)
+```bash
+# Legacy method - use CLI instead
+./build.sh
 export BCU_USERNAME="your_username"
 export BCU_PASSWORD="your_password"
 export BCU_OUTPUT_DIR="/path/to/data"
-
-# Run the main application
 ./run_bc_utils.sh
-
-# Container entrypoint
-./entrypoint.sh
 ```
 
 ## Architecture
@@ -92,6 +113,11 @@ export BCU_OUTPUT_DIR="/path/to/data"
 - `OsEnvironSessionConfig`: Environment variable-based config
 - `config_utils.py`: Configuration utilities
 
+**CLI Interface** (`bcutils/cli/`):
+- `main.py`: Modern CLI entry point with Click framework
+- `commands/`: Download, config, providers, validate commands
+- `utils/`: Configuration manager and instrument parsing
+
 ### Key Files
 
 - `bcutils/bc_utils.py`: Main entry point with downloader factory functions
@@ -99,14 +125,40 @@ export BCU_OUTPUT_DIR="/path/to/data"
 - `build.sh`: Build script that processes env files and copies artifacts
 - `run_bc_utils.sh`: Runtime script that activates environment and runs main module
 
-### Environment Configuration
+### Configuration Management
 
-The application uses environment files in `env_files/` for different data providers:
-- `barchart.env`: Barchart.com credentials
-- `yahoo.env`: Yahoo Finance settings
-- `ibkr.env`: Interactive Brokers connection details
+The modern CLI supports multiple configuration methods:
 
-Environment variables are interpolated during build using `scripts/interpolate_vars.sh`.
+**Interactive Configuration (Recommended):**
+```bash
+bcutils config --provider barchart --set-credentials
+bcutils config --provider ibkr --set-credentials
+```
+
+**Environment Variables:**
+```bash
+export BCU_BARCHART_USERNAME="your_username"
+export BCU_BARCHART_PASSWORD="your_password"
+export BCU_IBKR_HOST="localhost"
+export BCU_IBKR_PORT="7497"
+export BCU_OUTPUT_DIR="/path/to/data"
+```
+
+**Configuration File (~/.config/bcutils/config.toml):**
+```toml
+output_directory = "./data"
+backup_enabled = true
+
+[providers.barchart]
+username = "your_username"
+password = "your_password"
+daily_limit = 150
+
+[providers.ibkr]
+host = "localhost"
+port = 7497
+client_id = 1
+```
 
 ### Data Flow
 
@@ -116,12 +168,22 @@ Environment variables are interpolated during build using `scripts/interpolate_v
 4. Data downloaded and stored in both CSV (primary) and Parquet (backup) formats
 5. Existing data checked to avoid duplicate downloads
 
-### Container Support
+### CLI Features
 
-The project includes Docker support:
-- `entrypoint.sh`: Container initialization with permission checks and cron scheduling
-- `cronfile`: Scheduled execution configuration
-- `ping.sh`: Health check utility
+**Modern Python CLI with:**
+- Professional command structure using Click framework
+- Rich terminal output with colors and progress bars
+- Interactive configuration management
+- Multiple output formats (table, JSON, CSV)
+- Comprehensive help system
+- Data validation and integrity checks
+- Provider testing and management
+
+**Container Support:**
+- Docker support with `entrypoint.sh`
+- Cron scheduling with `cronfile`
+- Health checks with `ping.sh`
+- Modern CLI works in containers: `docker run bc-utils bcutils --help`
 
 ### Testing Strategy
 
