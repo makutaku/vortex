@@ -47,7 +47,7 @@ See [Docker Guide](docs/DOCKER.md) for detailed setup.
 ## 📚 Legacy Python API
 
 ```
-from bcutils import get_barchart_downloads, create_bc_session
+from vortex import get_barchart_downloads, create_bc_session
 
 CONTRACTS={
     "AUD":{"code":"A6","cycle":"HMUZ","tick_date":"2009-11-24"},

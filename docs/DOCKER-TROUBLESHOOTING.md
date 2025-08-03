@@ -104,7 +104,7 @@ docker run --rm -it vortex:test bash
 
 # Inside container:
 vortex --help
-python -c "import bcutils; print('OK')"
+python -c "import vortex; print('OK')"
 ls -la /app/assets/
 ```
 

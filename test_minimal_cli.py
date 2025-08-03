@@ -12,7 +12,7 @@ def test_minimal_structure():
     
     # Test 1: CLI module and version
     try:
-        from bcutils.cli import __version__
+        from vortex.cli import __version__
         print(f"✅ CLI Module: version {__version__}")
     except Exception as e:
         print(f"❌ CLI Module: {e}")
@@ -20,7 +20,7 @@ def test_minimal_structure():
     
     # Test 2: Instrument parser (no deps)
     try:
-        from bcutils.cli.utils.instrument_parser import parse_instruments, validate_symbol
+        from vortex.cli.utils.instrument_parser import parse_instruments, validate_symbol
         
         # Test parsing
         symbols = parse_instruments(("AAPL", "googl", " MSFT "), None)
@@ -40,7 +40,7 @@ def test_minimal_structure():
     # Test 3: Basic CLI command structure exists
     try:
         # Import without running
-        import bcutils.cli.main
+        import vortex.cli.main
         print("✅ CLI Main: structure exists")
     except Exception as e:
         print(f"❌ CLI Main: {e}")
@@ -50,7 +50,7 @@ def test_minimal_structure():
     commands_to_test = ['download', 'config', 'providers', 'validate']
     for cmd in commands_to_test:
         try:
-            __import__(f'bcutils.cli.commands.{cmd}')
+            __import__(f'vortex.cli.commands.{cmd}')
             print(f"✅ Command {cmd}: structure exists")
         except Exception as e:
             print(f"❌ Command {cmd}: {e}")

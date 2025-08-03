@@ -60,7 +60,7 @@ Repository = "https://github.com/makutaku/vortex"
 Issues = "https://github.com/makutaku/vortex/issues"
 
 [project.scripts]
-vortex = "bcutils.cli.main:cli"
+vortex = "vortex.cli.main:cli"
 
 
 [build-system]
@@ -82,7 +82,7 @@ zip-safe = false
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["bcutils*"]
+include = ["vortex*"]
 
 [tool.setuptools.package-data]
-bcutils = ["py.typed"]
+vortex = ["py.typed"]

@@ -95,7 +95,7 @@ ENV PYTHONPATH=/app
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import bcutils; print('OK')" || exit 1
+    CMD python -c "import vortex; print('OK')" || exit 1
 
 # Default command
 CMD ["./entrypoint.sh"]
@@ -120,7 +120,7 @@ services:
       - ./config:/app/config:ro
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "python", "-c", "import bcutils; print('OK')"]
+      test: ["CMD", "python", "-c", "import vortex; print('OK')"]
       interval: 30s
       timeout: 10s
       retries: 3

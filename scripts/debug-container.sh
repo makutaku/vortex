@@ -11,8 +11,8 @@ echo 'PATH: $PATH'
 echo 'Python location:' \$(which python)
 echo 'Pip list:'
 pip list | grep vortex
-echo 'Testing bcutils import:'
-python -c 'import bcutils; print(\"bcutils imported successfully\")'
+echo 'Testing vortex import:'
+python -c 'import vortex; print(\"vortex imported successfully\")'
 echo 'Testing vortex command:'
 which vortex
 vortex --help 2>&1 | head -5

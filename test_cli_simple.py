@@ -11,7 +11,7 @@ def test_basic_cli():
     
     # Test 1: Import CLI module
     try:
-        from bcutils.cli import __version__
+        from vortex.cli import __version__
         print(f"✓ CLI module version: {__version__}")
     except Exception as e:
         print(f"✗ Failed to import CLI module: {e}")
@@ -19,7 +19,7 @@ def test_basic_cli():
     
     # Test 2: Import config manager (no external deps)
     try:
-        from bcutils.cli.utils.config_manager import ConfigManager
+        from vortex.cli.utils.config_manager import ConfigManager
         config_manager = ConfigManager()
         print("✓ Config manager working")
     except Exception as e:
@@ -28,7 +28,7 @@ def test_basic_cli():
     
     # Test 3: Import instrument parser (no external deps)
     try:
-        from bcutils.cli.utils.instrument_parser import parse_instruments
+        from vortex.cli.utils.instrument_parser import parse_instruments
         symbols = parse_instruments(("AAPL", "GOOGL"), None)
         assert symbols == ["AAPL", "GOOGL"]
         print("✓ Instrument parser working")
@@ -39,7 +39,7 @@ def test_basic_cli():
     # Test 4: Test CLI entry point exists
     try:
         # Just check if we can import it, don't run it
-        from bcutils.cli.main import main
+        from vortex.cli.main import main
         print("✓ Main CLI entry point exists")
     except Exception as e:
         print(f"✗ Main CLI entry point failed: {e}")

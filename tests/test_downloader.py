@@ -1,7 +1,7 @@
 import os
 import pytest
-from bcutils.bc_utils import create_barchart_downloader
-from bcutils.initialization.session_config import OsEnvironSessionConfig
+from vortex.bc_utils import create_barchart_downloader
+from vortex.initialization.session_config import OsEnvironSessionConfig
 
 
 @pytest.fixture(autouse=True)

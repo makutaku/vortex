@@ -9,7 +9,7 @@ def verify_structure():
     print("🔍 Verifying Vortex CLI File Structure")
     print("=" * 50)
     
-    base_dir = Path(__file__).parent / "src" / "bcutils"
+    base_dir = Path(__file__).parent / "src" / "vortex"
     
     # Required files and directories
     required_structure = {
@@ -40,7 +40,7 @@ def verify_structure():
     pyproject_path = Path(__file__).parent / "pyproject.toml"
     if pyproject_path.exists():
         content = pyproject_path.read_text()
-        if 'bcutils = "bcutils.cli.main:cli"' in content:
+        if 'vortex = "vortex.cli.main:cli"' in content:
             print("✅ CLI Entry Point: configured in pyproject.toml")
         else:
             print("❌ CLI Entry Point: not found in pyproject.toml")
@@ -63,14 +63,14 @@ def verify_structure():
         
         print("\\nTo use the CLI:")
         print("  1. Install dependencies: pip install click rich tomli tomli-w")
-        print("  2. Install bc-utils: pip install -e .")
-        print("  3. Run: bcutils --help")
+        print("  2. Install vortex: pip install -e .")
+        print("  3. Run: vortex --help")
         
         print("\\nExample usage:")
-        print("  bcutils download --provider barchart --symbol GC")
-        print("  bcutils config --provider barchart --set-credentials")
-        print("  bcutils providers --test all")
-        print("  bcutils validate --path ./data")
+        print("  vortex download --provider barchart --symbol GC")
+        print("  vortex config --provider barchart --set-credentials")
+        print("  vortex providers --test all")
+        print("  vortex validate --path ./data")
     else:
         print("❌ CLI STRUCTURE: INCOMPLETE")
         print("\\nSome files are missing. Please check the errors above.")

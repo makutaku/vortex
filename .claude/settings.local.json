@@ -15,7 +15,7 @@
       "Bash(./scripts/build.sh:*)",
       "Bash(git add:*)",
       "Bash(uv pip install:*)",
-      "Bash(bcutils:*)",
+      "Bash(vortex:*)",
       "Bash(git commit:*)",
       "Bash(cp:*)",
       "Bash(uv run:*)",
@@ -29,7 +29,9 @@
       "Bash(time docker run:*)",
       "Bash(docker-compose:*)",
       "Bash(docker compose:*)",
-      "Bash(/usr/bin/docker build --no-cache -t bcutils-test:warning-fix .)"
+      "Bash(/usr/bin/docker build --no-cache -t bcutils-test:warning-fix .)",
+      "Bash(grep:*)",
+      "Bash(vortex:*)"
     ],
     "deny": []
   }

@@ -8,20 +8,20 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 def test_cli_structure():
     """Test that CLI structure is correct."""
     try:
-        from bcutils.cli import __version__
+        from vortex.cli import __version__
         print(f"✓ CLI module imported successfully (version {__version__})")
         
         # Test import of main components (without running them)
-        from bcutils.cli.main import cli
+        from vortex.cli.main import cli
         print("✓ Main CLI entry point imported")
         
-        from bcutils.cli.commands import download, config, providers, validate
+        from vortex.cli.commands import download, config, providers, validate
         print("✓ All command modules imported")
         
-        from bcutils.cli.utils.config_manager import ConfigManager
+        from vortex.cli.utils.config_manager import ConfigManager
         print("✓ Config manager imported")
         
-        from bcutils.cli.utils.instrument_parser import parse_instruments
+        from vortex.cli.utils.instrument_parser import parse_instruments
         print("✓ Instrument parser imported")
         
         print("\n🎉 CLI structure test passed!")
