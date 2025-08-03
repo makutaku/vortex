@@ -19,7 +19,7 @@ services:
       # Download command arguments
       BCU_DOWNLOAD_ARGS: ${BCU_DOWNLOAD_ARGS:---yes}
       
-      # Directories (mapped to volumes)
+      # Container paths (mapped to volumes)
       BCU_OUTPUT_DIR: /data
       BCU_CONFIG_DIR: /config
       BCU_ASSETS_FILE: ${BCU_ASSETS_FILE:-/config/assets.json}
