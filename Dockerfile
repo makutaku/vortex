@@ -8,7 +8,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv for fast dependency management
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh && \
+    mv /root/.cargo/bin/uv /usr/local/bin/uv
 
 # Set working directory
 WORKDIR /app
@@ -18,10 +19,9 @@ COPY pyproject.toml setup.py README.md ./
 COPY src/ ./src/
 
 # Create virtual environment and install dependencies
-# Use full path to uv since it's installed in /root/.cargo/bin
-RUN /root/.cargo/bin/uv venv /opt/venv
+RUN uv venv /opt/venv
 ENV PATH="/opt/venv/bin:${PATH}"
-RUN /root/.cargo/bin/uv pip install -e .
+RUN uv pip install -e .
 
 # Runtime stage
 FROM python:3.11-slim

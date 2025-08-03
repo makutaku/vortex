@@ -96,8 +96,10 @@ build_download_command() {
         cmd="$cmd --assets $BCU_ASSETS_FILE"
     fi
     
-    # Add any additional arguments
-    if [ -n "$BCU_DOWNLOAD_ARGS" ]; then
+    # Always add --yes for non-interactive mode unless explicitly overridden
+    if [ -z "$BCU_DOWNLOAD_ARGS" ]; then
+        cmd="$cmd --yes"
+    else
         cmd="$cmd $BCU_DOWNLOAD_ARGS"
     fi
     

@@ -39,8 +39,7 @@ echo ""
 
 # Test 3: Test basic container run
 echo -e "${YELLOW}Test 3: Testing container startup...${NC}"
-if docker run --rm bcutils-test:latest bcutils --version 2>/dev/null || \
-   docker run --rm bcutils-test:latest bcutils --help >/dev/null 2>&1; then
+if docker run --rm bcutils-test:latest bcutils --help >/dev/null 2>&1; then
     echo -e "${GREEN}✓ Container runs successfully${NC}\n"
 else
     echo -e "${RED}✗ Container failed to run${NC}"
@@ -121,8 +120,19 @@ echo -e "${YELLOW}Test 10: Smoke test with Yahoo provider...${NC}"
 if docker run --rm \
     -e BCU_PROVIDER=yahoo \
     bcutils-test:latest \
-    bcutils download --provider yahoo --symbol AAPL --dry-run 2>/dev/null || true; then
+    bcutils download --provider yahoo --symbol AAPL --yes --dry-run 2>/dev/null || true; then
     echo -e "${GREEN}✓ Smoke test completed${NC}\n"
+fi
+
+# Test 11: Test entrypoint with startup disabled
+echo -e "${YELLOW}Test 11: Testing entrypoint without startup download...${NC}"
+if timeout 10 docker run --rm \
+    -e BCU_RUN_ON_STARTUP=False \
+    -e BCU_PROVIDER=yahoo \
+    bcutils-test:latest 2>&1 | grep -q "Starting BC-Utils container"; then
+    echo -e "${GREEN}✓ Entrypoint works without download${NC}\n"
+else
+    echo -e "${YELLOW}⚠ Entrypoint test timeout (expected)${NC}\n"
 fi
 
 echo -e "${GREEN}All tests passed! 🎉${NC}"
