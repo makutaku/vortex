@@ -1,55 +1,72 @@
 # BC-Utils Component Architecture
 
-**Version:** 1.0  
-**Date:** 2025-01-08  
+**Version:** 2.0  
+**Date:** 2025-08-03  
 **Related:** [System Overview](01-system-overview.md) | [Data Flow Design](03-data-flow-design.md)
 
 ## 1. Component Overview
 
 ### 1.1 System Decomposition
-BC-Utils follows a layered architecture with clear separation of concerns. Each layer has specific responsibilities and well-defined interfaces.
+BC-Utils follows a modern layered architecture with clear separation of concerns using established design patterns. The architecture emphasizes extensibility through strategy patterns and single dispatch methods.
 
 ```mermaid
 graph TB
-    subgraph "Presentation Layer"
-        CLI[CLI Interface]
-        Config[Configuration Loader]
+    subgraph "CLI Layer"
+        Click[Click Framework CLI]
+        Rich[Rich Terminal Output]
+        Commands[Command Implementations]
+        ConfigMgr[TOML Configuration Manager]
     end
     
     subgraph "Application Layer"
-        DM[Download Manager]
-        Job[Job Orchestrator]
-        Retry[Retry Controller]
+        Orchestrator[Download Orchestrator]
+        JobScheduler[Job Scheduler]
+        RetryLogic[Retry with Backoff]
     end
     
     subgraph "Domain Layer"
         Instruments[Instrument Models]
-        Validation[Data Validation]
-        Transform[Data Transformation]
+        PriceSeries[Price Series Container]
+        DownloadJobs[Download Jobs]
+        Metadata[Data Metadata]
     end
     
-    subgraph "Infrastructure Layer"
-        Providers[Data Providers]
-        Storage[Storage Engines]
-        Logging[Logging Framework]
+    subgraph "Provider Layer"
+        ProviderStrategy[Data Provider Strategy]
+        SingleDispatch[Single Dispatch Methods]
+        BarchartImpl[Barchart Implementation]
+        YahooImpl[Yahoo Implementation]
+        IBKRImpl[IBKR Implementation]
     end
     
-    CLI --> DM
-    Config --> DM
-    DM --> Job
-    Job --> Retry
-    Job --> Instruments
-    Job --> Validation
-    Validation --> Transform
-    Transform --> Providers
-    Transform --> Storage
+    subgraph "Storage Layer"
+        StorageBridge[Storage Bridge Pattern]
+        CSVStorage[CSV Primary Storage]
+        ParquetStorage[Parquet Backup Storage]
+        MetadataStore[Metadata Management]
+    end
     
-    Providers --> Storage
-    Storage --> Logging
+    Click --> Commands
+    Commands --> ConfigMgr
+    Commands --> Orchestrator
+    Orchestrator --> JobScheduler
+    JobScheduler --> RetryLogic
+    JobScheduler --> DownloadJobs
+    DownloadJobs --> Instruments
+    DownloadJobs --> ProviderStrategy
+    ProviderStrategy --> SingleDispatch
+    SingleDispatch --> BarchartImpl
+    SingleDispatch --> YahooImpl
+    SingleDispatch --> IBKRImpl
+    ProviderStrategy --> PriceSeries
+    PriceSeries --> StorageBridge
+    StorageBridge --> CSVStorage
+    StorageBridge --> ParquetStorage
+    StorageBridge --> MetadataStore
     
-    style DM fill:#e1f5fe
-    style Providers fill:#fff3e0
-    style Storage fill:#e8f5e8
+    style Orchestrator fill:#e1f5fe
+    style ProviderStrategy fill:#fff3e0
+    style StorageBridge fill:#e8f5e8
 ```
 
 ### 1.2 Component Responsibilities
