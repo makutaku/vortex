@@ -73,10 +73,6 @@ services:
       VORTEX_IBKR_HOST: ${VORTEX_IBKR_HOST:-localhost}
       VORTEX_IBKR_PORT: ${VORTEX_IBKR_PORT:-7497}
       VORTEX_IBKR_CLIENT_ID: ${VORTEX_IBKR_CLIENT_ID:-1}
-      
-      # Legacy environment variables for backward compatibility
-      BCU_OUTPUT_DIR: /data
-      BCU_LOG_LEVEL: ${BCU_LOG_LEVEL:-INFO}
     
     volumes:
       # Data output directory - where downloaded CSV/Parquet files are stored

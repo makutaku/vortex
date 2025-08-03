@@ -65,8 +65,8 @@ class TestDownloader:
     @pytest.mark.network
     def test_good_barchart_credentials(self, download_dir, skip_if_no_credentials):
         """Test downloader creation with valid credentials."""
-        username = os.environ.get('VORTEX_BARCHART_USERNAME') or os.environ.get('BCU_USERNAME')
-        password = os.environ.get('VORTEX_BARCHART_PASSWORD') or os.environ.get('BCU_PASSWORD')
+        username = os.environ.get('VORTEX_BARCHART_USERNAME')
+        password = os.environ.get('VORTEX_BARCHART_PASSWORD')
         
         if not (username and password):
             pytest.skip("No valid credentials in environment")

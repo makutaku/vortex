@@ -28,14 +28,13 @@ RUN pip install --no-cache-dir -e .
 # Make scripts executable
 RUN chmod +x /app/entrypoint.sh /app/ping.sh
 
-# Default environment variables
-ENV BCU_PROVIDER=barchart \
-    BCU_OUTPUT_DIR=/data \
-    BCU_CONFIG_DIR=/config \
-    BCU_ASSETS_FILE=/config/assets.json \
-    BCU_SCHEDULE="0 8 * * *" \
-    BCU_RUN_ON_STARTUP=True \
-    BCU_DOWNLOAD_ARGS=""
+# Default environment variables (modern Vortex configuration)
+ENV VORTEX_DEFAULT_PROVIDER=yahoo \
+    VORTEX_OUTPUT_DIR=/data \
+    VORTEX_SCHEDULE="0 8 * * *" \
+    VORTEX_RUN_ON_STARTUP=true \
+    VORTEX_DOWNLOAD_ARGS="--yes" \
+    VORTEX_LOG_LEVEL=INFO
 
 # Volume mounts
 VOLUME ["/data", "/config"]

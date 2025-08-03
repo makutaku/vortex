@@ -117,8 +117,7 @@ def clean_environment():
         "VORTEX_OUTPUT_DIR", "VORTEX_LOG_LEVEL", "VORTEX_BACKUP_ENABLED",
         "VORTEX_DRY_RUN", "VORTEX_BARCHART_USERNAME", "VORTEX_BARCHART_PASSWORD",
         "VORTEX_BARCHART_DAILY_LIMIT", "VORTEX_IBKR_HOST", "VORTEX_IBKR_PORT",
-        "BCU_OUTPUT_DIR", "BCU_USERNAME", "BCU_PASSWORD", "BCU_LOGGING_LEVEL",
-        "BCU_DRY_RUN", "BCU_BACKUP_DATA", "BCU_PROVIDER_HOST", "BCU_PROVIDER_PORT"
+        "VORTEX_DEFAULT_PROVIDER"
     ]
     
     for var in env_vars:
@@ -183,8 +182,8 @@ def skip_if_no_network():
 @pytest.fixture  
 def skip_if_no_credentials():
     """Skip test if no valid credentials are available."""
-    if not (os.environ.get('VORTEX_BARCHART_USERNAME') or os.environ.get('BCU_USERNAME')):
-        pytest.skip("No credentials available for testing")
+    if not os.environ.get('VORTEX_BARCHART_USERNAME'):
+        pytest.skip("No credentials available for testing (VORTEX_BARCHART_USERNAME not set)")
 
 
 # Mock time fixture

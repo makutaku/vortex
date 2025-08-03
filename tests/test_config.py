@@ -301,42 +301,19 @@ class TestEnvironmentVariables:
             assert config.providers.ibkr.port == 4001
             assert config.providers.ibkr.client_id == 10
     
-    def test_legacy_environment_variables(self, config_manager, clean_environment):
-        """Test legacy BCU_* environment variables."""
+    def test_default_provider_configuration(self, config_manager, clean_environment):
+        """Test default provider configuration."""
         with patch.dict(os.environ, {
-            "BCU_OUTPUT_DIR": "/legacy/output",
-            "BCU_LOGGING_LEVEL": "WARNING",
-            "BCU_DRY_RUN": "true",
-            "BCU_BACKUP_DATA": "true",
-            "BCU_USERNAME": "legacy@example.com",
-            "BCU_PASSWORD": "legacypass",
-            "BCU_PROVIDER_HOST": "legacyhost",
-            "BCU_PROVIDER_PORT": "8888"
+            "VORTEX_DEFAULT_PROVIDER": "barchart"
         }):
             config = config_manager.load_config()
             
-            assert str(config.general.output_directory) == "/legacy/output"
-            assert config.general.log_level == LogLevel.WARNING
-            assert config.general.dry_run is True
-            assert config.general.backup_enabled is True
-            assert config.providers.barchart.username == "legacy@example.com"
-            assert config.providers.barchart.password == "legacypass"
-            assert config.providers.ibkr.host == "legacyhost"
-            assert config.providers.ibkr.port == 8888
-    
-    def test_environment_variable_precedence(self, config_manager, clean_environment):
-        """Test that modern variables take precedence over legacy."""
-        with patch.dict(os.environ, {
-            "VORTEX_OUTPUT_DIR": "/modern/output",
-            "BCU_OUTPUT_DIR": "/legacy/output",
-            "VORTEX_BARCHART_USERNAME": "modern@example.com",
-            "BCU_USERNAME": "legacy@example.com"
-        }):
-            config = config_manager.load_config()
-            
-            # Modern variables should take precedence
-            assert str(config.general.output_directory) == "/modern/output"
-            assert config.providers.barchart.username == "modern@example.com"
+            # Should use configured default provider
+            assert config.general.default_provider.value == "barchart"
+        
+        # Test default when no environment variable is set
+        config = config_manager.load_config()
+        assert config.general.default_provider.value == "yahoo"  # Default is yahoo
 
 
 @pytest.mark.unit

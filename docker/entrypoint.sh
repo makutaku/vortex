@@ -38,70 +38,60 @@ check_write_permission() {
 setup_configuration() {
     log_info "Setting up configuration..."
     
-    # Create config directory if needed
-    mkdir -p "$BCU_CONFIG_DIR"
+    # Create config directory at standard location
+    VORTEX_CONFIG_DIR="${VORTEX_CONFIG_DIR:-/root/.config/vortex}"
+    mkdir -p "$VORTEX_CONFIG_DIR"
     
     # Check if config.toml exists
-    if [ ! -f "$BCU_CONFIG_DIR/config.toml" ]; then
+    if [ ! -f "$VORTEX_CONFIG_DIR/config.toml" ]; then
         log_info "Creating default config.toml..."
-        cat > "$BCU_CONFIG_DIR/config.toml" << EOF
-# Vortex Configuration
-output_directory = "/data"
-backup_enabled = false
-log_level = "${BCU_LOG_LEVEL:-INFO}"
+        cat > "$VORTEX_CONFIG_DIR/config.toml" << EOF
+# Vortex Configuration (automatically generated)
+[general]
+output_directory = "${VORTEX_OUTPUT_DIR:-/data}"
+backup_enabled = ${VORTEX_BACKUP_ENABLED:-false}
+default_provider = "${VORTEX_DEFAULT_PROVIDER:-yahoo}"
+
+[general.logging]
+level = "${VORTEX_LOG_LEVEL:-INFO}"
+format = "${VORTEX_LOGGING_FORMAT:-console}"
 
 [providers.barchart]
-# Set credentials via environment or update here
-# username = "your_email@example.com"
-# password = "your_password"
-daily_limit = 150
+# Set credentials via environment variables
+daily_limit = ${VORTEX_BARCHART_DAILY_LIMIT:-150}
 
 [providers.yahoo]
-# No configuration required
+# No configuration required - works out of the box
 
 [providers.ibkr]
-host = "localhost"
-port = 7497
-client_id = 1
+host = "${VORTEX_IBKR_HOST:-localhost}"
+port = ${VORTEX_IBKR_PORT:-7497}
+client_id = ${VORTEX_IBKR_CLIENT_ID:-1}
 EOF
     fi
     
-    # Check for assets file
-    if [ -n "$BCU_ASSETS_FILE" ] && [ ! -f "$BCU_ASSETS_FILE" ]; then
-        # If custom assets file doesn't exist, copy default
-        if [ -f "/app/assets/${BCU_PROVIDER}.json" ]; then
-            log_info "Copying default assets for provider: $BCU_PROVIDER"
-            cp "/app/assets/${BCU_PROVIDER}.json" "$BCU_ASSETS_FILE"
-        elif [ -f "/app/assets/default.json" ]; then
-            log_info "Copying default assets file"
-            cp "/app/assets/default.json" "$BCU_ASSETS_FILE"
-        else
-            log_warning "No default assets file found"
-        fi
-    fi
+    log_info "Using configuration directory: $VORTEX_CONFIG_DIR"
 }
 
 # Function to build download command
 build_download_command() {
     local cmd="vortex download"
     
-    # Add provider
-    cmd="$cmd --provider $BCU_PROVIDER"
-    
-    # Add output directory (ensure it exists)
-    mkdir -p "$BCU_OUTPUT_DIR"
-    cmd="$cmd --output-dir $BCU_OUTPUT_DIR"
-    
-    # Add assets file if specified
-    if [ -n "$BCU_ASSETS_FILE" ] && [ -f "$BCU_ASSETS_FILE" ]; then
-        cmd="$cmd --assets $BCU_ASSETS_FILE"
+    # Provider is now handled by configuration system (defaults to yahoo)
+    if [ -n "$VORTEX_DEFAULT_PROVIDER" ] && [ "$VORTEX_DEFAULT_PROVIDER" != "yahoo" ]; then
+        cmd="$cmd --provider $VORTEX_DEFAULT_PROVIDER"
     fi
     
-    # Always add --yes for non-interactive mode unless explicitly overridden
-    if [ -z "$BCU_DOWNLOAD_ARGS" ]; then
-        cmd="$cmd --yes"
+    # Output directory (ensure it exists)
+    VORTEX_OUTPUT_DIR="${VORTEX_OUTPUT_DIR:-/data}"
+    mkdir -p "$VORTEX_OUTPUT_DIR"
+    cmd="$cmd --output-dir $VORTEX_OUTPUT_DIR"
+    
+    # Add additional arguments
+    if [ -n "$VORTEX_DOWNLOAD_ARGS" ]; then
+        cmd="$cmd $VORTEX_DOWNLOAD_ARGS"
     else
-        cmd="$cmd $BCU_DOWNLOAD_ARGS"
+        cmd="$cmd --yes"  # Default to non-interactive
     fi
     
     echo "$cmd"
@@ -109,8 +99,11 @@ build_download_command() {
 
 # Function to update cron schedule
 update_cron_schedule() {
-    if [ -n "$BCU_SCHEDULE" ]; then
-        log_info "Updating cron schedule to: $BCU_SCHEDULE"
+    VORTEX_SCHEDULE="${VORTEX_SCHEDULE:-0 8 * * *}"
+    VORTEX_OUTPUT_DIR="${VORTEX_OUTPUT_DIR:-/data}"
+    
+    if [ -n "$VORTEX_SCHEDULE" ]; then
+        log_info "Updating cron schedule to: $VORTEX_SCHEDULE"
         
         # Create cron entry
         cat > /tmp/vortex-cron << EOF
@@ -118,10 +111,10 @@ SHELL=/bin/bash
 PATH=/opt/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # Vortex download schedule
-$BCU_SCHEDULE $(build_download_command) >> $BCU_OUTPUT_DIR/vortex.log 2>&1
+$VORTEX_SCHEDULE $(build_download_command) >> $VORTEX_OUTPUT_DIR/vortex.log 2>&1
 
 # Health check
-0 * * * * date > $BCU_OUTPUT_DIR/health.check
+0 * * * * date > $VORTEX_OUTPUT_DIR/health.check
 EOF
         
         # Install crontab
@@ -132,38 +125,50 @@ EOF
 
 # Main execution
 main() {
-    log_info "Starting Vortex container..."
+    log_info "Starting Vortex container with modern configuration..."
+    
+    # Set defaults for required directories
+    VORTEX_OUTPUT_DIR="${VORTEX_OUTPUT_DIR:-/data}"
+    VORTEX_CONFIG_DIR="${VORTEX_CONFIG_DIR:-/root/.config/vortex}"
+    VORTEX_RUN_ON_STARTUP="${VORTEX_RUN_ON_STARTUP:-true}"
     
     # Validate required directories
-    if ! check_write_permission "$BCU_OUTPUT_DIR"; then
-        log_error "Output directory $BCU_OUTPUT_DIR is not writable"
+    if ! check_write_permission "$VORTEX_OUTPUT_DIR"; then
+        log_error "Output directory $VORTEX_OUTPUT_DIR is not writable"
         exit 1
     fi
     
-    if ! check_write_permission "$BCU_CONFIG_DIR"; then
-        log_error "Config directory $BCU_CONFIG_DIR is not writable"
+    if ! check_write_permission "$(dirname "$VORTEX_CONFIG_DIR")"; then
+        log_error "Config parent directory $(dirname "$VORTEX_CONFIG_DIR") is not writable"
         exit 1
     fi
     
     # Setup configuration
     setup_configuration
     
+    # Display configuration summary
+    log_info "Configuration summary:"
+    log_info "  Default Provider: ${VORTEX_DEFAULT_PROVIDER:-yahoo}"
+    log_info "  Output Directory: $VORTEX_OUTPUT_DIR"
+    log_info "  Config Directory: $VORTEX_CONFIG_DIR"
+    log_info "  Schedule: ${VORTEX_SCHEDULE:-0 8 * * *}"
+    
     # Update cron schedule
     update_cron_schedule
     
     # Run on startup if enabled
-    if [ "$BCU_RUN_ON_STARTUP" = "True" ] || [ "$BCU_RUN_ON_STARTUP" = "true" ]; then
+    if [ "$VORTEX_RUN_ON_STARTUP" = "true" ] || [ "$VORTEX_RUN_ON_STARTUP" = "True" ]; then
         log_info "Running download on startup..."
         download_cmd=$(build_download_command)
         log_info "Executing: $download_cmd"
         
-        if $download_cmd 2>&1 | tee -a "$BCU_OUTPUT_DIR/vortex.log"; then
+        if $download_cmd 2>&1 | tee -a "$VORTEX_OUTPUT_DIR/vortex.log"; then
             log_info "Download completed successfully"
         else
             log_error "Download failed"
         fi
     else
-        log_info "Skipping download on startup (BCU_RUN_ON_STARTUP=$BCU_RUN_ON_STARTUP)"
+        log_info "Skipping download on startup (VORTEX_RUN_ON_STARTUP=$VORTEX_RUN_ON_STARTUP)"
     fi
     
     # Start cron (as root since container runs as root)
@@ -175,12 +180,12 @@ main() {
     fi
     
     # Create initial health check
-    date > "$BCU_OUTPUT_DIR/health.check"
+    date > "$VORTEX_OUTPUT_DIR/health.check"
     
     # Keep container running and tail logs
     log_info "Vortex container is ready. Tailing logs..."
-    touch "$BCU_OUTPUT_DIR/vortex.log"
-    tail -f "$BCU_OUTPUT_DIR/vortex.log"
+    touch "$VORTEX_OUTPUT_DIR/vortex.log"
+    tail -f "$VORTEX_OUTPUT_DIR/vortex.log"
 }
 
 # Run main function

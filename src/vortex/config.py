@@ -258,16 +258,6 @@ class VortexSettings(BaseSettings):
     vortex_ibkr_port: Optional[int] = Field(None, alias="VORTEX_IBKR_PORT")
     vortex_ibkr_client_id: Optional[int] = Field(None, alias="VORTEX_IBKR_CLIENT_ID")
     
-    # Legacy environment variables for backward compatibility
-    bcu_output_dir: Optional[str] = Field(None, alias="BCU_OUTPUT_DIR")
-    bcu_username: Optional[str] = Field(None, alias="BCU_USERNAME") 
-    bcu_password: Optional[str] = Field(None, alias="BCU_PASSWORD")
-    bcu_logging_level: Optional[str] = Field(None, alias="BCU_LOGGING_LEVEL")
-    bcu_dry_run: Optional[bool] = Field(None, alias="BCU_DRY_RUN")
-    bcu_backup_data: Optional[bool] = Field(None, alias="BCU_BACKUP_DATA")
-    bcu_provider_host: Optional[str] = Field(None, alias="BCU_PROVIDER_HOST")
-    bcu_provider_port: Optional[int] = Field(None, alias="BCU_PROVIDER_PORT")
-    
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
@@ -401,26 +391,6 @@ class ConfigManager:
             config_data["providers"]["ibkr"]["port"] = self._settings.vortex_ibkr_port
         if self._settings.vortex_ibkr_client_id:
             config_data["providers"]["ibkr"]["client_id"] = self._settings.vortex_ibkr_client_id
-        
-        # Apply legacy environment variables for backward compatibility
-        if self._settings.bcu_output_dir:
-            config_data["general"]["output_directory"] = self._settings.bcu_output_dir
-        if self._settings.bcu_logging_level:
-            config_data["general"]["log_level"] = self._settings.bcu_logging_level
-        if self._settings.bcu_dry_run is not None:
-            config_data["general"]["dry_run"] = self._settings.bcu_dry_run
-        if self._settings.bcu_backup_data is not None:
-            config_data["general"]["backup_enabled"] = self._settings.bcu_backup_data
-        
-        if self._settings.bcu_username:
-            config_data["providers"]["barchart"]["username"] = self._settings.bcu_username
-        if self._settings.bcu_password:
-            config_data["providers"]["barchart"]["password"] = self._settings.bcu_password
-        
-        if self._settings.bcu_provider_host:
-            config_data["providers"]["ibkr"]["host"] = self._settings.bcu_provider_host
-        if self._settings.bcu_provider_port:
-            config_data["providers"]["ibkr"]["port"] = self._settings.bcu_provider_port
         
         return config_data
     
@@ -568,27 +538,3 @@ class ConfigManager:
         self._config = VortexConfig()
         self.save_config()
     
-    def migrate_legacy_config(self) -> bool:
-        """Migrate from legacy BCU environment variables.
-        
-        Returns:
-            True if migration was performed, False if no legacy config found.
-        """
-        migrated = False
-        
-        # Check if any legacy environment variables exist
-        legacy_vars = [
-            "BCU_USERNAME", "BCU_PASSWORD", "BCU_OUTPUT_DIR", 
-            "BCU_LOGGING_LEVEL", "BCU_DRY_RUN", "BCU_BACKUP_DATA",
-            "BCU_PROVIDER_HOST", "BCU_PROVIDER_PORT"
-        ]
-        
-        has_legacy = any(os.getenv(var) for var in legacy_vars)
-        
-        if has_legacy and not self.config_file.exists():
-            # Create new config from legacy environment variables
-            config = self.load_config()  # This will apply legacy env vars
-            self.save_config(config)
-            migrated = True
-        
-        return migrated
