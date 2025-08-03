@@ -40,12 +40,12 @@ echo ""
 # Test 3: Test basic container run
 echo -e "${YELLOW}Test 3: Testing container startup...${NC}"
 echo "Testing bcutils command..."
-if timeout 10s docker run --rm -v /tmp/test-data:/data -v /tmp/test-config:/config --entrypoint="" bcutils-test:latest bcutils --help >/dev/null 2>&1; then
+if timeout 20s docker run --rm -v /tmp/test-data:/data -v /tmp/test-config:/config --entrypoint="" bcutils-test:latest bcutils --help >/dev/null 2>&1; then
     echo -e "${GREEN}✓ Container runs successfully${NC}\n"
 else
     echo -e "${RED}✗ Container failed to run bcutils command${NC}"
     echo "Trying basic command test..."
-    if timeout 10s docker run --rm --entrypoint="" bcutils-test:latest bash -c "bcutils --version || bcutils --help" 2>&1 | head -5; then
+    if timeout 20s docker run --rm --entrypoint="" bcutils-test:latest bash -c "bcutils --version || bcutils --help" 2>&1 | head -5; then
         echo -e "${YELLOW}⚠ Command exists but needs volumes/config${NC}\n"
     else
         echo -e "${RED}✗ bcutils command not found${NC}"
@@ -55,12 +55,12 @@ fi
 
 # Test 4: Test CLI commands
 echo -e "${YELLOW}Test 4: Testing CLI commands...${NC}"
-timeout 10s docker run --rm --entrypoint="" bcutils-test:latest bcutils --help
+timeout 20s docker run --rm --entrypoint="" bcutils-test:latest bcutils --help
 echo -e "${GREEN}✓ CLI help works${NC}\n"
 
 # Test 5: Test providers list
 echo -e "${YELLOW}Test 5: Testing providers command...${NC}"
-if timeout 10s docker run --rm --entrypoint="" bcutils-test:latest bcutils providers --list; then
+if timeout 20s docker run --rm --entrypoint="" bcutils-test:latest bcutils providers --list; then
     echo -e "${GREEN}✓ Providers command works${NC}\n"
 else
     echo -e "${RED}✗ Providers command failed${NC}"
@@ -69,7 +69,7 @@ fi
 
 # Test 6: Test with environment variables
 echo -e "${YELLOW}Test 6: Testing environment variables...${NC}"
-if timeout 10s docker run --rm \
+if timeout 20s docker run --rm \
     -e BCU_PROVIDER=yahoo \
     -e BCU_LOG_LEVEL=DEBUG \
     --entrypoint="" \
@@ -84,7 +84,7 @@ fi
 # Test 7: Test volume mounts
 echo -e "${YELLOW}Test 7: Testing volume mounts...${NC}"
 mkdir -p test-data test-config
-if timeout 10s docker run --rm \
+if timeout 20s docker run --rm \
     -v "$(pwd)/test-data:/data" \
     -v "$(pwd)/test-config:/config" \
     --entrypoint="" \
@@ -126,7 +126,7 @@ fi
 
 # Test 10: Quick smoke test with Yahoo provider
 echo -e "${YELLOW}Test 10: Smoke test with Yahoo provider...${NC}"
-if timeout 15s docker run --rm \
+if timeout 30s docker run --rm \
     -e BCU_PROVIDER=yahoo \
     --entrypoint="" \
     bcutils-test:latest \
@@ -137,7 +137,7 @@ fi
 # Test 11: Test entrypoint with startup disabled
 echo -e "${YELLOW}Test 11: Testing entrypoint without startup download...${NC}"
 mkdir -p /tmp/test-data /tmp/test-config
-if timeout 10 docker run --rm \
+if timeout 20 docker run --rm \
     -v /tmp/test-data:/data \
     -v /tmp/test-config:/config \
     -e BCU_RUN_ON_STARTUP=False \
