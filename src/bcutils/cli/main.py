@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""BC-Utils CLI main entry point.
+"""Vortex CLI main entry point.
 
 Modern command-line interface for financial data download automation.
 """
@@ -45,7 +45,7 @@ def setup_logging(verbose: int = 0) -> None:
         )
 
 @click.group(invoke_without_command=True)
-@click.version_option(version=__version__, prog_name="bcutils")
+@click.version_option(version=__version__, prog_name="vortex")
 @click.option(
     "--config", "-c",
     type=click.Path(exists=True, path_type=Path),
@@ -63,7 +63,7 @@ def setup_logging(verbose: int = 0) -> None:
 )
 @click.pass_context
 def cli(ctx: click.Context, config: Optional[Path], verbose: int, dry_run: bool) -> None:
-    """BC-Utils: Financial data download automation tool.
+    """Vortex: Financial data download automation tool.
     
     A professional command-line tool for downloading and managing 
     financial market data from multiple providers including Barchart, 
@@ -71,9 +71,9 @@ def cli(ctx: click.Context, config: Optional[Path], verbose: int, dry_run: bool)
     
     \b
     Examples:
-        bcutils download --provider barchart --symbol GC
-        bcutils config --set-credentials barchart
-        bcutils providers --test
+        vortex download --provider barchart --symbol GC
+        vortex config --set-credentials barchart
+        vortex providers --test
         
     \b
     Installation (uv recommended):
@@ -82,8 +82,8 @@ def cli(ctx: click.Context, config: Optional[Path], verbose: int, dry_run: bool)
         
     \b
     Quick Start:
-        bcutils config --provider barchart --set-credentials
-        bcutils download --provider barchart --symbol GC
+        vortex config --provider barchart --set-credentials
+        vortex download --provider barchart --symbol GC
     """
     # Set up logging first
     setup_logging(verbose)
@@ -99,21 +99,21 @@ def cli(ctx: click.Context, config: Optional[Path], verbose: int, dry_run: bool)
     # If no command provided, show help
     if ctx.invoked_subcommand is None:
         if RICH_AVAILABLE and console:
-            console.print(f"[bold green]BC-Utils v{__version__}[/bold green]")
+            console.print(f"[bold green]Vortex v{__version__}[/bold green]")
             console.print("\nFinancial data download automation tool\n")
-            console.print("Use [bold]bcutils --help[/bold] to see available commands")
-            console.print("Use [bold]bcutils COMMAND --help[/bold] for command-specific help")
+            console.print("Use [bold]vortex --help[/bold] to see available commands")
+            console.print("Use [bold]vortex COMMAND --help[/bold] for command-specific help")
             console.print("\n[dim]Quick start:[/dim]")
-            console.print("  [cyan]bcutils download --help[/cyan]")
-            console.print("  [cyan]bcutils config --help[/cyan]")
+            console.print("  [cyan]vortex download --help[/cyan]")
+            console.print("  [cyan]vortex config --help[/cyan]")
         else:
-            print(f"BC-Utils v{__version__}")
+            print(f"Vortex v{__version__}")
             print("\nFinancial data download automation tool\n")
-            print("Use 'bcutils --help' to see available commands")
-            print("Use 'bcutils COMMAND --help' for command-specific help")
+            print("Use 'vortex --help' to see available commands")
+            print("Use 'vortex COMMAND --help' for command-specific help")
             print("\nQuick start:")
-            print("  bcutils config --provider barchart --set-credentials")
-            print("  bcutils download --provider barchart --symbol GC")
+            print("  vortex config --provider barchart --set-credentials")
+            print("  vortex download --provider barchart --symbol GC")
             print("\nInstall with uv (10x faster):")
             print("  curl -LsSf https://astral.sh/uv/install.sh | sh")
             print("  uv pip install -e .")

@@ -1,4 +1,4 @@
-# BC-Utils Component Architecture
+# Vortex Component Architecture
 
 **Version:** 2.0  
 **Date:** 2025-08-03  
@@ -7,7 +7,7 @@
 ## 1. Component Overview
 
 ### 1.1 System Decomposition
-BC-Utils follows a modern layered architecture with clear separation of concerns using established design patterns. The architecture emphasizes extensibility through strategy patterns and single dispatch methods.
+Vortex follows a modern layered architecture with clear separation of concerns using established design patterns. The architecture emphasizes extensibility through strategy patterns and single dispatch methods.
 
 ```mermaid
 graph TB

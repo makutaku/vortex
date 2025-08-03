@@ -28,7 +28,7 @@ def test_cli_structure():
         print("\nNext steps to complete setup:")
         print("1. Install dependencies: pip install click rich tomli tomli-w")
         print("2. Install in development mode: pip install -e .")
-        print("3. Test: bcutils --help")
+        print("3. Test: vortex --help")
         
         return True
         

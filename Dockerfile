@@ -1,4 +1,4 @@
-# Multi-stage build for efficient bc-utils image
+# Multi-stage build for efficient vortex image
 FROM python:3.11-slim AS builder
 
 # Install build dependencies
@@ -39,9 +39,9 @@ COPY --from=builder /app/pyproject.toml /app/setup.py /app/
 COPY --from=builder /app/src /app/src
 
 # Create app user and ensure data directories exist
-RUN useradd -m -r bcutils && \
+RUN useradd -m -r vortex && \
     mkdir -p /app /data /config /app/data && \
-    chown -R bcutils:bcutils /app /data /config
+    chown -R vortex:vortex /app /data /config
 
 # Set working directory
 WORKDIR /app
@@ -67,7 +67,7 @@ ENV BCU_PROVIDER=barchart \
 VOLUME ["/data", "/config"]
 
 # Stay as root for cron and permissions
-# USER bcutils  # Keep as root for cron functionality
+# USER vortex  # Keep as root for cron functionality
 
 # Use tini as init system
 ENTRYPOINT ["/usr/bin/tini", "--", "/app/entrypoint.sh"]

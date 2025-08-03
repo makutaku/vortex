@@ -45,7 +45,7 @@ setup_configuration() {
     if [ ! -f "$BCU_CONFIG_DIR/config.toml" ]; then
         log_info "Creating default config.toml..."
         cat > "$BCU_CONFIG_DIR/config.toml" << EOF
-# BC-Utils Configuration
+# Vortex Configuration
 output_directory = "/data"
 backup_enabled = false
 log_level = "${BCU_LOG_LEVEL:-INFO}"
@@ -83,7 +83,7 @@ EOF
 
 # Function to build download command
 build_download_command() {
-    local cmd="bcutils download"
+    local cmd="vortex download"
     
     # Add provider
     cmd="$cmd --provider $BCU_PROVIDER"
@@ -113,26 +113,26 @@ update_cron_schedule() {
         log_info "Updating cron schedule to: $BCU_SCHEDULE"
         
         # Create cron entry
-        cat > /tmp/bcutils-cron << EOF
+        cat > /tmp/vortex-cron << EOF
 SHELL=/bin/bash
 PATH=/opt/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
-# BC-Utils download schedule
-$BCU_SCHEDULE $(build_download_command) >> $BCU_OUTPUT_DIR/bcutils.log 2>&1
+# Vortex download schedule
+$BCU_SCHEDULE $(build_download_command) >> $BCU_OUTPUT_DIR/vortex.log 2>&1
 
 # Health check
 0 * * * * date > $BCU_OUTPUT_DIR/health.check
 EOF
         
         # Install crontab
-        crontab /tmp/bcutils-cron
-        rm -f /tmp/bcutils-cron
+        crontab /tmp/vortex-cron
+        rm -f /tmp/vortex-cron
     fi
 }
 
 # Main execution
 main() {
-    log_info "Starting BC-Utils container..."
+    log_info "Starting Vortex container..."
     
     # Validate required directories
     if ! check_write_permission "$BCU_OUTPUT_DIR"; then
@@ -157,7 +157,7 @@ main() {
         download_cmd=$(build_download_command)
         log_info "Executing: $download_cmd"
         
-        if $download_cmd 2>&1 | tee -a "$BCU_OUTPUT_DIR/bcutils.log"; then
+        if $download_cmd 2>&1 | tee -a "$BCU_OUTPUT_DIR/vortex.log"; then
             log_info "Download completed successfully"
         else
             log_error "Download failed"
@@ -178,9 +178,9 @@ main() {
     date > "$BCU_OUTPUT_DIR/health.check"
     
     # Keep container running and tail logs
-    log_info "BC-Utils container is ready. Tailing logs..."
-    touch "$BCU_OUTPUT_DIR/bcutils.log"
-    tail -f "$BCU_OUTPUT_DIR/bcutils.log"
+    log_info "Vortex container is ready. Tailing logs..."
+    touch "$BCU_OUTPUT_DIR/vortex.log"
+    tail -f "$BCU_OUTPUT_DIR/vortex.log"
 }
 
 # Run main function

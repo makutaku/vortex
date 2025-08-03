@@ -1,4 +1,4 @@
-# BC-Utils System Overview
+# Vortex System Overview
 
 **Version:** 2.0  
 **Date:** 2025-08-03  
@@ -6,7 +6,7 @@
 
 ## 1. Executive Summary
 
-BC-Utils is an automated financial data acquisition pipeline that transforms manual, time-intensive data collection into a reliable, scalable system. The architecture follows modern Python packaging standards with a modular, extensible design supporting multiple data providers, modern CLI interface with Click framework, and comprehensive Docker deployment scenarios.
+Vortex is an automated financial data acquisition pipeline that transforms manual, time-intensive data collection into a reliable, scalable system. The architecture follows modern Python packaging standards with a modular, extensible design supporting multiple data providers, modern CLI interface with Click framework, and comprehensive Docker deployment scenarios.
 
 ### 1.1 System Purpose
 - **Automate** historic financial data downloads from multiple sources (Barchart, Yahoo Finance, Interactive Brokers)
@@ -27,15 +27,15 @@ BC-Utils is an automated financial data acquisition pipeline that transforms man
 ### 2.1 Business Context
 ```mermaid
 graph TB
-    Analysts[Quantitative Analysts] --> BCU[BC-Utils System]
-    Researchers[Academic Researchers] --> BCU
-    Traders[Individual Traders] --> BCU
+    Analysts[Quantitative Analysts] --> VTX[Vortex System]
+    Researchers[Academic Researchers] --> VTX
+    Traders[Individual Traders] --> VTX
     
-    BCU --> Strategies[Trading Strategies]
-    BCU --> Research[Academic Research]
-    BCU --> Backtesting[Portfolio Analysis]
+    VTX --> Strategies[Trading Strategies]
+    VTX --> Research[Academic Research]
+    VTX --> Backtesting[Portfolio Analysis]
     
-    style BCU fill:#e1f5fe
+    style VTX fill:#e1f5fe
     style Strategies fill:#f3e5f5
     style Research fill:#f3e5f5
     style Backtesting fill:#f3e5f5
@@ -50,8 +50,8 @@ graph LR
         IB[Interactive Brokers]
     end
     
-    subgraph "BC-Utils System"
-        Core[BC-Utils Core]
+    subgraph "Vortex System"
+        Core[Vortex Core]
     end
     
     subgraph "User Environment"
@@ -85,7 +85,7 @@ graph LR
 ### 3.1 System Overview
 ```mermaid
 graph TB
-    subgraph "BC-Utils System"
+    subgraph "Vortex System"
         subgraph "Application Layer"
             CLI[Command Line Interface]
             Config[Configuration Management]

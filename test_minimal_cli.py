@@ -7,7 +7,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
 def test_minimal_structure():
     """Test minimal CLI structure."""
-    print("🧪 Testing BC-Utils CLI Core Structure")
+    print("🧪 Testing Vortex CLI Core Structure")
     print("=" * 50)
     
     # Test 1: CLI module and version
@@ -61,12 +61,12 @@ def test_minimal_structure():
     print("\\nNext Steps:")
     print("1. Install dependencies:")
     print("   pip install click rich tomli tomli-w")
-    print("2. Install bc-utils in development mode:")
+    print("2. Install vortex in development mode:")
     print("   pip install -e .")
     print("3. Test the full CLI:")
-    print("   bcutils --help")
-    print("   bcutils download --help")
-    print("   bcutils config --show")
+    print("   vortex --help")
+    print("   vortex download --help")
+    print("   vortex config --show")
     
     return True
 

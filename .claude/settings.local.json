@@ -21,7 +21,15 @@
       "Bash(uv run:*)",
       "Bash(chmod:*)",
       "Bash(docker build:*)",
-      "Bash(docker run:*)"
+      "Bash(docker run:*)",
+      "Bash(./scripts/test-docker-build.sh:*)",
+      "Bash(timeout:*)",
+      "Bash(/dev/null)",
+      "Bash(echo \"Exit code: $?\")",
+      "Bash(time docker run:*)",
+      "Bash(docker-compose:*)",
+      "Bash(docker compose:*)",
+      "Bash(/usr/bin/docker build --no-cache -t bcutils-test:warning-fix .)"
     ],
     "deny": []
   }

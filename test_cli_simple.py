@@ -7,7 +7,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
 def test_basic_cli():
     """Test basic CLI functionality."""
-    print("Testing bc-utils CLI structure...")
+    print("Testing vortex CLI structure...")
     
     # Test 1: Import CLI module
     try:
@@ -49,10 +49,10 @@ def test_basic_cli():
     print("\nTo complete setup:")
     print("1. Install dependencies:")
     print("   pip install click rich tomli tomli-w")
-    print("2. Install bc-utils:")
+    print("2. Install vortex:")
     print("   pip install -e .")
     print("3. Test full CLI:")
-    print("   bcutils --help")
+    print("   vortex --help")
     
     return True
 

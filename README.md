@@ -1,8 +1,8 @@
-# BC-Utils
+# Vortex
 
 **Professional financial data download automation with modern CLI interface**
 
-[Barchart.com](https://www.barchart.com) allows registered users to download historic futures contract prices in CSV format. Individual contracts must be downloaded separately, which is laborious and slow. BC-Utils automates this process with support for multiple data providers including Barchart, Yahoo Finance, and Interactive Brokers.
+[Barchart.com](https://www.barchart.com) allows registered users to download historic futures contract prices in CSV format. Individual contracts must be downloaded separately, which is laborious and slow. Vortex automates this process with support for multiple data providers including Barchart, Yahoo Finance, and Interactive Brokers.
 
 ## 🚀 Quick Start
 
@@ -16,20 +16,20 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 uv venv
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
-# Install BC-Utils
+# Install Vortex
 uv pip install -e .
 
 # Configure and run
-bcutils config --provider barchart --set-credentials
-bcutils download --provider barchart --symbol GC --start-date 2024-01-01
+vortex config --provider barchart --set-credentials
+vortex download --provider barchart --symbol GC --start-date 2024-01-01
 ```
 
 ### Option 2: Docker Deployment (Automated Downloads)
 
 ```bash
 # Clone repository
-git clone https://github.com/makutaku/bc-utils.git
-cd bc-utils
+git clone https://github.com/makutaku/vortex.git
+cd vortex
 
 # Configure
 cp .env.example .env
@@ -47,7 +47,7 @@ See [Docker Guide](docs/DOCKER.md) for detailed setup.
 ## 📚 Legacy Python API
 
 ```
-from bc_utils import get_barchart_downloads, create_bc_session
+from bcutils import get_barchart_downloads, create_bc_session
 
 CONTRACTS={
     "AUD":{"code":"A6","cycle":"HMUZ","tick_date":"2009-11-24"},
@@ -122,7 +122,7 @@ source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 uv pip install -e ".[dev,test,lint]"
 
 # From PyPI (when published)
-uv pip install bc-utils
+uv pip install vortex
 ```
 
 ## 🏗️ Requirements

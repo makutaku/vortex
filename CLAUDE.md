@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-bc-utils is a Python automation library for downloading historic futures contract prices from Barchart.com. It automates the manual process of downloading individual contracts and supports multiple data providers including Barchart, Yahoo Finance, and Interactive Brokers.
+Vortex is a Python automation library for downloading historic futures contract prices from Barchart.com. It automates the manual process of downloading individual contracts and supports multiple data providers including Barchart, Yahoo Finance, and Interactive Brokers.
 
 ## Development Commands
 
@@ -16,12 +16,12 @@ bc-utils is a Python automation library for downloading historic futures contrac
 curl -LsSf https://astral.sh/uv/install.sh | sh
 # or on Windows: powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
 
-# Create virtual environment and install bc-utils with all dependencies
+# Create virtual environment and install vortex with all dependencies
 uv venv
 source .venv/bin/activate  # Linux/Mac
 # or .venv\Scripts\activate  # Windows
 
-# Install bc-utils in development mode
+# Install vortex in development mode
 uv pip install -e .
 
 # Or install specific dependency groups
@@ -36,8 +36,8 @@ uv pip install -e ".[lint]"    # Linting dependencies
 pip install -e .
 
 # Method 3: Install from PyPI (when published)
-uv pip install bc-utils
-# or: pip install bc-utils
+uv pip install vortex
+# or: pip install vortex
 ```
 
 ### Testing
@@ -80,26 +80,26 @@ isort src/bcutils/
 # After installation, use the modern CLI interface:
 
 # Get help
-bcutils --help
-bcutils download --help
+vortex --help
+vortex download --help
 
 # Configure credentials
-bcutils config --provider barchart --set-credentials
-bcutils config --show
+vortex config --provider barchart --set-credentials
+vortex config --show
 
 # Download data
-bcutils download --provider barchart --symbol GC --start-date 2024-01-01
-bcutils download --provider yahoo --symbol AAPL GOOGL MSFT
-bcutils download --provider ibkr --symbols-file symbols.txt
+vortex download --provider barchart --symbol GC --start-date 2024-01-01
+vortex download --provider yahoo --symbol AAPL GOOGL MSFT
+vortex download --provider ibkr --symbols-file symbols.txt
 
 # Manage providers
-bcutils providers --list
-bcutils providers --test barchart
-bcutils providers --info barchart
+vortex providers --list
+vortex providers --test barchart
+vortex providers --info barchart
 
 # Validate data
-bcutils validate --path ./data
-bcutils validate --path ./data/GC.csv --provider barchart
+vortex validate --path ./data
+vortex validate --path ./data/GC.csv --provider barchart
 ```
 
 
@@ -178,7 +178,7 @@ client_id = 1
 
 ### Assets Configuration
 
-The `assets/` directory contains default instrument definitions that ship with bc-utils. These are example asset lists to get users started:
+The `assets/` directory contains default instrument definitions that ship with Vortex. These are example asset lists to get users started:
 
 - `assets/barchart.json` - Default instruments for Barchart.com
 - `assets/yahoo.json` - Default instruments for Yahoo Finance  
@@ -188,10 +188,10 @@ The `assets/` directory contains default instrument definitions that ship with b
 Users can provide their own custom assets file using the `--assets` option:
 ```bash
 # Use your own custom assets file
-bcutils download --provider yahoo --assets /path/to/my-assets.json
+vortex download --provider yahoo --assets /path/to/my-assets.json
 
 # Or use the defaults by not specifying --assets
-bcutils download --provider yahoo --symbol AAPL
+vortex download --provider yahoo --symbol AAPL
 ```
 
 Each assets file defines futures, forex, and stock instruments with metadata like trading cycles, tick dates, and periods. Users can maintain a single assets file for all providers or create provider-specific files based on their needs.
@@ -219,7 +219,7 @@ Each assets file defines futures, forex, and stock instruments with metadata lik
 - Docker support with `entrypoint.sh`
 - Cron scheduling with `cronfile`
 - Health checks with `ping.sh`
-- Modern CLI works in containers: `docker run bc-utils bcutils --help`
+- Modern CLI works in containers: `docker run vortex vortex --help`
 
 ### Testing Strategy
 

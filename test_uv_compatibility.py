@@ -7,7 +7,7 @@ from pathlib import Path
 
 def test_uv_compatibility():
     """Test that the project is compatible with uv."""
-    print("🧪 Testing UV Compatibility for BC-Utils")
+    print("🧪 Testing UV Compatibility for Vortex")
     print("=" * 50)
     
     # Test 1: Check if pyproject.toml exists and is valid
@@ -23,10 +23,10 @@ def test_uv_compatibility():
         content = pyproject_path.read_text()
         required_fields = [
             '[project]',
-            'name = "bc-utils"',
+            'name = "vortex"',
             'dependencies = [',
             '[project.scripts]',
-            'bcutils = "bcutils.cli.main:cli"'
+            'vortex = "bcutils.cli.main:cli"'
         ]
         
         for field in required_fields:
@@ -41,7 +41,7 @@ def test_uv_compatibility():
         return False
     
     # Test 2: Check if CLI entry point is configured
-    if 'bcutils = "bcutils.cli.main:cli"' in content:
+    if 'vortex = "bcutils.cli.main:cli"' in content:
         print("✅ CLI entry point configured")
     else:
         print("❌ CLI entry point not configured")
@@ -66,17 +66,17 @@ def test_uv_compatibility():
     print("  uv venv")
     print("  source .venv/bin/activate")
     print("  ")
-    print("  # Install bc-utils")
+    print("  # Install vortex")
     print("  uv pip install -e .")
     print("  ")
     print("  # Install with development dependencies")
     print("  uv pip install -e \".[dev,test,lint]\"")
     print("  ")
     print("  # Run CLI")
-    print("  bcutils --help")
+    print("  vortex --help")
     print("  ")
     print("  # Or run directly without activation")
-    print("  uv run bcutils --help")
+    print("  uv run vortex --help")
     
     print("\n⚡ Benefits of using uv:")
     print("  • 10-100x faster than pip")

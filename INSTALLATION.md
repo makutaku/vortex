@@ -1,4 +1,4 @@
-# BC-Utils Installation Guide
+# Vortex Installation Guide
 
 ## 🚀 Quick Start with uv (Recommended)
 
@@ -21,36 +21,36 @@ powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
 pip install uv
 ```
 
-### 2. Install BC-Utils
+### 2. Install Vortex
 
 **Development Installation:**
 ```bash
 # Clone repository
-git clone https://github.com/makutaku/bc-utils.git
-cd bc-utils
+git clone https://github.com/makutaku/vortex.git
+cd vortex
 
 # Create virtual environment and install
 uv venv
 source .venv/bin/activate  # Linux/macOS
 # or .venv\Scripts\activate  # Windows
 
-# Install bc-utils with all dependencies
+# Install vortex with all dependencies
 uv pip install -e .
 ```
 
 **From PyPI (when published):**
 ```bash
-uv pip install bc-utils
+uv pip install vortex
 ```
 
 ### 3. Verify Installation
 
 ```bash
 # Test CLI is working
-bcutils --help
+vortex --help
 
 # Verify version
-bcutils --version
+vortex --version
 
 # Test CLI structure
 python verify_cli_structure.py
@@ -58,7 +58,7 @@ python verify_cli_structure.py
 
 ## 📦 Dependency Groups
 
-BC-Utils supports optional dependency groups for different use cases:
+Vortex supports optional dependency groups for different use cases:
 
 ```bash
 # Development dependencies (pytest, flake8)
@@ -76,7 +76,7 @@ uv pip install -e ".[dev,test,lint]"
 
 ## 🐍 Python Version Support
 
-BC-Utils supports Python 3.8+ with the following recommendations:
+Vortex supports Python 3.8+ with the following recommendations:
 
 ```bash
 # Check Python version
@@ -93,8 +93,8 @@ For contributors and developers:
 
 ```bash
 # Clone and setup development environment
-git clone https://github.com/makutaku/bc-utils.git
-cd bc-utils
+git clone https://github.com/makutaku/vortex.git
+cd vortex
 
 # Create development environment with uv
 uv venv --python 3.11
@@ -114,7 +114,7 @@ With uv, you can run commands directly without activating the virtual environmen
 
 ```bash
 # Run CLI directly
-uv run bcutils --help
+uv run vortex --help
 
 # Run tests
 uv run pytest
@@ -146,7 +146,7 @@ WORKDIR /app
 RUN uv pip install --system .
 
 # Run CLI
-ENTRYPOINT ["bcutils"]
+ENTRYPOINT ["vortex"]
 ```
 
 ## 🔄 Migration from pip
@@ -212,7 +212,7 @@ uv pip install --force-reinstall -e .
 ## 📚 Additional Resources
 
 - [uv Documentation](https://github.com/astral-sh/uv)
-- [BC-Utils CLI Guide](CLAUDE.md#modern-cli-usage)
+- [Vortex CLI Guide](CLAUDE.md#modern-cli-usage)
 - [Configuration Guide](CLAUDE.md#configuration-management)
 - [Development Guide](CLAUDE.md#development-commands)
 

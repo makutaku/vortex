@@ -3,7 +3,7 @@
 
 set -e  # Exit on error
 
-echo "Building bc-utils..."
+echo "Building vortex..."
 
 # Output directory for build artifacts
 DEST_DIR="./build"

@@ -1,9 +1,9 @@
 services:
-  bcutils:
+  vortex:
     build:
       context: .
       dockerfile: Dockerfile.simple  # Use simple build for reliability
-    container_name: bcutils
+    container_name: vortex
     restart: unless-stopped
     
     environment:
@@ -58,8 +58,8 @@ services:
   # postgres:
   #   image: postgres:15-alpine
   #   environment:
-  #     POSTGRES_DB: bcutils
-  #     POSTGRES_USER: bcutils
+  #     POSTGRES_DB: vortex
+  #     POSTGRES_USER: vortex
   #     POSTGRES_PASSWORD: ${DB_PASSWORD}
   #   volumes:
   #     - postgres_data:/var/lib/postgresql/data
