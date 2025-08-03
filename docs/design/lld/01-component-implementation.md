@@ -1,31 +1,127 @@
 # Component Implementation Details
 
-**Version:** 1.0  
-**Date:** 2025-01-08  
+**Version:** 2.0  
+**Date:** 2025-08-03  
 **Related:** [Component Architecture](../hld/02-component-architecture.md)
 
-## 1. Download Manager Implementation
+## 1. CLI Implementation
 
-### 1.1 Core Workflow Pattern
+### 1.1 Click Framework Architecture
+
+**Command Structure:**
+```python
+@click.group()
+@click.version_option()
+@click.option('-c', '--config', type=click.Path(exists=True))
+@click.option('-v', '--verbose', count=True)
+@click.option('--dry-run', is_flag=True)
+def cli():
+    """BC-Utils: Financial data download automation tool."""
+```
+
+**Rich Terminal Integration:**
+- Progress bars for download operations
+- Colored output for status messages  
+- Interactive tables for configuration display
+- Confirmation prompts for destructive operations
+
+**Source Reference:** `src/bcutils/cli/main.py`
+
+### 1.2 Configuration Management
+
+**TOML Configuration Pattern:**
+```python
+class ConfigManager:
+    def __init__(self, config_path: Optional[Path] = None):
+        self.config_path = config_path or self._get_default_config_path()
+        self.config = self._load_config()
+    
+    def _load_config(self) -> Dict[str, Any]:
+        with open(self.config_path, 'rb') as f:
+            return tomllib.load(f)
+```
+
+**Interactive Setup:**
+- Provider credential configuration with secure prompts
+- Automatic TOML file generation
+- Validation of configuration values
+
+**Source Reference:** `src/bcutils/cli/utils/config_manager.py`
+
+## 2. Download Orchestration Implementation
+
+### 2.1 Core Workflow Pattern
 
 **Algorithm: Incremental Download Workflow**
 ```
-1. CREATE download job from configuration
-2. CHECK for existing data → IF exists, incremental update
-3. FETCH raw data from provider
-4. VALIDATE data quality → IF invalid, reject
-5. STORE data with deduplication
-6. UPDATE metadata tracking
-7. HANDLE errors with retry strategies
+1. PARSE symbols and date ranges from CLI arguments
+2. LOAD instrument configurations from assets JSON
+3. CREATE DownloadJob objects for each instrument/period
+4. SCHEDULE jobs with round-robin across instruments
+5. FETCH raw data from provider (with retry logic)
+6. MERGE with existing data (intelligent deduplication)
+7. PERSIST to CSV storage with Parquet backup
+8. UPDATE metadata with coverage information
 ```
 
 **Error Recovery Strategy:**
-- **Rate Limit Error**: Wait specified period, retry
-- **Authentication Error**: Re-authenticate once, retry
-- **Connection Error**: Exponential backoff (max 3 retries)
-- **Unknown Error**: Log and fail gracefully
+- **Rate Limit**: Random sleep intervals (2-5 seconds)
+- **Authentication**: Provider-specific re-authentication
+- **Network Errors**: Exponential backoff with `@retry` decorator
+- **Data Quality**: Validation with PriceSeries container
 
 **Source Reference:** `src/bcutils/downloaders/updating_downloader.py`
+
+### 2.2 Single Dispatch Pattern Implementation
+
+**Provider Strategy with Type Dispatch:**
+```python
+from functools import singledispatchmethod
+
+class DataProvider:
+    @singledispatchmethod
+    def _fetch_historical_data(self, instrument, period, start_date, end_date):
+        raise NotImplementedError
+    
+    @_fetch_historical_data.register
+    def _(self, instrument: Future, period, start_date, end_date):
+        # Future-specific implementation
+        return self._fetch_futures_data(...)
+    
+    @_fetch_historical_data.register  
+    def _(self, instrument: Stock, period, start_date, end_date):
+        # Stock-specific implementation
+        return self._fetch_stock_data(...)
+```
+
+**Source Reference:** `src/bcutils/data_providers/data_provider.py`
+
+## 3. Storage Architecture Implementation
+
+### 3.1 Bridge Pattern for Dual Storage
+
+**Storage Bridge Implementation:**
+```python
+class FileStorage(DataStorage):
+    @singledispatchmethod
+    def _get_file_path(self, instrument, period):
+        raise NotImplementedError
+    
+    @_get_file_path.register
+    def _(self, instrument: Future, period):
+        return Path(f"futures/{period}/{instrument.symbol}.csv")
+    
+    @_get_file_path.register
+    def _(self, instrument: Stock, period):
+        return Path(f"stocks/{period}/{instrument.symbol}.csv")
+```
+
+**Dual Format Persistence:**
+- Primary: CSV for human readability and compatibility
+- Backup: Parquet for performance and compression
+- Metadata: JSON sidecar files for tracking coverage
+
+**Source Reference:** `src/bcutils/data_storage/file_storage.py`
 
 ### 1.2 Job Management Architecture
 
