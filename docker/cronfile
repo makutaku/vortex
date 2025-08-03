@@ -1,7 +1,0 @@
-SHELL=/bin/bash
-
-# Schedule job to download financial data every day at 8 AM UTC using modern CLI
-00 08 * * * bcutils download --provider "${BCU_PROVIDER:-barchart}" --output-dir "$BCU_OUTPUT_DIR" --yes 2>&1 | tee -a "$BCU_OUTPUT_DIR/bc_utils.log" >> /proc/1/fd/1
-
-# Schedule job to check health status and display "PING" runs at the top of every hour
-0 * * * * "$BCU_REPO_DIR/ping.sh" 2>&1 | tee -a "$BCU_OUTPUT_DIR/ping.log" >> /proc/1/fd/1

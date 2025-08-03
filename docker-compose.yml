@@ -1,0 +1,68 @@
+version: '3.8'
+
+services:
+  bcutils:
+    build: .
+    container_name: bcutils
+    restart: unless-stopped
+    
+    environment:
+      # Provider configuration (barchart, yahoo, ibkr)
+      BCU_PROVIDER: ${BCU_PROVIDER:-barchart}
+      
+      # Schedule (cron format) - default: 8 AM daily
+      BCU_SCHEDULE: ${BCU_SCHEDULE:-0 8 * * *}
+      
+      # Run download on container startup
+      BCU_RUN_ON_STARTUP: ${BCU_RUN_ON_STARTUP:-True}
+      
+      # Download command arguments
+      BCU_DOWNLOAD_ARGS: ${BCU_DOWNLOAD_ARGS:---yes}
+      
+      # Directories (mapped to volumes)
+      BCU_OUTPUT_DIR: /data
+      BCU_CONFIG_DIR: /config
+      BCU_ASSETS_FILE: ${BCU_ASSETS_FILE:-/config/assets.json}
+      
+      # Logging
+      BCU_LOG_LEVEL: ${BCU_LOG_LEVEL:-INFO}
+    
+    volumes:
+      # Data output directory
+      - ${DATA_DIR:-./data}:/data
+      
+      # Configuration directory (contains config.toml and custom assets.json)
+      - ${CONFIG_DIR:-./config}:/config
+      
+      # Optional: Mount custom assets file directly
+      # - ./my-assets.json:/config/assets.json:ro
+    
+    # Health check
+    healthcheck:
+      test: ["CMD", "test", "-f", "/data/health.check"]
+      interval: 1h
+      timeout: 10s
+      retries: 3
+    
+    # Resource limits (optional)
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  # Optional: Add database for storing metadata
+  # postgres:
+  #   image: postgres:15-alpine
+  #   environment:
+  #     POSTGRES_DB: bcutils
+  #     POSTGRES_USER: bcutils
+  #     POSTGRES_PASSWORD: ${DB_PASSWORD}
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  # postgres_data:

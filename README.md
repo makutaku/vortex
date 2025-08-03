@@ -6,7 +6,7 @@
 
 ## 🚀 Quick Start
 
-### Installation (uv recommended - 10x faster)
+### Option 1: CLI Installation (uv recommended - 10x faster)
 
 ```bash
 # Install uv
@@ -14,24 +14,31 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Install BC-Utils
 uv pip install -e .
+
+# Configure and run
+bcutils config --provider barchart --set-credentials
+bcutils download --provider barchart --symbol GC --start-date 2024-01-01
 ```
 
-### Modern CLI Usage
+### Option 2: Docker Deployment (Automated Downloads)
 
 ```bash
-# Configure credentials
-bcutils config --provider barchart --set-credentials
+# Clone repository
+git clone https://github.com/bug-or-feature/bc-utils.git
+cd bc-utils
 
-# Download data
-bcutils download --provider barchart --symbol GC --start-date 2024-01-01
-bcutils download --provider yahoo --symbol AAPL GOOGL MSFT
+# Configure
+cp .env.example .env
+# Edit .env with your provider and schedule
 
-# List providers
-bcutils providers --list
+# Run with Docker Compose
+docker-compose up -d
 
-# Validate data
-bcutils validate --path ./data
+# Check logs
+docker-compose logs -f
 ```
+
+See [Docker Guide](docs/DOCKER.md) for detailed setup.
 
 ## 📚 Legacy Python API
 
