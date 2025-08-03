@@ -24,8 +24,7 @@ from ...config import ConfigManager
 from ...logging_integration import get_module_logger, get_module_performance_logger
 from ..utils.instrument_parser import parse_instruments
 from ..ux import get_ux, enhanced_error_handler, validate_symbols
-# Autocompletion temporarily disabled for Click compatibility
-# from ..completion import complete_provider, complete_symbol, complete_symbols_file, complete_assets_file, complete_date
+from ..completion import complete_provider, complete_symbol, complete_symbols_file, complete_assets_file, complete_date
 
 console = Console()
 ux = get_ux()
@@ -68,32 +67,38 @@ def get_default_assets_file(provider: str) -> Path:
     "--provider", "-p",
     type=click.Choice(["barchart", "yahoo", "ibkr"], case_sensitive=False),
     required=True,
-    help="Data provider to use"
+    help="Data provider to use",
+    shell_complete=complete_provider
 )
 @click.option(
     "--symbol", "-s",
     multiple=True,
-    help="Symbol(s) to download (can be used multiple times)"
+    help="Symbol(s) to download (can be used multiple times)",
+    shell_complete=complete_symbol
 )
 @click.option(
     "--symbols-file",
     type=click.Path(exists=True, path_type=Path),
-    help="File containing symbols (one per line)"
+    help="File containing symbols (one per line)",
+    shell_complete=complete_symbols_file
 )
 @click.option(
     "--assets", "--assets-file",
     type=click.Path(exists=True, path_type=Path),
-    help="Custom assets file with instruments to download"
+    help="Custom assets file with instruments to download",
+    shell_complete=complete_assets_file
 )
 @click.option(
     "--start-date",
     type=click.DateTime(formats=["%Y-%m-%d"]),
-    help="Start date (YYYY-MM-DD). Default: 30 days ago"
+    help="Start date (YYYY-MM-DD). Default: 30 days ago",
+    shell_complete=complete_date
 )
 @click.option(
     "--end-date",
     type=click.DateTime(formats=["%Y-%m-%d"]),
-    help="End date (YYYY-MM-DD). Default: today"
+    help="End date (YYYY-MM-DD). Default: today",
+    shell_complete=complete_date
 )
 @click.option(
     "--output-dir", "-o",
