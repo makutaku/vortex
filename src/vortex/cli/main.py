@@ -9,13 +9,13 @@ from pathlib import Path
 from typing import Optional
 
 import click
-import logging
 
 from ..exceptions import VortexError, CLIError
+from ..config import ConfigManager
+from ..logging_integration import configure_logging_from_manager, get_logger, run_health_checks
 
 try:
     from rich.console import Console
-    from rich.logging import RichHandler
     RICH_AVAILABLE = True
     console = Console()
 except ImportError:
@@ -27,24 +27,8 @@ from .commands import download, config, providers, validate
 
 def setup_logging(verbose: int = 0) -> None:
     """Set up logging with rich handler if available."""
-    level = logging.WARNING
-    if verbose == 1:
-        level = logging.INFO
-    elif verbose >= 2:
-        level = logging.DEBUG
-    
-    if RICH_AVAILABLE and console:
-        logging.basicConfig(
-            level=level,
-            format="%(message)s",
-            datefmt="[%X]",
-            handlers=[RichHandler(console=console, rich_tracebacks=True)]
-        )
-    else:
-        logging.basicConfig(
-            level=level,
-            format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-        )
+    # Verbose level is now handled by the configuration system
+    # The setup_logging call above will configure everything based on config
 
 @click.group(invoke_without_command=True)
 @click.version_option(version=__version__, prog_name="vortex")
@@ -88,7 +72,7 @@ def cli(ctx: click.Context, config: Optional[Path], verbose: int, dry_run: bool)
         vortex download --provider barchart --symbol GC
     """
     # Set up logging first
-    setup_logging(verbose)
+    setup_logging(config, verbose)
     
     # Ensure context object exists
     ctx.ensure_object(dict)

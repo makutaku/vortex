@@ -1,6 +1,5 @@
 """Configuration management command."""
 
-import logging
 from pathlib import Path
 from typing import Optional
 
@@ -11,9 +10,10 @@ from rich.prompt import Prompt, Confirm
 
 from ...exceptions import ConfigurationError, InvalidConfigurationError, MissingArgumentError
 from ...config import ConfigManager, Provider
+from ...logging_integration import get_module_logger
 
 console = Console()
-logger = logging.getLogger(__name__)
+logger = get_module_logger()
 
 @click.command()
 @click.option(

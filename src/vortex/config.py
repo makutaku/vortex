@@ -109,13 +109,49 @@ class ProvidersConfig(BaseModel):
     ibkr: IBKRConfig = Field(default_factory=IBKRConfig)
 
 
+class LoggingConfig(BaseModel):
+    """Logging configuration."""
+    level: LogLevel = Field(LogLevel.INFO, description="Logging level")
+    format: str = Field("console", description="Log format: console, json, rich")
+    output: List[str] = Field(["console"], description="Log outputs: console, file")
+    file_path: Optional[Path] = Field(None, description="Log file path")
+    max_file_size: int = Field(
+        10 * 1024 * 1024, 
+        ge=1024, 
+        description="Maximum log file size in bytes"
+    )
+    backup_count: int = Field(
+        5, 
+        ge=1, 
+        le=20, 
+        description="Number of backup log files to keep"
+    )
+    
+    @field_validator('format')
+    @classmethod
+    def validate_format(cls, v: str) -> str:
+        if v not in ["console", "json", "rich"]:
+            raise ValueError("format must be one of: console, json, rich")
+        return v
+    
+    @field_validator('output')
+    @classmethod
+    def validate_output(cls, v: List[str]) -> List[str]:
+        valid_outputs = {"console", "file"}
+        for output in v:
+            if output not in valid_outputs:
+                raise ValueError(f"output must contain only: {', '.join(valid_outputs)}")
+        return v
+
+
 class GeneralConfig(BaseModel):
     """General application configuration."""
     output_directory: Path = Field(
         Path("./data"), 
         description="Directory for downloaded data files"
     )
-    log_level: LogLevel = Field(LogLevel.INFO, description="Logging level")
+    log_level: LogLevel = Field(LogLevel.INFO, description="Logging level (deprecated, use logging.level)")
+    logging: LoggingConfig = Field(default_factory=LoggingConfig, description="Logging configuration")
     backup_enabled: bool = Field(False, description="Enable Parquet backup files")
     force_backup: bool = Field(False, description="Force backup even if files exist")
     dry_run: bool = Field(False, description="Perform dry run without downloading")
@@ -125,6 +161,20 @@ class GeneralConfig(BaseModel):
         le=300, 
         description="Maximum random sleep between requests (seconds)"
     )
+    
+    @model_validator(mode='after')
+    def sync_log_levels(self) -> 'GeneralConfig':
+        """Sync deprecated log_level with new logging.level."""
+        # If logging.level is default but log_level is set, use log_level
+        if (self.logging.level == LogLevel.INFO and 
+            self.log_level != LogLevel.INFO):
+            self.logging.level = self.log_level
+        # If both are set and different, prefer logging.level
+        elif (self.logging.level != LogLevel.INFO and 
+              self.log_level != LogLevel.INFO and 
+              self.logging.level != self.log_level):
+            self.log_level = self.logging.level
+        return self
     
     @field_validator('output_directory')
     @classmethod
@@ -186,6 +236,12 @@ class VortexSettings(BaseSettings):
     vortex_log_level: Optional[str] = Field(None, alias="VORTEX_LOG_LEVEL")
     vortex_backup_enabled: Optional[bool] = Field(None, alias="VORTEX_BACKUP_ENABLED")
     vortex_dry_run: Optional[bool] = Field(None, alias="VORTEX_DRY_RUN")
+    
+    # Logging settings
+    vortex_logging_level: Optional[str] = Field(None, alias="VORTEX_LOGGING_LEVEL")
+    vortex_logging_format: Optional[str] = Field(None, alias="VORTEX_LOGGING_FORMAT")
+    vortex_logging_output: Optional[str] = Field(None, alias="VORTEX_LOGGING_OUTPUT")
+    vortex_logging_file_path: Optional[str] = Field(None, alias="VORTEX_LOGGING_FILE_PATH")
     
     # Barchart settings
     vortex_barchart_username: Optional[str] = Field(None, alias="VORTEX_BARCHART_USERNAME")
@@ -309,6 +365,21 @@ class ConfigManager:
             config_data["general"]["backup_enabled"] = self._settings.vortex_backup_enabled
         if self._settings.vortex_dry_run is not None:
             config_data["general"]["dry_run"] = self._settings.vortex_dry_run
+        
+        # Apply logging environment variables
+        if "logging" not in config_data["general"]:
+            config_data["general"]["logging"] = {}
+        
+        if self._settings.vortex_logging_level:
+            config_data["general"]["logging"]["level"] = self._settings.vortex_logging_level
+        if self._settings.vortex_logging_format:
+            config_data["general"]["logging"]["format"] = self._settings.vortex_logging_format
+        if self._settings.vortex_logging_output:
+            # Parse comma-separated outputs
+            outputs = [o.strip() for o in self._settings.vortex_logging_output.split(",")]
+            config_data["general"]["logging"]["output"] = outputs
+        if self._settings.vortex_logging_file_path:
+            config_data["general"]["logging"]["file_path"] = self._settings.vortex_logging_file_path
         
         if self._settings.vortex_barchart_username:
             config_data["providers"]["barchart"]["username"] = self._settings.vortex_barchart_username

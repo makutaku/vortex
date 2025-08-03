@@ -1,6 +1,5 @@
 """Download command implementation."""
 
-import logging
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional, List
@@ -22,10 +21,12 @@ from ...exceptions import (
 )
 from ...initialization.config_utils import InstrumentConfig
 from ...config import ConfigManager
+from ...logging_integration import get_module_logger, get_module_performance_logger
 from ..utils.instrument_parser import parse_instruments
 
 console = Console()
-logger = logging.getLogger(__name__)
+logger = get_module_logger()
+perf_logger = get_module_performance_logger()
 
 
 def load_config_instruments(assets_file_path: Path) -> List[str]:
@@ -225,7 +226,7 @@ def download(
         
     except Exception as e:
         console.print(f"[red]Download failed: {e}[/red]")
-        logger.exception("Download error")
+        logger.error("Download process failed", error=str(e))
         raise click.Abort()
 
 def show_download_summary(
@@ -295,7 +296,7 @@ def execute_download(
             task = progress.add_task(f"Downloading {symbol}...", total=None)
             
             try:
-                logger.info(f"Downloading {symbol} from {provider}")
+                logger.info(f"Starting download for {symbol}", symbol=symbol, provider=provider)
                 
                 # Create downloader based on provider
                 downloader = create_downloader(provider, download_config)
