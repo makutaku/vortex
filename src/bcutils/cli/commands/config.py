@@ -134,16 +134,11 @@ def show_configuration(config_manager: ConfigManager) -> None:
     table.add_row("Default Backup", str(config.get("backup_enabled", False)))
     table.add_row("Log Level", config.get("log_level", "INFO"))
     
-    # Show date range configuration
-    from datetime import datetime, timedelta
-    start_year = config.get("start_year", 2000)
-    end_year = config.get("end_year", 2025)
-    table.add_row("Default Date Range", f"{start_year} - {end_year}")
-    
     # Show default date range for download command when not specified
+    from datetime import datetime, timedelta
     default_start = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
     default_end = datetime.now().strftime("%Y-%m-%d")
-    table.add_row("Download Command Default", f"{default_start} to {default_end} (last 30 days)")
+    table.add_row("Default Download Date Range", f"{default_start} to {default_end} (last 30 days)")
     
     # Check for default assets files
     from pathlib import Path
