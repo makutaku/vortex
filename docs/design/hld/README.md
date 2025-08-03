@@ -36,17 +36,60 @@
 
 ## 📋 Document Standards
 
+### HLD Content Guidelines
+
+**✅ HLD Documents INCLUDE:**
+- **System architecture** and component relationships
+- **Design patterns** and architectural principles
+- **Interface contracts** and abstractions
+- **Quality attributes** (performance, security, scalability)
+- **Cross-cutting concerns** and system-wide decisions
+- **Mermaid diagrams** for architectural visualization
+- **Technology choices** and rationale
+- **Integration patterns** between major components
+
+**❌ HLD Documents AVOID:**
+- Detailed code implementations
+- Specific library configurations
+- Unit test specifications
+- Database schemas and file formats
+- Implementation algorithms
+- Method-level details
+
+### Architecture Documentation Best Practices
+
+**Focus on "WHAT" and "WHY":**
+- What components exist and how they relate
+- Why specific architectural decisions were made
+- What quality attributes are prioritized
+- What patterns solve specific architectural problems
+
+**Use Architectural Patterns:**
+- Strategy Pattern for provider abstraction
+- Factory Pattern for component creation
+- Observer Pattern for event handling
+- Repository Pattern for data access
+
+**Diagram Standards:**
+- Component diagrams show relationships, not implementations
+- Sequence diagrams show high-level message flows
+- Deployment diagrams show system topology
+- Use consistent styling and notation
+
 ### Cross-References
 - Use relative links: `[Component Architecture](02-component-architecture.md)`
 - Include section anchors: `[Storage Layer](05-storage-architecture.md#storage-layer)`
 - Reference PRD requirements: `See [REQ-001](../../requirements/prd/product-requirements.md#req-001)`
+- Link to LLD for implementation details: `*Implementation details in [Component Implementation](../lld/01-component-implementation.md)*`
 
 ### Architecture Diagrams
 - Use Mermaid for simple diagrams
 - External tools (draw.io, Lucidchart) for complex diagrams
 - Include both source and rendered versions
+- Focus on component relationships, not internal structure
 
 ### Update Process
 - Update HLD when making architectural changes
 - Cross-reference related document updates
 - Maintain version history and change rationale
+- Review impact on dependent LLD documents

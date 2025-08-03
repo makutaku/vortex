@@ -11,42 +11,61 @@
 HLD documents focus on **architectural decisions** and **design patterns**:
 
 ✅ **Include:**
-- System architecture and component relationships  
-- Design patterns and architectural principles
-- Interface contracts and abstractions
-- Quality attributes (performance, security, scalability)
-- Cross-cutting concerns and system-wide decisions
-- Mermaid diagrams for architectural visualization
+- **System architecture** and component relationships  
+- **Design patterns** and architectural principles (Strategy, Factory, Observer)
+- **Interface contracts** and abstractions
+- **Quality attributes** (performance, security, scalability)
+- **Cross-cutting concerns** and system-wide decisions
+- **Technology choices** and architectural rationale
+- **Integration patterns** between major components
+- **Mermaid diagrams** for architectural visualization
+- **Component interaction flows** (sequence diagrams)
+- **Deployment topology** and scaling considerations
 
 ❌ **Avoid:**
-- Detailed code implementations
-- Specific library configurations
-- Unit test specifications
+- Detailed code implementations (>30 lines)
+- Specific library configurations and parameters
+- Unit test specifications and mock implementations
 - Database schemas and file formats
-- Implementation algorithms
+- Implementation algorithms and pseudo-code
+- Method-level details and error handling
+- Performance optimization techniques (belongs in LLD)
 
 #### Low-Level Design (LLD) Documents  
-LLD documents contain **implementation details** and **technical specifications**:
+LLD documents contain **implementation patterns** and **algorithmic specifications**:
 
 ✅ **Include:**
-- Detailed code implementations and algorithms
-- Specific library configurations and parameters
-- Error handling implementation details
-- Performance optimization techniques
-- Database schemas and file formats
-- Unit test specifications and mock implementations
+- **Algorithm descriptions** and pseudo-code workflows
+- **Design pattern implementations** (how patterns are applied)
+- **Data structures** and storage schemas
+- **Error handling strategies** and recovery patterns
+- **Performance optimization techniques** and benchmarks
+- **Security implementation patterns** and validation rules
+- **Testing strategies** and mock implementation patterns
+- **Configuration examples** (5-10 lines maximum)
+- **Interface definitions** (key methods only, 5-15 lines)
+- **Source file references** for detailed implementations
+- **Decision matrices** and conflict resolution strategies
+- **State machines** and component lifecycle management
 
 ❌ **Avoid:**
-- High-level architectural decisions
-- Business requirements
-- Deployment topology (belongs in HLD)
+- **Complete class implementations** (>30 lines total)
+- **Full method implementations** (use pseudo-code instead)
+- **Boilerplate code** (imports, logging, exception handling)
+- **Repetitive code examples** (show pattern once with "...")
+- **Copy-pasted source code** (use source references)
+- **High-level architectural decisions** (belongs in HLD)
+- **Business requirements** and user stories (belongs in PRD)
+- **Deployment topology** and infrastructure (belongs in HLD)
 
 ### Cross-Reference Standards
 
 #### Linking Between Document Types
-- **HLD → LLD:** `*Detailed implementation available in [Component Implementation](../lld/01-component-implementation.md)*`
+- **HLD → LLD:** `*Implementation patterns available in [Component Implementation](../lld/01-component-implementation.md)*`
 - **LLD → HLD:** `**Related:** [Component Architecture](../hld/02-component-architecture.md)`
 - **Within same level:** `[Storage Architecture](05-storage-architecture.md)`
+- **Source references:** `**Source Reference:** src/bcutils/component/file.py`
+- **Algorithm references:** `**Algorithm:** See [Data Processing](02-data-processing-implementation.md#deduplication-algorithm)`
 
 #### Section Anchors
 Use descriptive anchors for section linking:
@@ -144,6 +163,26 @@ Explicitly identify design patterns used:
 - **Observer Pattern:** Event-driven monitoring and alerting
 ```
 
+#### Algorithm Documentation
+Document algorithms with step-by-step workflows:
+```markdown
+**Algorithm: Rate Limiting**
+```
+1. CHECK all time windows for capacity
+2. IF any window is full: CALCULATE wait time
+3. IF capacity available: RECORD request timestamp
+4. CLEAN expired entries from all windows
+5. RETURN success/failure with wait time
+```
+
+**Decision Matrix Example:**
+| Error Type | Recovery Action | Retry Strategy |
+|------------|-----------------|----------------|
+| Rate Limit | Wait specified time | Immediate retry |
+| Auth Failure | Re-authenticate | Single retry |
+| Connection | Exponential backoff | Max 3 retries |
+```
+
 #### Pattern Rationale
 Explain why patterns were chosen:
 ```markdown
@@ -179,6 +218,23 @@ FOR each provider in priority_list:
   IF successful: RETURN provider
   ELSE: LOG failure, continue
 RAISE AuthenticationError("All providers failed")
+```
+
+**State Machine Example:**
+```
+PENDING → IN_PROGRESS → COMPLETED
+    ↓         ↓              ↓
+  FAILED ←─ RETRY ←──────── FAILED
+```
+
+**Workflow Description Example:**
+```
+1. CREATE download job from configuration
+2. CHECK for existing data → IF exists, incremental update
+3. FETCH raw data from provider
+4. VALIDATE data quality → IF invalid, reject
+5. STORE data with deduplication
+6. UPDATE metadata tracking
 ```
 
 **Code Length Guidelines:**
