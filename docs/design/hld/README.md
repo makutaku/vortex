@@ -15,14 +15,14 @@
 ### Document Status
 | Document | Status | Last Updated | Reviewers |
 |----------|--------|--------------|-----------|
-| [System Overview](01-system-overview.md) | ✅ Complete | 2025-01-08 | System Architect, Lead Developer, DevOps Lead |
-| [Component Architecture](02-component-architecture.md) | ✅ Complete | 2025-01-08 | Lead Developer, Senior Engineer, QA Lead |
-| [Data Flow Design](03-data-flow-design.md) | ✅ Complete | 2025-01-08 | Senior Developer, Data Engineer, QA Lead |
-| [Provider Abstraction](04-provider-abstraction.md) | ✅ Complete | 2025-01-08 | Senior Developer, Integration Architect, QA Lead |
-| [Storage Architecture](05-storage-architecture.md) | ✅ Complete | 2025-01-08 | Senior Developer, Data Engineer, Infrastructure Lead |
-| [Security Design](06-security-design.md) | ✅ Complete | 2025-01-08 | Security Architect, Compliance Officer, DevOps Lead |
-| [Deployment Architecture](07-deployment-architecture.md) | ✅ Complete | 2025-01-08 | DevOps Lead, Security Architect, Infrastructure Team |
-| [Integration Design](08-integration-design.md) | ✅ Complete | 2025-01-08 | Integration Architect, Senior Developer, DevOps Lead |
+| [System Overview](01-system-overview.md) | ✅ **Updated** | 2025-08-03 | System Architect, Lead Developer, DevOps Lead |
+| [Component Architecture](02-component-architecture.md) | ✅ **Updated** | 2025-08-03 | Lead Developer, Senior Engineer, QA Lead |
+| [Data Flow Design](03-data-flow-design.md) | ⚠️ Needs Update | 2025-01-08 | Senior Developer, Data Engineer, QA Lead |
+| [Provider Abstraction](04-provider-abstraction.md) | ⚠️ Needs Update | 2025-01-08 | Senior Developer, Integration Architect, QA Lead |
+| [Storage Architecture](05-storage-architecture.md) | ⚠️ Needs Update | 2025-01-08 | Senior Developer, Data Engineer, Infrastructure Lead |
+| [Security Design](06-security-design.md) | ⚠️ Needs Update | 2025-01-08 | Security Architect, Compliance Officer, DevOps Lead |
+| [Deployment Architecture](07-deployment-architecture.md) | ⚠️ Needs Update | 2025-01-08 | DevOps Lead, Security Architect, Infrastructure Team |
+| [Integration Design](08-integration-design.md) | ⚠️ Needs Update | 2025-01-08 | Integration Architect, Senior Developer, DevOps Lead |
 
 ### Reading Guide
 
@@ -30,9 +30,22 @@
 
 **For Backend Developers:** [Component Architecture](02-component-architecture.md) → [Data Flow Design](03-data-flow-design.md) → [Provider Abstraction](04-provider-abstraction.md)
 
-**For DevOps Engineers:** [Deployment Architecture](07-deployment-architecture.md) → [Security Design](06-security-design.md)
+**For DevOps Engineers:** [Deployment Architecture](07-deployment-architecture.md) → [System Overview](01-system-overview.md#deployment-overview) → [Security Design](06-security-design.md)
+
+**For CLI Development:** [System Overview](01-system-overview.md) → [Component Architecture](02-component-architecture.md) → [Component Implementation](../lld/01-component-implementation.md#cli-implementation)
 
 **For Security Review:** [Security Design](06-security-design.md) → [Integration Design](08-integration-design.md)
+
+### Recent Updates (2025-08-03)
+
+**✅ Completed:**
+- **System Overview**: Updated with modern CLI architecture, Docker deployment, uv package management
+- **Component Architecture**: Reflects actual Click CLI, TOML configuration, single dispatch patterns
+
+**🔄 Priority Updates Needed:**
+- **Provider Abstraction**: Update to reflect single dispatch methods and actual provider implementations
+- **Storage Architecture**: Document dual CSV/Parquet storage with bridge pattern
+- **Deployment Architecture**: Add comprehensive Docker Compose setup and container orchestration
 
 ## 📋 Document Standards
 
