@@ -15,27 +15,12 @@ ENV PATH="/root/.local/bin:${PATH}"
 # Set working directory
 WORKDIR /app
 
-# Copy dependency files first for better layer caching
+# Copy project files for dependency resolution
 COPY pyproject.toml setup.py README.md ./
-
-# Install dependencies first (better layer caching - dependencies change less frequently)
-RUN uv pip install --system --no-cache-dir -e . --no-deps && \
-    uv pip install --system --no-cache-dir \
-    click>=8.0.0 \
-    pydantic>=2.0.0 \
-    requests>=2.25.0 \
-    rich>=10.0.0 \
-    python-dateutil>=2.8.0 \
-    pytz>=2021.1 \
-    pandas>=1.3.0 \
-    yfinance>=0.2.0 \
-    structlog>=21.0.0
-
-# Copy source code after dependencies (source changes more frequently)
 COPY src/ ./src/
 
-# Install the application itself
-RUN uv pip install --system --no-cache-dir -e . --no-deps
+# Install dependencies and application in single layer for better optimization
+RUN uv pip install --system --no-cache-dir -e .
 
 # Runtime stage - use minimal base image
 FROM python:3.11-slim
