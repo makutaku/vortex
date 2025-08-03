@@ -43,36 +43,36 @@ uv pip install vortex
 ### Testing
 ```bash
 # Using uv (recommended)
-uv run pytest src/bcutils/tests/
-uv run pytest src/bcutils/tests/test_downloader.py
+uv run pytest src/vortex/tests/
+uv run pytest src/vortex/tests/test_downloader.py
 
 # With coverage
-uv run pytest --cov=bcutils src/bcutils/tests/
+uv run pytest --cov=vortex src/vortex/tests/
 
 # Install test dependencies and run
 uv pip install -e ".[test]"
 uv run pytest
 
 # Traditional method
-pytest src/bcutils/tests/
+pytest src/vortex/tests/
 ```
 
 ### Code Quality
 ```bash
 # Using uv (recommended)
 uv pip install -e ".[lint]"
-uv run flake8 src/bcutils/
-uv run black src/bcutils/ --check
-uv run isort src/bcutils/ --check-only
+uv run flake8 src/vortex/
+uv run black src/vortex/ --check
+uv run isort src/vortex/ --check-only
 
 # Format code
-uv run black src/bcutils/
-uv run isort src/bcutils/
+uv run black src/vortex/
+uv run isort src/vortex/
 
 # Traditional method
-flake8 src/bcutils/
-black src/bcutils/
-isort src/bcutils/
+flake8 src/vortex/
+black src/vortex/
+isort src/vortex/
 ```
 
 ### Modern CLI Usage
@@ -107,45 +107,45 @@ vortex validate --path ./data/GC.csv --provider barchart
 
 ### Core Components
 
-**Data Providers** (`bcutils/data_providers/`):
+**Data Providers** (`vortex/data_providers/`):
 - `BarchartDataProvider`: Scrapes data from Barchart.com with authentication
 - `YahooDataProvider`: Downloads data from Yahoo Finance API
 - `IbkrDataProvider`: Connects to Interactive Brokers TWS/Gateway
 - Base `DataProvider` interface for extensibility
 
-**Data Storage** (`bcutils/data_storage/`):
+**Data Storage** (`vortex/data_storage/`):
 - `CsvStorage`: Saves data in CSV format
 - `ParquetStorage`: Backup storage in Parquet format
 - `FileStorage`: Base file storage abstraction
 - `metadata.py`: Handles data metadata tracking
 
-**Downloaders** (`bcutils/downloaders/`):
+**Downloaders** (`vortex/downloaders/`):
 - `UpdatingDownloader`: Main downloader that checks for existing data
 - `BackfillDownloader`: Downloads historical data ranges
 - `MockDownloader`: For testing without real API calls
 - `DownloadJob`: Represents individual download tasks
 
-**Instruments** (`bcutils/instruments/`):
+**Instruments** (`vortex/instruments/`):
 - `Instrument`: Base class for tradeable instruments
 - `Future`: Futures contracts with expiry cycles
 - `Stock`: Stock instruments
 - `Forex`: Currency pairs
 - `PriceSeries`: Time series data representation
 
-**Configuration** (`bcutils/initialization/`):
+**Configuration** (`vortex/initialization/`):
 - `SessionConfig`: Main configuration object
 - `OsEnvironSessionConfig`: Environment variable-based config
 - `config_utils.py`: Configuration utilities
 
-**CLI Interface** (`bcutils/cli/`):
+**CLI Interface** (`vortex/cli/`):
 - `main.py`: Modern CLI entry point with Click framework
 - `commands/`: Download, config, providers, validate commands
 - `utils/`: Configuration manager and instrument parsing
 
 ### Key Files
 
-- `bcutils/bc_utils.py`: Contains downloader factory functions
-- `bcutils/cli/main.py`: Modern CLI entry point using Click framework
+- `vortex/bc_utils.py`: Contains downloader factory functions
+- `vortex/cli/main.py`: Modern CLI entry point using Click framework
 - `assets/`: Default instrument definitions directory
 - `scripts/build.sh`: Build script for creating distribution artifacts
 
@@ -155,12 +155,12 @@ The modern CLI supports multiple configuration methods:
 
 **Interactive Configuration (Recommended):**
 ```bash
-bcutils config --provider barchart --set-credentials
-bcutils config --provider ibkr --set-credentials
+vortex config --provider barchart --set-credentials
+vortex config --provider ibkr --set-credentials
 ```
 
 
-**Configuration File (~/.config/bcutils/config.toml):**
+**Configuration File (~/.config/vortex/config.toml):**
 ```toml
 output_directory = "./data"
 backup_enabled = true

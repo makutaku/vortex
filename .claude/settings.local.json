@@ -29,7 +29,7 @@
       "Bash(time docker run:*)",
       "Bash(docker-compose:*)",
       "Bash(docker compose:*)",
-      "Bash(/usr/bin/docker build --no-cache -t bcutils-test:warning-fix .)",
+      "Bash(/usr/bin/docker build --no-cache -t vortex-test:warning-fix .)",
       "Bash(grep:*)",
       "Bash(vortex:*)"
     ],

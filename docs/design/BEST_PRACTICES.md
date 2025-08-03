@@ -64,7 +64,7 @@ LLD documents contain **implementation patterns** and **algorithmic specificatio
 - **HLD → LLD:** `*Implementation patterns available in [Component Implementation](../lld/01-component-implementation.md)*`
 - **LLD → HLD:** `**Related:** [Component Architecture](../hld/02-component-architecture.md)`
 - **Within same level:** `[Storage Architecture](05-storage-architecture.md)`
-- **Source references:** `**Source Reference:** src/bcutils/component/file.py`
+- **Source references:** `**Source Reference:** src/vortex/component/file.py`
 - **Algorithm references:** `**Algorithm:** See [Data Processing](02-data-processing-implementation.md#deduplication-algorithm)`
 
 #### Section Anchors
@@ -293,7 +293,7 @@ config = {
 #### Test Structure
 Document testing approach:
 ```python
-class TestDataProviderInterface(BCUtilsTestCase):
+class TestDataProviderInterface(VortexTestCase):
     """Test data provider interface compliance"""
     
     def test_provider_interface_compliance(self):

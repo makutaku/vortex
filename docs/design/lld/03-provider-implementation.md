@@ -31,7 +31,7 @@ class DataProvider(ABC):
 - **Unified data format**: All providers return standardized DataFrames
 - **Rate limit awareness**: Built-in rate limiting support
 
-**Source Reference:** `src/bcutils/data_providers/data_provider.py`
+**Source Reference:** `src/vortex/data_providers/data_provider.py`
 
 ### 1.2 Rate Limiting Strategy
 
@@ -54,7 +54,7 @@ ON each request:
 - Multiple time window support
 - Automatic cleanup of old requests
 
-**Source Reference:** `src/bcutils/data_providers/rate_limiter.py`
+**Source Reference:** `src/vortex/data_providers/rate_limiter.py`
 
 ## 2. Provider Implementations
 
@@ -87,7 +87,7 @@ def get_data(self, instrument, date_range):
 - Session-based authentication
 - CSV response format
 
-**Source Reference:** `src/bcutils/data_providers/barchart_provider.py`
+**Source Reference:** `src/vortex/data_providers/barchart_provider.py`
 
 ### 2.2 Yahoo Finance Provider
 
@@ -114,7 +114,7 @@ Yahoo Format → Standard OHLCV:
   - Add metadata (symbol, provider)
 ```
 
-**Source Reference:** `src/bcutils/data_providers/yahoo_provider.py`
+**Source Reference:** `src/vortex/data_providers/yahoo_provider.py`
 
 ### 2.3 Interactive Brokers Provider
 
@@ -140,7 +140,7 @@ ELIF instrument.type == 'future':
 - Multi-asset support
 - Event-driven data delivery
 
-**Source Reference:** `src/bcutils/data_providers/ibkr_provider.py`
+**Source Reference:** `src/vortex/data_providers/ibkr_provider.py`
 
 ## 3. Provider Factory Pattern
 
@@ -167,7 +167,7 @@ _providers = {
 - Configuration passed through to provider constructors
 - Runtime provider discovery
 
-**Source Reference:** `src/bcutils/data_providers/factory.py`
+**Source Reference:** `src/vortex/data_providers/factory.py`
 
 ## 4. Error Handling Patterns
 
@@ -190,7 +190,7 @@ DataProviderError
 | Connection | Exponential backoff | Max 3 retries |
 | Data Not Found | No recovery | Fail immediately |
 
-**Source Reference:** `src/bcutils/data_providers/exceptions.py`
+**Source Reference:** `src/vortex/data_providers/exceptions.py`
 
 ## 5. Testing Approach
 

@@ -26,7 +26,7 @@ def test_uv_compatibility():
             'name = "vortex"',
             'dependencies = [',
             '[project.scripts]',
-            'vortex = "bcutils.cli.main:cli"'
+            'vortex = "vortex.cli.main:cli"'
         ]
         
         for field in required_fields:
@@ -41,7 +41,7 @@ def test_uv_compatibility():
         return False
     
     # Test 2: Check if CLI entry point is configured
-    if 'vortex = "bcutils.cli.main:cli"' in content:
+    if 'vortex = "vortex.cli.main:cli"' in content:
         print("✅ CLI entry point configured")
     else:
         print("❌ CLI entry point not configured")

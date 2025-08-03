@@ -151,7 +151,7 @@ if timeout 20 docker run --rm \
     -v "$(pwd)/test-config-entrypoint:/config" \
     -e BCU_RUN_ON_STARTUP=False \
     -e BCU_PROVIDER=yahoo \
-    vortex-test:latest 2>&1 | grep -q "Starting BC-Utils container"; then
+    vortex-test:latest 2>&1 | grep -q "Starting Vortex container"; then
     echo -e "${GREEN}✓ Entrypoint works without download${NC}\n"
 else
     echo -e "${YELLOW}⚠ Entrypoint test timeout (expected)${NC}\n"

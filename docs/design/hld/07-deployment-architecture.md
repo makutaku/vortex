@@ -63,7 +63,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Create application user
-RUN useradd --create-home --shell /bin/bash bcutils
+RUN useradd --create-home --shell /bin/bash vortex
 
 # Set up Python environment
 COPY requirements.txt /tmp/
@@ -73,24 +73,24 @@ RUN pip install --user --no-cache-dir -r /tmp/requirements.txt
 FROM python:3.11-slim
 
 # Copy Python packages from builder
-COPY --from=builder /home/bcutils/.local /home/bcutils/.local
+COPY --from=builder /home/vortex/.local /home/vortex/.local
 
 # Create application user in production image
-RUN useradd --create-home --shell /bin/bash bcutils
+RUN useradd --create-home --shell /bin/bash vortex
 
 # Set up application directory
 WORKDIR /app
-COPY --chown=bcutils:bcutils src/bcutils ./bcutils/
-COPY --chown=bcutils:bcutils docker/ ./
+COPY --chown=vortex:vortex src/vortex ./vortex/
+COPY --chown=vortex:vortex docker/ ./
 
 # Create data directory with proper permissions
-RUN mkdir -p /data && chown bcutils:bcutils /data
+RUN mkdir -p /data && chown vortex:vortex /data
 
 # Switch to non-root user
-USER bcutils
+USER vortex
 
 # Set Python path
-ENV PATH=/home/bcutils/.local/bin:$PATH
+ENV PATH=/home/vortex/.local/bin:$PATH
 ENV PYTHONPATH=/app
 
 # Health check
@@ -110,9 +110,9 @@ services:
   vortex:
     build: .
     environment:
-      - BCU_OUTPUT_DIR=/data
-      - BCU_LOGGING_LEVEL=INFO
-      - BCU_DRY_RUN=false
+      - VORTEX_OUTPUT_DIR=/data
+      - VORTEX_LOGGING_LEVEL=INFO
+      - VORTEX_DRY_RUN=false
     env_file:
       - .env.local
     volumes:
@@ -161,8 +161,8 @@ graph TB
 **Security Implementation:**
 ```dockerfile
 # Security hardening
-USER bcutils:bcutils
-COPY --chown=bcutils:bcutils . .
+USER vortex:vortex
+COPY --chown=vortex:vortex . .
 
 # Read-only root filesystem
 VOLUME ["/tmp", "/data"]
@@ -204,9 +204,9 @@ data:
         "GOLD": {"code": "GC", "cycle": "GJMQVZ"}
       }
     }
-  BCU_OUTPUT_DIR: "/data"
-  BCU_LOGGING_LEVEL: "INFO"
-  BCU_BACKUP_DATA: "true"
+  VORTEX_OUTPUT_DIR: "/data"
+  VORTEX_LOGGING_LEVEL: "INFO"
+  VORTEX_BACKUP_DATA: "true"
 
 ---
 # secret.yaml
@@ -217,8 +217,8 @@ metadata:
   namespace: vortex
 type: Opaque
 data:
-  BCU_USERNAME: <base64-encoded-username>
-  BCU_PASSWORD: <base64-encoded-password>
+  VORTEX_USERNAME: <base64-encoded-username>
+  VORTEX_PASSWORD: <base64-encoded-password>
 
 ---
 # pvc.yaml
@@ -269,7 +269,7 @@ spec:
             image: vortex:1.0
             imagePullPolicy: IfNotPresent
             env:
-            - name: BCU_OUTPUT_DIR
+            - name: VORTEX_OUTPUT_DIR
               value: "/data"
             envFrom:
             - configMapRef:
@@ -349,7 +349,7 @@ spec:
 ```yaml
 # CloudFormation template excerpt
 Resources:
-  BCUtilsTaskDefinition:
+  VortexTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
       Family: vortex
@@ -358,49 +358,49 @@ Resources:
         - FARGATE
       Cpu: 512
       Memory: 1024
-      ExecutionRoleArn: !Ref BCUtilsExecutionRole
-      TaskRoleArn: !Ref BCUtilsTaskRole
+      ExecutionRoleArn: !Ref VortexExecutionRole
+      TaskRoleArn: !Ref VortexTaskRole
       ContainerDefinitions:
         - Name: vortex
           Image: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/vortex:latest"
           Environment:
-            - Name: BCU_OUTPUT_DIR
+            - Name: VORTEX_OUTPUT_DIR
               Value: /data
           Secrets:
-            - Name: BCU_USERNAME
-              ValueFrom: !Ref BCUtilsUserSecret
-            - Name: BCU_PASSWORD
-              ValueFrom: !Ref BCUtilsPasswordSecret
+            - Name: VORTEX_USERNAME
+              ValueFrom: !Ref VortexUserSecret
+            - Name: VORTEX_PASSWORD
+              ValueFrom: !Ref VortexPasswordSecret
           MountPoints:
             - SourceVolume: data
               ContainerPath: /data
           LogConfiguration:
             LogDriver: awslogs
             Options:
-              awslogs-group: !Ref BCUtilsLogGroup
+              awslogs-group: !Ref VortexLogGroup
               awslogs-region: !Ref AWS::Region
               awslogs-stream-prefix: vortex
       Volumes:
         - Name: data
           EFSVolumeConfiguration:
-            FileSystemId: !Ref BCUtilsEFS
+            FileSystemId: !Ref VortexEFS
             
-  BCUtilsScheduledTask:
+  VortexScheduledTask:
     Type: AWS::Events::Rule
     Properties:
       ScheduleExpression: "cron(0 6 ? * MON-FRI *)"
       State: ENABLED
       Targets:
-        - Arn: !GetAtt BCUtilsCluster.Arn
-          Id: BCUtilsTarget
-          RoleArn: !GetAtt BCUtilsEventRole.Arn
+        - Arn: !GetAtt VortexCluster.Arn
+          Id: VortexTarget
+          RoleArn: !GetAtt VortexEventRole.Arn
           EcsParameters:
-            TaskDefinitionArn: !Ref BCUtilsTaskDefinition
+            TaskDefinitionArn: !Ref VortexTaskDefinition
             LaunchType: FARGATE
             NetworkConfiguration:
               AwsVpcConfiguration:
                 SecurityGroups:
-                  - !Ref BCUtilsSecurityGroup
+                  - !Ref VortexSecurityGroup
                 Subnets:
                   - !Ref PrivateSubnet1
                   - !Ref PrivateSubnet2
@@ -433,14 +433,14 @@ spec:
             cpu: "1"
             memory: "2Gi"
         env:
-        - name: BCU_OUTPUT_DIR
+        - name: VORTEX_OUTPUT_DIR
           value: "/data"
-        - name: BCU_USERNAME
+        - name: VORTEX_USERNAME
           valueFrom:
             secretKeyRef:
               name: vortex-secrets
               key: username
-        - name: BCU_PASSWORD
+        - name: VORTEX_PASSWORD
           valueFrom:
             secretKeyRef:
               name: vortex-secrets
@@ -464,17 +464,17 @@ properties:
   containers:
   - name: vortex
     properties:
-      image: bcutils.azurecr.io/vortex:latest
+      image: vortex.azurecr.io/vortex:latest
       resources:
         requests:
           cpu: 0.5
           memoryInGb: 1
       environmentVariables:
-      - name: BCU_OUTPUT_DIR
+      - name: VORTEX_OUTPUT_DIR
         value: /data
-      - name: BCU_USERNAME
+      - name: VORTEX_USERNAME
         secureValue: <from-key-vault>
-      - name: BCU_PASSWORD
+      - name: VORTEX_PASSWORD
         secureValue: <from-key-vault>
       volumeMounts:
       - name: data-volume
@@ -485,7 +485,7 @@ properties:
   - name: data-volume
     azureFile:
       shareName: vortex-data
-      storageAccountName: bcutilsstorage
+      storageAccountName: vortexstorage
       storageAccountKey: <storage-key>
 ```
 
@@ -729,11 +729,11 @@ spec:
     name: vortex-secrets
     creationPolicy: Owner
   data:
-  - secretKey: BCU_USERNAME
+  - secretKey: VORTEX_USERNAME
     remoteRef:
       key: vortex/credentials
       property: username
-  - secretKey: BCU_PASSWORD
+  - secretKey: VORTEX_PASSWORD
     remoteRef:
       key: vortex/credentials
       property: password

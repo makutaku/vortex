@@ -105,7 +105,7 @@ uv pip install -e ".[dev,test,lint]"
 
 # Verify development setup
 uv run pytest
-uv run flake8 src/bcutils/
+uv run flake8 src/vortex/
 ```
 
 ## 🏃‍♂️ Running Commands
@@ -120,11 +120,11 @@ uv run vortex --help
 uv run pytest
 
 # Run linting
-uv run flake8 src/bcutils/
+uv run flake8 src/vortex/
 
 # Format code
-uv run black src/bcutils/
-uv run isort src/bcutils/
+uv run black src/vortex/
+uv run isort src/vortex/
 ```
 
 ## 🐳 Container Installation

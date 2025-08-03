@@ -38,7 +38,7 @@ env/
 ENV/
 env.bak/
 venv.bak/
-bcutils_env/
+vortex_env/
 
 # IDE
 .vscode/

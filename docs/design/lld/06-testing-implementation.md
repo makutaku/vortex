@@ -10,7 +10,7 @@
 
 **Core Test Class:**
 ```python
-class BCUtilsTestCase(unittest.TestCase):
+class VortexTestCase(unittest.TestCase):
     """Base test case with common utilities"""
     
     def setUp(self):
@@ -248,7 +248,7 @@ pytest tests/
 pytest tests/unit/
 
 # Run with coverage
-pytest --cov=bcutils tests/
+pytest --cov=vortex tests/
 ```
 
 **Parallel Execution:**

@@ -26,7 +26,7 @@
 | Connection | Exponential backoff | Max 3 retries |
 | Unknown | Log and fail | No retry |
 
-**Source Reference:** `src/bcutils/data_processing/fetcher.py`
+**Source Reference:** `src/vortex/data_processing/fetcher.py`
 
 ### 1.2 Rate Limiting Algorithm
 
@@ -56,7 +56,7 @@ FOR each request:
 - Automatic cleanup of expired requests
 - Supports configurable limits per time window
 
-**Source Reference:** `src/bcutils/data_processing/rate_limiter.py`
+**Source Reference:** `src/vortex/data_processing/rate_limiter.py`
 
 ## 2. Data Validation Implementation
 
@@ -96,7 +96,7 @@ score *= data_completeness_factor
 final_score = clamp(score, 0.0, 1.0)
 ```
 
-**Source Reference:** `src/bcutils/data_processing/validator.py`
+**Source Reference:** `src/vortex/data_processing/validator.py`
 
 ## 3. Data Transformation Implementation
 
@@ -135,7 +135,7 @@ Symbol/Provider → string
 Timestamp → datetime64[ns, UTC]
 ```
 
-**Source Reference:** `src/bcutils/data_processing/transformer.py`
+**Source Reference:** `src/vortex/data_processing/transformer.py`
 
 ## 4. Storage Operation Implementation
 
@@ -171,7 +171,7 @@ Timestamp → datetime64[ns, UTC]
 - Warning threshold (10%)
 - Conflict resolution statistics
 
-**Source Reference:** `src/bcutils/data_processing/deduplicator.py`
+**Source Reference:** `src/vortex/data_processing/deduplicator.py`
 
 ### 4.2 Atomic Storage Pattern
 
@@ -206,7 +206,7 @@ Timestamp → datetime64[ns, UTC]
 - Date range coverage
 - Processing duration
 
-**Source Reference:** `src/bcutils/data_processing/atomic_storage.py`
+**Source Reference:** `src/vortex/data_processing/atomic_storage.py`
 
 ## 5. Performance Optimization Implementation
 
@@ -244,7 +244,7 @@ ON cache_put(key, data, ttl):
 - Memory-bounded (default 512MB)
 - Performance statistics
 
-**Source Reference:** `src/bcutils/data_processing/cache.py`
+**Source Reference:** `src/vortex/data_processing/cache.py`
 
 ## Related Documents
 

@@ -171,7 +171,7 @@ class CredentialManager:
     
     def _get_or_create_encryption_key(self) -> bytes:
         """Get or create encryption key for credential caching"""
-        key_file = os.path.expanduser("~/.bcutils/encryption.key")
+        key_file = os.path.expanduser("~/.vortex/encryption.key")
         
         if os.path.exists(key_file):
             with open(key_file, 'rb') as f:
@@ -212,13 +212,13 @@ class EnvironmentCredentialBackend:
     
     CREDENTIAL_MAPPING = {
         'barchart': {
-            'username': ['BCU_BARCHART_USERNAME', 'BARCHART_USER'],
-            'password': ['BCU_BARCHART_PASSWORD', 'BARCHART_PASS']
+            'username': ['VORTEX_BARCHART_USERNAME', 'BARCHART_USER'],
+            'password': ['VORTEX_BARCHART_PASSWORD', 'BARCHART_PASS']
         },
         'ibkr': {
-            'host': ['BCU_IBKR_HOST', 'TWS_HOST'],
-            'port': ['BCU_IBKR_PORT', 'TWS_PORT'],
-            'client_id': ['BCU_IBKR_CLIENT_ID', 'TWS_CLIENT_ID']
+            'host': ['VORTEX_IBKR_HOST', 'TWS_HOST'],
+            'port': ['VORTEX_IBKR_PORT', 'TWS_PORT'],
+            'client_id': ['VORTEX_IBKR_CLIENT_ID', 'TWS_CLIENT_ID']
         },
         'yahoo': {
             # Yahoo Finance doesn't require credentials

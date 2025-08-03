@@ -1,6 +1,6 @@
 # Environment Variables
 
-Set these environment variables before running bc-utils:
+Set these environment variables before running vortex:
 
 ## Barchart Data Provider
 ```bash
@@ -31,7 +31,7 @@ export BCU_BACKUP_DATA=True
 export BCU_DRY_RUN=False
 export BCU_LOGGING_LEVEL=DEBUG
 export BCU_START_YEAR=2024
-export BCU_REPO_DIR=/bc-utils
+export BCU_REPO_DIR=/vortex
 export BCU_CONFIG_FILE="/path/to/config.json"
 ```
 
@@ -46,6 +46,6 @@ ENV BCU_LOGGING_LEVEL=INFO
 ```ini
 [Service]
 Environment=BCU_DOWNLOADER=create_barchart_downloader
-Environment=BCU_OUTPUT_DIR=/var/lib/bc-utils/data
-EnvironmentFile=-/etc/bc-utils/credentials
+Environment=BCU_OUTPUT_DIR=/var/lib/vortex/data
+EnvironmentFile=-/etc/vortex/credentials
 ```

@@ -27,7 +27,7 @@ class DataStorage(ABC):
 - **Atomic operations**: Use temporary files for safe writes
 - **Metadata tracking**: Automatic file statistics collection
 
-**Source Reference:** `src/bcutils/data_storage/data_storage.py`
+**Source Reference:** `src/vortex/data_storage/data_storage.py`
 
 ### 1.2 Atomic Save Pattern
 
@@ -49,7 +49,7 @@ class DataStorage(ABC):
 - Automatic rollback capability
 - Consistent state guarantee
 
-**Source Reference:** `src/bcutils/data_storage/file_storage.py`
+**Source Reference:** `src/vortex/data_storage/file_storage.py`
 
 ## 2. Format-Specific Implementations
 
@@ -73,7 +73,7 @@ df.to_csv(
 - ISO 8601 date formatting
 - Header preservation
 
-**Source Reference:** `src/bcutils/data_storage/csv_storage.py`
+**Source Reference:** `src/vortex/data_storage/csv_storage.py`
 
 ### 2.2 Parquet Storage
 
@@ -102,7 +102,7 @@ df.to_parquet(
 | File Size | Large | Small |
 | Query Performance | Poor | Excellent |
 
-**Source Reference:** `src/bcutils/data_storage/parquet_storage.py`
+**Source Reference:** `src/vortex/data_storage/parquet_storage.py`
 
 ## 3. Deduplication Engine
 
@@ -131,7 +131,7 @@ FUNCTION deduplicate_data(data, provider_priority):
 - First occurrence kept (highest priority)
 - Timestamp + symbol as unique key
 
-**Source Reference:** `src/bcutils/data_storage/deduplicator.py`
+**Source Reference:** `src/vortex/data_storage/deduplicator.py`
 
 ### 3.2 Merge Strategy
 
@@ -182,7 +182,7 @@ def update_file_metadata(self, filepath, stats):
         self._save_metadata()
 ```
 
-**Source Reference:** `src/bcutils/data_storage/metadata_store.py`
+**Source Reference:** `src/vortex/data_storage/metadata_store.py`
 
 ## 5. Storage Factory
 
@@ -209,7 +209,7 @@ Primary (CSV): Human-readable, debugging
 Backup (Parquet): Performance, archival
 ```
 
-**Source Reference:** `src/bcutils/data_storage/factory.py`
+**Source Reference:** `src/vortex/data_storage/factory.py`
 
 ## 6. Error Handling
 
@@ -232,7 +232,7 @@ StorageError
 | Disk Full | Clean temp files, retry | Free disk space |
 | Corrupted Data | Load from backup | Investigate corruption |
 
-**Source Reference:** `src/bcutils/data_storage/exceptions.py`
+**Source Reference:** `src/vortex/data_storage/exceptions.py`
 
 ## 7. Performance Optimizations
 
@@ -254,7 +254,7 @@ def read_large_csv(filepath, chunksize=10000):
 - Memory-mapped files for large datasets
 - Parallel reads for partitioned data
 
-**Source Reference:** `src/bcutils/data_storage/optimizations.py`
+**Source Reference:** `src/vortex/data_storage/optimizations.py`
 
 ## 8. Testing Approach
 

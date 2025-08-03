@@ -25,7 +25,7 @@ def cli():
 - Interactive tables for configuration display
 - Confirmation prompts for destructive operations
 
-**Source Reference:** `src/bcutils/cli/main.py`
+**Source Reference:** `src/vortex/cli/main.py`
 
 ### 1.2 Configuration Management
 
@@ -46,7 +46,7 @@ class ConfigManager:
 - Automatic TOML file generation
 - Validation of configuration values
 
-**Source Reference:** `src/bcutils/cli/utils/config_manager.py`
+**Source Reference:** `src/vortex/cli/utils/config_manager.py`
 
 ## 2. Download Orchestration Implementation
 
@@ -70,7 +70,7 @@ class ConfigManager:
 - **Network Errors**: Exponential backoff with `@retry` decorator
 - **Data Quality**: Validation with PriceSeries container
 
-**Source Reference:** `src/bcutils/downloaders/updating_downloader.py`
+**Source Reference:** `src/vortex/downloaders/updating_downloader.py`
 
 ### 2.2 Single Dispatch Pattern Implementation
 
@@ -94,7 +94,7 @@ class DataProvider:
         return self._fetch_stock_data(...)
 ```
 
-**Source Reference:** `src/bcutils/data_providers/data_provider.py`
+**Source Reference:** `src/vortex/data_providers/data_provider.py`
 
 ## 3. Storage Architecture Implementation
 
@@ -121,7 +121,7 @@ class FileStorage(DataStorage):
 - Backup: Parquet for performance and compression
 - Metadata: JSON sidecar files for tracking coverage
 
-**Source Reference:** `src/bcutils/data_storage/file_storage.py`
+**Source Reference:** `src/vortex/data_storage/file_storage.py`
 
 ### 1.2 Job Management Architecture
 
@@ -148,7 +148,7 @@ Examples:
 - Automatic retry configuration
 - Duration tracking
 
-**Source Reference:** `src/bcutils/downloaders/download_job.py`
+**Source Reference:** `src/vortex/downloaders/download_job.py`
 
 ## 2. Instrument Model Implementation
 
@@ -178,7 +178,7 @@ SORT contracts by expiry date
 - **Contract Size**: Varies by instrument (100 oz for Gold)
 - **Tick Value**: Minimum price movement
 
-**Source Reference:** `src/bcutils/instruments/future.py`
+**Source Reference:** `src/vortex/instruments/future.py`
 
 ### 2.2 Stock Architecture
 
@@ -203,7 +203,7 @@ FOR prices before split date:
 - Corporate action tracking
 - Automatic price adjustments
 
-**Source Reference:** `src/bcutils/instruments/stock.py`
+**Source Reference:** `src/vortex/instruments/stock.py`
 
 ## 3. Configuration Implementation
 
@@ -228,7 +228,7 @@ FOR prices before split date:
 └── Retry Settings (max_retries, delays)
 ```
 
-**Source Reference:** `src/bcutils/initialization/session_config.py`
+**Source Reference:** `src/vortex/initialization/session_config.py`
 
 ### 3.2 Component Factory Architecture
 
@@ -258,7 +258,7 @@ Downloader
 - **Yahoo**: No auth required, public API
 - **IBKR**: TWS/Gateway connection, real-time data
 
-**Source Reference:** `src/bcutils/initialization/component_factory.py`
+**Source Reference:** `src/vortex/initialization/component_factory.py`
 
 ## Related Documents
 

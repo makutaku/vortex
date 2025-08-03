@@ -19,7 +19,7 @@ test:
 	python -m pytest tests/ -v
 
 lint:
-	flake8 src/bcutils tests/
+	flake8 src/vortex tests/
 
 clean:
 	rm -rf build/ dist/ *.egg-info/ .pytest_cache/ __pycache__/

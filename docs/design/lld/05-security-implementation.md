@@ -30,13 +30,13 @@ class CredentialManager:
 - Multiple backend support
 - Automatic fallback chain
 
-**Source Reference:** `src/bcutils/security/credential_manager.py`
+**Source Reference:** `src/vortex/security/credential_manager.py`
 
 ### 1.2 Encryption Strategy
 
 **Key Management:**
 ```
-1. Check for existing master key at ~/.bcutils/master.key
+1. Check for existing master key at ~/.vortex/master.key
 2. If not exists: Generate new Fernet key
 3. Store with 0600 permissions (owner only)
 4. Use key for all credential encryption
@@ -53,7 +53,7 @@ storage → Base64.decode() → encrypted_bytes
 encrypted_bytes → Fernet.decrypt() → plaintext_creds
 ```
 
-**Source Reference:** `src/bcutils/security/encryption.py`
+**Source Reference:** `src/vortex/security/encryption.py`
 
 ## 2. Input Validation
 
@@ -85,7 +85,7 @@ dangerous_patterns = [
 | Ports | 1-65535 range | Reject |
 | Credentials | No special chars in username | Warn |
 
-**Source Reference:** `src/bcutils/security/validator.py`
+**Source Reference:** `src/vortex/security/validator.py`
 
 ### 2.2 Data Sanitization
 
@@ -104,7 +104,7 @@ FOR each string column:
 - Volume: Non-negative integers
 - Timestamps: Valid date range
 
-**Source Reference:** `src/bcutils/security/sanitizer.py`
+**Source Reference:** `src/vortex/security/sanitizer.py`
 
 ## 3. Secure Logging
 
@@ -132,7 +132,7 @@ patterns = [
 - Rotation with secure archival
 - No credentials in log filenames
 
-**Source Reference:** `src/bcutils/security/secure_logging.py`
+**Source Reference:** `src/vortex/security/secure_logging.py`
 
 ## 4. Access Control
 
@@ -159,7 +159,7 @@ CHECK file.stat().st_mode:
     - Owner must match process user
 ```
 
-**Source Reference:** `src/bcutils/security/permissions.py`
+**Source Reference:** `src/vortex/security/permissions.py`
 
 ## 5. Security Testing
 
@@ -199,7 +199,7 @@ export BCU_BARCHART_USERNAME="user@example.com"
 export BCU_BARCHART_PASSWORD="secure_password"
 
 # Security settings
-export BCU_ENCRYPTION_KEY_PATH="~/.bcutils/master.key"
+export VORTEX_ENCRYPTION_KEY_PATH="~/.vortex/master.key"
 export BCU_LOG_REDACTION=true
 export BCU_SECURE_MODE=true
 ```
@@ -215,7 +215,7 @@ export BCU_SECURE_MODE=true
     "log_redaction": true,
     "allowed_directories": [
       "~/data",
-      "/tmp/bcutils"
+      "/tmp/vortex"
     ],
     "max_string_length": 1000
   }
@@ -247,7 +247,7 @@ export BCU_SECURE_MODE=true
 - SQL/command injection patterns
 - Unexpected permission changes
 
-**Source Reference:** `src/bcutils/security/monitoring.py`
+**Source Reference:** `src/vortex/security/monitoring.py`
 
 ## 8. Compliance Considerations
 
@@ -264,7 +264,7 @@ export BCU_SECURE_MODE=true
 - SOC2: Encryption and access controls
 - PCI: No credit card data handling
 
-**Source Reference:** `src/bcutils/security/compliance.py`
+**Source Reference:** `src/vortex/security/compliance.py`
 
 ## Related Documents
 

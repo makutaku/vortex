@@ -18,7 +18,7 @@ fi
 mkdir -p "$DEST_DIR/app"
 
 echo "Copying application code..."
-cp -r src/bcutils "$DEST_DIR/app/"
+cp -r src/vortex "$DEST_DIR/app/"
 cp requirements.txt "$DEST_DIR/app/"
 
 echo "Copying deployment files..."

@@ -87,7 +87,7 @@ RAISE AuthenticationError("All providers failed")
 **Source References:**
 - Always include source file locations
 - Point to specific classes/methods
-- Use format: `**Source Reference:** src/bcutils/component/file.py`
+- Use format: `**Source Reference:** src/vortex/component/file.py`
 
 ### Reading Guide
 

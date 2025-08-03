@@ -39,12 +39,12 @@ The following environment variables control the container behavior:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `BCU_PROVIDER` | `barchart` | Data provider: `barchart`, `yahoo`, or `ibkr` |
-| `BCU_SCHEDULE` | `0 8 * * *` | Cron schedule for downloads |
-| `BCU_RUN_ON_STARTUP` | `True` | Run download when container starts |
-| `BCU_DOWNLOAD_ARGS` | `--yes` | Additional arguments for download command |
-| `BCU_ASSETS_FILE` | `/config/assets.json` | Path to custom assets file |
-| `BCU_LOG_LEVEL` | `INFO` | Logging level |
+| `VORTEX_PROVIDER` | `barchart` | Data provider: `barchart`, `yahoo`, or `ibkr` |
+| `VORTEX_SCHEDULE` | `0 8 * * *` | Cron schedule for downloads |
+| `VORTEX_RUN_ON_STARTUP` | `True` | Run download when container starts |
+| `VORTEX_DOWNLOAD_ARGS` | `--yes` | Additional arguments for download command |
+| `VORTEX_ASSETS_FILE` | `/config/assets.json` | Path to custom assets file |
+| `VORTEX_LOG_LEVEL` | `INFO` | Logging level |
 | `DATA_DIR` | `./data` | Host directory for downloaded data (maps to `/data` in container) |
 | `CONFIG_DIR` | `./config` | Host directory for configuration (maps to `/config` in container) |
 
@@ -62,7 +62,7 @@ daily_limit = 150
 #### Yahoo Finance
 No credentials required. Just set:
 ```bash
-BCU_PROVIDER=yahoo
+VORTEX_PROVIDER=yahoo
 ```
 
 #### Interactive Brokers
@@ -93,7 +93,7 @@ To use a custom list of instruments:
 
 2. Update `.env`:
    ```bash
-   BCU_ASSETS_FILE=/config/my-assets.json
+   VORTEX_ASSETS_FILE=/config/my-assets.json
    ```
 
 ## Scheduling
@@ -136,14 +136,14 @@ Run multiple containers for different providers:
 
 ```yaml
 services:
-  bcutils-yahoo:
+  vortex-yahoo:
     build:
       context: .
       dockerfile: Dockerfile.simple
     container_name: vortex-yahoo
     environment:
-      BCU_PROVIDER: yahoo
-      BCU_SCHEDULE: "0 9 * * *"
+      VORTEX_PROVIDER: yahoo
+      VORTEX_SCHEDULE: "0 9 * * *"
     volumes:
       - ./data/yahoo:/data
       - ./config:/config
@@ -154,8 +154,8 @@ services:
       dockerfile: Dockerfile.simple
     container_name: vortex-barchart
     environment:
-      BCU_PROVIDER: barchart
-      BCU_SCHEDULE: "0 10 * * *"
+      VORTEX_PROVIDER: barchart
+      VORTEX_SCHEDULE: "0 10 * * *"
     volumes:
       - ./data/barchart:/data
       - ./config:/config
@@ -166,7 +166,7 @@ services:
 To download specific date ranges:
 
 ```bash
-BCU_DOWNLOAD_ARGS="--yes --start-date 2024-01-01 --end-date 2024-12-31"
+VORTEX_DOWNLOAD_ARGS="--yes --start-date 2024-01-01 --end-date 2024-12-31"
 ```
 
 ### Specific Symbols
@@ -174,7 +174,7 @@ BCU_DOWNLOAD_ARGS="--yes --start-date 2024-01-01 --end-date 2024-12-31"
 To download only specific symbols:
 
 ```bash
-BCU_DOWNLOAD_ARGS="--yes --symbol AAPL MSFT GOOGL"
+VORTEX_DOWNLOAD_ARGS="--yes --symbol AAPL MSFT GOOGL"
 ```
 
 ### Force Re-download
@@ -182,7 +182,7 @@ BCU_DOWNLOAD_ARGS="--yes --symbol AAPL MSFT GOOGL"
 To re-download existing data:
 
 ```bash
-BCU_DOWNLOAD_ARGS="--yes --force"
+VORTEX_DOWNLOAD_ARGS="--yes --force"
 ```
 
 ## Troubleshooting
