@@ -137,6 +137,7 @@ def show_configuration(config_manager: ConfigManager) -> None:
     
     table.add_row("Config File", str(config_manager.config_file))
     table.add_row("Default Output Directory", str(config.general.output_directory))
+    table.add_row("Default Provider", config.general.default_provider.value.upper())
     table.add_row("Default Backup", str(config.general.backup_enabled))
     table.add_row("Log Level", config.general.log_level.value)
     

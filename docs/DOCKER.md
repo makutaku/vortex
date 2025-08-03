@@ -2,7 +2,7 @@
 
 Vortex can be deployed as a Docker container for automated, scheduled downloads of financial data.
 
-## Quick Start
+## Quick Start (Free Data with Yahoo Finance)
 
 1. **Clone the repository**
    ```bash
@@ -10,23 +10,28 @@ Vortex can be deployed as a Docker container for automated, scheduled downloads 
    cd vortex
    ```
 
-2. **Configure environment**
+2. **Run immediately with Yahoo Finance (no setup required)**
+   ```bash
+   docker compose up -d
+   ```
+
+That's it! The container will:
+- Use Yahoo Finance (free, no credentials needed)
+- Download data to `./data` directory
+- Run daily at 8 AM automatically
+
+## Premium Data Setup (Barchart)
+
+1. **Configure environment for Barchart**
    ```bash
    cp .env.example .env
-   # Edit .env with your settings
+   # Edit .env and set:
+   # VORTEX_DEFAULT_PROVIDER=barchart
+   # VORTEX_BARCHART_USERNAME=your_email@example.com
+   # VORTEX_BARCHART_PASSWORD=your_password
    ```
 
-3. **Set up credentials** (for Barchart)
-   ```bash
-   mkdir -p config
-   cat > config/config.toml << EOF
-   [providers.barchart]
-   username = "your_email@example.com"
-   password = "your_password"
-   EOF
-   ```
-
-4. **Run with Docker Compose**
+2. **Run with Barchart**
    ```bash
    docker compose up -d
    ```
@@ -39,47 +44,83 @@ The following environment variables control the container behavior:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `VORTEX_PROVIDER` | `barchart` | Data provider: `barchart`, `yahoo`, or `ibkr` |
+| `VORTEX_DEFAULT_PROVIDER` | `yahoo` | Default data provider: `yahoo` (free), `barchart` (premium), or `ibkr` (professional) |
 | `VORTEX_SCHEDULE` | `0 8 * * *` | Cron schedule for downloads |
-| `VORTEX_RUN_ON_STARTUP` | `True` | Run download when container starts |
+| `VORTEX_RUN_ON_STARTUP` | `true` | Run download when container starts |
 | `VORTEX_DOWNLOAD_ARGS` | `--yes` | Additional arguments for download command |
-| `VORTEX_ASSETS_FILE` | `/config/assets.json` | Path to custom assets file |
-| `VORTEX_LOG_LEVEL` | `INFO` | Logging level |
+| `VORTEX_LOG_LEVEL` | `INFO` | Logging level (DEBUG, INFO, WARNING, ERROR) |
+| `VORTEX_LOGGING_FORMAT` | `console` | Log format: console, json, rich |
+| `VORTEX_BACKUP_ENABLED` | `false` | Enable Parquet backup files |
 | `DATA_DIR` | `./data` | Host directory for downloaded data (maps to `/data` in container) |
-| `CONFIG_DIR` | `./config` | Host directory for configuration (maps to `/config` in container) |
+| `CONFIG_DIR` | `./config` | Host directory for configuration (maps to `/root/.config/vortex` in container) |
+
+**Provider-specific variables:**
+| Variable | Description |
+|----------|-------------|
+| `VORTEX_BARCHART_USERNAME` | Barchart.com username (email) |
+| `VORTEX_BARCHART_PASSWORD` | Barchart.com password |
+| `VORTEX_BARCHART_DAILY_LIMIT` | Daily download limit (default: 150) |
+| `VORTEX_IBKR_HOST` | Interactive Brokers TWS/Gateway host (default: localhost) |
+| `VORTEX_IBKR_PORT` | Interactive Brokers port (default: 7497) |
+| `VORTEX_IBKR_CLIENT_ID` | Interactive Brokers client ID (default: 1) |
 
 ### Provider-Specific Setup
 
-#### Barchart
-Requires credentials in `config/config.toml`:
+#### Yahoo Finance (Default - Free)
+No setup required! Yahoo Finance is the default provider and works immediately:
+```bash
+# Just run - no configuration needed
+docker compose up -d
+```
+
+#### Barchart (Premium)
+Set credentials via environment variables in `.env`:
+```bash
+VORTEX_DEFAULT_PROVIDER=barchart
+VORTEX_BARCHART_USERNAME=your_email@example.com
+VORTEX_BARCHART_PASSWORD=your_password
+VORTEX_BARCHART_DAILY_LIMIT=150
+```
+
+Or in `config/config.toml`:
 ```toml
+[general]
+default_provider = "barchart"
+
 [providers.barchart]
 username = "your_email@example.com"
 password = "your_password"
 daily_limit = 150
 ```
 
-#### Yahoo Finance
-No credentials required. Just set:
+#### Interactive Brokers (Professional)
+Requires TWS/Gateway running. Set in `.env`:
 ```bash
-VORTEX_PROVIDER=yahoo
+VORTEX_DEFAULT_PROVIDER=ibkr
+VORTEX_IBKR_HOST=host.docker.internal  # To connect to TWS on host
+VORTEX_IBKR_PORT=7497
+VORTEX_IBKR_CLIENT_ID=1
 ```
 
-#### Interactive Brokers
-Requires TWS/Gateway running. Configure in `config/config.toml`:
+Or in `config/config.toml`:
 ```toml
+[general]
+default_provider = "ibkr"
+
 [providers.ibkr]
-host = "host.docker.internal"  # To connect to TWS on host
+host = "host.docker.internal"
 port = 7497
 client_id = 1
 ```
 
 ## Volume Mounts
 
-The container uses two volumes:
+The container uses two main volumes:
 
 - `/data` - Downloaded data files (CSV/Parquet)
-- `/config` - Configuration files (config.toml, custom assets.json)
+- `/root/.config/vortex` - Vortex configuration directory (config.toml)
+
+The `CONFIG_DIR` environment variable maps your local `./config` directory to `/root/.config/vortex` in the container, following standard Linux configuration conventions.
 
 ## Custom Assets
 
@@ -117,7 +158,10 @@ tail -f data/vortex.log
 ```
 
 ### Health Check
-The container creates `data/health.check` hourly. Monitor this file to ensure the container is running.
+The container runs `vortex config --show` to verify the CLI is working properly. Check health status with:
+```bash
+docker compose ps
+```
 
 ### Status
 ```bash
@@ -142,11 +186,11 @@ services:
       dockerfile: Dockerfile.simple
     container_name: vortex-yahoo
     environment:
-      VORTEX_PROVIDER: yahoo
+      VORTEX_DEFAULT_PROVIDER: yahoo
       VORTEX_SCHEDULE: "0 9 * * *"
     volumes:
       - ./data/yahoo:/data
-      - ./config:/config
+      - ./config/yahoo:/root/.config/vortex
 
   vortex-barchart:
     build:
@@ -154,11 +198,13 @@ services:
       dockerfile: Dockerfile.simple
     container_name: vortex-barchart
     environment:
-      VORTEX_PROVIDER: barchart
+      VORTEX_DEFAULT_PROVIDER: barchart
+      VORTEX_BARCHART_USERNAME: ${BARCHART_USERNAME}
+      VORTEX_BARCHART_PASSWORD: ${BARCHART_PASSWORD}
       VORTEX_SCHEDULE: "0 10 * * *"
     volumes:
       - ./data/barchart:/data
-      - ./config:/config
+      - ./config/barchart:/root/.config/vortex
 ```
 
 ### Date Range Control

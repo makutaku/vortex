@@ -134,8 +134,15 @@ def show_providers_list(config_manager: ConfigManager) -> None:
                 # Format rate limits
                 rate_limits = plugin_info.get("rate_limits", "Not specified")
                 
+                # Highlight default provider
+                provider_display = provider_name.upper()
+                if provider_name == "yahoo":
+                    provider_display = f"{provider_name.upper()} [DEFAULT]"
+                    if status == "✓ Available":
+                        status = "✓ Ready (Free)"
+                
                 table.add_row(
-                    provider_name.upper(),
+                    provider_display,
                     status,
                     assets_str.title(),
                     auth_info,
@@ -154,7 +161,8 @@ def show_providers_list(config_manager: ConfigManager) -> None:
                 )
         
         console.print(table)
-        console.print("\n[dim]Use 'vortex config --provider PROVIDER --set-credentials' to configure[/dim]")
+        console.print("\n[green]💡 Yahoo Finance is the default provider - no setup required![/green]")
+        console.print("[dim]Use 'vortex config --provider PROVIDER --set-credentials' to configure premium providers[/dim]")
         
         # Show available providers count
         provider_count = len(registry.list_plugins())
@@ -227,8 +235,15 @@ def _show_fallback_providers_list(config_manager: ConfigManager) -> None:
         
         status = "✓ Available" if configured else "⚠ Not configured"
         
+        # Highlight default provider
+        provider_display = provider.upper()
+        if provider == "yahoo":
+            provider_display = f"{provider.upper()} [DEFAULT]"
+            if status == "✓ Available":
+                status = "✓ Ready (Free)"
+        
         table.add_row(
-            provider.upper(),
+            provider_display,
             status,
             info["data_types"],
             info["auth"],

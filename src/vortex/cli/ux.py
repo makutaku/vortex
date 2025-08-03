@@ -512,6 +512,9 @@ def get_ux() -> CliUX:
 
 def enhanced_error_handler(func: Callable) -> Callable:
     """Decorator for enhanced error handling in CLI commands."""
+    from functools import wraps
+    
+    @wraps(func)
     def wrapper(*args, **kwargs):
         try:
             return func(*args, **kwargs)

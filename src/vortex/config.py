@@ -161,6 +161,10 @@ class GeneralConfig(BaseModel):
         le=300, 
         description="Maximum random sleep between requests (seconds)"
     )
+    default_provider: Provider = Field(
+        Provider.YAHOO, 
+        description="Default data provider (yahoo is free and requires no setup)"
+    )
     
     @model_validator(mode='after')
     def sync_log_levels(self) -> 'GeneralConfig':
@@ -236,6 +240,7 @@ class VortexSettings(BaseSettings):
     vortex_log_level: Optional[str] = Field(None, alias="VORTEX_LOG_LEVEL")
     vortex_backup_enabled: Optional[bool] = Field(None, alias="VORTEX_BACKUP_ENABLED")
     vortex_dry_run: Optional[bool] = Field(None, alias="VORTEX_DRY_RUN")
+    vortex_default_provider: Optional[str] = Field(None, alias="VORTEX_DEFAULT_PROVIDER")
     
     # Logging settings
     vortex_logging_level: Optional[str] = Field(None, alias="VORTEX_LOGGING_LEVEL")
@@ -365,6 +370,8 @@ class ConfigManager:
             config_data["general"]["backup_enabled"] = self._settings.vortex_backup_enabled
         if self._settings.vortex_dry_run is not None:
             config_data["general"]["dry_run"] = self._settings.vortex_dry_run
+        if self._settings.vortex_default_provider:
+            config_data["general"]["default_provider"] = self._settings.vortex_default_provider
         
         # Apply logging environment variables
         if "logging" not in config_data["general"]:
@@ -503,6 +510,11 @@ class ConfigManager:
         # Yahoo and IBKR don't require credentials
         
         return missing
+    
+    def get_default_provider(self) -> str:
+        """Get the default provider from configuration."""
+        config = self.load_config()
+        return config.general.default_provider.value
     
     def import_config(self, file_path: Path) -> None:
         """Import configuration from another TOML file."""

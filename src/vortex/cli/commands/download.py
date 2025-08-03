@@ -69,8 +69,8 @@ def get_default_assets_file(provider: str) -> Path:
 @click.option(
     "--provider", "-p",
     type=str,
-    required=True,
-    help="Data provider to use (dynamic based on available plugins)",
+    default=None,
+    help="Data provider to use (default: from config, yahoo if not set - free, no credentials required)",
     shell_complete=complete_provider
 )
 @click.option(
@@ -148,11 +148,11 @@ def download(
     
     \b
     Examples:
-        vortex download -p yahoo -s AAPL -s GOOGL
+        vortex download -s AAPL -s GOOGL                    # Uses yahoo (default)
+        vortex download --symbol TSLA MSFT --yes            # Uses yahoo (default)
+        vortex download --symbols-file symbols.txt          # Uses yahoo (default)
         vortex download -p barchart -s GCM25 --start-date 2024-01-01  
-        vortex download -p yahoo --symbols-file symbols.txt
-        vortex download -p yahoo --assets /path/to/my-assets.json
-        vortex download -p yahoo -s MSFT --yes  # Skip confirmation
+        vortex download -p ibkr -s TSLA --start-date 2024-01-01
         
     \b
     Default Assets:
@@ -172,6 +172,14 @@ def download(
         # Run without installation
         uv run vortex download --help
     """
+    # Get configuration manager first
+    config_manager = ConfigManager(ctx.obj.get('config_file'))
+    
+    # Use default provider from configuration if none specified
+    if provider is None:
+        provider = config_manager.get_default_provider()
+        ux.print_info(f"Using default provider: {provider}")
+    
     # Validate provider exists in plugin registry
     try:
         registry = get_provider_registry()
@@ -182,9 +190,6 @@ def download(
         ux.print_info(f"Available providers: {', '.join(available_providers)}")
         ux.print_info("💡 Use 'vortex providers --list' to see all available providers")
         raise click.Abort()
-    
-    # Get configuration
-    config_manager = ConfigManager(ctx.obj.get('config_file'))
     
     # Set defaults
     if not start_date:

@@ -78,8 +78,9 @@ def cli(ctx: click.Context, config: Optional[Path], verbose: int, dry_run: bool)
     
     \b
     Examples:
-        vortex download --provider barchart --symbol GC
-        vortex config --set-credentials barchart
+        vortex download --symbol AAPL GOOGL              # Uses yahoo (free, default)
+        vortex download -s TSLA --start-date 2024-01-01  # Uses yahoo (free, default)
+        vortex download -p barchart --symbol GC          # Premium data (requires subscription)
         vortex providers --test
         
     \b
@@ -88,7 +89,12 @@ def cli(ctx: click.Context, config: Optional[Path], verbose: int, dry_run: bool)
         uv pip install -e .
         
     \b
-    Quick Start:
+    Quick Start (Free Data):
+        vortex download --symbol AAPL                     # No setup required!
+        vortex download -s TSLA MSFT GOOGL --yes         # Download multiple stocks
+        
+    \b
+    Premium Data Setup:
         vortex config --provider barchart --set-credentials
         vortex download --provider barchart --symbol GC
     """
@@ -117,12 +123,15 @@ def show_welcome(ux):
     ux.print_panel(
         f"🚀 **Vortex v{__version__}**\n\n"
         "Financial data download automation tool\n\n"
-        "**Quick Commands:**\n"
+        "**Get Started Instantly (No Setup Required!):**\n"
+        "• `vortex download --symbol AAPL` - Download Apple stock data\n"
+        "• `vortex download -s TSLA MSFT` - Download multiple stocks\n"
+        "• `vortex download -s GOOGL --start-date 2024-01-01` - Historical data\n\n"
+        "**Other Commands:**\n"
         "• `vortex wizard` - Interactive setup wizard\n"
-        "• `vortex help quickstart` - Quick start guide\n"
-        "• `vortex download --help` - Download command help\n"
-        "• `vortex config --help` - Configuration help",
-        title="Welcome to Vortex",
+        "• `vortex providers --list` - Show all data providers\n"
+        "• `vortex help quickstart` - Quick start guide",
+        title="Welcome to Vortex - Free Data Ready!",
         style="green"
     )
     
