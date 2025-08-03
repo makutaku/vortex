@@ -94,10 +94,11 @@ rotate_log "$BCU_OUTPUT_DIR/ping.log"
 timestamp=$(date +"%Y-%m-%d %H:%M:%S")
 
 if [ "$BCU_RUN_ON_STARTUP" = "True" ]; then
-  echo "$timestamp INFO Running script on startup - BCU_RUN_ON_STARTUP environment variable is set to 'True'."
-  "$BCU_REPO_DIR/run_bc_utils.sh" 2>&1 | tee -a "$BCU_OUTPUT_DIR/bc_utils.log"
+  echo "$timestamp INFO Running bc-utils on startup - BCU_RUN_ON_STARTUP environment variable is set to 'True'."
+  # Use modern CLI approach
+  bcutils download --provider "${BCU_PROVIDER:-barchart}" --yes 2>&1 | tee -a "$BCU_OUTPUT_DIR/bc_utils.log"
 else
-  echo "$timestamp INFO Skipping running script on startup. To run on start up, set BCU_RUN_ON_STARTUP environment variable to 'True'."
+  echo "$timestamp INFO Skipping running bc-utils on startup. To run on start up, set BCU_RUN_ON_STARTUP environment variable to 'True'."
 fi
 
 

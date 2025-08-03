@@ -145,50 +145,13 @@ class ConfigManager:
         }
     
     def _load_from_environment(self) -> Dict[str, Any]:
-        """Load configuration from environment variables."""
-        env_config = {}
+        """Load configuration from environment variables.
         
-        # General settings
-        if os.getenv("BCU_OUTPUT_DIR"):
-            env_config["output_directory"] = os.getenv("BCU_OUTPUT_DIR")
-        
-        if os.getenv("BCU_BACKUP_ENABLED"):
-            env_config["backup_enabled"] = os.getenv("BCU_BACKUP_ENABLED").lower() == "true"
-        
-        if os.getenv("BCU_LOG_LEVEL"):
-            env_config["log_level"] = os.getenv("BCU_LOG_LEVEL")
-        
-        # Provider settings
-        providers = {}
-        
-        # Barchart
-        barchart_config = {}
-        if os.getenv("BCU_BARCHART_USERNAME"):
-            barchart_config["username"] = os.getenv("BCU_BARCHART_USERNAME")
-        if os.getenv("BCU_BARCHART_PASSWORD"):
-            barchart_config["password"] = os.getenv("BCU_BARCHART_PASSWORD")
-        if os.getenv("BCU_BARCHART_DAILY_LIMIT"):
-            barchart_config["daily_limit"] = int(os.getenv("BCU_BARCHART_DAILY_LIMIT"))
-        
-        if barchart_config:
-            providers["barchart"] = barchart_config
-        
-        # IBKR
-        ibkr_config = {}
-        if os.getenv("BCU_IBKR_HOST"):
-            ibkr_config["host"] = os.getenv("BCU_IBKR_HOST")
-        if os.getenv("BCU_IBKR_PORT"):
-            ibkr_config["port"] = int(os.getenv("BCU_IBKR_PORT"))
-        if os.getenv("BCU_IBKR_CLIENT_ID"):
-            ibkr_config["client_id"] = int(os.getenv("BCU_IBKR_CLIENT_ID"))
-        
-        if ibkr_config:
-            providers["ibkr"] = ibkr_config
-        
-        if providers:
-            env_config["providers"] = providers
-        
-        return env_config
+        Note: Environment variable support is deprecated.
+        Use config file or interactive setup instead.
+        """
+        # Return empty config - no environment variable support
+        return {}
     
     def _merge_config(self, base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
         """Merge two configuration dictionaries."""

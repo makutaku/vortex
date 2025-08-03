@@ -102,15 +102,6 @@ bcutils validate --path ./data
 bcutils validate --path ./data/GC.csv --provider barchart
 ```
 
-### Legacy Shell Script Usage (Deprecated)
-```bash
-# Legacy method - use CLI instead
-./build.sh
-export BCU_USERNAME="your_username"
-export BCU_PASSWORD="your_password"
-export BCU_OUTPUT_DIR="/path/to/data"
-./run_bc_utils.sh
-```
 
 ## Architecture
 
@@ -153,10 +144,10 @@ export BCU_OUTPUT_DIR="/path/to/data"
 
 ### Key Files
 
-- `bcutils/bc_utils.py`: Main entry point with downloader factory functions
-- `assets/`: Provider-specific instrument definitions directory
-- `build.sh`: Build script that processes env files and copies artifacts
-- `run_bc_utils.sh`: Runtime script that activates environment and runs main module
+- `bcutils/bc_utils.py`: Contains downloader factory functions
+- `bcutils/cli/main.py`: Modern CLI entry point using Click framework
+- `assets/`: Default instrument definitions directory
+- `scripts/build.sh`: Build script for creating distribution artifacts
 
 ### Configuration Management
 
@@ -168,14 +159,6 @@ bcutils config --provider barchart --set-credentials
 bcutils config --provider ibkr --set-credentials
 ```
 
-**Environment Variables:**
-```bash
-export BCU_BARCHART_USERNAME="your_username"
-export BCU_BARCHART_PASSWORD="your_password"
-export BCU_IBKR_HOST="localhost"
-export BCU_IBKR_PORT="7497"
-export BCU_OUTPUT_DIR="/path/to/data"
-```
 
 **Configuration File (~/.config/bcutils/config.toml):**
 ```toml
