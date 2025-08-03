@@ -219,12 +219,35 @@ def execute_download(
             task = progress.add_task(f"Downloading {symbol}...", total=None)
             
             try:
-                # Here you would call the actual download logic
-                # For now, we'll simulate the download
                 logger.info(f"Downloading {symbol} from {provider}")
                 
-                # TODO: Implement actual download using existing bc_utils functions
-                # result = downloader.download_instrument_data(symbol, start_date, end_date)
+                # Create downloader based on provider
+                if provider == "yahoo":
+                    downloader = create_yahoo_downloader(config)
+                elif provider == "barchart":
+                    downloader = create_barchart_downloader(config)
+                elif provider == "ibkr":
+                    downloader = create_ibkr_downloader(config)
+                else:
+                    raise ValueError(f"Unknown provider: {provider}")
+                
+                # Create a simple instrument (assume stock for now)
+                from ...instruments.stock import Stock
+                from ...instruments.period import Period
+                from ...downloaders.download_job import DownloadJob
+                
+                instrument = Stock(id=symbol, symbol=symbol)
+                job = DownloadJob(
+                    data_provider=downloader.data_provider,
+                    data_storage=downloader.data_storage,
+                    instrument=instrument,
+                    period=Period.Daily,
+                    start_date=start_date,
+                    end_date=end_date
+                )
+                
+                # Process the download job
+                downloader._process_job(job)
                 
                 progress.update(task, description=f"✓ {symbol} completed")
                 success_count += 1
