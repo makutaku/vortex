@@ -2,7 +2,9 @@ version: '3.8'
 
 services:
   bcutils:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile.simple  # Use simple build for reliability
     container_name: bcutils
     restart: unless-stopped
     

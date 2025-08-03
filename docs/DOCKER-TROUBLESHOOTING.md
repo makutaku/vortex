@@ -26,14 +26,16 @@ newgrp docker  # or logout/login
 **Error:**
 ```
 /bin/sh: 1: uv: not found
+mv: cannot stat '/root/.cargo/bin/uv': No such file or directory
 ```
 
 **Solutions:**
 ```bash
-# Use the simple Dockerfile without uv
+# Use the simple Dockerfile without uv (recommended for production)
 docker build -f Dockerfile.simple -t bcutils:latest .
 
-# Or fix PATH in main Dockerfile (already fixed in repo)
+# Main Dockerfile uses uv for faster builds but may have version-dependent issues
+# The simple version is more reliable across different environments
 ```
 
 ### 3. Build Context Too Large
