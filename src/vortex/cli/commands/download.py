@@ -20,9 +20,8 @@ from ...exceptions import (
     CLIError, MissingArgumentError, InvalidCommandError,
     ConfigurationError, DataProviderError, DataStorageError
 )
-from ...initialization.session_config import SessionConfig
 from ...initialization.config_utils import InstrumentConfig
-from ..utils.config_manager import ConfigManager
+from ...config import ConfigManager
 from ..utils.instrument_parser import parse_instruments
 
 console = Console()
@@ -276,18 +275,13 @@ def execute_download(
         console.print("[yellow]DRY RUN: Would download data but no changes will be made[/yellow]")
         return len(symbols)
     
-    # Create session config
-    config = create_session_config(
+    # Get download configuration
+    download_config = get_download_config(
         config_manager=config_manager,
-        provider=provider,
         output_dir=output_dir,
         backup=backup,
-        force=force,
-        chunk_size=chunk_size
+        force=force
     )
-    
-    # Create downloader
-    downloader = create_downloader(provider, config)
     
     success_count = 0
     
@@ -304,7 +298,7 @@ def execute_download(
                 logger.info(f"Downloading {symbol} from {provider}")
                 
                 # Create downloader based on provider
-                downloader = create_downloader(provider, config)
+                downloader = create_downloader(provider, download_config)
                 
                 # Create a simple instrument (assume stock for now)
                 from ...instruments.stock import Stock
@@ -340,59 +334,51 @@ def execute_download(
     
     return success_count
 
-def create_session_config(
+def get_download_config(
     config_manager: ConfigManager,
-    provider: str,
     output_dir: Path,
     backup: bool,
-    force: bool,
-    chunk_size: int
-) -> SessionConfig:
-    """Create session configuration for the download."""
+    force: bool
+) -> dict:
+    """Get configuration for the download."""
     
-    # Get provider-specific config
-    provider_config = config_manager.get_provider_config(provider)
+    # Load full configuration
+    config = config_manager.load_config()
     
-    # Create session config
-    config = SessionConfig()
-    config.provider_type = provider
-    config.download_directory = str(output_dir)
-    config.backup_data = backup
-    config.force_backup = force
-    config.chunk_size_days = chunk_size
-    config.dry_run = False  # Handled at CLI level
-    
-    # Set provider-specific options
-    if provider == "barchart":
-        config.username = provider_config.get("username")
-        config.password = provider_config.get("password")
-        config.daily_download_limit = provider_config.get("daily_limit", 150)
-    elif provider == "ibkr":
-        config.provider_host = provider_config.get("host", "localhost")
-        config.provider_port = provider_config.get("port", "7497")
-    
-    return config
+    return {
+        'vortex_config': config,
+        'output_dir': output_dir,
+        'backup': backup,
+        'force': force
+    }
 
-def create_downloader(provider: str, config: SessionConfig):
+def create_downloader(provider: str, download_config: dict):
     """Create the appropriate downloader for the provider."""
     
+    vortex_config = download_config['vortex_config']
+    output_dir = download_config['output_dir']
+    backup = download_config['backup']
+    force = download_config['force']
+    
     # Create storage objects
-    data_storage = CsvStorage(config.download_directory, config.dry_run)
-    backup_data_storage = ParquetStorage(config.download_directory, config.dry_run) if config.backup_data else None
+    data_storage = CsvStorage(str(output_dir), False)  # dry_run handled at CLI level
+    backup_data_storage = ParquetStorage(str(output_dir), False) if backup else None
     
     # Create provider-specific data provider
     if provider == "barchart":
+        barchart_config = vortex_config.providers.barchart
         data_provider = BarchartDataProvider(
-            username=config.username,
-            password=config.password,
-            daily_download_limit=config.daily_download_limit
+            username=barchart_config.username,
+            password=barchart_config.password,
+            daily_download_limit=barchart_config.daily_limit
         )
     elif provider == "yahoo":
         data_provider = YahooDataProvider()
     elif provider == "ibkr":
+        ibkr_config = vortex_config.providers.ibkr
         data_provider = IbkrDataProvider(
-            ipaddress=config.provider_host, 
-            port=config.provider_port
+            ipaddress=ibkr_config.host, 
+            port=str(ibkr_config.port)
         )
     else:
         raise ValueError(f"Unknown provider: {provider}")
@@ -402,7 +388,7 @@ def create_downloader(provider: str, config: SessionConfig):
         data_storage, 
         data_provider, 
         backup_data_storage,
-        force_backup=config.force_backup, 
-        random_sleep_in_sec=config.random_sleep_in_sec,
-        dry_run=config.dry_run
+        force_backup=force, 
+        random_sleep_in_sec=vortex_config.general.random_sleep_max,
+        dry_run=vortex_config.general.dry_run
     )

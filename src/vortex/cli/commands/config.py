@@ -10,8 +10,7 @@ from rich.table import Table
 from rich.prompt import Prompt, Confirm
 
 from ...exceptions import ConfigurationError, InvalidConfigurationError, MissingArgumentError
-
-from ..utils.config_manager import ConfigManager
+from ...config import ConfigManager, Provider
 
 console = Console()
 logger = logging.getLogger(__name__)
@@ -137,9 +136,9 @@ def show_configuration(config_manager: ConfigManager) -> None:
     table.add_column("Value", style="green")
     
     table.add_row("Config File", str(config_manager.config_file))
-    table.add_row("Default Output Directory", config.get("output_directory", "./data"))
-    table.add_row("Default Backup", str(config.get("backup_enabled", False)))
-    table.add_row("Log Level", config.get("log_level", "INFO"))
+    table.add_row("Default Output Directory", str(config.general.output_directory))
+    table.add_row("Default Backup", str(config.general.backup_enabled))
+    table.add_row("Log Level", config.general.log_level.value)
     
     # Show default date range for download command when not specified
     from datetime import datetime, timedelta
@@ -171,19 +170,16 @@ def show_configuration(config_manager: ConfigManager) -> None:
     providers_table.add_column("Notes")
     
     for provider in ["barchart", "yahoo", "ibkr"]:
-        provider_config = config.get("providers", {}).get(provider, {})
-        
         if provider == "barchart":
-            has_creds = bool(provider_config.get("username") and provider_config.get("password"))
+            has_creds = config_manager.validate_provider_credentials(provider)
             status = "✓ Configured" if has_creds else "✗ No credentials"
-            notes = f"Daily limit: {provider_config.get('daily_limit', 150)}" if has_creds else "Use --set-credentials"
+            notes = f"Daily limit: {config.providers.barchart.daily_limit}" if has_creds else "Use --set-credentials"
         elif provider == "yahoo":
             status = "✓ Ready"
             notes = "No credentials required"
         elif provider == "ibkr":
-            has_config = bool(provider_config.get("host"))
-            status = "✓ Configured" if has_config else "✗ Not configured"
-            notes = f"Host: {provider_config.get('host', 'localhost')}:{provider_config.get('port', 7497)}" if has_config else "Use --set-credentials"
+            status = "✓ Configured"  # IBKR always has default config
+            notes = f"Host: {config.providers.ibkr.host}:{config.providers.ibkr.port}"
         
         providers_table.add_row(provider.upper(), status, notes)
     
@@ -198,18 +194,17 @@ def show_provider_configuration(config_manager: ConfigManager, provider: str) ->
     table.add_column("Value", style="green")
     
     if provider == "barchart":
-        table.add_row("Username", provider_config.get("username", "[red]Not set[/red]"))
+        table.add_row("Username", provider_config.get("username") or "[red]Not set[/red]")
         table.add_row("Password", "••••••••" if provider_config.get("password") else "[red]Not set[/red]")
         table.add_row("Daily Limit", str(provider_config.get("daily_limit", 150)))
-        table.add_row("Base URL", provider_config.get("base_url", "https://www.barchart.com"))
     elif provider == "yahoo":
-        table.add_row("Base URL", provider_config.get("base_url", "https://query1.finance.yahoo.com"))
         table.add_row("Status", "No configuration required")
+        table.add_row("Enabled", str(provider_config.get("enabled", True)))
     elif provider == "ibkr":
         table.add_row("Host", provider_config.get("host", "localhost"))
         table.add_row("Port", str(provider_config.get("port", 7497)))
         table.add_row("Client ID", str(provider_config.get("client_id", 1)))
-        table.add_row("Timeout", f"{provider_config.get('timeout', 60)}s")
+        table.add_row("Timeout", f"{provider_config.get('timeout', 30)}s")
     
     # Show default assets file for this provider
     from pathlib import Path
@@ -236,20 +231,24 @@ def set_provider_credentials(config_manager: ConfigManager, provider: str) -> No
         config_manager.set_provider_config(provider, {
             "username": username,
             "password": password,
-            "daily_limit": int(daily_limit),
-            "base_url": "https://www.barchart.com"
+            "daily_limit": int(daily_limit)
         })
         
     elif provider == "yahoo":
         console.print("[yellow]Yahoo Finance doesn't require credentials[/yellow]")
         console.print("Configuration is automatically set up.")
         
+        # Ensure Yahoo provider is enabled
+        config_manager.set_provider_config(provider, {
+            "enabled": True
+        })
+        
     elif provider == "ibkr":
         console.print("Enter your Interactive Brokers TWS/Gateway settings:")
         host = Prompt.ask("Host", default="localhost")
         port = Prompt.ask("Port", default="7497")
         client_id = Prompt.ask("Client ID", default="1")
-        timeout = Prompt.ask("Timeout (seconds)", default="60")
+        timeout = Prompt.ask("Timeout (seconds)", default="30")
         
         config_manager.set_provider_config(provider, {
             "host": host,
@@ -258,7 +257,6 @@ def set_provider_credentials(config_manager: ConfigManager, provider: str) -> No
             "timeout": int(timeout)
         })
     
-    config_manager.save_config()
     console.print(f"[green]✓ {provider.upper()} credentials saved[/green]")
     console.print("\n[dim]Ready to download data! Try:[/dim]")
     console.print(f"[dim]  vortex download --provider {provider} --symbol SYMBOL[/dim]")
