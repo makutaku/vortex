@@ -102,6 +102,11 @@ def get_default_assets_file(provider: str) -> Path:
     default=30,
     help="Days per download chunk (1-365)"
 )
+@click.option(
+    "--yes", "-y",
+    is_flag=True,
+    help="Skip confirmation prompt"
+)
 @click.pass_context
 def download(
     ctx: click.Context,
@@ -115,6 +120,7 @@ def download(
     backup: bool,
     force: bool,
     chunk_size: int,
+    yes: bool,
 ) -> None:
     """Download financial data for specified instruments.
     
@@ -124,6 +130,7 @@ def download(
         bcutils download -p barchart -s GCM25 --start-date 2024-01-01  
         bcutils download -p yahoo --symbols-file symbols.txt
         bcutils download -p yahoo --assets /path/to/my-assets.json
+        bcutils download -p yahoo -s MSFT --yes  # Skip confirmation
         
     \b
     Default Assets:
@@ -182,7 +189,7 @@ def download(
     # Show download summary
     show_download_summary(provider, symbols, start_date, end_date, output_dir, backup, force)
     
-    if not click.confirm("Proceed with download?"):
+    if not yes and not click.confirm("Proceed with download?"):
         console.print("[yellow]Download cancelled[/yellow]")
         return
     
