@@ -40,7 +40,7 @@ setup_configuration() {
     
     # Create config directory at standard location
     VORTEX_CONFIG_DIR="${VORTEX_CONFIG_DIR:-/root/.config/vortex}"
-    mkdir -p "$VORTEX_CONFIG_DIR"
+    mkdir -p "$(dirname "$VORTEX_CONFIG_DIR")" "$VORTEX_CONFIG_DIR"
     
     # Check if config.toml exists
     if [ ! -f "$VORTEX_CONFIG_DIR/config.toml" ]; then

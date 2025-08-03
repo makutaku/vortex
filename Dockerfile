@@ -48,10 +48,11 @@ COPY docker/entrypoint.sh docker/ping.sh /app/
 COPY assets/ /app/assets/
 
 # Create directories, user, and set permissions in single layer
-RUN mkdir -p /data /config \
+RUN mkdir -p /data /config /root/.config \
     && useradd -m -r vortex \
     && chown -R vortex:vortex /app /data /config \
-    && chmod +x /app/entrypoint.sh /app/ping.sh
+    && chmod +x /app/entrypoint.sh /app/ping.sh \
+    && chmod 755 /root /root/.config
 
 # Default environment variables (modern Vortex configuration)
 ENV VORTEX_DEFAULT_PROVIDER=yahoo \

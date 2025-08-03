@@ -23,9 +23,10 @@ COPY assets/ /app/assets/
 # Install Python dependencies and create user in combined layer
 RUN pip install --no-cache-dir -e . \
     && useradd -m -r vortex \
-    && mkdir -p /data /config \
+    && mkdir -p /data /config /root/.config \
     && chown -R vortex:vortex /app /data /config \
-    && chmod +x /app/entrypoint.sh /app/ping.sh
+    && chmod +x /app/entrypoint.sh /app/ping.sh \
+    && chmod 755 /root /root/.config
 
 # Default environment variables (modern Vortex configuration)
 ENV VORTEX_DEFAULT_PROVIDER=yahoo \
