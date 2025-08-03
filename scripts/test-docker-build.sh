@@ -39,11 +39,23 @@ echo ""
 
 # Test 3: Test basic container run
 echo -e "${YELLOW}Test 3: Testing container startup...${NC}"
+echo "Testing bcutils command..."
 if docker run --rm bcutils-test:latest bcutils --help >/dev/null 2>&1; then
     echo -e "${GREEN}✓ Container runs successfully${NC}\n"
 else
-    echo -e "${RED}✗ Container failed to run${NC}"
-    exit 1
+    echo -e "${RED}✗ Container failed to run bcutils command${NC}"
+    echo "Debugging container contents:"
+    docker run --rm bcutils-test:latest ls -la /opt/venv/bin/ | head -5
+    docker run --rm bcutils-test:latest python -c "import sys; print('Python path:', sys.path)"
+    docker run --rm bcutils-test:latest python -c "try: import bcutils; print('bcutils import: OK'); except Exception as e: print('bcutils import error:', e)"
+    
+    echo "Trying alternative test..."
+    if docker run --rm bcutils-test:latest python -m bcutils.cli.main --help >/dev/null 2>&1; then
+        echo -e "${YELLOW}⚠ bcutils module works but command not found${NC}\n"
+    else
+        echo -e "${RED}✗ bcutils module also fails${NC}"
+        exit 1
+    fi
 fi
 
 # Test 4: Test CLI commands

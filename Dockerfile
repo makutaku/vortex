@@ -36,6 +36,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=builder /opt/venv /opt/venv
 ENV PATH="/opt/venv/bin:${PATH}"
 
+# Ensure bcutils is properly installed by copying source and reinstalling
+COPY --from=builder /app/pyproject.toml /app/setup.py /app/
+COPY --from=builder /app/src /app/src
+RUN /opt/venv/bin/pip install -e /app
+
 # Create app user
 RUN useradd -m -r bcutils && \
     mkdir -p /app /data /config && \
@@ -45,7 +50,6 @@ RUN useradd -m -r bcutils && \
 WORKDIR /app
 
 # Copy application files
-COPY --from=builder /app/src /app/src
 COPY docker/entrypoint.sh /app/
 COPY docker/ping.sh /app/
 COPY assets/ /app/assets/
