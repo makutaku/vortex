@@ -15,7 +15,8 @@
       "Bash(./scripts/build.sh:*)",
       "Bash(git add:*)",
       "Bash(uv pip install:*)",
-      "Bash(bcutils:*)"
+      "Bash(bcutils:*)",
+      "Bash(git commit:*)"
     ],
     "deny": []
   }

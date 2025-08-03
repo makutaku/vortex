@@ -161,9 +161,28 @@ def test_single_provider(config_manager: ConfigManager, provider: str) -> dict:
         return {"success": True, "message": "Credentials configured"}
         
     elif provider == "yahoo":
-        # TODO: Implement actual Yahoo Finance connectivity test
-        # For now, assume it's always available
-        return {"success": True, "message": "Service available"}
+        # Test Yahoo Finance connectivity by fetching a small amount of data
+        try:
+            from datetime import datetime, timedelta
+            from ...data_providers.yf_data_provider import YahooDataProvider
+            
+            # Test with a reliable ticker (Apple) for the last 5 days
+            end_date = datetime.now()
+            start_date = end_date - timedelta(days=5)
+            
+            df = YahooDataProvider.fetch_historical_data_for_symbol(
+                "AAPL", "1d", start_date, end_date
+            )
+            
+            if df is not None and not df.empty:
+                return {"success": True, "message": f"Service available - fetched {len(df)} data points"}
+            else:
+                return {"success": False, "message": "Service returned empty data"}
+                
+        except ImportError:
+            return {"success": False, "message": "yfinance package not installed"}
+        except Exception as e:
+            return {"success": False, "message": f"Connection failed: {str(e)[:50]}..."}
         
     elif provider == "ibkr":
         host = provider_config.get("host", "localhost")
