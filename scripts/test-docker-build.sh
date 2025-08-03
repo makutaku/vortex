@@ -9,6 +9,15 @@ RED='\033[0;31m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
+# Cleanup function
+cleanup() {
+    echo -e "\n${YELLOW}Cleaning up test directories...${NC}"
+    rm -rf test-data test-config test-data-* test-config-*
+}
+
+# Set trap to cleanup on exit
+trap cleanup EXIT
+
 echo -e "${YELLOW}Testing BC-Utils Docker Build...${NC}\n"
 
 # Check if we can access Docker
@@ -40,7 +49,8 @@ echo ""
 # Test 3: Test basic container run
 echo -e "${YELLOW}Test 3: Testing container startup...${NC}"
 echo "Testing bcutils command..."
-if timeout 20s docker run --rm -v /tmp/test-data:/data -v /tmp/test-config:/config --entrypoint="" bcutils-test:latest bcutils --help >/dev/null 2>&1; then
+mkdir -p test-data test-config
+if timeout 20s docker run --rm -v "$(pwd)/test-data:/data" -v "$(pwd)/test-config:/config" --entrypoint="" bcutils-test:latest bcutils --help >/dev/null 2>&1; then
     echo -e "${GREEN}✓ Container runs successfully${NC}\n"
 else
     echo -e "${RED}✗ Container failed to run bcutils command${NC}"
@@ -93,7 +103,6 @@ if timeout 20s docker run --rm \
     
     if [ -f test-data/test.txt ] && [ -f test-config/test.txt ]; then
         echo -e "${GREEN}✓ Volume mounts work${NC}\n"
-        rm -rf test-data test-config
     else
         echo -e "${RED}✗ Volume mount verification failed${NC}"
         exit 1
@@ -136,10 +145,10 @@ fi
 
 # Test 11: Test entrypoint with startup disabled
 echo -e "${YELLOW}Test 11: Testing entrypoint without startup download...${NC}"
-mkdir -p /tmp/test-data /tmp/test-config
+mkdir -p test-data-entrypoint test-config-entrypoint
 if timeout 20 docker run --rm \
-    -v /tmp/test-data:/data \
-    -v /tmp/test-config:/config \
+    -v "$(pwd)/test-data-entrypoint:/data" \
+    -v "$(pwd)/test-config-entrypoint:/config" \
     -e BCU_RUN_ON_STARTUP=False \
     -e BCU_PROVIDER=yahoo \
     bcutils-test:latest 2>&1 | grep -q "Starting BC-Utils container"; then
@@ -147,14 +156,13 @@ if timeout 20 docker run --rm \
 else
     echo -e "${YELLOW}⚠ Entrypoint test timeout (expected)${NC}\n"
 fi
-rm -rf /tmp/test-data /tmp/test-config
 
 # Test 12: Test Yahoo download (no credentials needed)
 echo -e "${YELLOW}Test 12: Testing Yahoo download...${NC}"
-mkdir -p /tmp/test-data /tmp/test-config
+mkdir -p test-data-yahoo test-config-yahoo
 if docker run --rm \
-    -v /tmp/test-data:/data \
-    -v /tmp/test-config:/config \
+    -v "$(pwd)/test-data-yahoo:/data" \
+    -v "$(pwd)/test-config-yahoo:/config" \
     -e BCU_PROVIDER=yahoo \
     -e BCU_RUN_ON_STARTUP=True \
     -e BCU_DOWNLOAD_ARGS="--yes --symbol AAPL --dry-run" \
@@ -163,7 +171,6 @@ if docker run --rm \
 else
     echo -e "${YELLOW}⚠ Yahoo download test inconclusive${NC}\n"
 fi
-rm -rf /tmp/test-data /tmp/test-config
 
 echo -e "${GREEN}All tests passed! 🎉${NC}"
 echo -e "\nTo clean up test image, run:"
