@@ -10,8 +10,10 @@ import requests
 from bs4 import BeautifulSoup
 from pandas import DataFrame
 
-from .data_provider import DataProvider, NotFoundError, AllowanceLimitExceeded, DownloadError, \
-    LowDataError
+from .data_provider import (
+    DataProvider, NotFoundError, AllowanceLimitExceeded, 
+    DownloadError, LowDataError
+)
 from ..exceptions import DataProviderError
 from ..instruments.columns import CLOSE_COLUMN, DATE_TIME_COLUMN
 from ..instruments.forex import Forex

@@ -57,3 +57,14 @@ test_*.py
 # Build artifacts
 build/
 *.tar.gz
+
+# Development and CI/CD files
+scripts/test/
+.github/
+Makefile
+docker-compose*.yml
+
+# Temporary files
+tmp/
+temp/
+*.tmp

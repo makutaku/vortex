@@ -4,19 +4,23 @@ from datetime import datetime, timedelta
 from itertools import cycle
 from typing import List, Dict
 
-from ..data_providers.data_provider import DataProvider, LowDataError, AllowanceLimitExceeded, NotFoundError, \
-    HistoricalDataResult
-from ..data_storage.data_storage import DataStorage
 from .download_job import DownloadJob
+from ..data_providers.data_provider import (
+    DataProvider, LowDataError, AllowanceLimitExceeded, 
+    NotFoundError, HistoricalDataResult
+)
+from ..data_storage.data_storage import DataStorage
 from ..initialization.config_utils import InstrumentConfig, InstrumentType
 from ..instruments.forex import Forex
 from ..instruments.future import Future
 from ..instruments.price_series import LOW_DATA_THRESHOLD
 from ..instruments.stock import Stock
 from ..utils.logging_utils import LoggingContext
-from ..utils.utils import date_range_generator, total_elements_in_dict_of_lists, \
-    get_first_and_last_day_of_years, generate_year_month_tuples
-from ..utils.utils import is_list_of_strings, merge_dicts
+from ..utils.utils import (
+    date_range_generator, total_elements_in_dict_of_lists,
+    get_first_and_last_day_of_years, generate_year_month_tuples,
+    is_list_of_strings, merge_dicts
+)
 
 
 class BaseDownloader(ABC):

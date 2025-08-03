@@ -9,25 +9,25 @@ from rich.console import Console
 from rich.table import Table
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
-# Provider imports replaced with plugin system
-# from ...data_providers.bc_data_provider import BarchartDataProvider
-# from ...data_providers.ib_data_provider import IbkrDataProvider
-# from ...data_providers.yf_data_provider import YahooDataProvider
+# Local imports (organized by hierarchy)
+from ...config import ConfigManager
 from ...data_storage.csv_storage import CsvStorage
 from ...data_storage.parquet_storage import ParquetStorage
 from ...downloaders.updating_downloader import UpdatingDownloader
+from ...downloaders.download_job import DownloadJob
 from ...exceptions import (
     CLIError, MissingArgumentError, InvalidCommandError,
     ConfigurationError, DataProviderError, DataStorageError
 )
 from ...initialization.config_utils import InstrumentConfig
-from ...config import ConfigManager
+from ...instruments.stock import Stock
+from ...instruments.period import Period
 from ...logging_integration import get_module_logger, get_module_performance_logger
 from ...plugins import get_provider_registry
+from ..completion import complete_provider, complete_symbol, complete_symbols_file, complete_assets_file, complete_date
 from ..utils.provider_utils import get_available_providers, get_provider_config_from_vortex_config
 from ..utils.instrument_parser import parse_instruments
 from ..ux import get_ux, enhanced_error_handler, validate_symbols
-from ..completion import complete_provider, complete_symbol, complete_symbols_file, complete_assets_file, complete_date
 
 console = Console()
 ux = get_ux()
@@ -340,10 +340,6 @@ def execute_download(
                 downloader = create_downloader(provider, download_config)
                 
                 # Create a simple instrument (assume stock for now)
-                from ...instruments.stock import Stock
-                from ...instruments.period import Period
-                from ...downloaders.download_job import DownloadJob
-                
                 instrument = Stock(id=symbol, symbol=symbol)
                 
                 # Ensure dates are timezone-aware (use UTC if naive)

@@ -4,6 +4,7 @@ Yahoo Finance provider plugin.
 Built-in plugin for Yahoo Finance data provider.
 """
 
+from datetime import datetime, timedelta
 from typing import Dict, Any, List, Type
 
 from pydantic import BaseModel, Field
@@ -12,6 +13,8 @@ from ..base import BuiltinProviderPlugin, PluginMetadata, ProviderConfigSchema
 from ..exceptions import PluginConfigurationError
 from ...data_providers.data_provider import DataProvider
 from ...data_providers.yf_data_provider import YahooDataProvider
+from ...instruments.stock import Stock
+from ...instruments.period import Period
 from ...logging_integration import get_module_logger
 
 logger = get_module_logger()
@@ -97,11 +100,7 @@ class YahooFinancePlugin(BuiltinProviderPlugin):
             # Test by fetching a simple quote
             provider = self.create_provider(config)
             
-            # Try to fetch data for a well-known symbol
-            from ...instruments.stock import Stock
-            from ...instruments.period import Period
-            from datetime import datetime, timedelta
-            
+            # Try to fetch data for a well-known symbol (test connectivity)
             test_instrument = Stock(id="AAPL", symbol="AAPL")
             end_date = datetime.now()
             start_date = end_date - timedelta(days=5)
