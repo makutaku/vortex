@@ -28,7 +28,7 @@ BC-Utils can be deployed as a Docker container for automated, scheduled download
 
 4. **Run with Docker Compose**
    ```bash
-   docker-compose up -d
+   docker compose up -d
    ```
 
 ## Configuration
@@ -45,8 +45,8 @@ The following environment variables control the container behavior:
 | `BCU_DOWNLOAD_ARGS` | `--yes` | Additional arguments for download command |
 | `BCU_ASSETS_FILE` | `/config/assets.json` | Path to custom assets file |
 | `BCU_LOG_LEVEL` | `INFO` | Logging level |
-| `DATA_DIR` | `./data` | Host directory for downloaded data |
-| `CONFIG_DIR` | `./config` | Host directory for configuration |
+| `DATA_DIR` | `./data` | Host directory for downloaded data (maps to `/data` in container) |
+| `CONFIG_DIR` | `./config` | Host directory for configuration (maps to `/config` in container) |
 
 ### Provider-Specific Setup
 
@@ -110,7 +110,7 @@ The default schedule runs daily at 8 AM. Common schedules:
 ### Logs
 ```bash
 # View container logs
-docker-compose logs -f bcutils
+docker compose logs -f bcutils
 
 # View download logs
 tail -f data/bcutils.log
@@ -122,10 +122,10 @@ The container creates `data/health.check` hourly. Monitor this file to ensure th
 ### Status
 ```bash
 # Check container status
-docker-compose ps
+docker compose ps
 
 # View cron jobs
-docker-compose exec bcutils crontab -l
+docker compose exec bcutils crontab -l
 ```
 
 ## Advanced Usage
@@ -135,11 +135,11 @@ docker-compose exec bcutils crontab -l
 Run multiple containers for different providers:
 
 ```yaml
-version: '3.8'
-
 services:
   bcutils-yahoo:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile.simple
     container_name: bcutils-yahoo
     environment:
       BCU_PROVIDER: yahoo
@@ -149,7 +149,9 @@ services:
       - ./config:/config
 
   bcutils-barchart:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile.simple
     container_name: bcutils-barchart
     environment:
       BCU_PROVIDER: barchart
@@ -216,11 +218,22 @@ deploy:
 
 ## Building Custom Image
 
+### Dockerfile Options
+
+Two Dockerfiles are available:
+
+- **`Dockerfile`** - Multi-stage build with uv (smaller final image, faster builds)
+- **`Dockerfile.simple`** - Single-stage build with pip (more reliable, slower)
+
+The docker-compose.yml uses `Dockerfile.simple` by default for reliability.
+
+### Custom Build
+
 To build with specific Python version or dependencies:
 
 ```dockerfile
 # Custom Dockerfile
-FROM python:3.12-slim as builder
+FROM python:3.12-slim AS builder
 # ... rest of Dockerfile
 ```
 
