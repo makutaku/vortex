@@ -29,6 +29,26 @@ def load_config_instruments(assets_file_path: Path) -> List[str]:
         console.print(f"[red]Error loading assets file '{assets_file_path}': {e}[/red]")
         raise click.Abort()
 
+
+def get_default_assets_file(provider: str) -> Path:
+    """Get the default assets file for the given provider.
+    
+    This returns the default assets that ship with bc-utils.
+    Users can override by specifying --assets with their own file.
+    """
+    # Try provider-specific default file first
+    provider_file = Path(f"assets/{provider}.json")
+    if provider_file.exists():
+        return provider_file
+    
+    # Fall back to general default
+    default_file = Path("assets/default.json")
+    if default_file.exists():
+        return default_file
+    
+    # If nothing exists, return the expected provider file (will cause error with helpful message)
+    return provider_file
+
 @click.command()
 @click.option(
     "--provider", "-p",
@@ -49,7 +69,7 @@ def load_config_instruments(assets_file_path: Path) -> List[str]:
 @click.option(
     "--assets", "--assets-file",
     type=click.Path(exists=True, path_type=Path),
-    help="Download instruments from assets file (default: assets.json)"
+    help="Custom assets file with instruments to download"
 )
 @click.option(
     "--start-date",
@@ -103,14 +123,17 @@ def download(
         bcutils download -p yahoo -s AAPL -s GOOGL
         bcutils download -p barchart -s GCM25 --start-date 2024-01-01  
         bcutils download -p yahoo --symbols-file symbols.txt
-        bcutils download -p yahoo --assets assets.json
-        bcutils download -p yahoo --assets /path/to/custom-assets.json
+        bcutils download -p yahoo --assets /path/to/my-assets.json
         
     \b
-    Assets Files:
-        Assets files define available financial instruments across asset classes.
-        The default assets.json includes futures (GC, CL, etc.), forex (EURUSD),
-        and stocks (AAPL, MSFT, etc.) - over 127 financial assets with metadata.
+    Default Assets:
+        When no symbols are specified, bc-utils loads default instruments from:
+        - assets/yahoo.json - Default instruments for Yahoo Finance
+        - assets/barchart.json - Default instruments for Barchart.com  
+        - assets/ibkr.json - Default instruments for Interactive Brokers
+        - assets/default.json - General fallback
+        
+        Use --assets to provide your own custom assets file.
         
     \b
     Installation:
@@ -133,14 +156,20 @@ def download(
     
     # Parse symbols
     if assets:
-        # Load instruments from assets file
+        # Load instruments from user-specified assets file
         symbols = load_config_instruments(assets)
-        console.print(f"[green]Loaded {len(symbols)} financial assets from {assets}[/green]")
+        console.print(f"[green]Loaded {len(symbols)} instruments from {assets}[/green]")
     else:
         symbols = parse_instruments(symbol, symbols_file)
         if not symbols:
-            console.print("[red]Error: No symbols specified. Use --symbol, --symbols-file, or --assets[/red]")
-            raise click.Abort()
+            # No symbols specified - try to load default assets for this provider
+            try:
+                default_assets_file = get_default_assets_file(provider)
+                symbols = load_config_instruments(default_assets_file)
+                console.print(f"[green]Loaded {len(symbols)} instruments from default {default_assets_file}[/green]")
+            except:
+                console.print("[red]Error: No symbols specified. Use --symbol, --symbols-file, or --assets[/red]")
+                raise click.Abort()
     
     # Validate date range
     if start_date >= end_date:

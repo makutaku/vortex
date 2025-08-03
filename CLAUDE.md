@@ -154,7 +154,7 @@ export BCU_OUTPUT_DIR="/path/to/data"
 ### Key Files
 
 - `bcutils/bc_utils.py`: Main entry point with downloader factory functions
-- `assets.json`: Comprehensive instrument definitions (futures, forex, stocks)
+- `assets/`: Provider-specific instrument definitions directory
 - `build.sh`: Build script that processes env files and copies artifacts
 - `run_bc_utils.sh`: Runtime script that activates environment and runs main module
 
@@ -193,9 +193,29 @@ port = 7497
 client_id = 1
 ```
 
+### Assets Configuration
+
+The `assets/` directory contains default instrument definitions that ship with bc-utils. These are example asset lists to get users started:
+
+- `assets/barchart.json` - Default instruments for Barchart.com
+- `assets/yahoo.json` - Default instruments for Yahoo Finance  
+- `assets/ibkr.json` - Default instruments for Interactive Brokers
+- `assets/default.json` - General default instruments
+
+Users can provide their own custom assets file using the `--assets` option:
+```bash
+# Use your own custom assets file
+bcutils download --provider yahoo --assets /path/to/my-assets.json
+
+# Or use the defaults by not specifying --assets
+bcutils download --provider yahoo --symbol AAPL
+```
+
+Each assets file defines futures, forex, and stock instruments with metadata like trading cycles, tick dates, and periods. Users can maintain a single assets file for all providers or create provider-specific files based on their needs.
+
 ### Data Flow
 
-1. Configuration loaded from `assets.json` and environment variables
+1. Configuration loaded from `assets/` directory and environment variables
 2. Appropriate downloader created based on data provider
 3. Instrument definitions processed to generate download jobs
 4. Data downloaded and stored in both CSV (primary) and Parquet (backup) formats

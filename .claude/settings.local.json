@@ -17,7 +17,8 @@
       "Bash(uv pip install:*)",
       "Bash(bcutils:*)",
       "Bash(git commit:*)",
-      "Bash(cp:*)"
+      "Bash(cp:*)",
+      "Bash(uv run:*)"
     ],
     "deny": []
   }
