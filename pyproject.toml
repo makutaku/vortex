@@ -55,9 +55,9 @@ lint = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/bug-or-feature/bc-utils"
-Repository = "https://github.com/bug-or-feature/bc-utils"
-Issues = "https://github.com/bug-or-feature/bc-utils/issues"
+Homepage = "https://github.com/makutaku/bc-utils"
+Repository = "https://github.com/makutaku/bc-utils"
+Issues = "https://github.com/makutaku/bc-utils/issues"
 
 [project.scripts]
 bcutils = "bcutils.cli.main:cli"

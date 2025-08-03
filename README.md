@@ -28,7 +28,7 @@ bcutils download --provider barchart --symbol GC --start-date 2024-01-01
 
 ```bash
 # Clone repository
-git clone https://github.com/bug-or-feature/bc-utils.git
+git clone https://github.com/makutaku/bc-utils.git
 cd bc-utils
 
 # Configure

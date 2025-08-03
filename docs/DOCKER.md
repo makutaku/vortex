@@ -6,7 +6,7 @@ BC-Utils can be deployed as a Docker container for automated, scheduled download
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/bug-or-feature/bc-utils.git
+   git clone https://github.com/makutaku/bc-utils.git
    cd bc-utils
    ```
 

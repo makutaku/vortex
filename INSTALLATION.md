@@ -26,7 +26,7 @@ pip install uv
 **Development Installation:**
 ```bash
 # Clone repository
-git clone https://github.com/bug-or-feature/bc-utils.git
+git clone https://github.com/makutaku/bc-utils.git
 cd bc-utils
 
 # Create virtual environment and install
@@ -93,7 +93,7 @@ For contributors and developers:
 
 ```bash
 # Clone and setup development environment
-git clone https://github.com/bug-or-feature/bc-utils.git
+git clone https://github.com/makutaku/bc-utils.git
 cd bc-utils
 
 # Create development environment with uv
