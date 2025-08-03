@@ -158,7 +158,7 @@ Explain why patterns were chosen:
 ### Code Documentation
 
 #### Code Examples
-Provide concise, focused examples (10-30 lines max):
+Provide pattern-focused examples (5-20 lines max):
 ```python
 class DataProvider(ABC):
     """Abstract base class for all data providers"""
@@ -172,17 +172,36 @@ class DataProvider(ABC):
         """Retrieve data for instrument and date range"""
 ```
 
+**Algorithm Pseudo-code Example:**
+```
+FOR each provider in priority_list:
+  TRY authenticate(provider)
+  IF successful: RETURN provider
+  ELSE: LOG failure, continue
+RAISE AuthenticationError("All providers failed")
+```
+
 **Code Length Guidelines:**
 - **Interface definitions:** Show key methods only (5-15 lines)
 - **Algorithms:** Core logic only (10-30 lines)
 - **Configuration examples:** Minimal working config (5-10 lines)
 - **Test patterns:** Essential structure (10-20 lines)
+- **NO complete implementations** in LLD documents
 
-**Avoid in LLD:**
-- Complete class implementations (use source references)
-- Boilerplate code (imports, logging setup)
-- Repetitive methods (show one example)
-- Full error handling (show pattern only)
+**Strictly Avoid in LLD:**
+- Complete class implementations (use pseudo-code + source references)
+- Full method implementations (show patterns/algorithms only)
+- Boilerplate code (imports, logging setup, exception handling)
+- Repetitive methods (show one example with "..." for others)
+- Detailed error handling (show strategy only)
+- Long code blocks (>30 lines indicates too much detail)
+
+**Preferred LLD Content:**
+- **Algorithms**: Step-by-step pseudo-code
+- **Patterns**: Design pattern descriptions
+- **Architecture**: Component interaction flows
+- **Strategies**: Decision trees and rule matrices
+- **References**: Source file locations for implementation details
 
 #### Error Handling
 Document comprehensive error handling:
