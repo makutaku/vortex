@@ -44,7 +44,7 @@ fi
 # Test 2: Check image size
 echo -e "${YELLOW}Test 2: Checking image details...${NC}"
 docker images bcutils-test:latest
-echo ""
+echo -e "${GREEN}✓ Image details retrieved${NC}\n"
 
 # Test 3: Test basic container run
 echo -e "${YELLOW}Test 3: Testing container startup...${NC}"
