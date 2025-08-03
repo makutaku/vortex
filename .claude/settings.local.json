@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find:*)",
+      "Bash(python:*)",
+      "Bash(pip --version)",
+      "Bash(source:*)",
+      "Bash(./build.sh:*)",
+      "Bash(ls:*)",
+      "Bash(bash:*)",
+      "Bash(tree:*)",
+      "Bash(touch:*)",
+      "Bash(mkdir:*)",
+      "Bash(mv:*)",
+      "Bash(./scripts/build.sh:*)",
+      "Bash(git add:*)"
+    ],
+    "deny": []
+  }
+}
