@@ -25,10 +25,27 @@ except ImportError:
 from . import __version__
 from .commands import download, config, providers, validate
 
-def setup_logging(verbose: int = 0) -> None:
-    """Set up logging with rich handler if available."""
-    # Verbose level is now handled by the configuration system
-    # The setup_logging call above will configure everything based on config
+def setup_logging(config_file: Optional[Path] = None, verbose: int = 0) -> None:
+    """Set up logging using Vortex configuration system."""
+    try:
+        # Load configuration and set up logging
+        config_manager = ConfigManager(config_file)
+        configure_logging_from_manager(config_manager, service_name="vortex-cli", version=__version__)
+        
+        # Get logger for CLI
+        logger = get_logger("vortex.cli")
+        logger.info("Vortex CLI started", version=__version__, verbose_level=verbose)
+        
+    except Exception as e:
+        # Fallback to basic logging if configuration fails
+        import logging
+        logging.basicConfig(
+            level=logging.DEBUG if verbose > 1 else logging.INFO if verbose else logging.WARNING,
+            format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
+        )
+        logger = logging.getLogger("vortex.cli")
+        logger.warning(f"Failed to configure logging from config: {e}")
+        logger.info(f"Using fallback logging configuration")
 
 @click.group(invoke_without_command=True)
 @click.version_option(version=__version__, prog_name="vortex")
