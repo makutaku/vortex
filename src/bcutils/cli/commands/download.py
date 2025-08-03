@@ -12,11 +12,22 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from ...bc_utils import create_barchart_downloader, create_yahoo_downloader, create_ibkr_downloader
 from ...initialization.session_config import SessionConfig
+from ...initialization.config_utils import InstrumentConfig
 from ..utils.config_manager import ConfigManager
 from ..utils.instrument_parser import parse_instruments
 
 console = Console()
 logger = logging.getLogger(__name__)
+
+
+def load_config_instruments(preset_file_path: Path) -> List[str]:
+    """Load instrument symbols from preset JSON file."""
+    try:
+        instrument_configs = InstrumentConfig.load_from_json(str(preset_file_path))
+        return list(instrument_configs.keys())
+    except Exception as e:
+        console.print(f"[red]Error loading preset file '{preset_file_path}': {e}[/red]")
+        raise click.Abort()
 
 @click.command()
 @click.option(
@@ -34,6 +45,11 @@ logger = logging.getLogger(__name__)
     "--symbols-file",
     type=click.Path(exists=True, path_type=Path),
     help="File containing symbols (one per line)"
+)
+@click.option(
+    "--preset", "--preset-file",
+    type=click.Path(exists=True, path_type=Path),
+    help="Download instruments from preset file (default: preset.json)"
 )
 @click.option(
     "--start-date",
@@ -72,6 +88,7 @@ def download(
     provider: str,
     symbol: tuple,
     symbols_file: Optional[Path],
+    preset: Optional[Path],
     start_date: Optional[datetime],
     end_date: Optional[datetime],
     output_dir: Optional[Path],
@@ -81,11 +98,21 @@ def download(
 ) -> None:
     """Download financial data for specified instruments.
     
+    \b
     Examples:
-        bcutils download -p barchart -s GCM25 -s SIH25
-        bcutils download -p yahoo -s AAPL --start-date 2024-01-01
-        bcutils download -p ibkr --symbols-file symbols.txt
+        bcutils download -p yahoo -s AAPL -s GOOGL
+        bcutils download -p barchart -s GCM25 --start-date 2024-01-01  
+        bcutils download -p yahoo --symbols-file symbols.txt
+        bcutils download -p yahoo --preset preset.json
+        bcutils download -p yahoo --preset /path/to/custom-preset.json
         
+    \b
+    Preset Files:
+        Preset files contain curated collections of instruments in JSON format.
+        The default preset.json includes futures (GC, CL, etc.) and stocks 
+        (AAPL, MSFT, etc.) - over 127 popular instruments with their periods.
+        
+    \b
     Installation:
         # Fast installation with uv (recommended)
         uv pip install -e .
@@ -105,10 +132,15 @@ def download(
         output_dir = Path("./data")
     
     # Parse symbols
-    symbols = parse_instruments(symbol, symbols_file)
-    if not symbols:
-        console.print("[red]Error: No symbols specified. Use --symbol or --symbols-file[/red]")
-        raise click.Abort()
+    if preset:
+        # Load instruments from preset file
+        symbols = load_config_instruments(preset)
+        console.print(f"[green]Loaded {len(symbols)} preset instruments from {preset}[/green]")
+    else:
+        symbols = parse_instruments(symbol, symbols_file)
+        if not symbols:
+            console.print("[red]Error: No symbols specified. Use --symbol, --symbols-file, or --preset[/red]")
+            raise click.Abort()
     
     # Validate date range
     if start_date >= end_date:

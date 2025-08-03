@@ -58,12 +58,14 @@ def config(
 ) -> None:
     """Manage configuration and credentials.
     
+    \b
     Examples:
         bcutils config --show
         bcutils config --provider barchart --set-credentials
         bcutils config --export config.toml
         bcutils config --import config.toml
         
+    \b
     Installation:
         # Fast installation with uv (recommended)
         uv pip install -e .

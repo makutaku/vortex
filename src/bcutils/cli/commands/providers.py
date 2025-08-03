@@ -38,12 +38,14 @@ def providers(
 ) -> None:
     """Manage data providers.
     
+    \b
     Examples:
         bcutils providers --list
         bcutils providers --test barchart
         bcutils providers --test all
         bcutils providers --info barchart
         
+    \b
     Quick Setup:
         # Install with uv (10x faster)
         uv pip install -e .

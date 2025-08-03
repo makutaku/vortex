@@ -52,6 +52,7 @@ def validate(
 ) -> None:
     """Validate downloaded data integrity and format.
     
+    \b
     Examples:
         bcutils validate --path ./data
         bcutils validate --path ./data/GC.csv --provider barchart
