@@ -132,10 +132,10 @@ vortex validate --path ./data/GC.csv --provider barchart
 - `Forex`: Currency pairs
 - `PriceSeries`: Time series data representation
 
-**Configuration** (`vortex/initialization/`):
-- `SessionConfig`: Main configuration object
-- `OsEnvironSessionConfig`: Environment variable-based config
-- `config_utils.py`: Configuration utilities
+**Configuration** (`vortex/config.py`):
+- `VortexConfig`: Main configuration object with Pydantic validation
+- `ConfigManager`: Modern configuration management system
+- Environment variable support with VORTEX_* naming
 
 **CLI Interface** (`vortex/cli/`):
 - `main.py`: Modern CLI entry point with Click framework

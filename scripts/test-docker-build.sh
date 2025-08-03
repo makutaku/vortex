@@ -83,11 +83,11 @@ fi
 # Test 6: Test with environment variables
 echo -e "${YELLOW}Test 6: Testing environment variables...${NC}"
 if timeout 20s docker run --rm \
-    -e BCU_PROVIDER=yahoo \
-    -e BCU_LOG_LEVEL=DEBUG \
+    -e VORTEX_DEFAULT_PROVIDER=yahoo \
+    -e VORTEX_LOG_LEVEL=DEBUG \
     --entrypoint="" \
     vortex-test:latest \
-    bash -c 'echo "Provider: $BCU_PROVIDER, Log Level: $BCU_LOG_LEVEL"'; then
+    bash -c 'echo "Provider: $VORTEX_DEFAULT_PROVIDER, Log Level: $VORTEX_LOG_LEVEL"'; then
     echo -e "${GREEN}✓ Environment variables work${NC}\n"
 else
     echo -e "${RED}✗ Environment variables failed${NC}"
@@ -118,8 +118,8 @@ fi
 # Test 8: Test entrypoint script
 echo -e "${YELLOW}Test 8: Testing entrypoint (dry run)...${NC}"
 if docker run --rm \
-    -e BCU_RUN_ON_STARTUP=False \
-    -e BCU_PROVIDER=yahoo \
+    -e VORTEX_RUN_ON_STARTUP=false \
+    -e VORTEX_DEFAULT_PROVIDER=yahoo \
     vortex-test:latest \
     timeout 5 bash -c '/app/entrypoint.sh' 2>&1 | grep -q "Starting Vortex container"; then
     echo -e "${GREEN}✓ Entrypoint script works${NC}\n"
@@ -139,7 +139,7 @@ fi
 # Test 10: Quick smoke test with Yahoo provider
 echo -e "${YELLOW}Test 10: Testing 'vortex download' with Yahoo provider (dry-run)...${NC}"
 if timeout 30s docker run --rm \
-    -e BCU_PROVIDER=yahoo \
+    -e VORTEX_DEFAULT_PROVIDER=yahoo \
     --entrypoint="" \
     vortex-test:latest \
     vortex download --provider yahoo --symbol AAPL --yes --dry-run 2>/dev/null || true; then
@@ -152,8 +152,8 @@ mkdir -p test-data-entrypoint test-config-entrypoint
 if timeout 20 docker run --rm \
     -v "$(pwd)/test-data-entrypoint:/data" \
     -v "$(pwd)/test-config-entrypoint:/config" \
-    -e BCU_RUN_ON_STARTUP=False \
-    -e BCU_PROVIDER=yahoo \
+    -e VORTEX_RUN_ON_STARTUP=false \
+    -e VORTEX_DEFAULT_PROVIDER=yahoo \
     vortex-test:latest 2>&1 | grep -q "Starting Vortex container"; then
     echo -e "${GREEN}✓ Entrypoint works without download${NC}\n"
 else
@@ -166,9 +166,9 @@ mkdir -p test-data-yahoo test-config-yahoo
 if docker run --rm \
     -v "$(pwd)/test-data-yahoo:/data" \
     -v "$(pwd)/test-config-yahoo:/config" \
-    -e BCU_PROVIDER=yahoo \
-    -e BCU_RUN_ON_STARTUP=True \
-    -e BCU_DOWNLOAD_ARGS="--yes --symbol AAPL --dry-run" \
+    -e VORTEX_DEFAULT_PROVIDER=yahoo \
+    -e VORTEX_RUN_ON_STARTUP=true \
+    -e VORTEX_DOWNLOAD_ARGS="--yes --symbol AAPL --dry-run" \
     vortex-test:latest 2>&1 | grep -q "Download completed successfully"; then
     echo -e "${GREEN}✓ Yahoo download test successful${NC}\n"
 else

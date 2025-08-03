@@ -310,9 +310,9 @@ class TestStorageOperations:
 
 **Environment Configuration:**
 ```bash
-BCU_STORAGE_TYPE=csv
-BCU_STORAGE_BASE_DIR=/data/market_data
-BCU_BACKUP_ENABLED=true
+VORTEX_DEFAULT_PROVIDER=csv
+VORTEX_OUTPUT_DIR=/data/market_data
+VORTEX_BACKUP_ENABLED=true
 ```
 
 ## Related Documents

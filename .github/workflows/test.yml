@@ -39,7 +39,7 @@ jobs:
 
     - name: Unit tests with pytest
       env:
-        BCU_USERNAME: ${{ secrets.BCU_USERNAME }}
-        BCU_PASSWORD: ${{ secrets.BCU_PASSWORD }}
+        VORTEX_BARCHART_USERNAME: ${{ secrets.VORTEX_BARCHART_USERNAME }}
+        VORTEX_BARCHART_PASSWORD: ${{ secrets.VORTEX_BARCHART_PASSWORD }}
       run: |
         python -m poetry run python -m pytest

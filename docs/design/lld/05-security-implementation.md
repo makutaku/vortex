@@ -195,13 +195,13 @@ malicious_paths = [
 **Secure Environment Setup:**
 ```bash
 # Credential environment variables
-export BCU_BARCHART_USERNAME="user@example.com"
-export BCU_BARCHART_PASSWORD="secure_password"
+export VORTEX_BARCHART_USERNAME="user@example.com"
+export VORTEX_BARCHART_PASSWORD="secure_password"
 
 # Security settings
 export VORTEX_ENCRYPTION_KEY_PATH="~/.vortex/master.key"
-export BCU_LOG_REDACTION=true
-export BCU_SECURE_MODE=true
+export VORTEX_LOG_REDACTION=true
+export VORTEX_SECURE_MODE=true
 ```
 
 ### 6.2 Security Configuration File

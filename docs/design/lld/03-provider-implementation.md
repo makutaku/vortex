@@ -226,8 +226,8 @@ class MockDataProvider:
 ```json
 {
   "provider_type": "barchart",
-  "username": "${BCU_USERNAME}",
-  "password": "${BCU_PASSWORD}",
+  "username": "${VORTEX_BARCHART_USERNAME}",
+  "password": "${VORTEX_BARCHART_PASSWORD}",
   "daily_limit": 150,
   "timeout_seconds": 60
 }
@@ -245,9 +245,9 @@ class MockDataProvider:
 
 **Environment Variables:**
 ```bash
-BCU_PROVIDER_TYPE=barchart
-BCU_BARCHART_USERNAME=user@example.com
-BCU_BARCHART_PASSWORD=secure_password
+VORTEX_DEFAULT_PROVIDER=barchart
+VORTEX_BARCHART_USERNAME=user@example.com
+VORTEX_BARCHART_PASSWORD=secure_password
 ```
 
 ## Related Documents
