@@ -13,7 +13,9 @@
       "Bash(mkdir:*)",
       "Bash(mv:*)",
       "Bash(./scripts/build.sh:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(uv pip install:*)",
+      "Bash(bcutils:*)"
     ],
     "deny": []
   }

@@ -69,15 +69,18 @@ def cli(ctx: click.Context, config: Optional[Path], verbose: int, dry_run: bool)
     financial market data from multiple providers including Barchart, 
     Yahoo Finance, and Interactive Brokers.
     
+    \b
     Examples:
         bcutils download --provider barchart --symbol GC
         bcutils config --set-credentials barchart
         bcutils providers --test
         
+    \b
     Installation (uv recommended):
         curl -LsSf https://astral.sh/uv/install.sh | sh
         uv pip install -e .
         
+    \b
     Quick Start:
         bcutils config --provider barchart --set-credentials
         bcutils download --provider barchart --symbol GC
