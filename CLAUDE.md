@@ -154,7 +154,7 @@ export BCU_OUTPUT_DIR="/path/to/data"
 ### Key Files
 
 - `bcutils/bc_utils.py`: Main entry point with downloader factory functions
-- `preset.json`: Comprehensive instrument definitions (futures, forex, stocks)
+- `markets.json`: Comprehensive instrument definitions (futures, forex, stocks)
 - `build.sh`: Build script that processes env files and copies artifacts
 - `run_bc_utils.sh`: Runtime script that activates environment and runs main module
 
@@ -195,7 +195,7 @@ client_id = 1
 
 ### Data Flow
 
-1. Configuration loaded from `preset.json` and environment variables
+1. Configuration loaded from `markets.json` and environment variables
 2. Appropriate downloader created based on data provider
 3. Instrument definitions processed to generate download jobs
 4. Data downloaded and stored in both CSV (primary) and Parquet (backup) formats
