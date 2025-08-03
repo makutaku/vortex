@@ -74,15 +74,14 @@ Central orchestrator that coordinates the entire data acquisition workflow from 
 - **Error Handling:** Coordinate retries and fallback strategies
 - **Progress Tracking:** Monitor and report download progress
 
-#### Key Interfaces
-```python
-class UpdatingDownloader:
-    def __init__(self, data_storage, data_provider, backup_storage=None)
-    
-    def download_instrument_data(self, instrument_config: InstrumentConfig) -> bool
-    def download_multiple_instruments(self, configs: Dict[str, InstrumentConfig])
-    def get_download_stats(self) -> DownloadStats
-```
+#### Key Interface Design
+The Download Manager exposes a clean interface that abstracts the complexity of the data acquisition workflow:
+
+**Primary Interface Responsibilities:**
+- **Single Instrument Processing:** Execute complete download workflow for individual instruments
+- **Batch Processing:** Handle multiple instruments with coordinated scheduling
+- **Progress Reporting:** Provide real-time status and statistics for monitoring
+- **Configuration Integration:** Accept and validate configuration parameters
 
 #### Dependencies
 - **Data Providers:** Abstract interface for data acquisition
@@ -475,37 +474,31 @@ graph TB
 | **Instruments** | Price Series, Periods | pandas, pytz |
 | **Configuration** | Utilities | json, os |
 
-### 4.3 Circular Dependency Prevention
-- **Dependency Injection:** Components receive dependencies through constructors
-- **Interface Segregation:** Small, focused interfaces prevent tight coupling
-- **Event-Driven Communication:** Loose coupling through events where appropriate
-- **Factory Pattern:** Central factories create component graphs
+### 4.3 Architectural Dependency Management
+The system employs several design patterns to prevent circular dependencies and maintain clean architectural boundaries:
+
+**Dependency Management Patterns:**
+- **Dependency Injection:** Constructor-based dependency provision for testability and flexibility
+- **Interface Segregation:** Small, focused interfaces that prevent unnecessary coupling
+- **Event-Driven Architecture:** Loose coupling through publish-subscribe patterns where appropriate
+- **Factory Pattern:** Centralized component creation and dependency wiring
 
 ## 5. Component Configuration
 
-### 5.1 Runtime Configuration
-Each component supports configuration through multiple mechanisms:
+### 5.1 Configuration Architecture
+The component configuration system supports multiple input sources with a clear precedence hierarchy and validation framework:
 
-```python
-# Environment variables
-BCU_PROVIDER_HOST=localhost
-BCU_PROVIDER_PORT=7497
-BCU_DOWNLOAD_DIRECTORY=/data/futures
+**Configuration Source Hierarchy:**
+- **Environment Variables:** System-level configuration for deployment environments
+- **Configuration Files:** Structured settings for complex component parameters
+- **Command Line Arguments:** Runtime overrides for operational flexibility
+- **Default Values:** Sensible defaults for optional configuration parameters
 
-# Configuration file
-{
-  "barchart": {
-    "username": "${BCU_USERNAME}",
-    "password": "${BCU_PASSWORD}",
-    "daily_limit": 150
-  },
-  "storage": {
-    "primary_format": "csv",
-    "backup_format": "parquet",
-    "compression": "snappy"
-  }
-}
-```
+**Configuration Design Patterns:**
+- **Hierarchical Override:** Higher precedence sources override lower precedence values
+- **Template Expansion:** Variable substitution for environment-specific values
+- **Schema Validation:** Type checking and constraint validation for all configuration
+- **Hot Reload:** Runtime configuration updates without system restart
 
 ### 5.2 Component Assembly
 The system uses dependency injection and factory patterns for component assembly:

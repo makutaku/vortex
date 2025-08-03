@@ -77,36 +77,20 @@ sequenceDiagram
     Validator->>CLI: Return session config
 ```
 
-#### Job Generation Process
-```python
-def generate_download_jobs(config: SessionConfig) -> List[DownloadJob]:
-    """Generate individual download jobs from configuration"""
-    jobs = []
-    
-    for instrument_name, instrument_config in config.instruments.items():
-        # 1. Create instrument object
-        instrument = create_instrument(instrument_config)
-        
-        # 2. Generate date ranges
-        date_ranges = generate_date_ranges(
-            start_date=config.start_date,
-            end_date=config.end_date,
-            chunk_size=config.chunk_size_days
-        )
-        
-        # 3. Create jobs for each date range
-        for date_range in date_ranges:
-            job = DownloadJob(
-                instrument=instrument,
-                date_range=date_range,
-                provider=config.provider,
-                output_path=generate_output_path(instrument, date_range),
-                retry_config=config.retry_config
-            )
-            jobs.append(job)
-    
-    return jobs
-```
+#### Job Generation Architecture
+The job generation process transforms high-level configuration into executable download tasks through a systematic decomposition strategy:
+
+**Job Generation Design Patterns:**
+- **Configuration Transformation:** Convert user-defined parameters into structured job definitions
+- **Date Range Segmentation:** Break large date ranges into manageable chunks for processing
+- **Instrument Mapping:** Transform configuration symbols into typed instrument objects
+- **Path Generation:** Create standardized output file paths based on instrument and date patterns
+
+**Job Generation Strategy:**
+- **Batch Processing:** Generate all jobs upfront for scheduling optimization
+- **Resource Planning:** Consider rate limits and provider constraints during job creation
+- **Dependency Management:** Ensure job order respects data dependencies
+- **Error Isolation:** Structure jobs to minimize failure impact scope
 
 ### 2.2 Provider Selection and Data Fetching
 
@@ -378,59 +362,62 @@ graph TB
 
 ## 4. Performance Optimization
 
-### 4.1 Processing Pipeline Optimization
-- **Streaming Processing:** Process data chunks instead of loading entire datasets
-- **Parallel Downloads:** Concurrent provider requests within rate limits
-- **Memory Management:** Explicit DataFrame cleanup after processing
-- **Disk I/O Optimization:** Batch writes and temporary file management
+### 4.1 Performance Architecture Strategy
+The data flow pipeline implements a multi-layered performance optimization approach that balances throughput, memory efficiency, and system stability:
 
-### 4.2 Performance Optimization Strategy
-The data flow pipeline implements several optimization patterns:
+**Performance Design Principles:**
+- **Resource Efficiency:** Minimize memory footprint through streaming and chunked processing
+- **Concurrent Execution:** Maximize throughput within provider rate limits
+- **Intelligent Caching:** Strategic data caching to reduce redundant operations
+- **I/O Optimization:** Efficient storage patterns and atomic operations
 
-**Caching Strategy:**
-- Intelligent memory-based caching with LRU eviction
-- TTL-based cache invalidation for data freshness
-- Size-aware cache management to prevent memory issues
+### 4.2 Performance Optimization Patterns
+The system employs several architectural patterns to achieve optimal performance across different workload scenarios:
 
-**Parallel Processing:**
-- Concurrent provider requests within rate limits
-- Parallel data transformation and validation
-- Asynchronous storage operations
+**Caching Architecture:**
+- **Multi-Level Caching:** Memory and disk-based caching with intelligent eviction policies
+- **Cache Coherency:** TTL-based invalidation and freshness validation
+- **Adaptive Sizing:** Dynamic cache size management based on available resources
 
-**Memory Management:**
-- Streaming data processing for large datasets
-- Explicit DataFrame cleanup after processing
-- Memory usage monitoring and alerting
+**Concurrency Architecture:**
+- **Bounded Parallelism:** Controlled concurrent execution within provider constraints
+- **Asynchronous Processing:** Non-blocking I/O operations for improved throughput
+- **Load Balancing:** Even distribution of work across available resources
 
-**I/O Optimization:**
-- Batch storage operations to reduce overhead
-- Temporary file management for atomic writes
-- Efficient file format selection (CSV vs Parquet)
+**Memory Management Architecture:**
+- **Streaming Processing:** Process large datasets without loading entirely into memory
+- **Resource Monitoring:** Active memory usage tracking and cleanup
+- **Garbage Collection:** Proactive cleanup of intermediate processing artifacts
+
+**Storage Optimization Architecture:**
+- **Batch Operations:** Grouped storage operations to reduce I/O overhead
+- **Format Selection:** Optimal file format choice based on usage patterns
+- **Atomic Transactions:** Safe storage operations with rollback capabilities
 
 *Detailed performance implementation available in [Data Processing Implementation](../lld/02-data-processing-implementation.md)*
 
 ## 5. Data Flow Monitoring
 
-### 5.1 Flow Monitoring Strategy
-The data flow monitoring provides comprehensive visibility into system performance:
+### 5.1 Monitoring Architecture Strategy
+The data flow monitoring system provides comprehensive observability into system performance, data quality, and operational health through a multi-dimensional metrics framework:
 
-**Performance Metrics:**
-- Stage-level timing for bottleneck identification
-- Throughput metrics (rows per second, MB per second)
-- Error rates and failure pattern analysis
-- Resource utilization (CPU, memory, disk I/O)
+**Monitoring Design Framework:**
+- **Performance Observability:** Real-time visibility into processing throughput and bottlenecks
+- **Quality Assurance:** Continuous monitoring of data integrity and validation success
+- **Operational Intelligence:** System health tracking and predictive alerting
+- **Provider Analytics:** External dependency performance and reliability tracking
 
-**Quality Metrics:**
-- Data validation success rates
-- Quality score distributions
-- Provider-specific reliability metrics
-- Data completeness and accuracy tracking
+**Monitoring Architecture Patterns:**
+- **Metrics Collection:** Multi-layered metric aggregation from all system components
+- **Real-Time Alerting:** Threshold-based notification system for operational issues
+- **Historical Analysis:** Trend analysis and capacity planning through metric retention
+- **Dashboard Visualization:** Executive and operational dashboards for different stakeholder needs
 
-**Operational Metrics:**
-- Job completion rates and durations
-- Provider availability and response times
-- Storage performance and capacity utilization
-- System health and alerting thresholds
+**Observability Categories:**
+- **System Performance:** Processing speed, resource utilization, and capacity metrics
+- **Data Quality:** Validation rates, error patterns, and data completeness tracking
+- **Provider Reliability:** External service availability, response times, and error rates
+- **Business Metrics:** Download success rates, data coverage, and user satisfaction
 
 *Detailed monitoring implementation available in [Data Processing Implementation](../lld/02-data-processing-implementation.md)*
 

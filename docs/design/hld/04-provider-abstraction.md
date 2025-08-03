@@ -49,391 +49,127 @@ graph TB
 
 ## 2. Provider Interface Design
 
-### 2.1 Core Interface Definition
-The DataProvider abstract base class defines the contract that all providers must implement:
+### 2.1 Core Interface Design
+The provider abstraction defines a unified contract that all data providers must implement, ensuring consistent behavior across different external data sources.
 
-**Required Methods:**
-- `authenticate(credentials)` - Provider-specific authentication
-- `get_data(instrument, date_range)` - Retrieve financial data
-- `get_supported_instruments()` - Return supported instrument types
-- `validate_instrument(instrument)` - Validate instrument compatibility
-- `get_rate_limits()` - Return current rate limit status
+**Interface Responsibilities:**
+- **Authentication Strategy:** Define provider-specific credential handling
+- **Data Retrieval Contract:** Standardize data request and response patterns
+- **Instrument Compatibility:** Validate and map instruments to provider capabilities
+- **Rate Limit Management:** Abstract provider-specific throttling requirements
+- **Health Monitoring:** Provide availability and status checking capabilities
 
-**Optional Methods:**
-- `health_check()` - Provider availability verification
-- `get_metadata(instrument)` - Provider-specific metadata
-- `cleanup()` - Resource cleanup and connection management
-
-**State Management:**
-- Authentication state tracking
-- Rate limit monitoring
-- Session and connection management
-- Configuration parameter handling
+**Interface Design Principles:**
+- **Uniform API Surface:** All providers expose identical methods regardless of underlying implementation
+- **Provider Agnostic:** Client code works with any provider without modification
+- **Error Standardization:** Common error types and handling across all providers
+- **State Encapsulation:** Each provider manages its own authentication and session state
 
 *Detailed interface implementation available in [Provider Implementation](../lld/03-provider-implementation.md)*
 
-### 2.2 Provider Registration System
-The provider registry manages available data providers and enables runtime provider selection:
+### 2.2 Provider Registry Architecture
+The provider registry implements a discovery and factory pattern that enables dynamic provider management and runtime selection.
 
-**Registry Features:**
-- Dynamic provider registration and discovery
-- Type validation for provider implementations
-- Instance management and configuration
-- Provider availability enumeration
+**Registry Design Patterns:**
+- **Service Registry:** Central catalog of available provider implementations
+- **Factory Pattern:** On-demand creation of configured provider instances
+- **Strategy Selection:** Runtime provider choice based on configuration or instrument requirements
+- **Interface Validation:** Ensures all registered providers comply with the abstract interface
 
-**Registration Process:**
-1. Provider classes inherit from DataProvider
-2. Registration validates interface compliance
-3. Registry stores provider classes by name
-4. Factory creates configured instances on demand
+**Registry Capabilities:**
+- **Dynamic Discovery:** Automatic registration of new provider implementations
+- **Configuration Integration:** Provider-specific settings and credential management
+- **Availability Tracking:** Real-time status of registered providers
+- **Fallback Management:** Ordered provider chains for resilience
 
-**Supported Providers:**
-- `barchart` - Barchart.com futures and options data
-- `yahoo` - Yahoo Finance stocks and ETFs
-- `ibkr` - Interactive Brokers multi-asset data
+**Provider Categories:**
+- **Premium Providers:** Subscription-based services with authentication requirements
+- **Public Providers:** Free-access APIs with rate limiting
+- **Professional Providers:** Trading platform integrations requiring local connections
 
 *Detailed registry implementation available in [Provider Implementation](../lld/03-provider-implementation.md)*
 
-## 3. Provider Implementations
+## 3. Provider Architecture Patterns
 
-### 3.1 Barchart Provider Implementation
+### 3.1 Authentication Architecture Patterns
+Different providers require distinct authentication strategies based on their business models and technical architectures:
 
-#### Authentication and Session Management
-```python
-class BarchartDataProvider(DataProvider):
-    """Barchart.com data provider implementation"""
-    
-    BASE_URL = "https://www.barchart.com"
-    LOGIN_URL = f"{BASE_URL}/login"
-    DOWNLOAD_URL = f"{BASE_URL}/futures/quotes/{{}}/download"
-    
-    def __init__(self, daily_download_limit: int = 150, **config):
-        super().__init__(**config)
-        self.daily_download_limit = daily_download_limit
-        self.downloads_today = 0
-        self.rate_limiter = RateLimiter(
-            requests_per_day=daily_download_limit,
-            requests_per_hour=50  # Conservative estimate
-        )
-        self.session = requests.Session()
-        
-    def authenticate(self, credentials: Dict[str, str]) -> bool:
-        """Authenticate with Barchart using username/password"""
-        try:
-            # 1. Get login page to extract CSRF token
-            login_page = self.session.get(self.LOGIN_URL)
-            soup = BeautifulSoup(login_page.content, 'html.parser')
-            csrf_token = soup.find('input', {'name': '_token'})['value']
-            
-            # 2. Submit login credentials
-            login_data = {
-                'email': credentials['username'],
-                'password': credentials['password'],
-                '_token': csrf_token
-            }
-            
-            response = self.session.post(self.LOGIN_URL, data=login_data)
-            
-            # 3. Verify authentication success
-            if 'dashboard' in response.url or response.status_code == 200:
-                self.authentication_state = AuthenticationState.AUTHENTICATED
-                logger.info("Barchart authentication successful")
-                return True
-            else:
-                self.authentication_state = AuthenticationState.FAILED
-                logger.error("Barchart authentication failed")
-                return False
-                
-        except Exception as e:
-            logger.error(f"Barchart authentication error: {e}")
-            self.authentication_state = AuthenticationState.ERROR
-            return False
-    
-    def get_data(self, instrument: Instrument, date_range: DateRange) -> pd.DataFrame:
-        """Download futures data from Barchart"""
-        
-        # 1. Validate rate limits
-        if not self.rate_limiter.can_make_request():
-            raise RateLimitExceededError("Daily download limit reached")
-        
-        # 2. Build download URL
-        download_url = self.DOWNLOAD_URL.format(instrument.symbol.lower())
-        
-        # 3. Get download page to extract CSRF token
-        download_page = self.session.get(download_url)
-        soup = BeautifulSoup(download_page.content, 'html.parser')
-        csrf_token = soup.find('input', {'name': '_token'})['value']
-        
-        # 4. Submit download request
-        download_data = {
-            '_token': csrf_token,
-            'submitForm': 'Download',
-            'dateStart': date_range.start.strftime('%m/%d/%Y'),
-            'dateEnd': date_range.end.strftime('%m/%d/%Y'),
-            'frequency': 'daily'
-        }
-        
-        response = self.session.post(download_url, data=download_data)
-        
-        # 5. Parse CSV response
-        if response.status_code == 200:
-            self.rate_limiter.record_request()
-            self.downloads_today += 1
-            return self._parse_csv_response(response.content, instrument)
-        else:
-            raise DataProviderError(f"Download failed: {response.status_code}")
-    
-    def _parse_csv_response(self, csv_content: bytes, instrument: Instrument) -> pd.DataFrame:
-        """Parse Barchart CSV response to standard format"""
-        try:
-            # Read CSV with proper encoding
-            df = pd.read_csv(io.StringIO(csv_content.decode('utf-8')))
-            
-            # Barchart column mapping
-            column_mapping = {
-                'Time': 'timestamp',
-                'Open': 'open',
-                'High': 'high',
-                'Low': 'low',
-                'Last': 'close',
-                'Volume': 'volume'
-            }
-            
-            # Rename columns to standard format
-            df = df.rename(columns=column_mapping)
-            
-            # Convert timestamps
-            df['timestamp'] = pd.to_datetime(df['timestamp'])
-            
-            # Add metadata
-            df['symbol'] = instrument.symbol
-            df['provider'] = 'barchart'
-            
-            return df[['timestamp', 'open', 'high', 'low', 'close', 'volume', 'symbol', 'provider']]
-            
-        except Exception as e:
-            raise DataParsingError(f"Failed to parse Barchart CSV: {e}")
-```
+**Session-Based Authentication Pattern:**
+- Multi-step credential validation with state management
+- CSRF protection and token-based security
+- Session persistence across multiple requests
+- Automatic re-authentication on session expiry
 
-### 3.2 Yahoo Finance Provider Implementation
+**API Key Authentication Pattern:**
+- Simple credential-based access control
+- Public API access with minimal authentication overhead
+- Request identification through headers
+- No session state management required
 
-#### Free Data Access Strategy
-```python
-class YahooDataProvider(DataProvider):
-    """Yahoo Finance data provider implementation"""
-    
-    BASE_URL = "https://query1.finance.yahoo.com/v8/finance/chart/{}"
-    
-    def __init__(self, **config):
-        super().__init__(**config)
-        self.session = requests.Session()
-        self.session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (compatible; BC-Utils/1.0)'
-        })
-        
-    def authenticate(self, credentials: Dict[str, str]) -> bool:
-        """Yahoo Finance doesn't require authentication for basic data"""
-        self.authentication_state = AuthenticationState.AUTHENTICATED
-        return True
-    
-    def get_data(self, instrument: Instrument, date_range: DateRange) -> pd.DataFrame:
-        """Download stock data from Yahoo Finance"""
-        
-        # 1. Build request URL
-        url = self.BASE_URL.format(instrument.symbol)
-        
-        # 2. Set request parameters
-        params = {
-            'period1': int(date_range.start.timestamp()),
-            'period2': int(date_range.end.timestamp()),
-            'interval': '1d',
-            'includePrePost': 'false',
-            'events': 'div%2Csplit'
-        }
-        
-        # 3. Execute request with retry logic
-        response = self._execute_with_retry(url, params)
-        
-        # 4. Parse JSON response
-        return self._parse_json_response(response.json(), instrument)
-    
-    def _parse_json_response(self, json_data: Dict, instrument: Instrument) -> pd.DataFrame:
-        """Parse Yahoo Finance JSON response"""
-        try:
-            result = json_data['chart']['result'][0]
-            timestamps = result['timestamp']
-            quotes = result['indicators']['quote'][0]
-            
-            # Build DataFrame
-            df = pd.DataFrame({
-                'timestamp': pd.to_datetime(timestamps, unit='s', utc=True),
-                'open': quotes['open'],
-                'high': quotes['high'],
-                'low': quotes['low'],
-                'close': quotes['close'],
-                'volume': quotes['volume']
-            })
-            
-            # Clean data (remove NaN values)
-            df = df.dropna()
-            
-            # Add metadata
-            df['symbol'] = instrument.symbol
-            df['provider'] = 'yahoo'
-            
-            return df
-            
-        except (KeyError, IndexError) as e:
-            raise DataParsingError(f"Failed to parse Yahoo Finance JSON: {e}")
-```
+**Connection-Based Authentication Pattern:**
+- Direct TCP connection to provider services
+- Client-server handshake protocols
+- Real-time connection state monitoring
+- Local application integration requirements
 
-### 3.3 Interactive Brokers Provider Implementation
+### 3.2 Data Access Architecture Patterns
+Providers implement different data delivery architectures based on their target audiences and technical capabilities:
 
-#### TWS API Integration
-```python
-class IbkrDataProvider(DataProvider):
-    """Interactive Brokers data provider implementation"""
-    
-    def __init__(self, host: str = "127.0.0.1", port: int = 7497, **config):
-        super().__init__(**config)
-        self.host = host
-        self.port = port
-        self.ib_client = None
-        self.connection_state = ConnectionState.DISCONNECTED
-        
-    def authenticate(self, credentials: Dict[str, str]) -> bool:
-        """Connect to TWS/IB Gateway"""
-        try:
-            from ib_insync import IB, Contract
-            
-            self.ib_client = IB()
-            self.ib_client.connect(self.host, self.port, clientId=1)
-            
-            if self.ib_client.isConnected():
-                self.authentication_state = AuthenticationState.AUTHENTICATED
-                self.connection_state = ConnectionState.CONNECTED
-                logger.info(f"Connected to TWS at {self.host}:{self.port}")
-                return True
-            else:
-                self.authentication_state = AuthenticationState.FAILED
-                return False
-                
-        except Exception as e:
-            logger.error(f"IBKR connection failed: {e}")
-            self.authentication_state = AuthenticationState.ERROR
-            return False
-    
-    def get_data(self, instrument: Instrument, date_range: DateRange) -> pd.DataFrame:
-        """Request historical data from IBKR"""
-        
-        if not self.ib_client or not self.ib_client.isConnected():
-            raise ConnectionError("Not connected to TWS")
-        
-        # 1. Create contract object
-        contract = self._create_contract(instrument)
-        
-        # 2. Request historical data
-        duration = self._calculate_duration(date_range)
-        bar_size = '1 day'
-        what_to_show = 'TRADES'
-        use_rth = True  # Regular trading hours only
-        
-        bars = self.ib_client.reqHistoricalData(
-            contract,
-            endDateTime=date_range.end,
-            durationStr=duration,
-            barSizeSetting=bar_size,
-            whatToShow=what_to_show,
-            useRTH=use_rth
-        )
-        
-        # 3. Convert to DataFrame
-        return self._bars_to_dataframe(bars, instrument)
-    
-    def _create_contract(self, instrument: Instrument) -> Contract:
-        """Create IB contract object from instrument"""
-        from ib_insync import Contract, Future, Stock
-        
-        if isinstance(instrument, Future):
-            contract = Future(
-                symbol=instrument.code,
-                lastTradeDateOrContractMonth=instrument.contract_month,
-                exchange=instrument.exchange
-            )
-        elif isinstance(instrument, Stock):
-            contract = Stock(
-                symbol=instrument.symbol,
-                exchange=instrument.exchange,
-                currency=instrument.currency
-            )
-        else:
-            raise ValueError(f"Unsupported instrument type: {type(instrument)}")
-        
-        return contract
-    
-    def _bars_to_dataframe(self, bars: List, instrument: Instrument) -> pd.DataFrame:
-        """Convert IB bars to standard DataFrame format"""
-        data = []
-        for bar in bars:
-            data.append({
-                'timestamp': bar.date,
-                'open': float(bar.open),
-                'high': float(bar.high),
-                'low': float(bar.low),
-                'close': float(bar.close),
-                'volume': int(bar.volume),
-                'symbol': instrument.symbol,
-                'provider': 'ibkr'
-            })
-        
-        return pd.DataFrame(data)
-```
+**Form-Based Download Pattern:**
+- Web scraping approach for premium data services
+- Request/response cycle with structured forms
+- Rate limiting through quotas and daily limits
+- CSV/structured text response formats
 
-## 4. Provider Factory and Selection
+**RESTful API Pattern:**
+- Standard HTTP API with JSON responses
+- URL-based parameter passing
+- Stateless request/response model
+- Automatic retry and error handling
 
-### 4.1 Provider Factory Implementation
-```python
-class ProviderFactory:
-    """Factory for creating and configuring providers"""
-    
-    @staticmethod
-    def create_provider(config: ProviderConfig) -> DataProvider:
-        """Create provider instance based on configuration"""
-        
-        provider_type = config.type.lower()
-        
-        if provider_type == "barchart":
-            return BarchartDataProvider(
-                daily_download_limit=config.daily_limit,
-                timeout_seconds=config.timeout
-            )
-        
-        elif provider_type == "yahoo":
-            return YahooDataProvider(
-                timeout_seconds=config.timeout,
-                max_retries=config.max_retries
-            )
-        
-        elif provider_type == "ibkr":
-            return IbkrDataProvider(
-                host=config.host,
-                port=config.port,
-                timeout_seconds=config.timeout
-            )
-        
-        else:
-            raise ValueError(f"Unknown provider type: {provider_type}")
-    
-    @staticmethod
-    def create_with_fallbacks(primary_config: ProviderConfig, 
-                            fallback_configs: List[ProviderConfig]) -> FallbackProvider:
-        """Create provider with fallback chain"""
-        
-        primary = ProviderFactory.create_provider(primary_config)
-        fallbacks = [ProviderFactory.create_provider(config) for config in fallback_configs]
-        
-        return FallbackProvider(primary, fallbacks)
-```
+**Binary Protocol Pattern:**
+- High-performance binary communication
+- Event-driven data delivery
+- Real-time streaming capabilities
+- Professional trading platform integration
+
+### 3.3 Provider Capability Models
+Each provider serves different market segments with distinct capabilities:
+
+**Premium Data Services:**
+- Subscription-based access model
+- Specialized market data (futures, commodities)
+- Exchange-quality data with minimal delays
+- Professional trading and analysis focus
+
+**Public Market Data:**
+- Free access to basic market information
+- Delayed data for retail investors
+- Global market coverage
+- Web-based accessibility
+
+**Professional Trading Platforms:**
+- Real-time data for active trading
+- Multi-asset class support
+- Trading account integration
+- Institutional-grade infrastructure
+
+## 4. Provider Selection Architecture
+
+### 4.1 Factory Pattern Design
+The provider factory implements a configuration-driven instantiation pattern that enables dynamic provider selection and management:
+
+**Factory Design Principles:**
+- **Configuration-Driven Creation:** Provider selection based on runtime configuration
+- **Dependency Injection:** Automatic wiring of provider-specific dependencies
+- **Validation Framework:** Configuration and capability validation before instantiation
+- **Chain Construction:** Building ordered fallback provider sequences
+
+**Factory Architecture Benefits:**
+- **Loose Coupling:** Client code independent of specific provider implementations
+- **Runtime Flexibility:** Provider switching without code changes
+- **Testability:** Easy injection of mock providers for testing
+- **Extensibility:** Simple addition of new providers through registration
 
 ### 4.2 Provider Selection Strategy
 ```mermaid
@@ -461,204 +197,106 @@ graph TB
     style Fail fill:#ffcdd2
 ```
 
-## 5. Rate Limiting and Throttling
+## 5. Rate Limiting Architecture
 
-### 5.1 Rate Limiter Implementation
-```python
-class RateLimiter:
-    """Provider-aware rate limiting system"""
-    
-    def __init__(self, requests_per_day: int = None, requests_per_hour: int = None):
-        self.requests_per_day = requests_per_day
-        self.requests_per_hour = requests_per_hour
-        self.daily_requests = deque()
-        self.hourly_requests = deque()
-        self.lock = threading.Lock()
-    
-    def can_make_request(self) -> bool:
-        """Check if request can be made within rate limits"""
-        with self.lock:
-            now = time.time()
-            
-            # Clean old requests
-            self._clean_old_requests(now)
-            
-            # Check daily limit
-            if self.requests_per_day and len(self.daily_requests) >= self.requests_per_day:
-                return False
-            
-            # Check hourly limit
-            if self.requests_per_hour and len(self.hourly_requests) >= self.requests_per_hour:
-                return False
-            
-            return True
-    
-    def record_request(self):
-        """Record a request for rate limiting"""
-        with self.lock:
-            now = time.time()
-            self.daily_requests.append(now)
-            self.hourly_requests.append(now)
-    
-    def get_wait_time(self) -> float:
-        """Get time to wait before next request is allowed"""
-        with self.lock:
-            now = time.time()
-            
-            if self.requests_per_hour and len(self.hourly_requests) >= self.requests_per_hour:
-                oldest_request = self.hourly_requests[0]
-                return max(0, 3600 - (now - oldest_request))
-            
-            return 0
-```
+### 5.1 Rate Limiting Design Patterns
+The rate limiting architecture implements a multi-tiered throttling strategy that adapts to each provider's specific requirements and terms of service:
 
-### 5.2 Provider-Specific Rate Limits
-| Provider | Daily Limit | Hourly Limit | Burst Limit | Wait Strategy |
-|----------|-------------|--------------|-------------|---------------|
-| **Barchart** | 150 requests | 50 requests | 5 requests/min | Fixed wait |
-| **Yahoo Finance** | No limit | 2000 requests | 10 requests/sec | Exponential backoff |
-| **IBKR** | No limit | No limit | 50 requests/sec | Connection throttling |
+**Hierarchical Rate Limiting:**
+- **Daily Quotas:** Long-term resource allocation for subscription services
+- **Hourly Limits:** Medium-term burst protection and fair usage
+- **Real-time Throttling:** Short-term request rate control
+- **Concurrent Limits:** Connection and session management
 
-## 6. Error Handling and Recovery
+**Rate Limiting Implementation Patterns:**
+- **Token Bucket Algorithm:** Smooth rate limiting with burst capability
+- **Sliding Window:** Time-based request counting and validation
+- **Adaptive Throttling:** Dynamic adjustment based on provider feedback
+- **Distributed Limiting:** Multi-instance coordination for rate limits
 
-### 6.1 Provider Error Classification
-```python
-class ProviderError(Exception):
-    """Base class for provider-specific errors"""
-    pass
+### 5.2 Provider Rate Limiting Strategies
+Different providers require distinct rate limiting approaches based on their business models and technical constraints:
 
-class AuthenticationError(ProviderError):
-    """Authentication with provider failed"""
-    pass
+**Subscription-Based Limiting:**
+- Fixed daily quotas with hard enforcement
+- Request tracking and quota management
+- Fair usage policies and overage handling
 
-class RateLimitExceededError(ProviderError):
-    """Provider rate limit exceeded"""
-    pass
+**Public API Limiting:**
+- Generous limits with exponential backoff
+- Burst tolerance with gradual throttling
+- Graceful degradation under heavy load
 
-class DataNotAvailableError(ProviderError):
-    """Requested data not available from provider"""
-    pass
+**Professional Platform Limiting:**
+- Connection-based throttling
+- Real-time rate adaptation
+- Quality of service prioritization
 
-class DataParsingError(ProviderError):
-    """Failed to parse provider response"""
-    pass
+## 6. Error Handling Architecture
 
-class ConnectionError(ProviderError):
-    """Connection to provider failed"""
-    pass
-```
+### 6.1 Error Classification Framework
+The error handling architecture implements a hierarchical classification system that enables appropriate recovery strategies for different failure modes:
 
-### 6.2 Error Recovery Strategies
-```python
-class ProviderErrorHandler:
-    """Centralized error handling for providers"""
-    
-    def handle_error(self, error: Exception, provider: DataProvider, 
-                    retry_context: RetryContext) -> RecoveryAction:
-        """Determine recovery action based on error type"""
-        
-        if isinstance(error, AuthenticationError):
-            return RecoveryAction.REAUTHENTICATE
-        
-        elif isinstance(error, RateLimitExceededError):
-            wait_time = provider.get_rate_limits().get_wait_time()
-            return RecoveryAction.WAIT_AND_RETRY(wait_time)
-        
-        elif isinstance(error, ConnectionError):
-            if retry_context.attempt_count < 3:
-                return RecoveryAction.RETRY_WITH_BACKOFF
-            else:
-                return RecoveryAction.SWITCH_PROVIDER
-        
-        elif isinstance(error, DataNotAvailableError):
-            return RecoveryAction.SWITCH_PROVIDER
-        
-        else:
-            logger.error(f"Unhandled provider error: {error}")
-            return RecoveryAction.FAIL_REQUEST
-```
+**Error Category Architecture:**
+- **Transient Errors:** Temporary failures that can be resolved through retry mechanisms
+- **Authentication Errors:** Credential-related failures requiring re-authentication flows
+- **Rate Limit Errors:** Quota exhaustion requiring wait-and-retry strategies
+- **Permanent Errors:** Unrecoverable failures requiring immediate escalation
 
-## 7. Testing and Validation
+**Error Handling Design Patterns:**
+- **Circuit Breaker:** Prevent cascading failures through provider circuit breakers
+- **Bulkhead:** Isolate provider failures to prevent system-wide impact
+- **Timeout:** Bounded waiting to prevent resource exhaustion
+- **Fallback:** Graceful degradation through alternative providers
 
-### 7.1 Provider Testing Framework
-```python
-class MockDataProvider(DataProvider):
-    """Mock provider for testing"""
-    
-    def __init__(self, mock_responses: Dict[str, Any], **config):
-        super().__init__(**config)
-        self.mock_responses = mock_responses
-        self.call_history = []
-        
-    def authenticate(self, credentials: Dict[str, str]) -> bool:
-        self.call_history.append(('authenticate', credentials))
-        return self.mock_responses.get('auth_success', True)
-    
-    def get_data(self, instrument: Instrument, date_range: DateRange) -> pd.DataFrame:
-        self.call_history.append(('get_data', instrument.symbol, date_range))
-        
-        if 'data_error' in self.mock_responses:
-            raise self.mock_responses['data_error']
-        
-        return self.mock_responses.get('data', pd.DataFrame())
+### 6.2 Recovery Architecture Framework
+The recovery architecture implements a multi-level strategy that maximizes data acquisition success while maintaining system stability:
 
-# Test usage
-@pytest.fixture
-def mock_provider():
-    mock_data = pd.DataFrame({
-        'timestamp': pd.date_range('2024-01-01', periods=10),
-        'open': range(100, 110),
-        'high': range(105, 115),
-        'low': range(95, 105),
-        'close': range(102, 112),
-        'volume': range(1000, 1010)
-    })
-    
-    return MockDataProvider({
-        'auth_success': True,
-        'data': mock_data
-    })
-```
+**Recovery Strategy Hierarchy:**
+- **Local Recovery:** Same-provider retry with backoff strategies
+- **Provider Fallback:** Alternative provider selection and switching
+- **Graceful Degradation:** Partial success handling and user notification
+- **System Protection:** Circuit breakers and resource limits
 
-### 7.2 Provider Validation Tests
-```python
-class ProviderTestSuite:
-    """Comprehensive test suite for providers"""
-    
-    def test_provider_compliance(self, provider: DataProvider):
-        """Test provider compliance with interface contract"""
-        
-        # Test authentication
-        assert hasattr(provider, 'authenticate')
-        assert callable(provider.authenticate)
-        
-        # Test data retrieval
-        assert hasattr(provider, 'get_data')
-        assert callable(provider.get_data)
-        
-        # Test error handling
-        with pytest.raises(AuthenticationError):
-            provider.authenticate({'invalid': 'credentials'})
-    
-    def test_data_format_compliance(self, provider: DataProvider, test_instrument: Instrument):
-        """Test that provider returns data in standard format"""
-        
-        date_range = DateRange(
-            start=datetime(2024, 1, 1),
-            end=datetime(2024, 1, 31)
-        )
-        
-        data = provider.get_data(test_instrument, date_range)
-        
-        # Verify required columns
-        required_columns = ['timestamp', 'open', 'high', 'low', 'close', 'volume', 'symbol', 'provider']
-        assert all(col in data.columns for col in required_columns)
-        
-        # Verify data types
-        assert data['timestamp'].dtype.kind == 'M'  # datetime
-        assert data['open'].dtype.kind == 'f'       # float
-        assert data['volume'].dtype.kind in ['i', 'u']  # integer
-```
+**Recovery Implementation Patterns:**
+- **Exponential Backoff:** Progressive wait times for transient failures
+- **Provider Rotation:** Ordered fallback through available providers
+- **Context Preservation:** Maintain request state across recovery attempts
+- **Reliability Tracking:** Provider performance monitoring and selection optimization
+
+## 7. Testing Architecture
+
+### 7.1 Provider Testing Strategy
+The testing architecture ensures provider implementations maintain interface compliance and deliver consistent behavior across different data sources:
+
+**Testing Framework Design:**
+- **Mock Provider Architecture:** Configurable test doubles that simulate provider behavior
+- **Contract Testing:** Interface compliance validation for all provider implementations
+- **Behavior Verification:** Call patterns and state management validation
+- **Error Simulation:** Comprehensive error condition testing
+
+**Test Architecture Patterns:**
+- **Test Double Strategy:** Mock, stub, and fake implementations for isolation
+- **Property-Based Testing:** Automated test case generation for edge conditions
+- **Integration Test Framework:** Real provider testing with controlled environments
+- **Performance Testing:** Load and stress testing for provider implementations
+
+### 7.2 Validation Architecture
+The validation architecture ensures provider implementations deliver consistent, high-quality data that meets system requirements:
+
+**Validation Strategy Framework:**
+- **Interface Validation:** Contract compliance and method signature verification
+- **Data Quality Validation:** Format, completeness, and accuracy verification
+- **Performance Validation:** Response time and throughput requirements
+- **Reliability Validation:** Error handling and recovery mechanism testing
+
+**Validation Implementation Patterns:**
+- **Automated Validation:** Continuous compliance checking through CI/CD pipelines
+- **Real-World Testing:** Live provider testing with production-like scenarios
+- **Regression Testing:** Change impact validation for provider implementations
+- **Cross-Provider Testing:** Consistency validation across different data sources
+
+*Detailed testing implementations available in [Testing Implementation](../lld/06-testing-implementation.md)*
 
 ## Related Documents
 
