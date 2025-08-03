@@ -6,7 +6,7 @@ from pathlib import Path
 
 def verify_structure():
     """Verify that all CLI files are in place."""
-    print("🔍 Verifying BC-Utils CLI File Structure")
+    print("🔍 Verifying Vortex CLI File Structure")
     print("=" * 50)
     
     base_dir = Path(__file__).parent / "src" / "bcutils"

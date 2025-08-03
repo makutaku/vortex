@@ -1,4 +1,4 @@
-"""BC-Utils CLI module.
+"""Vortex CLI module.
 
 Modern command-line interface for financial data download automation.
 """

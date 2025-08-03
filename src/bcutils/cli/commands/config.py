@@ -60,10 +60,10 @@ def config(
     
     \b
     Examples:
-        bcutils config --show
-        bcutils config --provider barchart --set-credentials
-        bcutils config --export config.toml
-        bcutils config --import config.toml
+        vortex config --show
+        vortex config --provider barchart --set-credentials
+        vortex config --export config.toml
+        vortex config --import config.toml
         
     \b
     Installation:
@@ -125,7 +125,7 @@ def show_configuration(config_manager: ConfigManager) -> None:
     config = config_manager.load_config()
     
     # General settings table
-    table = Table(title="BC-Utils Configuration")
+    table = Table(title="Vortex Configuration")
     table.add_column("Setting", style="cyan")
     table.add_column("Value", style="green")
     
@@ -254,9 +254,9 @@ def set_provider_credentials(config_manager: ConfigManager, provider: str) -> No
     config_manager.save_config()
     console.print(f"[green]✓ {provider.upper()} credentials saved[/green]")
     console.print("\n[dim]Ready to download data! Try:[/dim]")
-    console.print(f"[dim]  bcutils download --provider {provider} --symbol SYMBOL[/dim]")
+    console.print(f"[dim]  vortex download --provider {provider} --symbol SYMBOL[/dim]")
     
     if provider == "barchart":
-        console.print("[dim]  bcutils download --provider barchart --symbol GC --start-date 2024-01-01[/dim]")
+        console.print("[dim]  vortex download --provider barchart --symbol GC --start-date 2024-01-01[/dim]")
     elif provider == "ibkr":
         console.print("[dim]  Make sure TWS/Gateway is running and API is enabled[/dim]")

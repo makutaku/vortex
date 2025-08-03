@@ -1,4 +1,4 @@
-"""Instrument parsing utilities for BC-Utils CLI."""
+"""Instrument parsing utilities for Vortex CLI."""
 
 from pathlib import Path
 from typing import List, Optional, Tuple

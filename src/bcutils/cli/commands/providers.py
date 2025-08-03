@@ -40,10 +40,10 @@ def providers(
     
     \b
     Examples:
-        bcutils providers --list
-        bcutils providers --test barchart
-        bcutils providers --test all
-        bcutils providers --info barchart
+        vortex providers --list
+        vortex providers --test barchart
+        vortex providers --test all
+        vortex providers --info barchart
         
     \b
     Quick Setup:
@@ -51,7 +51,7 @@ def providers(
         uv pip install -e .
         
         # Configure provider
-        bcutils config --provider barchart --set-credentials
+        vortex config --provider barchart --set-credentials
     """
     config_manager = ConfigManager(ctx.obj.get('config_file'))
     
@@ -122,7 +122,7 @@ def show_providers_list(config_manager: ConfigManager) -> None:
         )
     
     console.print(table)
-    console.print("\n[dim]Use 'bcutils config --provider PROVIDER --set-credentials' to configure[/dim]")
+    console.print("\n[dim]Use 'vortex config --provider PROVIDER --set-credentials' to configure[/dim]")
 
 def test_providers(config_manager: ConfigManager, provider: str) -> None:
     """Test provider connectivity."""
@@ -264,7 +264,7 @@ def show_barchart_info() -> None:
     console.print("\n[bold]Setup Instructions:[/bold]")
     console.print("1. Create account at barchart.com")
     console.print("2. Subscribe to data package")
-    console.print("3. Run: bcutils config --provider barchart --set-credentials")
+    console.print("3. Run: vortex config --provider barchart --set-credentials")
 
 def show_yahoo_info() -> None:
     """Show Yahoo Finance provider information."""
@@ -309,4 +309,4 @@ def show_ibkr_info() -> None:
     console.print("1. Open Interactive Brokers account")
     console.print("2. Install and configure TWS or Gateway")
     console.print("3. Enable API connections in TWS")
-    console.print("4. Run: bcutils config --provider ibkr --set-credentials")
+    console.print("4. Run: vortex config --provider ibkr --set-credentials")

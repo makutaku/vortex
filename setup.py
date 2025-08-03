@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Setup script for bc-utils package.
+Setup script for Vortex package.
 Uses pyproject.toml for configuration.
 """
 

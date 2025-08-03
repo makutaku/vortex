@@ -33,7 +33,7 @@ def load_config_instruments(assets_file_path: Path) -> List[str]:
 def get_default_assets_file(provider: str) -> Path:
     """Get the default assets file for the given provider.
     
-    This returns the default assets that ship with bc-utils.
+    This returns the default assets that ship with Vortex.
     Users can override by specifying --assets with their own file.
     """
     # Try provider-specific default file first
@@ -126,15 +126,15 @@ def download(
     
     \b
     Examples:
-        bcutils download -p yahoo -s AAPL -s GOOGL
-        bcutils download -p barchart -s GCM25 --start-date 2024-01-01  
-        bcutils download -p yahoo --symbols-file symbols.txt
-        bcutils download -p yahoo --assets /path/to/my-assets.json
-        bcutils download -p yahoo -s MSFT --yes  # Skip confirmation
+        vortex download -p yahoo -s AAPL -s GOOGL
+        vortex download -p barchart -s GCM25 --start-date 2024-01-01  
+        vortex download -p yahoo --symbols-file symbols.txt
+        vortex download -p yahoo --assets /path/to/my-assets.json
+        vortex download -p yahoo -s MSFT --yes  # Skip confirmation
         
     \b
     Default Assets:
-        When no symbols are specified, bc-utils loads default instruments from:
+        When no symbols are specified, Vortex loads default instruments from:
         - assets/yahoo.json - Default instruments for Yahoo Finance
         - assets/barchart.json - Default instruments for Barchart.com  
         - assets/ibkr.json - Default instruments for Interactive Brokers
@@ -148,7 +148,7 @@ def download(
         uv pip install -e .
         
         # Run without installation
-        uv run bcutils download --help
+        uv run vortex download --help
     """
     # Get configuration
     config_manager = ConfigManager(ctx.obj.get('config_file'))

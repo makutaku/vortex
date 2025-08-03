@@ -1,1 +1,1 @@
-"""CLI commands for BC-Utils."""
+"""CLI commands for Vortex."""

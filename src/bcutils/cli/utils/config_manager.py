@@ -1,4 +1,4 @@
-"""Configuration management for BC-Utils CLI."""
+"""Configuration management for Vortex CLI."""
 
 import os
 import sys
@@ -17,7 +17,7 @@ import tomli_w
 
 
 class ConfigManager:
-    """Manages BC-Utils configuration files and settings."""
+    """Manages Vortex configuration files and settings."""
     
     def __init__(self, config_file: Optional[Path] = None):
         """Initialize configuration manager.
@@ -29,7 +29,7 @@ class ConfigManager:
             self.config_file = config_file
         else:
             # Use standard user config directory
-            config_dir = Path.home() / ".config" / "bcutils"
+            config_dir = Path.home() / ".config" / "vortex"
             config_dir.mkdir(parents=True, exist_ok=True)
             self.config_file = config_dir / "config.toml"
         

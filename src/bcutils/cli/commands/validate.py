@@ -54,9 +54,9 @@ def validate(
     
     \b
     Examples:
-        bcutils validate --path ./data
-        bcutils validate --path ./data/GC.csv --provider barchart
-        bcutils validate --path ./data --fix --detailed
+        vortex validate --path ./data
+        vortex validate --path ./data/GC.csv --provider barchart
+        vortex validate --path ./data --fix --detailed
     """
     
     console.print(f"[bold]Validating data in: {path}[/bold]")
