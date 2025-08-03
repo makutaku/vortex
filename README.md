@@ -12,6 +12,10 @@
 # Install uv
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
+# Create and activate virtual environment
+uv venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+
 # Install BC-Utils
 uv pip install -e .
 
@@ -107,10 +111,14 @@ The code above would:
 ## 🔧 Alternative Installation Methods
 
 ```bash
-# Traditional pip
+# Traditional pip (create venv first)
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 pip install -e .
 
-# Development installation
+# Development installation with uv
+uv venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 uv pip install -e ".[dev,test,lint]"
 
 # From PyPI (when published)
