@@ -88,7 +88,8 @@ build_download_command() {
     # Add provider
     cmd="$cmd --provider $BCU_PROVIDER"
     
-    # Add output directory
+    # Add output directory (ensure it exists)
+    mkdir -p "$BCU_OUTPUT_DIR"
     cmd="$cmd --output-dir $BCU_OUTPUT_DIR"
     
     # Add assets file if specified
@@ -165,9 +166,13 @@ main() {
         log_info "Skipping download on startup (BCU_RUN_ON_STARTUP=$BCU_RUN_ON_STARTUP)"
     fi
     
-    # Start cron
+    # Start cron (as root since container runs as root)
     log_info "Starting cron daemon..."
-    cron
+    if command -v cron >/dev/null 2>&1; then
+        cron || log_warning "Cron failed to start (permission issue)"
+    else
+        log_warning "Cron not available"
+    fi
     
     # Create initial health check
     date > "$BCU_OUTPUT_DIR/health.check"

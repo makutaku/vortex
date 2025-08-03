@@ -8,10 +8,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Create app user
+# Create app user and directories
 RUN useradd -m -r bcutils && \
-    mkdir -p /app /data /config && \
-    chown -R bcutils:bcutils /app /data /config
+    mkdir -p /app /data /config
 
 # Set working directory
 WORKDIR /app
@@ -41,8 +40,8 @@ ENV BCU_PROVIDER=barchart \
 # Volume mounts
 VOLUME ["/data", "/config"]
 
-# Switch to app user
-USER bcutils
+# Stay as root for cron, but set permissions
+RUN chown -R bcutils:bcutils /app /data /config
 
 # Use tini as init system
 ENTRYPOINT ["/usr/bin/tini", "--", "/app/entrypoint.sh"]
