@@ -44,6 +44,15 @@ dev = [
     "pytest>=6.2",
     "flake8>=4.0.1",
 ]
+test = [
+    "pytest>=6.2",
+    "pytest-cov",
+]
+lint = [
+    "flake8>=4.0.1",
+    "black",
+    "isort",
+]
 
 [project.urls]
 Homepage = "https://github.com/bug-or-feature/bc-utils"
@@ -57,6 +66,19 @@ bcutils = "bcutils.cli.main:cli"
 [build-system]
 requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
+
+# UV-specific configuration
+[tool.uv]
+# UV will respect pyproject.toml dependencies
+# No additional configuration needed - uv works out of the box
+
+[tool.uv.sources]
+# Optional: specify custom sources if needed
+# bc-utils = { path = "." }
+
+[tool.setuptools]
+# Ensure setuptools finds packages correctly for uv
+zip-safe = false
 
 [tool.setuptools.packages.find]
 where = ["src"]

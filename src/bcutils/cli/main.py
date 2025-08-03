@@ -73,6 +73,14 @@ def cli(ctx: click.Context, config: Optional[Path], verbose: int, dry_run: bool)
         bcutils download --provider barchart --symbol GC
         bcutils config --set-credentials barchart
         bcutils providers --test
+        
+    Installation (uv recommended):
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        uv pip install -e .
+        
+    Quick Start:
+        bcutils config --provider barchart --set-credentials
+        bcutils download --provider barchart --symbol GC
     """
     # Set up logging first
     setup_logging(verbose)
@@ -101,8 +109,11 @@ def cli(ctx: click.Context, config: Optional[Path], verbose: int, dry_run: bool)
             print("Use 'bcutils --help' to see available commands")
             print("Use 'bcutils COMMAND --help' for command-specific help")
             print("\nQuick start:")
-            print("  bcutils download --help")
-            print("  bcutils config --help")
+            print("  bcutils config --provider barchart --set-credentials")
+            print("  bcutils download --provider barchart --symbol GC")
+            print("\nInstall with uv (10x faster):")
+            print("  curl -LsSf https://astral.sh/uv/install.sh | sh")
+            print("  uv pip install -e .")
 
 # Add command groups
 cli.add_command(download.download)

@@ -43,6 +43,13 @@ def providers(
         bcutils providers --test barchart
         bcutils providers --test all
         bcutils providers --info barchart
+        
+    Quick Setup:
+        # Install with uv (10x faster)
+        uv pip install -e .
+        
+        # Configure provider
+        bcutils config --provider barchart --set-credentials
     """
     config_manager = ConfigManager(ctx.obj.get('config_file'))
     

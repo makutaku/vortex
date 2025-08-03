@@ -63,6 +63,13 @@ def config(
         bcutils config --provider barchart --set-credentials
         bcutils config --export config.toml
         bcutils config --import config.toml
+        
+    Installation:
+        # Fast installation with uv (recommended)
+        uv pip install -e .
+        
+        # Traditional installation
+        pip install -e .
     """
     config_manager = ConfigManager(ctx.obj.get('config_file'))
     
@@ -213,3 +220,10 @@ def set_provider_credentials(config_manager: ConfigManager, provider: str) -> No
     
     config_manager.save_config()
     console.print(f"[green]✓ {provider.upper()} credentials saved[/green]")
+    console.print("\n[dim]Ready to download data! Try:[/dim]")
+    console.print(f"[dim]  bcutils download --provider {provider} --symbol SYMBOL[/dim]")
+    
+    if provider == "barchart":
+        console.print("[dim]  bcutils download --provider barchart --symbol GC --start-date 2024-01-01[/dim]")
+    elif provider == "ibkr":
+        console.print("[dim]  Make sure TWS/Gateway is running and API is enabled[/dim]")

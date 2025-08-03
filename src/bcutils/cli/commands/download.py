@@ -85,6 +85,13 @@ def download(
         bcutils download -p barchart -s GCM25 -s SIH25
         bcutils download -p yahoo -s AAPL --start-date 2024-01-01
         bcutils download -p ibkr --symbols-file symbols.txt
+        
+    Installation:
+        # Fast installation with uv (recommended)
+        uv pip install -e .
+        
+        # Run without installation
+        uv run bcutils download --help
     """
     # Get configuration
     config_manager = ConfigManager(ctx.obj.get('config_file'))

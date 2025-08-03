@@ -1,9 +1,39 @@
-# bc-utils
+# BC-Utils
 
-[Barchart.com](https://www.barchart.com) allows registered users to download historic futures contract prices in CSV 
-format. Individual contracts must be downloaded separately, which is laborious and slow. This script automates the process.
+**Professional financial data download automation with modern CLI interface**
 
-## Quickstart
+[Barchart.com](https://www.barchart.com) allows registered users to download historic futures contract prices in CSV format. Individual contracts must be downloaded separately, which is laborious and slow. BC-Utils automates this process with support for multiple data providers including Barchart, Yahoo Finance, and Interactive Brokers.
+
+## 🚀 Quick Start
+
+### Installation (uv recommended - 10x faster)
+
+```bash
+# Install uv
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Install BC-Utils
+uv pip install -e .
+```
+
+### Modern CLI Usage
+
+```bash
+# Configure credentials
+bcutils config --provider barchart --set-credentials
+
+# Download data
+bcutils download --provider barchart --symbol GC --start-date 2024-01-01
+bcutils download --provider yahoo --symbol AAPL GOOGL MSFT
+
+# List providers
+bcutils providers --list
+
+# Validate data
+bcutils validate --path ./data
+```
+
+## 📚 Legacy Python API
 
 ```
 from bc_utils import get_barchart_downloads, create_bc_session
@@ -33,11 +63,57 @@ The code above would:
 * save with filenames AUD_20200300.csv, AUD_20200600.csv, AUD_20200900.csv, AUD_20201200.csv into the specified directory
 * for COMEX Gold, get Feb, Apr, Jun, Aug, Oct, and Dec data, with filenames like GOLD_20200200.csv etc
 
-Features:
-* Designed to be run once a day by a scheduler
-* the script handles skips contracts already downloaded
-* by default gets 120 days of data per contract, override possible per instrument
-* dry run mode to check setup
-* there is logic to switch to daily data when hourly is not available
-* you must be a registered user. Paid subscribers get 100 downloads a day, otherwise 5
+## ✨ Features
+
+**Modern CLI Interface:**
+- Professional command-line interface with Click framework
+- Rich terminal output with colors and progress bars
+- Interactive configuration management
+- Multiple output formats (table, JSON, CSV)
+- Comprehensive help system
+
+**Multiple Data Providers:**
+- **Barchart**: Professional futures and options data
+- **Yahoo Finance**: Free stock and ETF data
+- **Interactive Brokers**: Real-time data via TWS/Gateway
+
+**Smart Data Management:**
+- Automatic duplicate detection and handling
+- Incremental downloads (skip existing data)
+- Data validation and integrity checks
+- CSV and Parquet storage formats
+- Configurable date ranges and chunking
+
+**Configuration Options:**
+- Interactive credential setup
+- TOML configuration files
+- Environment variable support
+- Multiple configuration precedence
+
+## 📖 Documentation
+
+- [Installation Guide](INSTALLATION.md) - Comprehensive setup instructions
+- [CLI Reference](CLAUDE.md#modern-cli-usage) - Command examples and usage
+- [Configuration Guide](CLAUDE.md#configuration-management) - Setup and credentials
+- [Development Guide](CLAUDE.md#development-commands) - Contributing and development
+
+## 🔧 Alternative Installation Methods
+
+```bash
+# Traditional pip
+pip install -e .
+
+# Development installation
+uv pip install -e ".[dev,test,lint]"
+
+# From PyPI (when published)
+uv pip install bc-utils
+```
+
+## 🏗️ Requirements
+
+- Python 3.8+
+- Valid credentials for chosen data provider(s)
+- For Barchart: Paid subscribers get 150 downloads/day, free users get 5
+- For IBKR: Active account and TWS/Gateway running
 

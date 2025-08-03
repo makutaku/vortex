@@ -9,37 +9,70 @@ bc-utils is a Python automation library for downloading historic futures contrac
 ## Development Commands
 
 ### Environment Setup
+
+**🚀 Using uv (Recommended - 10-100x faster than pip):**
 ```bash
-# Method 1: Using uv (recommended - faster and more reliable)
-# Install uv if not already installed: curl -LsSf https://astral.sh/uv/install.sh | sh
-uv venv bcutils_env
-source bcutils_env/bin/activate  # Linux/Mac
-# or bcutils_env\Scripts\activate  # Windows
+# Install uv if not already installed
+curl -LsSf https://astral.sh/uv/install.sh | sh
+# or on Windows: powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+
+# Create virtual environment and install bc-utils with all dependencies
+uv venv
+source .venv/bin/activate  # Linux/Mac
+# or .venv\Scripts\activate  # Windows
+
+# Install bc-utils in development mode
 uv pip install -e .
 
-# Method 2: Using pip
+# Or install specific dependency groups
+uv pip install -e ".[dev]"     # Development dependencies
+uv pip install -e ".[test]"    # Testing dependencies
+uv pip install -e ".[lint]"    # Linting dependencies
+```
+
+**Alternative methods:**
+```bash
+# Method 2: Traditional pip (slower)
 pip install -e .
 
 # Method 3: Install from PyPI (when published)
-pip install bc-utils
+uv pip install bc-utils
+# or: pip install bc-utils
 ```
 
 ### Testing
 ```bash
-# Run tests using pytest
-pytest bcutils/tests/
+# Using uv (recommended)
+uv run pytest src/bcutils/tests/
+uv run pytest src/bcutils/tests/test_downloader.py
 
-# Run specific test
-pytest bcutils/tests/test_downloader.py
+# With coverage
+uv run pytest --cov=bcutils src/bcutils/tests/
+
+# Install test dependencies and run
+uv pip install -e ".[test]"
+uv run pytest
+
+# Traditional method
+pytest src/bcutils/tests/
 ```
 
 ### Code Quality
 ```bash
-# Lint with flake8 (defined in pyproject.toml dev dependencies)
-flake8 bcutils/
+# Using uv (recommended)
+uv pip install -e ".[lint]"
+uv run flake8 src/bcutils/
+uv run black src/bcutils/ --check
+uv run isort src/bcutils/ --check-only
 
-# Type checking (if available)
-# No specific type checker configured, but code uses type hints
+# Format code
+uv run black src/bcutils/
+uv run isort src/bcutils/
+
+# Traditional method
+flake8 src/bcutils/
+black src/bcutils/
+isort src/bcutils/
 ```
 
 ### Modern CLI Usage
