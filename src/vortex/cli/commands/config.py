@@ -23,8 +23,8 @@ logger = get_module_logger()
 )
 @click.option(
     "--provider",
-    type=click.Choice(["barchart", "yahoo", "ibkr"], case_sensitive=False),
-    help="Provider to configure"
+    type=str,
+    help="Provider to configure (dynamic based on available plugins)"
 )
 @click.option(
     "--set-credentials",

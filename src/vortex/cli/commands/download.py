@@ -24,6 +24,7 @@ from ...initialization.config_utils import InstrumentConfig
 from ...config import ConfigManager
 from ...logging_integration import get_module_logger, get_module_performance_logger
 from ...plugins import get_provider_registry
+from ..utils.provider_utils import get_available_providers, get_provider_config_from_vortex_config
 from ..utils.instrument_parser import parse_instruments
 from ..ux import get_ux, enhanced_error_handler, validate_symbols
 from ..completion import complete_provider, complete_symbol, complete_symbols_file, complete_assets_file, complete_date
@@ -67,9 +68,9 @@ def get_default_assets_file(provider: str) -> Path:
 @enhanced_error_handler
 @click.option(
     "--provider", "-p",
-    type=click.Choice(["barchart", "yahoo", "ibkr"], case_sensitive=False),
+    type=str,
     required=True,
-    help="Data provider to use",
+    help="Data provider to use (dynamic based on available plugins)",
     shell_complete=complete_provider
 )
 @click.option(
@@ -171,6 +172,17 @@ def download(
         # Run without installation
         uv run vortex download --help
     """
+    # Validate provider exists in plugin registry
+    try:
+        registry = get_provider_registry()
+        registry.get_plugin(provider)  # This will raise PluginNotFoundError if not found
+    except Exception as e:
+        available_providers = get_available_providers()
+        ux.print_error(f"Provider '{provider}' not found")
+        ux.print_info(f"Available providers: {', '.join(available_providers)}")
+        ux.print_info("💡 Use 'vortex providers --list' to see all available providers")
+        raise click.Abort()
+    
     # Get configuration
     config_manager = ConfigManager(ctx.obj.get('config_file'))
     
@@ -390,38 +402,8 @@ def create_downloader(provider: str, download_config: dict):
     try:
         registry = get_provider_registry()
         
-        # Get provider-specific configuration from vortex config
-        provider_config = {}
-        
-        if provider == "barchart":
-            barchart_config = vortex_config.providers.barchart
-            provider_config = {
-                "username": barchart_config.username,
-                "password": barchart_config.password,
-                "daily_limit": barchart_config.daily_limit,
-                "timeout": vortex_config.general.timeout,
-                "max_retries": vortex_config.general.max_retries,
-            }
-        elif provider == "yahoo":
-            provider_config = {
-                "timeout": vortex_config.general.timeout,
-                "max_retries": vortex_config.general.max_retries,
-            }
-        elif provider == "ibkr":
-            ibkr_config = vortex_config.providers.ibkr
-            provider_config = {
-                "host": ibkr_config.host,
-                "port": ibkr_config.port,
-                "client_id": getattr(ibkr_config, 'client_id', 1),
-                "timeout": vortex_config.general.timeout,
-                "max_retries": vortex_config.general.max_retries,
-            }
-        else:
-            # For unknown providers, try to create with minimal config
-            provider_config = {
-                "timeout": getattr(vortex_config.general, 'timeout', 30),
-                "max_retries": getattr(vortex_config.general, 'max_retries', 3),
-            }
+        # Get provider-specific configuration dynamically
+        provider_config = get_provider_config_from_vortex_config(provider, vortex_config)
         
         # Create data provider through plugin system
         data_provider = registry.create_provider(provider, provider_config)

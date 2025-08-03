@@ -21,8 +21,8 @@ logger = logging.getLogger(__name__)
 )
 @click.option(
     "--provider",
-    type=click.Choice(["barchart", "yahoo", "ibkr"], case_sensitive=False),
-    help="Expected data provider format"
+    type=str,
+    help="Expected data provider format (dynamic based on available plugins)"
 )
 @click.option(
     "--fix",

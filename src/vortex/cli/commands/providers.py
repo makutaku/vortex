@@ -10,6 +10,7 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from ..utils.config_manager import ConfigManager
 from ...plugins import get_provider_registry
+from ..utils.provider_utils import get_available_providers, check_provider_configuration
 
 console = Console()
 logger = logging.getLogger(__name__)
@@ -22,12 +23,12 @@ logger = logging.getLogger(__name__)
 )
 @click.option(
     "--test",
-    type=click.Choice(["barchart", "yahoo", "ibkr", "all"], case_sensitive=False),
-    help="Test provider connectivity"
+    type=str,
+    help="Test provider connectivity (use 'all' to test all providers)"
 )
 @click.option(
     "--info",
-    type=click.Choice(["barchart", "yahoo", "ibkr"], case_sensitive=False),
+    type=str,
     help="Show detailed provider information"
 )
 @click.pass_context
@@ -61,10 +62,23 @@ def providers(
         return
     
     if test:
+        # Validate test parameter
+        if test != "all" and test not in get_available_providers():
+            available_providers = get_available_providers()
+            console.print(f"[red]Unknown provider '{test}'[/red]")
+            console.print(f"Available providers: {', '.join(available_providers)}")
+            console.print("Use 'all' to test all providers")
+            return
         test_providers(config_manager, test)
         return
     
     if info:
+        # Validate info parameter
+        if info not in get_available_providers():
+            available_providers = get_available_providers()
+            console.print(f"[red]Unknown provider '{info}'[/red]")
+            console.print(f"Available providers: {', '.join(available_providers)}")
+            return
         show_provider_info(config_manager, info)
 
 def show_providers_list(config_manager: ConfigManager) -> None:
@@ -86,18 +100,9 @@ def show_providers_list(config_manager: ConfigManager) -> None:
                 plugin_info = registry.get_plugin_info(provider_name)
                 provider_config = config.get("providers", {}).get(provider_name, {})
                 
-                # Check if configured based on plugin requirements
-                if plugin_info["requires_auth"]:
-                    # Check for required authentication fields
-                    if provider_name == "barchart":
-                        configured = bool(provider_config.get("username"))
-                    elif provider_name == "ibkr":
-                        configured = bool(provider_config.get("host"))
-                    else:
-                        # Generic check for any configuration
-                        configured = len(provider_config) > 0
-                else:
-                    configured = True  # No auth required
+                # Check if configured using dynamic plugin-based validation
+                config_status = check_provider_configuration(provider_name, provider_config)
+                configured = config_status["configured"]
                 
                 status = "✓ Available" if configured else "⚠ Not configured"
                 
@@ -106,12 +111,25 @@ def show_providers_list(config_manager: ConfigManager) -> None:
                 if len(plugin_info["supported_assets"]) > 3:
                     assets_str += f", +{len(plugin_info['supported_assets']) - 3} more"
                 
-                # Format authentication info
+                # Format authentication info dynamically
                 auth_info = "None required" if not plugin_info["requires_auth"] else "Required"
-                if provider_name == "barchart":
-                    auth_info = "Username/Password"
-                elif provider_name == "ibkr":
-                    auth_info = "TWS/Gateway"
+                
+                # Get more specific auth info from plugin if available
+                try:
+                    registry_plugin = registry.get_plugin(provider_name)
+                    auth_details = getattr(registry_plugin.metadata, 'auth_method', None)
+                    if auth_details:
+                        auth_info = auth_details
+                    elif plugin_info["requires_auth"]:
+                        # Try to infer from plugin description or name
+                        if "username" in str(plugin_info.get("config_schema", {})).lower():
+                            auth_info = "Username/Password"
+                        elif "gateway" in plugin_info["description"].lower() or "tws" in plugin_info["description"].lower():
+                            auth_info = "TWS/Gateway"
+                        else:
+                            auth_info = "Authentication required"
+                except Exception:
+                    pass  # Use default auth_info
                 
                 # Format rate limits
                 rate_limits = plugin_info.get("rate_limits", "Not specified")
@@ -160,43 +178,54 @@ def _show_fallback_providers_list(config_manager: ConfigManager) -> None:
     table.add_column("Authentication")
     table.add_column("Rate Limits")
     
-    providers_info = {
+    # Get available providers dynamically, but with fallback info
+    available_providers = get_available_providers()
+    config = config_manager.load_config()
+    
+    # Default info for common providers if registry fails
+    fallback_info = {
         "barchart": {
-            "status": "✓ Available",
             "data_types": "Futures, Stocks, Options",
             "auth": "Username/Password",
-            "limits": "150/day"
+            "limits": "150/day",
+            "requires_auth": True,
+            "auth_fields": ["username"]
         },
         "yahoo": {
-            "status": "✓ Available",
             "data_types": "Stocks, ETFs, Indices",
             "auth": "None required",
-            "limits": "Unlimited"
+            "limits": "Unlimited",
+            "requires_auth": False,
+            "auth_fields": []
         },
         "ibkr": {
-            "status": "✓ Available",
             "data_types": "All asset classes",
             "auth": "TWS/Gateway",
-            "limits": "Real-time connection"
+            "limits": "Real-time connection",
+            "requires_auth": True,
+            "auth_fields": ["host"]
         }
     }
     
-    config = config_manager.load_config()
-    
-    for provider, info in providers_info.items():
+    for provider in available_providers:
         provider_config = config.get("providers", {}).get(provider, {})
+        info = fallback_info.get(provider, {
+            "data_types": "Unknown",
+            "auth": "Unknown",
+            "limits": "Unknown",
+            "requires_auth": True,
+            "auth_fields": []
+        })
         
-        # Check if configured
-        if provider == "barchart":
-            configured = bool(provider_config.get("username"))
-        elif provider == "yahoo":
-            configured = True  # No config needed
-        elif provider == "ibkr":
-            configured = bool(provider_config.get("host"))
+        # Check if configured dynamically
+        if not info["requires_auth"]:
+            configured = True
+        elif info["auth_fields"]:
+            configured = any(provider_config.get(field) for field in info["auth_fields"])
         else:
-            configured = False
+            configured = len(provider_config) > 0
         
-        status = info["status"] if configured else "⚠ Not configured"
+        status = "✓ Available" if configured else "⚠ Not configured"
         
         table.add_row(
             provider.upper(),
@@ -259,25 +288,13 @@ def test_single_provider_via_plugin(config_manager: ConfigManager, provider: str
         # Get plugin info to check requirements
         plugin_info = registry.get_plugin_info(provider)
         
-        # Check if provider requires configuration
-        if plugin_info["requires_auth"]:
-            if provider == "barchart":
-                if not provider_config.get("username") or not provider_config.get("password"):
-                    return {
-                        "success": False,
-                        "message": "Not configured (missing username/password)"
-                    }
-            elif provider == "ibkr":
-                if not provider_config.get("host"):
-                    return {
-                        "success": False,
-                        "message": "Not configured (missing host)"
-                    }
-            elif not provider_config:
-                return {
-                    "success": False,
-                    "message": "Not configured (authentication required)"
-                }
+        # Check if provider requires configuration using dynamic validation
+        config_status = check_provider_configuration(provider, provider_config)
+        if not config_status["configured"]:
+            return {
+                "success": False,
+                "message": config_status["message"]
+            }
         
         # Test connection via plugin
         test_result = registry.test_provider(provider, provider_config)
@@ -303,7 +320,7 @@ def test_single_provider_via_plugin(config_manager: ConfigManager, provider: str
 
 def _test_providers_fallback(config_manager: ConfigManager, provider: str) -> None:
     """Fallback testing when plugins fail."""
-    providers_to_test = ["barchart", "yahoo", "ibkr"] if provider == "all" else [provider]
+    providers_to_test = get_available_providers() if provider == "all" else [provider]
     
     console.print(f"[bold]Testing provider connectivity (fallback)...[/bold]")
     
