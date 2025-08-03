@@ -1,4 +1,4 @@
-# BC-Utils Integration Design
+# Vortex Integration Design
 
 **Version:** 1.0  
 **Date:** 2025-01-08  
@@ -7,7 +7,7 @@
 ## 1. Integration Architecture Overview
 
 ### 1.1 Integration Philosophy
-BC-Utils follows an adapter-based integration pattern that isolates external system dependencies behind well-defined interfaces. This approach ensures system resilience, testability, and flexibility when provider APIs change or new data sources are added.
+Vortex follows an adapter-based integration pattern that isolates external system dependencies behind well-defined interfaces. This approach ensures system resilience, testability, and flexibility when provider APIs change or new data sources are added.
 
 ### 1.2 Integration Objectives
 - **Provider Independence:** Abstract away provider-specific implementation details
@@ -19,8 +19,8 @@ BC-Utils follows an adapter-based integration pattern that isolates external sys
 ### 1.3 Integration Landscape
 ```mermaid
 graph TB
-    subgraph "BC-Utils Core"
-        Core[BC-Utils Application]
+    subgraph "Vortex Core"
+        Core[Vortex Application]
         Adapter[Integration Adapters]
         Queue[Message Queue]
     end
@@ -104,7 +104,7 @@ class RestApiAdapter:
         
         # Set headers
         session.headers.update({
-            'User-Agent': 'BC-Utils/1.0',
+            'User-Agent': 'Vortex/1.0',
             'Accept': 'application/json',
             'Accept-Encoding': 'gzip, deflate'
         })

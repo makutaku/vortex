@@ -1,4 +1,4 @@
-# BC-Utils Provider Abstraction Design
+# Vortex Provider Abstraction Design
 
 **Version:** 1.0  
 **Date:** 2025-01-08  
@@ -7,7 +7,7 @@
 ## 1. Provider Abstraction Overview
 
 ### 1.1 Design Rationale
-The provider abstraction layer enables BC-Utils to integrate with multiple financial data sources through a unified interface. This design supports the Strategy pattern, allowing runtime provider selection and seamless addition of new data sources.
+The provider abstraction layer enables Vortex to integrate with multiple financial data sources through a unified interface. This design supports the Strategy pattern, allowing runtime provider selection and seamless addition of new data sources.
 
 ### 1.2 Key Benefits
 - **Extensibility:** Add new providers without modifying existing code

@@ -1,8 +1,8 @@
-# BC-Utils Documentation
+# Vortex Documentation
 
 ## 📚 Documentation Overview
 
-This directory contains comprehensive documentation for the BC-Utils financial data automation system. The documentation is organized into product requirements and technical design documents.
+This directory contains comprehensive documentation for the Vortex financial data automation system. The documentation is organized into product requirements and technical design documents.
 
 ### 📋 Product Requirements (PRD)
 Defines what the system should do from a business perspective.
@@ -90,7 +90,7 @@ Describes how the system is architected and implemented.
 ## 🔗 External References
 
 - [Development Guide](../CLAUDE.md) - Developer setup and common commands
-- BC-Utils GitHub Repository *(this repository)*
+- Vortex GitHub Repository *(this repository)*
 - API Documentation *(when available)*
 - User Manual *(when available)*
 

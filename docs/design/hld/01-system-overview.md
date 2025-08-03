@@ -216,7 +216,7 @@ graph TB
     
     subgraph "Docker Deployment"
         Compose[Docker Compose]
-        Container[BC-Utils Container]
+        Container[Vortex Container]
         Cron[Internal Cron Scheduler]
         Volumes[Data & Config Volumes]
         Entrypoint[Smart Entrypoint Script]
@@ -274,7 +274,7 @@ graph TB
 ```mermaid
 graph TB
     subgraph "Trusted Environment"
-        App[BC-Utils Application]
+        App[Vortex Application]
         Config[Configuration Files]
         Data[Data Storage]
     end

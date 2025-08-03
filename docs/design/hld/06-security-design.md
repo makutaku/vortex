@@ -1,4 +1,4 @@
-# BC-Utils Security Design
+# Vortex Security Design
 
 **Version:** 1.0  
 **Date:** 2025-01-08  
@@ -7,7 +7,7 @@
 ## 1. Security Architecture Overview
 
 ### 1.1 Security Philosophy
-BC-Utils implements defense-in-depth security with zero-trust principles. The design prioritizes credential protection, data integrity, and audit transparency while maintaining operational simplicity for legitimate use cases.
+Vortex implements defense-in-depth security with zero-trust principles. The design prioritizes credential protection, data integrity, and audit transparency while maintaining operational simplicity for legitimate use cases.
 
 ### 1.2 Security Objectives
 - **Credential Protection:** No hardcoded secrets, secure credential management
@@ -66,7 +66,7 @@ graph LR
         Files[Encrypted Files]
     end
     
-    subgraph "BC-Utils Application"
+    subgraph "Vortex Application"
         CredMgr[Credential Manager]
         Cache[Secure Cache]
         Rotation[Auto Rotation]
@@ -450,7 +450,7 @@ class SecureHTTPSession:
         
         # Security headers
         self.session.headers.update({
-            'User-Agent': 'BC-Utils/1.0 (Financial Data Client)',
+            'User-Agent': 'Vortex/1.0 (Financial Data Client)',
             'Accept': 'application/json, text/csv, */*',
             'Accept-Encoding': 'gzip, deflate',
             'Connection': 'keep-alive',
@@ -564,7 +564,7 @@ class CertificatePinner:
 ### 5.1 Role-Based Access Control
 ```python
 class AccessControlManager:
-    """Manage access control for BC-Utils operations"""
+    """Manage access control for Vortex operations"""
     
     def __init__(self):
         self.roles = {

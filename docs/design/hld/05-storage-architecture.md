@@ -1,4 +1,4 @@
-# BC-Utils Storage Architecture
+# Vortex Storage Architecture
 
 **Version:** 1.0  
 **Date:** 2025-01-08  
@@ -7,7 +7,7 @@
 ## 1. Storage Architecture Overview
 
 ### 1.1 Design Philosophy
-BC-Utils implements a dual-format storage strategy optimized for both human accessibility and analytical performance. The architecture supports pluggable storage backends with automatic format conversion and data lifecycle management.
+Vortex implements a dual-format storage strategy optimized for both human accessibility and analytical performance. The architecture supports pluggable storage backends with automatic format conversion and data lifecycle management.
 
 ### 1.2 Storage Objectives
 - **Dual Format:** CSV for human readability, Parquet for performance

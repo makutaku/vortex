@@ -453,7 +453,7 @@ graph TB
         IBAPI[ib-insync]
     end
     
-    subgraph "BC-Utils Components"
+    subgraph "Vortex Components"
         CLI[CLI Module]
         DM[Download Manager]
         Providers[Data Providers]

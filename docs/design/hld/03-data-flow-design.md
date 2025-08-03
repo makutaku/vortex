@@ -1,4 +1,4 @@
-# BC-Utils Data Flow Design
+# Vortex Data Flow Design
 
 **Version:** 1.0  
 **Date:** 2025-01-08  
@@ -7,7 +7,7 @@
 ## 1. Data Flow Overview
 
 ### 1.1 End-to-End Pipeline
-BC-Utils implements a linear data processing pipeline with clear stages, error handling, and validation checkpoints at each transformation.
+Vortex implements a linear data processing pipeline with clear stages, error handling, and validation checkpoints at each transformation.
 
 ```mermaid
 graph TB

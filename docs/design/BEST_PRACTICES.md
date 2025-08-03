@@ -1,4 +1,4 @@
-# BC-Utils Documentation Best Practices
+# Vortex Documentation Best Practices
 
 **Version:** 1.0  
 **Date:** 2025-01-08  

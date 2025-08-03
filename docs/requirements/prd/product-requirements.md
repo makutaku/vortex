@@ -1,4 +1,4 @@
-# BC-Utils Product Requirements Document
+# Vortex Product Requirements Document
 
 **Version:** 1.0  
 **Date:** 2025-01-08  
@@ -7,7 +7,7 @@
 ## 1. Executive Summary
 
 ### 1.1 Product Vision
-BC-Utils transforms manual financial data acquisition into an automated, reliable, and scalable system for quantitative analysis and systematic trading.
+Vortex transforms manual financial data acquisition into an automated, reliable, and scalable system for quantitative analysis and systematic trading.
 
 ### 1.2 Business Objectives
 - **Eliminate manual effort** in downloading historic market data

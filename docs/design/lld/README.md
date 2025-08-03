@@ -2,7 +2,7 @@
 
 ## 🔧 Implementation Documentation
 
-This directory contains detailed implementation specifications for BC-Utils components. These documents provide the technical details needed for development and maintenance.
+This directory contains detailed implementation specifications for Vortex components. These documents provide the technical details needed for development and maintenance.
 
 ### Core Implementation Documents
 1. **[Component Implementation](01-component-implementation.md)** - Detailed component implementations and patterns

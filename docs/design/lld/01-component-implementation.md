@@ -16,7 +16,7 @@
 @click.option('-v', '--verbose', count=True)
 @click.option('--dry-run', is_flag=True)
 def cli():
-    """BC-Utils: Financial data download automation tool."""
+    """Vortex: Financial data download automation tool."""
 ```
 
 **Rich Terminal Integration:**

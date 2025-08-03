@@ -1,4 +1,4 @@
-# BC-Utils Deployment Architecture
+# Vortex Deployment Architecture
 
 **Version:** 1.0  
 **Date:** 2025-01-08  
@@ -6,7 +6,7 @@
 
 ## 1. Deployment Overview
 
-BC-Utils supports multiple deployment scenarios from individual development workstations to enterprise-scale container orchestration platforms. The deployment architecture emphasizes simplicity, security, and operational reliability.
+Vortex supports multiple deployment scenarios from individual development workstations to enterprise-scale container orchestration platforms. The deployment architecture emphasizes simplicity, security, and operational reliability.
 
 ### 1.1 Deployment Scenarios
 ```mermaid
@@ -107,7 +107,7 @@ CMD ["./entrypoint.sh"]
 version: '3.8'
 
 services:
-  bc-utils:
+  vortex:
     build: .
     environment:
       - BCU_OUTPUT_DIR=/data
@@ -174,7 +174,7 @@ VOLUME ["/tmp", "/data"]
 --security-opt=no-new-privileges:true
 
 # AppArmor/SELinux profiles
---security-opt=apparmor:bc-utils-profile
+--security-opt=apparmor:vortex-profile
 ```
 
 ## 3. Kubernetes Deployment
@@ -185,9 +185,9 @@ VOLUME ["/tmp", "/data"]
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: bc-utils
+  name: vortex
   labels:
-    app.kubernetes.io/name: bc-utils
+    app.kubernetes.io/name: vortex
     app.kubernetes.io/version: "1.0"
 
 ---
@@ -195,8 +195,8 @@ metadata:
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: bc-utils-config
-  namespace: bc-utils
+  name: vortex-config
+  namespace: vortex
 data:
   config.json: |
     {
@@ -213,8 +213,8 @@ data:
 apiVersion: v1
 kind: Secret
 metadata:
-  name: bc-utils-secrets
-  namespace: bc-utils
+  name: vortex-secrets
+  namespace: vortex
 type: Opaque
 data:
   BCU_USERNAME: <base64-encoded-username>
@@ -225,8 +225,8 @@ data:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: bc-utils-data
-  namespace: bc-utils
+  name: vortex-data
+  namespace: vortex
 spec:
   accessModes:
     - ReadWriteOnce
@@ -242,8 +242,8 @@ spec:
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: bc-utils-daily
-  namespace: bc-utils
+  name: vortex-daily
+  namespace: vortex
 spec:
   schedule: "0 6 * * 1-5"  # 6 AM weekdays
   timeZone: "America/New_York"
@@ -255,7 +255,7 @@ spec:
       template:
         metadata:
           labels:
-            app.kubernetes.io/name: bc-utils
+            app.kubernetes.io/name: vortex
             app.kubernetes.io/component: data-download
         spec:
           restartPolicy: OnFailure
@@ -265,17 +265,17 @@ spec:
             runAsGroup: 1000
             fsGroup: 1000
           containers:
-          - name: bc-utils
-            image: bc-utils:1.0
+          - name: vortex
+            image: vortex:1.0
             imagePullPolicy: IfNotPresent
             env:
             - name: BCU_OUTPUT_DIR
               value: "/data"
             envFrom:
             - configMapRef:
-                name: bc-utils-config
+                name: vortex-config
             - secretRef:
-                name: bc-utils-secrets
+                name: vortex-secrets
             resources:
               requests:
                 memory: "512Mi"
@@ -292,10 +292,10 @@ spec:
           volumes:
           - name: data
             persistentVolumeClaim:
-              claimName: bc-utils-data
+              claimName: vortex-data
           - name: config
             configMap:
-              name: bc-utils-config
+              name: vortex-config
 ```
 
 ### 3.3 Monitoring and Observability
@@ -304,12 +304,12 @@ spec:
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: bc-utils-metrics
-  namespace: bc-utils
+  name: vortex-metrics
+  namespace: vortex
 spec:
   selector:
     matchLabels:
-      app.kubernetes.io/name: bc-utils
+      app.kubernetes.io/name: vortex
   endpoints:
   - port: metrics
     interval: 30s
@@ -320,12 +320,12 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: bc-utils-netpol
-  namespace: bc-utils
+  name: vortex-netpol
+  namespace: vortex
 spec:
   podSelector:
     matchLabels:
-      app.kubernetes.io/name: bc-utils
+      app.kubernetes.io/name: vortex
   policyTypes:
   - Ingress
   - Egress
@@ -352,7 +352,7 @@ Resources:
   BCUtilsTaskDefinition:
     Type: AWS::ECS::TaskDefinition
     Properties:
-      Family: bc-utils
+      Family: vortex
       NetworkMode: awsvpc
       RequiresCompatibilities:
         - FARGATE
@@ -361,8 +361,8 @@ Resources:
       ExecutionRoleArn: !Ref BCUtilsExecutionRole
       TaskRoleArn: !Ref BCUtilsTaskRole
       ContainerDefinitions:
-        - Name: bc-utils
-          Image: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/bc-utils:latest"
+        - Name: vortex
+          Image: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/vortex:latest"
           Environment:
             - Name: BCU_OUTPUT_DIR
               Value: /data
@@ -379,7 +379,7 @@ Resources:
             Options:
               awslogs-group: !Ref BCUtilsLogGroup
               awslogs-region: !Ref AWS::Region
-              awslogs-stream-prefix: bc-utils
+              awslogs-stream-prefix: vortex
       Volumes:
         - Name: data
           EFSVolumeConfiguration:
@@ -412,7 +412,7 @@ Resources:
 apiVersion: serving.knative.dev/v1
 kind: Service
 metadata:
-  name: bc-utils
+  name: vortex
   namespace: default
   annotations:
     run.googleapis.com/cpu-throttling: "false"
@@ -427,7 +427,7 @@ spec:
       containerConcurrency: 1
       timeoutSeconds: 3600
       containers:
-      - image: gcr.io/project-id/bc-utils:latest
+      - image: gcr.io/project-id/vortex:latest
         resources:
           limits:
             cpu: "1"
@@ -438,12 +438,12 @@ spec:
         - name: BCU_USERNAME
           valueFrom:
             secretKeyRef:
-              name: bc-utils-secrets
+              name: vortex-secrets
               key: username
         - name: BCU_PASSWORD
           valueFrom:
             secretKeyRef:
-              name: bc-utils-secrets
+              name: vortex-secrets
               key: password
         volumeMounts:
         - name: data
@@ -451,7 +451,7 @@ spec:
       volumes:
       - name: data
         persistentVolumeClaim:
-          claimName: bc-utils-data
+          claimName: vortex-data
 ```
 
 ### 4.3 Azure Deployment
@@ -459,12 +459,12 @@ spec:
 # Azure Container Instances
 apiVersion: 2019-12-01
 location: eastus
-name: bc-utils-container-group
+name: vortex-container-group
 properties:
   containers:
-  - name: bc-utils
+  - name: vortex
     properties:
-      image: bcutils.azurecr.io/bc-utils:latest
+      image: bcutils.azurecr.io/vortex:latest
       resources:
         requests:
           cpu: 0.5
@@ -484,7 +484,7 @@ properties:
   volumes:
   - name: data-volume
     azureFile:
-      shareName: bc-utils-data
+      shareName: vortex-data
       storageAccountName: bcutilsstorage
       storageAccountKey: <storage-key>
 ```
@@ -547,7 +547,7 @@ graph TB
     end
     
     subgraph "Private Network"
-        App[BC-Utils Pods]
+        App[Vortex Pods]
         Storage[Storage Systems]
         Monitor[Monitoring]
     end
@@ -645,9 +645,9 @@ def liveness_check():
 ### 6.3 Backup and Recovery
 ```bash
 #!/bin/bash
-# Backup script for BC-Utils data
+# Backup script for Vortex data
 
-BACKUP_DIR="/backup/bc-utils"
+BACKUP_DIR="/backup/vortex"
 DATA_DIR="/data"
 DATE=$(date +%Y%m%d_%H%M%S)
 
@@ -661,10 +661,10 @@ tar -czf "$BACKUP_DIR/$DATE/data.tar.gz" \
     "$DATA_DIR"
 
 # Backup configuration
-kubectl get configmap bc-utils-config -o yaml > "$BACKUP_DIR/$DATE/config.yaml"
+kubectl get configmap vortex-config -o yaml > "$BACKUP_DIR/$DATE/config.yaml"
 
 # Upload to cloud storage
-aws s3 cp "$BACKUP_DIR/$DATE/" s3://bc-utils-backups/$DATE/ --recursive
+aws s3 cp "$BACKUP_DIR/$DATE/" s3://vortex-backups/$DATE/ --recursive
 
 # Retention policy (keep 30 days)
 find "$BACKUP_DIR" -type d -mtime +30 -exec rm -rf {} \;
@@ -678,7 +678,7 @@ find "$BACKUP_DIR" -type d -mtime +30 -exec rm -rf {} \;
 apiVersion: v1
 kind: Pod
 metadata:
-  name: bc-utils
+  name: vortex
 spec:
   securityContext:
     runAsNonRoot: true
@@ -688,7 +688,7 @@ spec:
     seccompProfile:
       type: RuntimeDefault
   containers:
-  - name: bc-utils
+  - name: vortex
     securityContext:
       allowPrivilegeEscalation: false
       readOnlyRootFilesystem: true
@@ -713,29 +713,29 @@ spec:
       auth:
         kubernetes:
           mountPath: "kubernetes"
-          role: "bc-utils"
+          role: "vortex"
 
 ---
 apiVersion: external-secrets.io/v1beta1
 kind: ExternalSecret
 metadata:
-  name: bc-utils-credentials
+  name: vortex-credentials
 spec:
   refreshInterval: 15s
   secretStoreRef:
     name: vault-backend
     kind: SecretStore
   target:
-    name: bc-utils-secrets
+    name: vortex-secrets
     creationPolicy: Owner
   data:
   - secretKey: BCU_USERNAME
     remoteRef:
-      key: bc-utils/credentials
+      key: vortex/credentials
       property: username
   - secretKey: BCU_PASSWORD
     remoteRef:
-      key: bc-utils/credentials
+      key: vortex/credentials
       property: password
 ```
 
