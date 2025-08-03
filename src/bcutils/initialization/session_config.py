@@ -7,8 +7,8 @@ from typing import List
 
 from ..utils.utils import get_absolute_path
 
-DEFAULT_MARKET_METADATA_FILE: str = "../config.json"
-DEFAULT_DOWNLOAD_DIRECTORY: str = "~/bc-utils/data"
+DEFAULT_MARKET_METADATA_FILE: str = "config.json"
+DEFAULT_DOWNLOAD_DIRECTORY: str = "./data"
 DEFAULT_DAILY_DOWNLOAD_LIMIT: int = 100
 DEFAULT_START_YEAR: int = 2000
 DEFAULT_END_YEAR: int = 2025

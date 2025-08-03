@@ -156,9 +156,42 @@ def test_single_provider(config_manager: ConfigManager, provider: str) -> dict:
         if not provider_config.get("username") or not provider_config.get("password"):
             return {"success": False, "message": "No credentials configured"}
         
-        # TODO: Implement actual Barchart connectivity test
-        # For now, just check if credentials exist
-        return {"success": True, "message": "Credentials configured"}
+        # Test Barchart connectivity by attempting login and checking allowance
+        try:
+            from ...data_providers.bc_data_provider import BarchartDataProvider
+            
+            username = provider_config.get("username")
+            password = provider_config.get("password")
+            
+            # Create provider instance which will attempt login
+            bc_provider = BarchartDataProvider(username, password, daily_download_limit=1)
+            
+            # Check allowance to verify full connectivity
+            url = "https://www.barchart.com/my/download"
+            session = bc_provider.session
+            resp = session.get(url)
+            
+            if resp.status_code == 200:
+                # Extract XSRF token and check allowance
+                xsf_token = BarchartDataProvider.extract_xsrf_token(resp)
+                allowance, _ = bc_provider._fetch_allowance(url, xsf_token)
+                
+                if allowance.get('success'):
+                    current_allowance = int(allowance.get('count', '0'))
+                    return {"success": True, "message": f"Connected - {current_allowance} downloads used today"}
+                else:
+                    return {"success": False, "message": "Allowance check failed"}
+            else:
+                return {"success": False, "message": f"Connection failed - HTTP {resp.status_code}"}
+                
+        except Exception as e:
+            error_msg = str(e)
+            if "Invalid Barchart credentials" in error_msg:
+                return {"success": False, "message": "Invalid credentials"}
+            elif "requests" in error_msg.lower() or "connection" in error_msg.lower():
+                return {"success": False, "message": "Network connection failed"}
+            else:
+                return {"success": False, "message": f"Connection failed: {error_msg[:50]}..."}
         
     elif provider == "yahoo":
         # Test Yahoo Finance connectivity by fetching a small amount of data
