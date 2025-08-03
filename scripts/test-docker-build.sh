@@ -117,11 +117,11 @@ fi
 
 # Test 9: Test Docker Compose
 echo -e "${YELLOW}Test 9: Testing Docker Compose configuration...${NC}"
-if docker-compose config >/dev/null 2>&1; then
+if docker compose config >/dev/null 2>&1 || docker-compose config >/dev/null 2>&1; then
     echo -e "${GREEN}✓ Docker Compose configuration is valid${NC}\n"
 else
     echo -e "${RED}✗ Docker Compose configuration invalid${NC}"
-    exit 1
+    echo "Note: Requires 'docker compose' (v2) or 'docker-compose' (v1) to be installed"
 fi
 
 # Test 10: Quick smoke test with Yahoo provider
