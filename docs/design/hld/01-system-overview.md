@@ -1,24 +1,26 @@
 # BC-Utils System Overview
 
-**Version:** 1.0  
-**Date:** 2025-01-08  
+**Version:** 2.0  
+**Date:** 2025-08-03  
 **Status:** Active  
 
 ## 1. Executive Summary
 
-BC-Utils is an automated financial data acquisition pipeline that transforms manual, time-intensive data collection into a reliable, scalable system. The architecture follows modern Python packaging standards with a modular, extensible design supporting multiple data providers and deployment scenarios.
+BC-Utils is an automated financial data acquisition pipeline that transforms manual, time-intensive data collection into a reliable, scalable system. The architecture follows modern Python packaging standards with a modular, extensible design supporting multiple data providers, modern CLI interface with Click framework, and comprehensive Docker deployment scenarios.
 
 ### 1.1 System Purpose
-- **Automate** historic financial data downloads from multiple sources
-- **Standardize** data formats across different providers  
-- **Ensure** data quality and completeness through validation
-- **Scale** from individual research to institutional data operations
+- **Automate** historic financial data downloads from multiple sources (Barchart, Yahoo Finance, Interactive Brokers)
+- **Standardize** data formats across different providers using pandas DataFrames and CSV/Parquet storage
+- **Ensure** data quality and completeness through validation and intelligent data merging
+- **Scale** from individual research to institutional data operations with Docker deployment
+- **Provide** modern CLI interface with rich terminal output and configuration management
 
 ### 1.2 Key Quality Attributes
-- **Reliability:** 99.5% uptime with automatic retry mechanisms
-- **Extensibility:** Plugin architecture for new data providers
-- **Performance:** Handle 1M+ data points per hour
-- **Security:** Secure credential management and audit trails
+- **Reliability:** Robust error handling with retry mechanisms and graceful failure modes
+- **Extensibility:** Strategy pattern for data providers, extensible storage backends, and CLI command structure
+- **Performance:** Efficient data processing with pandas, intelligent data merging to avoid duplicates
+- **Security:** TOML-based credential management, no hardcoded secrets, secure Docker deployment
+- **Usability:** Modern CLI with Rich terminal output, comprehensive help system, and configuration management
 
 ## 2. System Context
 
@@ -143,11 +145,13 @@ graph TB
 ### 3.2 Core Components
 | Component | Responsibility | Implementation |
 |-----------|----------------|----------------|
-| **Download Manager** | Orchestrates data acquisition workflow | `downloaders/updating_downloader.py` |
-| **Provider Interface** | Abstracts data source implementations | `data_providers/data_provider.py` |
-| **Storage Manager** | Handles data persistence and retrieval | `data_storage/` modules |
-| **Quality Validator** | Ensures data integrity and completeness | `instruments/price_series.py` |
-| **Configuration** | Manages system and instrument settings | `initialization/` modules |
+| **CLI Interface** | Modern command-line interface with Click framework | `cli/main.py`, `cli/commands/` |
+| **Configuration Manager** | TOML-based configuration with provider-specific sections | `cli/utils/config_manager.py` |
+| **Download Orchestrator** | Coordinates download jobs with intelligent scheduling | `downloaders/updating_downloader.py` |
+| **Data Provider Strategy** | Pluggable data source implementations with single dispatch | `data_providers/data_provider.py` |
+| **Storage Bridge** | Dual-format storage with metadata management | `data_storage/csv_storage.py`, `data_storage/parquet_storage.py` |
+| **Instrument Models** | Domain objects for futures, stocks, and forex | `instruments/instrument.py`, `instruments/future.py` |
+| **Session Configuration** | Runtime configuration with validation | `initialization/session_config.py` |
 
 ### 3.3 Data Flow Overview
 ```mermaid
@@ -181,19 +185,23 @@ sequenceDiagram
 | Aspect | Choice | Rationale |
 |--------|--------|-----------|
 | **Language** | Python 3.8+ | Ecosystem compatibility, data science tools |
-| **Packaging** | src/ layout with setuptools | Modern Python standards |
-| **Data Formats** | CSV + Parquet | Human-readable + performance optimized |
-| **Configuration** | JSON + Environment Variables | Simple, version-controllable |
-| **Deployment** | Docker containers | Consistent, isolated environments |
+| **Packaging** | src/ layout with pyproject.toml | Modern Python standards with uv support |
+| **CLI Framework** | Click with Rich | Professional CLI with enhanced terminal output |
+| **Data Processing** | pandas + NumPy | Industry standard for financial data analysis |
+| **Data Formats** | CSV (primary) + Parquet (backup) | Human-readable + performance optimized |
+| **Configuration** | TOML + JSON assets | Structured configuration with instrument definitions |
+| **Deployment** | Docker with Docker Compose | Consistent, isolated environments with orchestration |
+| **Container Build** | Multi-stage with uv | Fast dependency installation and optimized images |
 
 ### 4.3 Quality Attributes Implementation
 | Quality | Strategy | Implementation |
 |---------|----------|----------------|
-| **Reliability** | Retry logic, fallback providers | `retrying` library, exception handling |
-| **Security** | Credential externalization | Environment variables, no hardcoded secrets |
-| **Performance** | Efficient data structures | Pandas, NumPy for data processing |
-| **Maintainability** | Modular design, comprehensive tests | Package structure, pytest framework |
-| **Scalability** | Stateless operations | No shared state between downloads |
+| **Reliability** | Retry with backoff, graceful error handling | Custom retry decorators, comprehensive exception hierarchy |
+| **Security** | Credential externalization, secure defaults | TOML config files, Docker secrets support |
+| **Performance** | Efficient data structures, intelligent merging | pandas DataFrames, avoid duplicate downloads |
+| **Maintainability** | Clean architecture, design patterns | Strategy, Template Method, Single Dispatch patterns |
+| **Scalability** | Stateless design, containerization | Docker deployment, volume mounts for data persistence |
+| **Usability** | Rich CLI, configuration management | Click framework, interactive config setup, progress bars |
 
 ## 5. Deployment Overview
 
@@ -202,36 +210,46 @@ sequenceDiagram
 graph TB
     subgraph "Local Development"
         Dev[Developer Machine]
-        LocalEnv[Virtual Environment]
+        UV[uv Virtual Environment]
+        CLI[Modern CLI Interface]
     end
     
-    subgraph "Production Container"
-        Container[Docker Container]
-        Cron[Cron Scheduler]
-        Storage[Volume Mounts]
+    subgraph "Docker Deployment"
+        Compose[Docker Compose]
+        Container[BC-Utils Container]
+        Cron[Internal Cron Scheduler]
+        Volumes[Data & Config Volumes]
+        Entrypoint[Smart Entrypoint Script]
     end
     
-    subgraph "Cloud Deployment"  
-        K8s[Kubernetes Pod]
-        CronJob[CronJob Controller]
-        PVC[Persistent Volume]
+    subgraph "Container Options"
+        Dockerfile1[Dockerfile - Multi-stage with uv]
+        Dockerfile2[Dockerfile.simple - Single-stage with pip]
     end
     
-    Dev --> LocalEnv
+    Dev --> UV
+    Dev --> CLI
+    Compose --> Container
     Container --> Cron
-    Container --> Storage
-    K8s --> CronJob
-    K8s --> PVC
+    Container --> Volumes
+    Container --> Entrypoint
+    Dockerfile1 --> Container
+    Dockerfile2 --> Container
     
     style Container fill:#e1f5fe
-    style K8s fill:#e1f5fe
+    style Compose fill:#e1f5fe
+    style UV fill:#fff3e0
 ```
 
 ### 5.2 Runtime Environment
-- **Python Runtime:** 3.8+ with virtual environment isolation
-- **System Dependencies:** Minimal (curl for health checks)
-- **Resource Requirements:** <1GB RAM, <10GB storage typical
-- **Network:** HTTPS outbound to data provider APIs
+- **Python Runtime:** 3.11 in Docker containers, 3.8+ for local development
+- **Package Management:** uv for fast dependency installation (10-100x faster than pip)
+- **System Dependencies:** tini (init system), cron (scheduling), build-essential (for compilation)
+- **Container Architecture:** Multi-stage builds with optimized final images
+- **Resource Requirements:** <1GB RAM, <10GB storage typical, configurable limits
+- **Network:** HTTPS outbound to data provider APIs, no inbound ports required
+- **Scheduling:** Internal cron daemon for automated downloads
+- **Health Monitoring:** Built-in health checks and log management
 
 ## 6. Integration Points
 
@@ -321,16 +339,18 @@ graph TB
 ## 10. Future Architecture Considerations
 
 ### 10.1 Evolutionary Architecture
-- **Real-time Data:** Streaming data support for live feeds
-- **Cloud-Native:** Kubernetes operators for scaled deployments
-- **Machine Learning:** Data quality anomaly detection
-- **Multi-Tenancy:** Shared infrastructure with isolation
+- **Real-time Data:** WebSocket support for live market feeds
+- **Cloud-Native:** Kubernetes CronJobs and operators for scaled deployments
+- **Machine Learning:** Data quality anomaly detection and smart scheduling
+- **API Gateway:** REST API for programmatic access to data and system control
+- **Multi-Provider Orchestration:** Intelligent provider switching and fallback strategies
 
 ### 10.2 Technical Debt Management
-- **Legacy Support:** Gradual migration from absolute to relative imports
-- **Dependency Management:** Regular updates with security scanning
-- **Code Quality:** Continuous refactoring with test coverage
-- **Documentation:** Keep architecture docs current with implementation
+- **Modern Python:** Continued adoption of Python 3.10+ features (pattern matching, type hints)
+- **Dependency Management:** Regular uv.lock updates with automated security scanning
+- **Code Quality:** Comprehensive test coverage with pytest, static analysis with mypy
+- **Container Security:** Regular base image updates, vulnerability scanning
+- **Documentation:** Keep architecture docs synchronized with implementation changes
 
 ## Related Documents
 
@@ -342,5 +362,5 @@ graph TB
 
 ---
 
-**Next Review:** 2025-02-08  
+**Next Review:** 2025-09-03  
 **Reviewers:** System Architect, Lead Developer, DevOps Lead
