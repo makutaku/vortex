@@ -1,6 +1,9 @@
 import os
 import pytest
-from vortex.bc_utils import create_barchart_downloader
+from vortex.data_providers.bc_data_provider import BarchartDataProvider
+from vortex.data_storage.csv_storage import CsvStorage
+from vortex.data_storage.parquet_storage import ParquetStorage
+from vortex.downloaders.updating_downloader import UpdatingDownloader
 from vortex.initialization.session_config import OsEnvironSessionConfig
 
 
@@ -9,6 +12,25 @@ def download_dir(tmp_path):
     download_dir = tmp_path / "prices"
     download_dir.mkdir()
     return download_dir.absolute()
+
+
+def create_barchart_downloader(config: OsEnvironSessionConfig) -> UpdatingDownloader:
+    """Create a barchart downloader for testing."""
+    data_storage = CsvStorage(config.download_directory, config.dry_run)
+    backup_data_storage = ParquetStorage(config.download_directory, config.dry_run) if config.backup_data else None
+    data_provider = BarchartDataProvider(
+        username=config.username,
+        password=config.password,
+        daily_download_limit=config.daily_download_limit
+    )
+    return UpdatingDownloader(
+        data_storage, 
+        data_provider, 
+        backup_data_storage,
+        force_backup=config.force_backup, 
+        random_sleep_in_sec=config.random_sleep_in_sec,
+        dry_run=config.dry_run
+    )
 
 
 class TestDownloader:

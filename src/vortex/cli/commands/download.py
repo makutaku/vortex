@@ -10,7 +10,12 @@ from rich.console import Console
 from rich.table import Table
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
-from ...bc_utils import create_barchart_downloader, create_yahoo_downloader, create_ibkr_downloader
+from ...data_providers.bc_data_provider import BarchartDataProvider
+from ...data_providers.ib_data_provider import IbkrDataProvider
+from ...data_providers.yf_data_provider import YahooDataProvider
+from ...data_storage.csv_storage import CsvStorage
+from ...data_storage.parquet_storage import ParquetStorage
+from ...downloaders.updating_downloader import UpdatingDownloader
 from ...initialization.session_config import SessionConfig
 from ...initialization.config_utils import InstrumentConfig
 from ..utils.config_manager import ConfigManager
@@ -290,14 +295,7 @@ def execute_download(
                 logger.info(f"Downloading {symbol} from {provider}")
                 
                 # Create downloader based on provider
-                if provider == "yahoo":
-                    downloader = create_yahoo_downloader(config)
-                elif provider == "barchart":
-                    downloader = create_barchart_downloader(config)
-                elif provider == "ibkr":
-                    downloader = create_ibkr_downloader(config)
-                else:
-                    raise ValueError(f"Unknown provider: {provider}")
+                downloader = create_downloader(provider, config)
                 
                 # Create a simple instrument (assume stock for now)
                 from ...instruments.stock import Stock
@@ -369,11 +367,33 @@ def create_session_config(
 def create_downloader(provider: str, config: SessionConfig):
     """Create the appropriate downloader for the provider."""
     
+    # Create storage objects
+    data_storage = CsvStorage(config.download_directory, config.dry_run)
+    backup_data_storage = ParquetStorage(config.download_directory, config.dry_run) if config.backup_data else None
+    
+    # Create provider-specific data provider
     if provider == "barchart":
-        return create_barchart_downloader(config)
+        data_provider = BarchartDataProvider(
+            username=config.username,
+            password=config.password,
+            daily_download_limit=config.daily_download_limit
+        )
     elif provider == "yahoo":
-        return create_yahoo_downloader(config)
+        data_provider = YahooDataProvider()
     elif provider == "ibkr":
-        return create_ibkr_downloader(config)
+        data_provider = IbkrDataProvider(
+            ipaddress=config.provider_host, 
+            port=config.provider_port
+        )
     else:
         raise ValueError(f"Unknown provider: {provider}")
+    
+    # Create and return the downloader
+    return UpdatingDownloader(
+        data_storage, 
+        data_provider, 
+        backup_data_storage,
+        force_backup=config.force_backup, 
+        random_sleep_in_sec=config.random_sleep_in_sec,
+        dry_run=config.dry_run
+    )

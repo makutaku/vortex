@@ -144,7 +144,7 @@ vortex validate --path ./data/GC.csv --provider barchart
 
 ### Key Files
 
-- `vortex/bc_utils.py`: Contains downloader factory functions
+- `vortex/cli/commands/download.py`: Contains the modern CLI download command with integrated downloader factory logic
 - `vortex/cli/main.py`: Modern CLI entry point using Click framework
 - `assets/`: Default instrument definitions directory
 - `scripts/build.sh`: Build script for creating distribution artifacts
