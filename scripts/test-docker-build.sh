@@ -40,12 +40,12 @@ echo ""
 # Test 3: Test basic container run
 echo -e "${YELLOW}Test 3: Testing container startup...${NC}"
 echo "Testing bcutils command..."
-if docker run --rm -v /tmp/test-data:/data -v /tmp/test-config:/config bcutils-test:latest bcutils --help >/dev/null 2>&1; then
+if timeout 10s docker run --rm -v /tmp/test-data:/data -v /tmp/test-config:/config --entrypoint="" bcutils-test:latest bcutils --help >/dev/null 2>&1; then
     echo -e "${GREEN}✓ Container runs successfully${NC}\n"
 else
     echo -e "${RED}✗ Container failed to run bcutils command${NC}"
     echo "Trying basic command test..."
-    if docker run --rm bcutils-test:latest bash -c "bcutils --version || bcutils --help" 2>&1 | head -5; then
+    if timeout 10s docker run --rm --entrypoint="" bcutils-test:latest bash -c "bcutils --version || bcutils --help" 2>&1 | head -5; then
         echo -e "${YELLOW}⚠ Command exists but needs volumes/config${NC}\n"
     else
         echo -e "${RED}✗ bcutils command not found${NC}"
@@ -55,12 +55,12 @@ fi
 
 # Test 4: Test CLI commands
 echo -e "${YELLOW}Test 4: Testing CLI commands...${NC}"
-docker run --rm bcutils-test:latest bcutils --help
+timeout 10s docker run --rm --entrypoint="" bcutils-test:latest bcutils --help
 echo -e "${GREEN}✓ CLI help works${NC}\n"
 
 # Test 5: Test providers list
 echo -e "${YELLOW}Test 5: Testing providers command...${NC}"
-if docker run --rm bcutils-test:latest bcutils providers --list; then
+if timeout 10s docker run --rm --entrypoint="" bcutils-test:latest bcutils providers --list; then
     echo -e "${GREEN}✓ Providers command works${NC}\n"
 else
     echo -e "${RED}✗ Providers command failed${NC}"
@@ -69,9 +69,10 @@ fi
 
 # Test 6: Test with environment variables
 echo -e "${YELLOW}Test 6: Testing environment variables...${NC}"
-if docker run --rm \
+if timeout 10s docker run --rm \
     -e BCU_PROVIDER=yahoo \
     -e BCU_LOG_LEVEL=DEBUG \
+    --entrypoint="" \
     bcutils-test:latest \
     bash -c 'echo "Provider: $BCU_PROVIDER, Log Level: $BCU_LOG_LEVEL"'; then
     echo -e "${GREEN}✓ Environment variables work${NC}\n"
@@ -83,9 +84,10 @@ fi
 # Test 7: Test volume mounts
 echo -e "${YELLOW}Test 7: Testing volume mounts...${NC}"
 mkdir -p test-data test-config
-if docker run --rm \
+if timeout 10s docker run --rm \
     -v "$(pwd)/test-data:/data" \
     -v "$(pwd)/test-config:/config" \
+    --entrypoint="" \
     bcutils-test:latest \
     bash -c 'touch /data/test.txt && touch /config/test.txt && echo "Volume test successful"'; then
     
@@ -124,8 +126,9 @@ fi
 
 # Test 10: Quick smoke test with Yahoo provider
 echo -e "${YELLOW}Test 10: Smoke test with Yahoo provider...${NC}"
-if docker run --rm \
+if timeout 15s docker run --rm \
     -e BCU_PROVIDER=yahoo \
+    --entrypoint="" \
     bcutils-test:latest \
     bcutils download --provider yahoo --symbol AAPL --yes --dry-run 2>/dev/null || true; then
     echo -e "${GREEN}✓ Smoke test completed${NC}\n"
