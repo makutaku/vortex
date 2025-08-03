@@ -23,8 +23,11 @@ from ...initialization.config_utils import InstrumentConfig
 from ...config import ConfigManager
 from ...logging_integration import get_module_logger, get_module_performance_logger
 from ..utils.instrument_parser import parse_instruments
+from ..ux import get_ux, enhanced_error_handler, validate_symbols
+from ..completion import complete_provider, complete_symbol, complete_symbols_file, complete_assets_file, complete_date
 
 console = Console()
+ux = get_ux()
 logger = get_module_logger()
 perf_logger = get_module_performance_logger()
 
@@ -59,36 +62,43 @@ def get_default_assets_file(provider: str) -> Path:
     return provider_file
 
 @click.command()
+@enhanced_error_handler
 @click.option(
     "--provider", "-p",
     type=click.Choice(["barchart", "yahoo", "ibkr"], case_sensitive=False),
     required=True,
-    help="Data provider to use"
+    help="Data provider to use",
+    autocompletion=complete_provider
 )
 @click.option(
     "--symbol", "-s",
     multiple=True,
-    help="Symbol(s) to download (can be used multiple times)"
+    help="Symbol(s) to download (can be used multiple times)",
+    autocompletion=complete_symbol
 )
 @click.option(
     "--symbols-file",
     type=click.Path(exists=True, path_type=Path),
-    help="File containing symbols (one per line)"
+    help="File containing symbols (one per line)",
+    autocompletion=complete_symbols_file
 )
 @click.option(
     "--assets", "--assets-file",
     type=click.Path(exists=True, path_type=Path),
-    help="Custom assets file with instruments to download"
+    help="Custom assets file with instruments to download",
+    autocompletion=complete_assets_file
 )
 @click.option(
     "--start-date",
     type=click.DateTime(formats=["%Y-%m-%d"]),
-    help="Start date (YYYY-MM-DD). Default: 30 days ago"
+    help="Start date (YYYY-MM-DD). Default: 30 days ago",
+    autocompletion=complete_date
 )
 @click.option(
     "--end-date",
     type=click.DateTime(formats=["%Y-%m-%d"]),
-    help="End date (YYYY-MM-DD). Default: today"
+    help="End date (YYYY-MM-DD). Default: today",
+    autocompletion=complete_date
 )
 @click.option(
     "--output-dir", "-o",
@@ -170,11 +180,11 @@ def download(
     if not output_dir:
         output_dir = Path("./data")
     
-    # Parse symbols
+    # Parse and validate symbols
     if assets:
         # Load instruments from user-specified assets file
         symbols = load_config_instruments(assets)
-        console.print(f"[green]Loaded {len(symbols)} instruments from {assets}[/green]")
+        ux.print_success(f"Loaded {len(symbols)} instruments from {assets}")
     else:
         symbols = parse_instruments(symbol, symbols_file)
         if not symbols:
@@ -182,13 +192,21 @@ def download(
             try:
                 default_assets_file = get_default_assets_file(provider)
                 symbols = load_config_instruments(default_assets_file)
-                console.print(f"[green]Loaded {len(symbols)} instruments from default {default_assets_file}[/green]")
+                ux.print_success(f"Loaded {len(symbols)} instruments from default {default_assets_file}")
             except (FileNotFoundError, PermissionError, ValueError, KeyError) as e:
                 # Specific exceptions for common file/parsing errors
+                ux.print_error(f"No symbols specified and no default assets found for {provider}")
+                ux.print_info("💡 Try: vortex download -p yahoo -s AAPL")
                 raise MissingArgumentError(
                     "symbol", 
                     "download",
                 ) from e
+    
+    # Validate symbols
+    symbols = validate_symbols(symbols)
+    if not symbols:
+        ux.print_error("No valid symbols to download")
+        raise click.Abort()
     
     # Validate date range
     if start_date >= end_date:
@@ -203,8 +221,8 @@ def download(
     # Show download summary
     show_download_summary(provider, symbols, start_date, end_date, output_dir, backup, force)
     
-    if not yes and not click.confirm("Proceed with download?"):
-        console.print("[yellow]Download cancelled[/yellow]")
+    if not yes and not ux.confirm("Proceed with download?", True):
+        ux.print_warning("Download cancelled")
         return
     
     # Execute download
@@ -222,10 +240,14 @@ def download(
             dry_run=ctx.obj.get('dry_run', False)
         )
         
-        console.print(f"[green]✓ Download completed! {success_count}/{len(symbols)} symbols successful[/green]")
+        if success_count == len(symbols):
+            ux.print_success(f"Download completed! All {success_count} symbols successful")
+        else:
+            ux.print_warning(f"Download completed with issues: {success_count}/{len(symbols)} symbols successful")
+            ux.print_info(f"💡 Check logs for details on failed symbols")
         
     except Exception as e:
-        console.print(f"[red]Download failed: {e}[/red]")
+        ux.print_error(f"Download failed: {e}")
         logger.error("Download process failed", error=str(e))
         raise click.Abort()
 
@@ -286,14 +308,11 @@ def execute_download(
     
     success_count = 0
     
-    with Progress(
-        SpinnerColumn(),
-        TextColumn("[progress.description]{task.description}"),
-        console=console
-    ) as progress:
-        
-        for symbol in symbols:
-            task = progress.add_task(f"Downloading {symbol}...", total=None)
+    with ux.progress(f"Downloading {len(symbols)} symbols") as progress:
+        for i, symbol in enumerate(symbols, 1):
+            progress.update(i - 1, len(symbols), f"Downloading {symbol} ({i}/{len(symbols)})")
+            
+            logger.info(f"Starting download for {symbol}", symbol=symbol, provider=provider)
             
             try:
                 logger.info(f"Starting download for {symbol}", symbol=symbol, provider=provider)
@@ -326,12 +345,12 @@ def execute_download(
                 # Process the download job
                 downloader._process_job(job)
                 
-                progress.update(task, description=f"✓ {symbol} completed")
+                progress.update(i, len(symbols), f"✓ {symbol} completed ({i}/{len(symbols)})")
                 success_count += 1
                 
             except Exception as e:
-                progress.update(task, description=f"✗ {symbol} failed: {e}")
-                logger.error(f"Failed to download {symbol}: {e}")
+                progress.update(i, len(symbols), f"✗ {symbol} failed ({i}/{len(symbols)})")
+                logger.error(f"Failed to download {symbol}: {e}", symbol=symbol, error=str(e))
     
     return success_count
 

@@ -5,6 +5,7 @@ Modern command-line interface for financial data download automation.
 """
 
 import sys
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -24,6 +25,9 @@ except ImportError:
 
 from . import __version__
 from .commands import download, config, providers, validate
+from .help import help as help_command
+from .ux import get_ux, CommandWizard
+from .completion import install_completion
 
 def setup_logging(config_file: Optional[Path] = None, verbose: int = 0) -> None:
     """Set up logging using Vortex configuration system."""
@@ -99,32 +103,102 @@ def cli(ctx: click.Context, config: Optional[Path], verbose: int, dry_run: bool)
     ctx.obj['verbose'] = verbose
     ctx.obj['dry_run'] = dry_run
     
-    # If no command provided, show help
+    # Configure UX based on options
+    ux = get_ux()
+    ux.set_quiet(verbose == 0 and not ctx.invoked_subcommand)
+    ux.set_force_yes(dry_run)
+    
+    # If no command provided, show enhanced welcome
     if ctx.invoked_subcommand is None:
-        if RICH_AVAILABLE and console:
-            console.print(f"[bold green]Vortex v{__version__}[/bold green]")
-            console.print("\nFinancial data download automation tool\n")
-            console.print("Use [bold]vortex --help[/bold] to see available commands")
-            console.print("Use [bold]vortex COMMAND --help[/bold] for command-specific help")
-            console.print("\n[dim]Quick start:[/dim]")
-            console.print("  [cyan]vortex download --help[/cyan]")
-            console.print("  [cyan]vortex config --help[/cyan]")
-        else:
-            print(f"Vortex v{__version__}")
-            print("\nFinancial data download automation tool\n")
-            print("Use 'vortex --help' to see available commands")
-            print("Use 'vortex COMMAND --help' for command-specific help")
-            print("\nQuick start:")
-            print("  vortex config --provider barchart --set-credentials")
-            print("  vortex download --provider barchart --symbol GC")
-            print("\nInstall with uv (10x faster):")
-            print("  curl -LsSf https://astral.sh/uv/install.sh | sh")
-            print("  uv pip install -e .")
+        show_welcome(ux)
+
+def show_welcome(ux):
+    """Show enhanced welcome message."""
+    ux.print_panel(
+        f"🚀 **Vortex v{__version__}**\n\n"
+        "Financial data download automation tool\n\n"
+        "**Quick Commands:**\n"
+        "• `vortex wizard` - Interactive setup wizard\n"
+        "• `vortex help quickstart` - Quick start guide\n"
+        "• `vortex download --help` - Download command help\n"
+        "• `vortex config --help` - Configuration help",
+        title="Welcome to Vortex",
+        style="green"
+    )
+    
+    # Show helpful tips
+    from .help import get_help_system
+    help_system = get_help_system()
+    help_system.show_tips(2)
+
+
+@cli.command()
+@click.pass_context
+def wizard(ctx: click.Context):
+    """Interactive setup and command wizard."""
+    ux = get_ux()
+    command_wizard = CommandWizard(ux)
+    
+    ux.print_panel(
+        "🧙 **Vortex Wizard**\n\n"
+        "Choose what you'd like to do:",
+        title="Interactive Setup",
+        style="magenta"
+    )
+    
+    action = ux.choice(
+        "What would you like to set up?",
+        ["Download data", "Configure providers", "View help", "Exit"],
+        "Download data"
+    )
+    
+    if action == "Download data":
+        config = command_wizard.run_download_wizard()
+        if config.get("execute"):
+            # Execute the download command
+            from .commands.download import download
+            ctx.invoke(download, **_convert_wizard_config_to_params(config))
+    
+    elif action == "Configure providers":
+        config = command_wizard.run_config_wizard()
+        if config.get("provider"):
+            # Execute the config command
+            from .commands.config import config as config_cmd
+            ctx.invoke(config_cmd, provider=config["provider"], set_credentials=True)
+    
+    elif action == "View help":
+        from .help import get_help_system
+        help_system = get_help_system()
+        help_system.show_quick_start()
+    
+    else:
+        ux.print("👋 Goodbye!")
+
+
+def _convert_wizard_config_to_params(config: dict) -> dict:
+    """Convert wizard config to CLI parameters."""
+    params = {
+        "provider": config.get("provider"),
+        "symbol": config.get("symbols", []),
+        "symbols_file": Path(config["symbols_file"]) if config.get("symbols_file") else None,
+        "assets": None,
+        "start_date": datetime.fromisoformat(config["start_date"]) if config.get("start_date") else None,
+        "end_date": datetime.fromisoformat(config["end_date"]) if config.get("end_date") else None,
+        "output_dir": None,
+        "backup": config.get("backup", False),
+        "force": config.get("force", False),
+        "chunk_size": 30,
+        "yes": True  # Skip confirmation in wizard mode
+    }
+    return {k: v for k, v in params.items() if v is not None}
+
 
 # Add command groups
 cli.add_command(download.download)
 cli.add_command(config.config)
 cli.add_command(providers.providers)
+cli.add_command(help_command)
+cli.add_command(install_completion)
 cli.add_command(validate.validate)
 
 def main() -> None:
