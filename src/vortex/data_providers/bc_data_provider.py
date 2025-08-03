@@ -12,6 +12,7 @@ from pandas import DataFrame
 
 from .data_provider import DataProvider, NotFoundError, AllowanceLimitExceeded, DownloadError, \
     LowDataError
+from ..exceptions import DataProviderError
 from ..instruments.columns import CLOSE_COLUMN, DATE_TIME_COLUMN
 from ..instruments.forex import Forex
 from ..instruments.future import Future
@@ -190,8 +191,11 @@ class BarchartDataProvider(DataProvider):
             raise AllowanceLimitExceeded(250, self.max_allowance)
 
         if not allowance['success']:
-            # TODO: pick better exception
-            raise Exception("Neither 'error' nor 'success' key was present in fetch allowance response.")
+            raise DataProviderError(
+                "barchart",
+                "Invalid allowance response format - missing 'success' field",
+                "This may indicate a temporary Barchart API issue. Please try again later."
+            )
 
         current_allowance = int(allowance.get('count', '0'))
         if self.max_allowance is not None and current_allowance > self.max_allowance:

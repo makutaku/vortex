@@ -16,6 +16,10 @@ from ...data_providers.yf_data_provider import YahooDataProvider
 from ...data_storage.csv_storage import CsvStorage
 from ...data_storage.parquet_storage import ParquetStorage
 from ...downloaders.updating_downloader import UpdatingDownloader
+from ...exceptions import (
+    CLIError, MissingArgumentError, InvalidCommandError,
+    ConfigurationError, DataProviderError, DataStorageError
+)
 from ...initialization.session_config import SessionConfig
 from ...initialization.config_utils import InstrumentConfig
 from ..utils.config_manager import ConfigManager
@@ -179,14 +183,19 @@ def download(
                 default_assets_file = get_default_assets_file(provider)
                 symbols = load_config_instruments(default_assets_file)
                 console.print(f"[green]Loaded {len(symbols)} instruments from default {default_assets_file}[/green]")
-            except:
-                console.print("[red]Error: No symbols specified. Use --symbol, --symbols-file, or --assets[/red]")
-                raise click.Abort()
+            except (FileNotFoundError, PermissionError, ValueError, KeyError) as e:
+                # Specific exceptions for common file/parsing errors
+                raise MissingArgumentError(
+                    "symbol", 
+                    "download",
+                ) from e
     
     # Validate date range
     if start_date >= end_date:
-        console.print("[red]Error: Start date must be before end date[/red]")
-        raise click.Abort()
+        raise InvalidCommandError(
+            "download",
+            f"Start date ({start_date.date()}) must be before end date ({end_date.date()})"
+        )
     
     # Create output directory
     output_dir.mkdir(parents=True, exist_ok=True)

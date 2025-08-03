@@ -11,6 +11,8 @@ from typing import Optional
 import click
 import logging
 
+from ..exceptions import VortexError, CLIError
+
 try:
     from rich.console import Console
     from rich.logging import RichHandler
@@ -134,11 +136,29 @@ def main() -> None:
         else:
             print("\nOperation cancelled by user")
         sys.exit(1)
-    except Exception as e:
+    except VortexError as e:
+        # Handle our custom exceptions with proper formatting
         if RICH_AVAILABLE and console:
             console.print(f"[red]Error: {e}[/red]")
         else:
             print(f"Error: {e}")
+        
+        # Log the exception details for debugging
+        if e.error_code:
+            logging.error(f"Vortex error ({e.error_code}): {e.message}")
+        else:
+            logging.error(f"Vortex error: {e.message}")
+        
+        sys.exit(1)
+    except Exception as e:
+        # Handle unexpected exceptions
+        if RICH_AVAILABLE and console:
+            console.print(f"[red]Unexpected error: {e}[/red]")
+            console.print("[yellow]This may be a bug. Please report it at: https://github.com/makutaku/vortex/issues[/yellow]")
+        else:
+            print(f"Unexpected error: {e}")
+            print("This may be a bug. Please report it at: https://github.com/makutaku/vortex/issues")
+        
         logging.exception("Unexpected error occurred")
         sys.exit(1)
 

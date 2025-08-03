@@ -9,6 +9,8 @@ from rich.console import Console
 from rich.table import Table
 from rich.prompt import Prompt, Confirm
 
+from ...exceptions import ConfigurationError, InvalidConfigurationError, MissingArgumentError
+
 from ..utils.config_manager import ConfigManager
 
 console = Console()
@@ -87,9 +89,13 @@ def config(
         try:
             config_manager.import_config(import_file)
             console.print(f"[green]✓ Configuration imported from {import_file}[/green]")
-        except Exception as e:
-            console.print(f"[red]Error importing config: {e}[/red]")
-            raise click.Abort()
+        except (FileNotFoundError, PermissionError) as e:
+            raise ConfigurationError(
+                f"Cannot import configuration: {e}",
+                f"Check that {import_file} exists and is readable"
+            )
+        except ValueError as e:
+            raise InvalidConfigurationError("import_file", import_file, "valid TOML format")
         return
     
     # Handle export
@@ -97,16 +103,17 @@ def config(
         try:
             config_manager.export_config(export)
             console.print(f"[green]✓ Configuration exported to {export}[/green]")
-        except Exception as e:
-            console.print(f"[red]Error exporting config: {e}[/red]")
-            raise click.Abort()
+        except (PermissionError, OSError) as e:
+            raise ConfigurationError(
+                f"Cannot export configuration: {e}",
+                f"Check that you have write permissions for {export}"
+            )
         return
     
     # Handle set credentials
     if set_credentials:
         if not provider:
-            console.print("[red]Error: --provider required when setting credentials[/red]")
-            raise click.Abort()
+            raise MissingArgumentError("--provider", "config --set-credentials")
         
         set_provider_credentials(config_manager, provider)
         return
