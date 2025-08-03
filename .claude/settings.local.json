@@ -18,7 +18,9 @@
       "Bash(bcutils:*)",
       "Bash(git commit:*)",
       "Bash(cp:*)",
-      "Bash(uv run:*)"
+      "Bash(uv run:*)",
+      "Bash(chmod:*)",
+      "Bash(docker build:*)"
     ],
     "deny": []
   }
