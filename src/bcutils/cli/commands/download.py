@@ -1,7 +1,7 @@
 """Download command implementation."""
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional, List
 
@@ -237,6 +237,13 @@ def execute_download(
                 from ...downloaders.download_job import DownloadJob
                 
                 instrument = Stock(id=symbol, symbol=symbol)
+                
+                # Ensure dates are timezone-aware (use UTC if naive)
+                if start_date.tzinfo is None:
+                    start_date = start_date.replace(tzinfo=timezone.utc)
+                if end_date.tzinfo is None:
+                    end_date = end_date.replace(tzinfo=timezone.utc)
+                
                 job = DownloadJob(
                     data_provider=downloader.data_provider,
                     data_storage=downloader.data_storage,
