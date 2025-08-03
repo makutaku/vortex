@@ -6,479 +6,319 @@
 
 ## 1. Storage Interface Implementation
 
-### 1.1 Abstract Storage Base Class
-```python
-from abc import ABC, abstractmethod
-from pathlib import Path
-from typing import List, Dict, Any, Optional
-import pandas as pd
-from datetime import datetime
-import json
-import shutil
+### 1.1 Core Storage Contract
 
+**Abstract Interface:**
+```python
 class DataStorage(ABC):
     """Abstract base class for data storage implementations"""
     
-    def __init__(self, base_directory: str, dry_run: bool = False):
-        self.base_directory = Path(base_directory)
-        self.dry_run = dry_run
-        self.metadata_store = None
-        
     @abstractmethod
-    def save(self, data: pd.DataFrame, filepath: str, **kwargs) -> 'SaveResult':
-        """Save DataFrame to storage with specified path"""
-        pass
+    def save(self, data: pd.DataFrame, filepath: str) -> SaveResult:
+        """Save DataFrame to storage"""
     
     @abstractmethod
-    def load(self, filepath: str, **kwargs) -> pd.DataFrame:
+    def load(self, filepath: str) -> pd.DataFrame:
         """Load DataFrame from storage"""
-        pass
-    
-    @abstractmethod
-    def exists(self, filepath: str) -> bool:
-        """Check if file exists in storage"""
-        pass
-    
-    @abstractmethod
-    def delete(self, filepath: str) -> bool:
-        """Delete file from storage"""
-        pass
-    
-    @abstractmethod
-    def list_files(self, pattern: str = "*") -> List[str]:
-        """List files matching pattern"""
-        pass
-    
-    def get_file_info(self, filepath: str) -> 'FileInfo':
-        """Get detailed file information"""
-        if not self.exists(filepath):
-            raise FileNotFoundError(f"File not found: {filepath}")
-        
-        full_path = self.base_directory / filepath
-        stat = full_path.stat()
-        
-        return FileInfo(
-            path=filepath,
-            size_bytes=stat.st_size,
-            created=datetime.fromtimestamp(stat.st_ctime),
-            modified=datetime.fromtimestamp(stat.st_mtime),
-            format=self._detect_format(filepath)
-        )
-    
-    def get_storage_stats(self) -> 'StorageStats':
-        """Get overall storage statistics"""
-        files = self.list_files()
-        total_size = sum(self.get_file_info(f).size_bytes for f in files)
-        
-        return StorageStats(
-            total_files=len(files),
-            total_size_bytes=total_size,
-            storage_type=self.__class__.__name__,
-            base_directory=str(self.base_directory)
-        )
-        
-    def _detect_format(self, filepath: str) -> str:
-        """Detect file format from extension"""
-        return Path(filepath).suffix.lower().lstrip('.')
 ```
 
-### 1.2 File Storage Base Implementation
-```python
-class FileStorage(DataStorage):
-    """Base implementation for file-based storage"""
-    
-    def __init__(self, base_directory: str, dry_run: bool = False, 
-                 create_subdirs: bool = True, backup_enabled: bool = False):
-        super().__init__(base_directory, dry_run)
-        self.create_subdirs = create_subdirs
-        self.backup_enabled = backup_enabled
-        self.metadata_store = MetadataStore(self.base_directory / ".metadata")
-        
-        # Ensure base directory exists
-        if not dry_run:
-            self.base_directory.mkdir(parents=True, exist_ok=True)
-    
-    def _prepare_file_path(self, filepath: str) -> Path:
-        """Prepare and validate file path"""
-        full_path = self.base_directory / filepath
-        
-        # Create parent directories if needed
-        if self.create_subdirs and not self.dry_run:
-            full_path.parent.mkdir(parents=True, exist_ok=True)
-        
-        return full_path
-    
-    def _atomic_save(self, data: pd.DataFrame, filepath: str, 
-                    save_func: callable) -> 'SaveResult':
-        """Perform atomic save operation with backup"""
-        full_path = self._prepare_file_path(filepath)
-        temp_path = full_path.with_suffix(full_path.suffix + '.tmp')
-        backup_path = full_path.with_suffix(full_path.suffix + '.backup')
-        
-        try:
-            # Save to temporary file first
-            save_func(data, temp_path)
-            
-            # Create backup if file exists
-            if full_path.exists() and self.backup_enabled:
-                shutil.copy2(full_path, backup_path)
-            
-            # Atomic move from temp to final location
-            shutil.move(temp_path, full_path)
-            
-            # Update metadata
-            if self.metadata_store:
-                self.metadata_store.update_file_metadata(
-                    filepath, len(data), data.memory_usage(deep=True).sum()
-                )
-            
-            return SaveResult(
-                success=True,
-                filepath=str(full_path),
-                row_count=len(data),
-                file_size_bytes=full_path.stat().st_size
-            )
-            
-        except Exception as e:
-            # Cleanup temp file if it exists
-            if temp_path.exists():
-                temp_path.unlink()
-            
-            # Restore from backup if needed
-            if backup_path.exists() and not full_path.exists():
-                shutil.move(backup_path, full_path)
-            
-            raise StorageError(f"Failed to save {filepath}: {e}") from e
-        
-        finally:
-            # Cleanup backup file
-            if backup_path.exists():
-                backup_path.unlink()
+**Key Design Decisions:**
+- **Path abstraction**: All paths relative to base directory
+- **Atomic operations**: Use temporary files for safe writes
+- **Metadata tracking**: Automatic file statistics collection
+
+**Source Reference:** `src/bcutils/data_storage/data_storage.py`
+
+### 1.2 Atomic Save Pattern
+
+**Algorithm: Safe File Writing**
+```
+1. Generate temp_path = target_path + '.tmp'
+2. Write data to temp_path
+3. IF backup_enabled AND target exists:
+     Copy target to backup_path
+4. Atomically move temp_path → target_path
+5. Update metadata store
+6. ON ERROR:
+     - Remove temp_path if exists
+     - Restore from backup if needed
 ```
 
-## 2. CSV Storage Implementation
+**Benefits:**
+- No partial writes on failure
+- Automatic rollback capability
+- Consistent state guarantee
 
-### 2.1 CSV Storage Class
+**Source Reference:** `src/bcutils/data_storage/file_storage.py`
+
+## 2. Format-Specific Implementations
+
+### 2.1 CSV Storage
+
+**Key Implementation Points:**
 ```python
-class CsvStorage(FileStorage):
-    """CSV file storage implementation"""
-    
-    def __init__(self, base_directory: str, dry_run: bool = False,
-                 encoding: str = 'utf-8', delimiter: str = ',',
-                 float_precision: int = 6):
-        super().__init__(base_directory, dry_run)
-        self.encoding = encoding
-        self.delimiter = delimiter
-        self.float_precision = float_precision
-        
-    def save(self, data: pd.DataFrame, filepath: str, **kwargs) -> SaveResult:
-        """Save DataFrame as CSV file"""
-        if self.dry_run:
-            return SaveResult(
-                success=True,
-                filepath=filepath,
-                row_count=len(data),
-                file_size_bytes=0,
-                dry_run=True
-            )
-        
-        def csv_save_func(df: pd.DataFrame, path: Path):
-            df.to_csv(
-                path,
-                index=False,
-                encoding=self.encoding,
-                sep=self.delimiter,
-                float_format=f'%.{self.float_precision}f',
-                date_format='%Y-%m-%d %H:%M:%S'
-            )
-        
-        return self._atomic_save(data, filepath, csv_save_func)
-    
-    def load(self, filepath: str, **kwargs) -> pd.DataFrame:
-        """Load DataFrame from CSV file"""
-        full_path = self.base_directory / filepath
-        
-        if not full_path.exists():
-            raise FileNotFoundError(f"File not found: {filepath}")
-        
-        try:
-            return pd.read_csv(
-                full_path,
-                encoding=self.encoding,
-                sep=self.delimiter,
-                parse_dates=['timestamp'] if 'timestamp' in kwargs.get('columns', []) else False
-            )
-        except Exception as e:
-            raise StorageError(f"Failed to load {filepath}: {e}") from e
-    
-    def exists(self, filepath: str) -> bool:
-        """Check if CSV file exists"""
-        return (self.base_directory / filepath).exists()
-    
-    def delete(self, filepath: str) -> bool:
-        """Delete CSV file"""
-        full_path = self.base_directory / filepath
-        if full_path.exists():
-            full_path.unlink()
-            return True
-        return False
-    
-    def list_files(self, pattern: str = "*.csv") -> List[str]:
-        """List CSV files matching pattern"""
-        files = self.base_directory.glob(pattern)
-        return [str(f.relative_to(self.base_directory)) for f in files if f.is_file()]
+# Saving with pandas
+df.to_csv(
+    path,
+    index=False,
+    encoding='utf-8',
+    float_format='%.6f',
+    date_format='%Y-%m-%d %H:%M:%S'
+)
 ```
 
-## 3. Parquet Storage Implementation
+**CSV-Specific Features:**
+- UTF-8 encoding for international symbols
+- Configurable decimal precision
+- ISO 8601 date formatting
+- Header preservation
 
-### 3.1 Parquet Storage Class
+**Source Reference:** `src/bcutils/data_storage/csv_storage.py`
+
+### 2.2 Parquet Storage
+
+**Key Implementation Points:**
 ```python
-import pyarrow as pa
-import pyarrow.parquet as pq
-
-class ParquetStorage(FileStorage):
-    """Parquet file storage implementation"""
-    
-    def __init__(self, base_directory: str, dry_run: bool = False,
-                 compression: str = 'snappy', engine: str = 'pyarrow'):
-        super().__init__(base_directory, dry_run)
-        self.compression = compression
-        self.engine = engine
-        
-    def save(self, data: pd.DataFrame, filepath: str, **kwargs) -> SaveResult:
-        """Save DataFrame as Parquet file"""
-        if self.dry_run:
-            return SaveResult(
-                success=True,
-                filepath=filepath,
-                row_count=len(data),
-                file_size_bytes=0,
-                dry_run=True
-            )
-        
-        def parquet_save_func(df: pd.DataFrame, path: Path):
-            # Convert timestamp columns to datetime
-            if 'timestamp' in df.columns:
-                df['timestamp'] = pd.to_datetime(df['timestamp'])
-            
-            # Save with compression
-            df.to_parquet(
-                path,
-                engine=self.engine,
-                compression=self.compression,
-                index=False
-            )
-        
-        return self._atomic_save(data, filepath, parquet_save_func)
-    
-    def load(self, filepath: str, **kwargs) -> pd.DataFrame:
-        """Load DataFrame from Parquet file"""
-        full_path = self.base_directory / filepath
-        
-        if not full_path.exists():
-            raise FileNotFoundError(f"File not found: {filepath}")
-        
-        try:
-            return pd.read_parquet(full_path, engine=self.engine)
-        except Exception as e:
-            raise StorageError(f"Failed to load {filepath}: {e}") from e
-    
-    def exists(self, filepath: str) -> bool:
-        """Check if Parquet file exists"""
-        return (self.base_directory / filepath).exists()
-    
-    def delete(self, filepath: str) -> bool:
-        """Delete Parquet file"""
-        full_path = self.base_directory / filepath
-        if full_path.exists():
-            full_path.unlink()
-            return True
-        return False
-    
-    def list_files(self, pattern: str = "*.parquet") -> List[str]:
-        """List Parquet files matching pattern"""
-        files = self.base_directory.glob(pattern)
-        return [str(f.relative_to(self.base_directory)) for f in files if f.is_file()]
+# Parquet with compression
+df.to_parquet(
+    path,
+    engine='pyarrow',
+    compression='snappy',
+    index=False
+)
 ```
 
-## 4. Deduplication Implementation
+**Parquet-Specific Features:**
+- Columnar storage for analytics
+- Snappy compression by default
+- Schema evolution support
+- Type preservation
 
-### 4.1 Data Deduplication Engine
-```python
-class DataDeduplicator:
-    """Handles data deduplication and conflict resolution"""
+**Performance Characteristics:**
+| Operation | CSV | Parquet |
+|-----------|-----|---------|
+| Write Speed | Fast | Moderate |
+| Read Speed | Slow | Fast |
+| File Size | Large | Small |
+| Query Performance | Poor | Excellent |
+
+**Source Reference:** `src/bcutils/data_storage/parquet_storage.py`
+
+## 3. Deduplication Engine
+
+### 3.1 Deduplication Algorithm
+
+**Pseudo-code:**
+```
+FUNCTION deduplicate_data(data, provider_priority):
+    # 1. Create composite key
+    key_columns = ['timestamp', 'symbol']
     
-    def __init__(self, provider_priority: List[str] = None):
-        self.provider_priority = provider_priority or ['barchart', 'ibkr', 'yahoo']
-        
-    def deduplicate_data(self, data: pd.DataFrame) -> pd.DataFrame:
-        """Remove duplicates and resolve conflicts"""
-        if data.empty:
-            return data
-            
-        # Identify composite key columns
-        key_columns = ['timestamp', 'symbol']
-        if not all(col in data.columns for col in key_columns):
-            raise ValueError(f"Data must contain columns: {key_columns}")
-        
-        # Sort by provider priority for conflict resolution
-        if 'provider' in data.columns:
-            provider_order = {provider: i for i, provider in enumerate(self.provider_priority)}
-            data['_priority'] = data['provider'].map(provider_order).fillna(999)
-            data = data.sort_values(['_priority'] + key_columns)
-            data = data.drop('_priority', axis=1)
-        
-        # Remove duplicates keeping first (highest priority)
-        deduplicated = data.drop_duplicates(subset=key_columns, keep='first')
-        
-        return deduplicated.sort_values(key_columns).reset_index(drop=True)
+    # 2. Sort by priority
+    IF 'provider' IN data.columns:
+        data['_priority'] = map_provider_priority(data['provider'])
+        SORT data BY ['_priority'] + key_columns
     
-    def merge_datasets(self, existing: pd.DataFrame, new: pd.DataFrame) -> pd.DataFrame:
-        """Merge new data with existing data"""
-        if existing.empty:
-            return self.deduplicate_data(new)
-        if new.empty:
-            return existing
-            
-        # Combine datasets
-        combined = pd.concat([existing, new], ignore_index=True)
-        
-        # Deduplicate the combined dataset
-        return self.deduplicate_data(combined)
+    # 3. Remove duplicates
+    deduplicated = drop_duplicates(data, subset=key_columns, keep='first')
+    
+    # 4. Clean and return
+    RETURN sort(deduplicated, by=key_columns)
 ```
 
-## 5. Metadata Management Implementation
+**Conflict Resolution:**
+- Provider priority determines winner
+- First occurrence kept (highest priority)
+- Timestamp + symbol as unique key
 
-### 5.1 Metadata Store
+**Source Reference:** `src/bcutils/data_storage/deduplicator.py`
+
+### 3.2 Merge Strategy
+
+**Algorithm: Incremental Data Merge**
+```
+1. Load existing data from storage
+2. Append new data to existing
+3. Apply deduplication rules
+4. Sort by timestamp
+5. Save merged result
+```
+
+**Optimization:**
+- Only load overlapping date ranges
+- Streaming merge for large datasets
+- In-place deduplication when possible
+
+## 4. Metadata Management
+
+### 4.1 Metadata Structure
+
+**Metadata Schema:**
+```json
+{
+  "files": {
+    "path/to/file.csv": {
+      "row_count": 1000,
+      "file_size_bytes": 52400,
+      "last_updated": "2024-01-08T10:30:00Z",
+      "checksum": "sha256:abc123..."
+    }
+  },
+  "statistics": {
+    "total_files": 42,
+    "total_size_bytes": 10485760,
+    "last_cleanup": "2024-01-07T00:00:00Z"
+  }
+}
+```
+
+**Update Pattern:**
 ```python
-class MetadataStore:
-    """Manages storage metadata and statistics"""
-    
-    def __init__(self, metadata_directory: Path):
-        self.metadata_directory = Path(metadata_directory)
-        self.metadata_directory.mkdir(parents=True, exist_ok=True)
-        self.metadata_file = self.metadata_directory / "storage_metadata.json"
-        self._load_metadata()
-    
-    def _load_metadata(self):
-        """Load existing metadata"""
-        if self.metadata_file.exists():
-            with open(self.metadata_file, 'r') as f:
-                self.metadata = json.load(f)
-        else:
-            self.metadata = {
-                "files": {},
-                "statistics": {
-                    "total_files": 0,
-                    "total_size_bytes": 0,
-                    "last_updated": None
-                }
-            }
-    
-    def _save_metadata(self):
-        """Save metadata to disk"""
-        with open(self.metadata_file, 'w') as f:
-            json.dump(self.metadata, f, indent=2, default=str)
-    
-    def update_file_metadata(self, filepath: str, row_count: int, 
-                           memory_usage: int):
-        """Update metadata for a file"""
-        self.metadata["files"][filepath] = {
-            "row_count": row_count,
-            "memory_usage_bytes": memory_usage,
-            "last_updated": datetime.utcnow().isoformat(),
-            "format": Path(filepath).suffix.lower().lstrip('.')
-        }
-        
-        # Update statistics
-        self.metadata["statistics"]["total_files"] = len(self.metadata["files"])
-        self.metadata["statistics"]["last_updated"] = datetime.utcnow().isoformat()
-        
+# Atomic metadata update
+def update_file_metadata(self, filepath, stats):
+    with self.lock:
+        self.metadata["files"][filepath] = stats
+        self._recalculate_statistics()
         self._save_metadata()
-    
-    def get_file_metadata(self, filepath: str) -> Dict[str, Any]:
-        """Get metadata for specific file"""
-        return self.metadata["files"].get(filepath, {})
-    
-    def get_storage_statistics(self) -> Dict[str, Any]:
-        """Get overall storage statistics"""
-        return self.metadata["statistics"]
 ```
 
-## 6. Storage Factory Implementation
+**Source Reference:** `src/bcutils/data_storage/metadata_store.py`
 
-### 6.1 Storage Factory
+## 5. Storage Factory
+
+### 5.1 Factory Pattern Implementation
+
+**Storage Creation:**
 ```python
-class StorageFactory:
-    """Factory for creating storage instances"""
-    
-    _storage_types = {
+def create_storage(storage_type: str, **kwargs) -> DataStorage:
+    storage_map = {
         'csv': CsvStorage,
         'parquet': ParquetStorage
     }
     
-    @classmethod
-    def create_storage(cls, storage_type: str, base_directory: str, 
-                      **kwargs) -> DataStorage:
-        """Create storage instance of specified type"""
-        if storage_type not in cls._storage_types:
-            raise ValueError(f"Unknown storage type: {storage_type}")
-        
-        storage_class = cls._storage_types[storage_type]
-        return storage_class(base_directory, **kwargs)
+    storage_class = storage_map.get(storage_type)
+    if not storage_class:
+        raise ValueError(f"Unknown storage type: {storage_type}")
     
-    @classmethod
-    def create_dual_storage(cls, base_directory: str, 
-                          primary_format: str = 'csv',
-                          backup_format: str = 'parquet') -> Dict[str, DataStorage]:
-        """Create primary and backup storage instances"""
-        return {
-            'primary': cls.create_storage(primary_format, base_directory),
-            'backup': cls.create_storage(backup_format, base_directory)
-        }
+    return storage_class(**kwargs)
 ```
 
-## 7. Data Model Classes
+**Dual Storage Pattern:**
+```
+Primary (CSV): Human-readable, debugging
+Backup (Parquet): Performance, archival
+```
 
-### 7.1 Storage Result Classes
+**Source Reference:** `src/bcutils/data_storage/factory.py`
+
+## 6. Error Handling
+
+### 6.1 Storage-Specific Exceptions
+
+**Exception Hierarchy:**
+```
+StorageError
+├── FileNotFoundError
+├── PermissionError
+├── DiskFullError
+└── CorruptedDataError
+```
+
+**Error Recovery Matrix:**
+| Error | Recovery Action | User Action |
+|-------|----------------|-------------|
+| File Not Found | Return empty DataFrame | Check path |
+| Permission Denied | Retry with elevated permissions | Fix permissions |
+| Disk Full | Clean temp files, retry | Free disk space |
+| Corrupted Data | Load from backup | Investigate corruption |
+
+**Source Reference:** `src/bcutils/data_storage/exceptions.py`
+
+## 7. Performance Optimizations
+
+### 7.1 Optimization Techniques
+
+**Memory Management:**
 ```python
-from dataclasses import dataclass
-from typing import Optional
+# Chunked reading for large files
+def read_large_csv(filepath, chunksize=10000):
+    chunks = []
+    for chunk in pd.read_csv(filepath, chunksize=chunksize):
+        processed = process_chunk(chunk)
+        chunks.append(processed)
+    return pd.concat(chunks, ignore_index=True)
+```
 
-@dataclass
-class SaveResult:
-    """Result of a save operation"""
-    success: bool
-    filepath: str
-    row_count: int
-    file_size_bytes: int
-    dry_run: bool = False
-    error_message: Optional[str] = None
+**I/O Optimizations:**
+- Buffered writes for small files
+- Memory-mapped files for large datasets
+- Parallel reads for partitioned data
 
-@dataclass
-class FileInfo:
-    """File information metadata"""
-    path: str
-    size_bytes: int
-    created: datetime
-    modified: datetime
-    format: str
-    row_count: Optional[int] = None
+**Source Reference:** `src/bcutils/data_storage/optimizations.py`
 
-@dataclass
-class StorageStats:
-    """Overall storage statistics"""
-    total_files: int
-    total_size_bytes: int
-    storage_type: str
-    base_directory: str
-    last_updated: Optional[datetime] = None
+## 8. Testing Approach
+
+### 8.1 Storage Testing Pattern
+
+**Test Structure:**
+```python
+class TestStorageOperations:
+    def test_save_load_cycle(self):
+        # 1. Create test data
+        # 2. Save to storage
+        # 3. Load from storage
+        # 4. Verify data integrity
+    
+    def test_atomic_operations(self):
+        # 1. Simulate failure during save
+        # 2. Verify rollback
+        # 3. Check file consistency
+```
+
+**Test Scenarios:**
+- Round-trip data integrity
+- Concurrent access handling
+- Large file performance
+- Error recovery validation
+
+**Source Reference:** `tests/test_storage/`
+
+## 9. Configuration Examples
+
+### 9.1 Storage Configuration
+
+**CSV Storage:**
+```json
+{
+  "storage_type": "csv",
+  "base_directory": "/data/market_data",
+  "encoding": "utf-8",
+  "delimiter": ",",
+  "float_precision": 6
+}
+```
+
+**Parquet Storage:**
+```json
+{
+  "storage_type": "parquet",
+  "base_directory": "/data/market_data",
+  "compression": "snappy",
+  "engine": "pyarrow"
+}
+```
+
+**Environment Configuration:**
+```bash
+BCU_STORAGE_TYPE=csv
+BCU_STORAGE_BASE_DIR=/data/market_data
+BCU_BACKUP_ENABLED=true
 ```
 
 ## Related Documents
 
 - **[Storage Architecture](../hld/05-storage-architecture.md)** - High-level storage design
-- **[Component Implementation](01-component-implementation.md)** - Component integration details
+- **[Component Implementation](01-component-implementation.md)** - Component integration
 - **[Data Processing Implementation](02-data-processing-implementation.md)** - Data flow integration
 
 ---

@@ -158,16 +158,31 @@ Explain why patterns were chosen:
 ### Code Documentation
 
 #### Code Examples
-Provide complete, runnable examples:
+Provide concise, focused examples (10-30 lines max):
 ```python
 class DataProvider(ABC):
     """Abstract base class for all data providers"""
     
-    def __init__(self, name: str, config: Dict[str, Any]):
-        self.name = name
-        self.config = config
-        self.logger = logging.getLogger(f"{__name__}.{name}")
+    @abstractmethod
+    def authenticate(self, credentials: Dict[str, str]) -> bool:
+        """Provider-specific authentication"""
+    
+    @abstractmethod
+    def get_data(self, instrument, date_range) -> pd.DataFrame:
+        """Retrieve data for instrument and date range"""
 ```
+
+**Code Length Guidelines:**
+- **Interface definitions:** Show key methods only (5-15 lines)
+- **Algorithms:** Core logic only (10-30 lines)
+- **Configuration examples:** Minimal working config (5-10 lines)
+- **Test patterns:** Essential structure (10-20 lines)
+
+**Avoid in LLD:**
+- Complete class implementations (use source references)
+- Boilerplate code (imports, logging setup)
+- Repetitive methods (show one example)
+- Full error handling (show pattern only)
 
 #### Error Handling
 Document comprehensive error handling:
