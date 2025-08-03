@@ -7,7 +7,7 @@ from typing import List
 
 from ..utils.utils import get_absolute_path
 
-DEFAULT_MARKET_METADATA_FILE: str = "markets.json"
+DEFAULT_MARKET_METADATA_FILE: str = "assets.json"
 DEFAULT_DOWNLOAD_DIRECTORY: str = "./data"
 DEFAULT_DAILY_DOWNLOAD_LIMIT: int = 100
 DEFAULT_START_YEAR: int = 2000

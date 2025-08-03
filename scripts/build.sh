@@ -26,7 +26,7 @@ cp -r docker/* "$DEST_DIR/app/"
 
 echo "Copying configuration..."
 mkdir -p "$DEST_DIR/config"
-cp markets.json "$DEST_DIR/config/"
+cp assets.json "$DEST_DIR/config/"
 
 echo "Build completed successfully!"
 echo "Build artifacts in: $DEST_DIR"

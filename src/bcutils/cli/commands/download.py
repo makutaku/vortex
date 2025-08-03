@@ -20,13 +20,13 @@ console = Console()
 logger = logging.getLogger(__name__)
 
 
-def load_config_instruments(markets_file_path: Path) -> List[str]:
-    """Load instrument symbols from markets JSON file."""
+def load_config_instruments(assets_file_path: Path) -> List[str]:
+    """Load instrument symbols from assets JSON file."""
     try:
-        instrument_configs = InstrumentConfig.load_from_json(str(markets_file_path))
+        instrument_configs = InstrumentConfig.load_from_json(str(assets_file_path))
         return list(instrument_configs.keys())
     except Exception as e:
-        console.print(f"[red]Error loading markets file '{markets_file_path}': {e}[/red]")
+        console.print(f"[red]Error loading assets file '{assets_file_path}': {e}[/red]")
         raise click.Abort()
 
 @click.command()
@@ -47,9 +47,9 @@ def load_config_instruments(markets_file_path: Path) -> List[str]:
     help="File containing symbols (one per line)"
 )
 @click.option(
-    "--markets", "--markets-file",
+    "--assets", "--assets-file",
     type=click.Path(exists=True, path_type=Path),
-    help="Download instruments from markets file (default: markets.json)"
+    help="Download instruments from assets file (default: assets.json)"
 )
 @click.option(
     "--start-date",
@@ -88,7 +88,7 @@ def download(
     provider: str,
     symbol: tuple,
     symbols_file: Optional[Path],
-    markets: Optional[Path],
+    assets: Optional[Path],
     start_date: Optional[datetime],
     end_date: Optional[datetime],
     output_dir: Optional[Path],
@@ -103,14 +103,14 @@ def download(
         bcutils download -p yahoo -s AAPL -s GOOGL
         bcutils download -p barchart -s GCM25 --start-date 2024-01-01  
         bcutils download -p yahoo --symbols-file symbols.txt
-        bcutils download -p yahoo --markets markets.json
-        bcutils download -p yahoo --markets /path/to/custom-markets.json
+        bcutils download -p yahoo --assets assets.json
+        bcutils download -p yahoo --assets /path/to/custom-assets.json
         
     \b
-    Markets Files:
-        Markets files define available financial instruments across asset classes.
-        The default markets.json includes futures (GC, CL, etc.), forex (EURUSD),
-        and stocks (AAPL, MSFT, etc.) - over 127 market instruments with metadata.
+    Assets Files:
+        Assets files define available financial instruments across asset classes.
+        The default assets.json includes futures (GC, CL, etc.), forex (EURUSD),
+        and stocks (AAPL, MSFT, etc.) - over 127 financial assets with metadata.
         
     \b
     Installation:
@@ -132,14 +132,14 @@ def download(
         output_dir = Path("./data")
     
     # Parse symbols
-    if markets:
-        # Load instruments from markets file
-        symbols = load_config_instruments(markets)
-        console.print(f"[green]Loaded {len(symbols)} market instruments from {markets}[/green]")
+    if assets:
+        # Load instruments from assets file
+        symbols = load_config_instruments(assets)
+        console.print(f"[green]Loaded {len(symbols)} financial assets from {assets}[/green]")
     else:
         symbols = parse_instruments(symbol, symbols_file)
         if not symbols:
-            console.print("[red]Error: No symbols specified. Use --symbol, --symbols-file, or --markets[/red]")
+            console.print("[red]Error: No symbols specified. Use --symbol, --symbols-file, or --assets[/red]")
             raise click.Abort()
     
     # Validate date range
