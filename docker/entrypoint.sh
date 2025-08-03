@@ -162,10 +162,17 @@ main() {
         download_cmd=$(build_download_command)
         log_info "Executing: $download_cmd"
         
-        if $download_cmd 2>&1 | tee -a "$VORTEX_OUTPUT_DIR/vortex.log"; then
+        # Execute the command and capture the exit code
+        if eval "$download_cmd" 2>&1 | tee -a "$VORTEX_OUTPUT_DIR/vortex.log"; then
+            exit_code=0
+        else
+            exit_code=$?
+        fi
+        
+        if [ $exit_code -eq 0 ]; then
             log_info "Download completed successfully"
         else
-            log_error "Download failed"
+            log_error "Download failed with exit code $exit_code"
         fi
     else
         log_info "Skipping download on startup (VORTEX_RUN_ON_STARTUP=$VORTEX_RUN_ON_STARTUP)"
