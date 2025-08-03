@@ -134,6 +134,21 @@ def show_configuration(config_manager: ConfigManager) -> None:
     table.add_row("Default Backup", str(config.get("backup_enabled", False)))
     table.add_row("Log Level", config.get("log_level", "INFO"))
     
+    # Check for default assets files
+    from pathlib import Path
+    default_assets = []
+    for provider in ["barchart", "yahoo", "ibkr"]:
+        assets_file = Path(f"assets/{provider}.json")
+        if assets_file.exists():
+            default_assets.append(f"{provider}: {assets_file}")
+    if not default_assets:
+        assets_file = Path("assets/default.json")
+        if assets_file.exists():
+            default_assets.append(f"all providers: {assets_file}")
+    
+    if default_assets:
+        table.add_row("Default Assets Files", "\n".join(default_assets))
+    
     console.print(table)
     
     # Provider status table
@@ -182,6 +197,16 @@ def show_provider_configuration(config_manager: ConfigManager, provider: str) ->
         table.add_row("Port", str(provider_config.get("port", 7497)))
         table.add_row("Client ID", str(provider_config.get("client_id", 1)))
         table.add_row("Timeout", f"{provider_config.get('timeout', 60)}s")
+    
+    # Show default assets file for this provider
+    from pathlib import Path
+    assets_file = Path(f"assets/{provider}.json")
+    if assets_file.exists():
+        table.add_row("Default Assets File", str(assets_file))
+    else:
+        assets_file = Path("assets/default.json")
+        if assets_file.exists():
+            table.add_row("Default Assets File", f"{assets_file} (fallback)")
     
     console.print(table)
 
