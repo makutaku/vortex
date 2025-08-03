@@ -1,13 +1,13 @@
 # Docker Deployment Guide
 
-BC-Utils can be deployed as a Docker container for automated, scheduled downloads of financial data.
+Vortex can be deployed as a Docker container for automated, scheduled downloads of financial data.
 
 ## Quick Start
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/makutaku/bc-utils.git
-   cd bc-utils
+   git clone https://github.com/makutaku/vortex.git
+   cd vortex
    ```
 
 2. **Configure environment**
@@ -110,10 +110,10 @@ The default schedule runs daily at 8 AM. Common schedules:
 ### Logs
 ```bash
 # View container logs
-docker compose logs -f bcutils
+docker compose logs -f vortex
 
 # View download logs
-tail -f data/bcutils.log
+tail -f data/vortex.log
 ```
 
 ### Health Check
@@ -125,7 +125,7 @@ The container creates `data/health.check` hourly. Monitor this file to ensure th
 docker compose ps
 
 # View cron jobs
-docker compose exec bcutils crontab -l
+docker compose exec vortex crontab -l
 ```
 
 ## Advanced Usage
@@ -140,7 +140,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.simple
-    container_name: bcutils-yahoo
+    container_name: vortex-yahoo
     environment:
       BCU_PROVIDER: yahoo
       BCU_SCHEDULE: "0 9 * * *"
@@ -148,11 +148,11 @@ services:
       - ./data/yahoo:/data
       - ./config:/config
 
-  bcutils-barchart:
+  vortex-barchart:
     build:
       context: .
       dockerfile: Dockerfile.simple
-    container_name: bcutils-barchart
+    container_name: vortex-barchart
     environment:
       BCU_PROVIDER: barchart
       BCU_SCHEDULE: "0 10 * * *"
@@ -238,13 +238,13 @@ FROM python:3.12-slim AS builder
 ```
 
 ```bash
-docker build -t my-bcutils:latest .
+docker build -t my-vortex:latest .
 ```
 
 Update `docker-compose.yml`:
 ```yaml
 services:
-  bcutils:
-    image: my-bcutils:latest
+  vortex:
+    image: my-vortex:latest
     # ... rest of config
 ```
