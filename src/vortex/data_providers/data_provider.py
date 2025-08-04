@@ -16,16 +16,7 @@ from ..exceptions import (
 from retrying import retry
 
 
-# Legacy exception aliases for backward compatibility
-# These reference the modern exceptions from the exceptions module
-# TODO: Remove these in a future version after migrating all code
-
-# Re-export all legacy exceptions for backward compatibility  
-# These are imported from the exceptions module and re-exported here
-# so that existing code that imports from data_provider.py continues to work
-NotFoundError = DataNotFoundError
-AllowanceLimitExceeded = AllowanceLimitExceededError
-# DownloadError and LowDataError are imported directly from exceptions.py above
+# Legacy exception aliases removed - use direct imports from vortex.exceptions instead
 
 
 class HistoricalDataResult(enum.Enum):

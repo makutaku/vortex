@@ -5,10 +5,8 @@ from itertools import cycle
 from typing import List, Dict
 
 from .download_job import DownloadJob
-from ..data_providers.data_provider import (
-    DataProvider, LowDataError, AllowanceLimitExceeded, 
-    NotFoundError, HistoricalDataResult
-)
+from ..data_providers.data_provider import DataProvider, HistoricalDataResult
+from ..exceptions import LowDataError, AllowanceLimitExceededError, DataNotFoundError
 from ..data_storage.data_storage import DataStorage
 from ..initialization.config_utils import InstrumentConfig, InstrumentType
 from ..instruments.forex import Forex
@@ -53,7 +51,7 @@ class BaseDownloader(ABC):
             job_list = self._create_jobs(contract_map, start_year, end_year)
             self._process_jobs(job_list)
 
-        except AllowanceLimitExceeded as e:  # absorbing exception by design
+        except AllowanceLimitExceededError as e:  # absorbing exception by design
             logging.error(f"{e}")
 
     def _create_jobs(self, configs, start_year: int, end_year: int) -> List[DownloadJob]:
@@ -268,7 +266,7 @@ class BaseDownloader(ABC):
                     logging.warning(f"Downloaded data is too low. {job}")
                     low_data.append(job)
                     continue
-                except NotFoundError:
+                except DataNotFoundError:
                     logging.warning(f"Instrument not found. Check starting date. {job}")
                     not_found.append(job)
                     continue
