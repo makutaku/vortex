@@ -66,8 +66,8 @@ RUN apt-get update && apt-get install -y \
 RUN useradd --create-home --shell /bin/bash vortex
 
 # Set up Python environment
-COPY requirements.txt /tmp/
-RUN pip install --user --no-cache-dir -r /tmp/requirements.txt
+COPY pyproject.toml /tmp/
+RUN pip install --user --no-cache-dir -e /tmp/
 
 # Production stage
 FROM python:3.11-slim

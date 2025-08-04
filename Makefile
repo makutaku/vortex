@@ -10,7 +10,7 @@ help:
 	@echo "  build      Build the project"
 
 install:
-	uv pip install -r requirements.txt
+	uv pip install -e .
 
 dev:
 	uv pip install -e .

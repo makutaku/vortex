@@ -154,13 +154,12 @@ ENTRYPOINT ["vortex"]
 If you're currently using pip, migration to uv is simple:
 
 ```bash
-# Old pip workflow
+# Modern pip workflow (recommended)
 pip install -e .
-pip install -r requirements.txt
 
-# New uv workflow (much faster)
+# uv workflow (fastest)
 uv pip install -e .
-# No requirements.txt needed - uv reads pyproject.toml
+# Dependencies automatically managed via pyproject.toml
 ```
 
 ## ⚡ Performance Comparison

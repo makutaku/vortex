@@ -19,7 +19,7 @@ mkdir -p "$DEST_DIR/app"
 
 echo "Copying application code..."
 cp -r src/vortex "$DEST_DIR/app/"
-cp requirements.txt "$DEST_DIR/app/"
+# requirements.txt removed - dependencies managed via pyproject.toml
 
 echo "Copying deployment files..."
 cp -r docker/* "$DEST_DIR/app/"
