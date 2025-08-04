@@ -31,7 +31,16 @@
       "Bash(docker compose:*)",
       "Bash(/usr/bin/docker build --no-cache -t vortex-test:warning-fix .)",
       "Bash(grep:*)",
-      "Bash(vortex:*)"
+      "Bash(vortex:*)",
+      "Bash(rm:*)",
+      "Bash(pkill:*)",
+      "Bash(cat:*)",
+      "Bash(sed:*)",
+      "Bash(./test-12-only.sh:*)",
+      "Bash(env)",
+      "Bash(./minimal-test.sh:*)",
+      "Bash(docker logs:*)",
+      "Bash(./scripts/test-docker-build-robust.sh:*)"
     ],
     "deny": []
   }
