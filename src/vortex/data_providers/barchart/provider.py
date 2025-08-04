@@ -12,10 +12,8 @@ from typing import Optional
 import pandas as pd
 from pandas import DataFrame
 
-from ..data_provider import (
-    DataProvider, NotFoundError, AllowanceLimitExceeded, 
-    DownloadError, LowDataError
-)
+from ..data_provider import DataProvider
+from ...exceptions import DataNotFoundError, AllowanceLimitExceededError, LowDataError
 from ...exceptions import DataProviderError
 from ...instruments.forex import Forex
 from ...instruments.future import Future
@@ -155,7 +153,7 @@ class BarchartDataProvider(DataProvider):
         allowance, xsf_token = self.client.fetch_allowance(url, xsf_token)
         
         if allowance.get('error') is not None:
-            raise AllowanceLimitExceeded(250, self.max_allowance)
+            raise AllowanceLimitExceededError(250, self.max_allowance)
 
         if not allowance['success']:
             raise DataProviderError(
@@ -166,7 +164,7 @@ class BarchartDataProvider(DataProvider):
 
         current_allowance = int(allowance.get('count', '0'))
         if self.max_allowance is not None and current_allowance > self.max_allowance:
-            raise AllowanceLimitExceeded(current_allowance, self.max_allowance)
+            raise AllowanceLimitExceededError(current_allowance, self.max_allowance)
 
         logging.info(f"Allowance: {current_allowance}")
         return xsf_token

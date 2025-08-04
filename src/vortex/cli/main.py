@@ -57,6 +57,7 @@ except ImportError:
     console = None
 
 from . import __version__
+from .error_handler import create_error_handler, handle_cli_exceptions
 
 # Lazy import command modules to avoid dependency issues
 def _import_commands():
@@ -328,210 +329,16 @@ _register_commands()
 
 def main() -> None:
     """Main entry point for the CLI."""
-    try:
-        cli()
-    except KeyboardInterrupt:
-        if RICH_AVAILABLE and console:
-            console.print("\n[yellow]Operation cancelled by user[/yellow]")
-        else:
-            print("\nOperation cancelled by user")
-        sys.exit(1)
+    # Create configured error handler
+    error_handler = create_error_handler(
+        rich_available=RICH_AVAILABLE,
+        console=console,
+        config_available=CONFIG_AVAILABLE,
+        get_logger_func=get_logger if CONFIG_AVAILABLE else None
+    )
     
-    except AuthenticationError as e:
-        # Handle authentication failures with comprehensive context
-        if RICH_AVAILABLE and console:
-            console.print(f"[red]🔐 Authentication Failed: {e.message}[/red]")
-            if e.help_text:
-                console.print(f"[blue]💡 {e.help_text}[/blue]")
-            if e.user_action:
-                console.print(f"[green]🔧 Action: {e.user_action}[/green]")
-            if e.technical_details:
-                console.print(f"[dim]📋 Details: {e.technical_details}[/dim]")
-            console.print(f"[dim]🔍 Error ID: {e.correlation_id}[/dim]")
-        else:
-            print(f"🔐 Authentication Failed: {e.message}")
-            if e.help_text:
-                print(f"💡 {e.help_text}")
-            if e.user_action:
-                print(f"🔧 Action: {e.user_action}")
-            print(f"🔍 Error ID: {e.correlation_id}")
-        
-        # Enhanced logging with error context
-        if CONFIG_AVAILABLE:
-            try:
-                logger = get_logger("vortex.cli.error")
-                logger.error("Authentication error occurred", 
-                            error_dict=e.to_dict(),
-                            correlation_id=e.correlation_id)
-            except:
-                pass
-        sys.exit(2)
-    
-    except ConfigurationError as e:
-        # Handle configuration issues with specific guidance
-        if RICH_AVAILABLE and console:
-            console.print(f"[red]⚙️  Configuration Error: {e.message}[/red]")
-            if e.help_text:
-                console.print(f"[blue]💡 {e.help_text}[/blue]")
-        else:
-            print(f"⚙️  Configuration Error: {e.message}")
-            if e.help_text:
-                print(f"💡 {e.help_text}")
-        
-        logging.error(f"Configuration error ({e.error_code}): {e.message}")
-        sys.exit(3)
-    
-    except VortexConnectionError as e:
-        # Handle network/connection issues
-        if RICH_AVAILABLE and console:
-            console.print(f"[red]🌐 Connection Error: {e.message}[/red]")
-            if e.help_text:
-                console.print(f"[blue]💡 {e.help_text}[/blue]")
-        else:
-            print(f"🌐 Connection Error: {e.message}")
-            if e.help_text:
-                print(f"💡 {e.help_text}")
-        
-        logging.error(f"Connection error for provider {e.provider}: {e.message}")
-        sys.exit(4)
-    
-    except VortexPermissionError as e:
-        # Handle permission/file access issues
-        if RICH_AVAILABLE and console:
-            console.print(f"[red]🔒 Permission Error: {e.message}[/red]")
-            if e.help_text:
-                console.print(f"[blue]💡 {e.help_text}[/blue]")
-        else:
-            print(f"🔒 Permission Error: {e.message}")
-            if e.help_text:
-                print(f"💡 {e.help_text}")
-        
-        logging.error(f"Permission error ({e.error_code}): {e.message}")
-        sys.exit(5)
-    
-    except DataStorageError as e:
-        # Handle data storage issues
-        if RICH_AVAILABLE and console:
-            console.print(f"[red]💾 Storage Error: {e.message}[/red]")
-            if e.help_text:
-                console.print(f"[blue]💡 {e.help_text}[/blue]")
-        else:
-            print(f"💾 Storage Error: {e.message}")
-            if e.help_text:
-                print(f"💡 {e.help_text}")
-        
-        logging.error(f"Storage error ({e.error_code}): {e.message}")
-        sys.exit(6)
-    
-    except DataProviderError as e:
-        # Handle data provider issues
-        if RICH_AVAILABLE and console:
-            console.print(f"[red]📊 Provider Error: {e.message}[/red]")
-            if e.help_text:
-                console.print(f"[blue]💡 {e.help_text}[/blue]")
-        else:
-            print(f"📊 Provider Error: {e.message}")
-            if e.help_text:
-                print(f"💡 {e.help_text}")
-        
-        logging.error(f"Data provider error for {e.provider} ({e.error_code}): {e.message}")
-        sys.exit(7)
-    
-    except InstrumentError as e:
-        # Handle instrument/symbol issues
-        if RICH_AVAILABLE and console:
-            console.print(f"[red]📈 Instrument Error: {e.message}[/red]")
-            if e.help_text:
-                console.print(f"[blue]💡 {e.help_text}[/blue]")
-        else:
-            print(f"📈 Instrument Error: {e.message}")
-            if e.help_text:
-                print(f"💡 {e.help_text}")
-        
-        logging.error(f"Instrument error ({e.error_code}): {e.message}")
-        sys.exit(8)
-    
-    except CLIError as e:
-        # Handle CLI usage errors
-        if RICH_AVAILABLE and console:
-            console.print(f"[red]⌨️  Command Error: {e.message}[/red]")
-            if e.help_text:
-                console.print(f"[blue]💡 {e.help_text}[/blue]")
-        else:
-            print(f"⌨️  Command Error: {e.message}")
-            if e.help_text:
-                print(f"💡 {e.help_text}")
-        
-        logging.error(f"CLI error ({e.error_code}): {e.message}")
-        sys.exit(9)
-    
-    except VortexError as e:
-        # Handle any other Vortex exceptions with full context
-        if RICH_AVAILABLE and console:
-            console.print(f"[red]❌ Error: {e.message}[/red]")
-            if e.help_text:
-                console.print(f"[blue]💡 {e.help_text}[/blue]")
-            if e.user_action:
-                console.print(f"[green]🔧 Action: {e.user_action}[/green]")
-            if e.context:
-                context_items = [f"{k}: {v}" for k, v in e.context.items() if v is not None]
-                if context_items:
-                    console.print(f"[dim]📋 Context: {', '.join(context_items)}[/dim]")
-            console.print(f"[dim]🔍 Error ID: {e.correlation_id}[/dim]")
-        else:
-            print(f"❌ Error: {e.message}")
-            if e.help_text:
-                print(f"💡 {e.help_text}")
-            if e.user_action:
-                print(f"🔧 Action: {e.user_action}")
-            print(f"🔍 Error ID: {e.correlation_id}")
-        
-        # Enhanced logging with full error context
-        if CONFIG_AVAILABLE:
-            try:
-                logger = get_logger("vortex.cli.error")
-                logger.error("Vortex error occurred", 
-                            error_dict=e.to_dict(),
-                            correlation_id=e.correlation_id)
-            except:
-                pass
-        sys.exit(10)
-    
-    except (OSError, IOError) as e:
-        # Handle system-level file/network errors
-        if RICH_AVAILABLE and console:
-            console.print(f"[red]💻 System Error: {e}[/red]")
-            console.print("[blue]💡 Check file permissions, disk space, and network connectivity[/blue]")
-        else:
-            print(f"💻 System Error: {e}")
-            print("💡 Check file permissions, disk space, and network connectivity")
-        
-        logging.error(f"System error: {e}")
-        sys.exit(11)
-    
-    except ImportError as e:
-        # Handle missing dependencies
-        if RICH_AVAILABLE and console:
-            console.print(f"[red]📦 Dependency Error: {e}[/red]")
-            console.print("[blue]💡 Try running: uv pip install -e . or pip install -e .[/blue]")
-        else:
-            print(f"📦 Dependency Error: {e}")
-            print("💡 Try running: uv pip install -e . or pip install -e .")
-        
-        logging.error(f"Import error: {e}")
-        sys.exit(12)
-    
-    except Exception as e:
-        # Handle unexpected exceptions
-        if RICH_AVAILABLE and console:
-            console.print(f"[red]🐛 Unexpected Error: {e}[/red]")
-            console.print("[yellow]This may be a bug. Please report it at: https://github.com/makutaku/vortex/issues[/yellow]")
-        else:
-            print(f"🐛 Unexpected Error: {e}")
-            print("This may be a bug. Please report it at: https://github.com/makutaku/vortex/issues")
-        
-        logging.exception("Unexpected error occurred")
-        sys.exit(1)
+    # Use centralized error handling
+    handle_cli_exceptions(error_handler, cli)
 
 if __name__ == "__main__":
     main()
