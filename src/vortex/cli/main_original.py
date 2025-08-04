@@ -2,9 +2,6 @@
 """Vortex CLI main entry point.
 
 Modern command-line interface for financial data download automation.
-
-This is the restored main CLI module that maintains the original structure
-while keeping the benefits of the refactored components for logging and exceptions.
 """
 
 import sys
@@ -20,14 +17,8 @@ from ..exceptions import (
     DataStorageError, InstrumentError, AuthenticationError,
     ConnectionError as VortexConnectionError, PermissionError as VortexPermissionError
 )
-
-# Optional imports with fallbacks
-try:
-    from ..config import ConfigManager
-    from ..logging_integration import configure_logging_from_manager, get_logger, run_health_checks
-    CONFIG_AVAILABLE = True
-except ImportError:
-    CONFIG_AVAILABLE = False
+from ..config import ConfigManager
+from ..logging_integration import configure_logging_from_manager, get_logger, run_health_checks
 
 # Optional resilience imports
 try:
@@ -57,50 +48,18 @@ except ImportError:
     console = None
 
 from . import __version__
-
-# Lazy import command modules to avoid dependency issues
-def _import_commands():
-    """Lazy import of command modules."""
-    try:
-        from .commands import download, config, providers, validate
-        from .help import help as help_command
-        from .completion import install_completion
-        return download, config, providers, validate, help_command, install_completion, True
-    except ImportError as e:
-        return None, None, None, None, None, None, False
-
-def _import_ux():
-    """Lazy import of UX module."""
-    try:
-        from .ux import get_ux, CommandWizard
-        return get_ux, CommandWizard, True
-    except ImportError:
-        # Fallback UX implementation
-        def get_ux():
-            class DummyUX:
-                def set_quiet(self, quiet): pass
-                def set_force_yes(self, force): pass
-                def print_panel(self, text, title="", style=""):
-                    print(f"\n{title}\n{text}\n")
-            return DummyUX()
-        
-        class DummyWizard:
-            def __init__(self, ux): pass
-            def run_download_wizard(self): return {}
-            def run_config_wizard(self): return {}
-        
-        return get_ux, DummyWizard, False
+from .commands import download, config, providers, validate
+from .help import help as help_command
+from .ux import get_ux, CommandWizard
+from .completion import install_completion
 
 # Optional resilience commands
-def _import_resilience():
-    try:
-        from .commands import resilience
-        return resilience, True
-    except ImportError:
-        return None, False
-
-# Get UX functions
-get_ux, CommandWizard, UX_AVAILABLE = _import_ux()
+try:
+    from .commands import resilience
+    RESILIENCE_COMMANDS_AVAILABLE = True
+except ImportError as e:
+    RESILIENCE_COMMANDS_AVAILABLE = False
+    resilience = None
 
 def setup_logging(config_file: Optional[Path] = None, verbose: int = 0) -> None:
     """Set up logging using Vortex configuration system."""
@@ -111,11 +70,6 @@ def setup_logging(config_file: Optional[Path] = None, verbose: int = 0) -> None:
         format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
     )
     fallback_logger = logging.getLogger("vortex.cli")
-    
-    if not CONFIG_AVAILABLE:
-        if verbose > 0:
-            fallback_logger.debug("Using fallback logging (config module not available)")
-        return
     
     try:
         # Try to load configuration and set up advanced logging
@@ -220,6 +174,7 @@ def show_welcome(ux):
     help_system = get_help_system()
     help_system.show_tips(2)
 
+
 @cli.command()
 @click.pass_context
 def wizard(ctx: click.Context):
@@ -262,6 +217,7 @@ def wizard(ctx: click.Context):
     else:
         ux.print("👋 Goodbye!")
 
+
 def _convert_wizard_config_to_params(config: dict) -> dict:
     """Convert wizard config to CLI parameters."""
     params = {
@@ -279,52 +235,19 @@ def _convert_wizard_config_to_params(config: dict) -> dict:
     }
     return {k: v for k, v in params.items() if v is not None}
 
-# Lazy command registration function
-def _register_commands():
-    """Register commands with lazy loading."""
-    download, config, providers, validate, help_command, install_completion, commands_available = _import_commands()
-    
-    if commands_available:
-        cli.add_command(download.download)
-        cli.add_command(config.config)
-        cli.add_command(providers.providers)
-        cli.add_command(help_command)
-        cli.add_command(install_completion)
-        cli.add_command(validate.validate)
-    else:
-        # Add dummy commands that inform about missing dependencies
-        @cli.command()
-        def download():
-            """Download financial data (requires dependencies)."""
-            click.echo("❌ Download command unavailable - missing dependencies.")
-            click.echo("💡 Install with: pip install -e . or uv pip install -e .")
-        
-        @cli.command()
-        def config():
-            """Configure providers (requires dependencies)."""
-            click.echo("❌ Config command unavailable - missing dependencies.")
-            click.echo("💡 Install with: pip install -e . or uv pip install -e .")
-            
-        @cli.command()
-        def providers():
-            """Manage data providers (requires dependencies)."""
-            click.echo("❌ Providers command unavailable - missing dependencies.")
-            click.echo("💡 Install with: pip install -e . or uv pip install -e .")
-        
-        @cli.command()
-        def validate():
-            """Validate data (requires dependencies)."""
-            click.echo("❌ Validate command unavailable - missing dependencies.")
-            click.echo("💡 Install with: pip install -e . or uv pip install -e .")
-    
-    # Add resilience commands if available
-    resilience, resilience_available = _import_resilience()
-    if resilience_available:
-        cli.add_command(resilience.resilience)
-        cli.add_command(resilience.resilience_status)
 
-# Register commands when the module is imported
-_register_commands()
+# Add command groups
+cli.add_command(download.download)
+cli.add_command(config.config)
+cli.add_command(providers.providers)
+cli.add_command(help_command)
+cli.add_command(install_completion)
+cli.add_command(validate.validate)
+
+# Add resilience commands if available
+if RESILIENCE_COMMANDS_AVAILABLE and resilience:
+    cli.add_command(resilience.resilience)
+    cli.add_command(resilience.resilience_status)
 
 def main() -> None:
     """Main entry point for the CLI."""
@@ -357,14 +280,10 @@ def main() -> None:
             print(f"🔍 Error ID: {e.correlation_id}")
         
         # Enhanced logging with error context
-        if CONFIG_AVAILABLE:
-            try:
-                logger = get_logger("vortex.cli.error")
-                logger.error("Authentication error occurred", 
-                            error_dict=e.to_dict(),
-                            correlation_id=e.correlation_id)
-            except:
-                pass
+        logger = get_logger("vortex.cli.error")
+        logger.error("Authentication error occurred", 
+                    error_dict=e.to_dict(),
+                    correlation_id=e.correlation_id)
         sys.exit(2)
     
     except ConfigurationError as e:
@@ -487,14 +406,10 @@ def main() -> None:
             print(f"🔍 Error ID: {e.correlation_id}")
         
         # Enhanced logging with full error context
-        if CONFIG_AVAILABLE:
-            try:
-                logger = get_logger("vortex.cli.error")
-                logger.error("Vortex error occurred", 
-                            error_dict=e.to_dict(),
-                            correlation_id=e.correlation_id)
-            except:
-                pass
+        logger = get_logger("vortex.cli.error")
+        logger.error("Vortex error occurred", 
+                    error_dict=e.to_dict(),
+                    correlation_id=e.correlation_id)
         sys.exit(10)
     
     except (OSError, IOError) as e:
