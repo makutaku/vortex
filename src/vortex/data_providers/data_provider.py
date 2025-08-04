@@ -7,7 +7,25 @@ from pandas import DataFrame
 
 from ..instruments.instrument import Instrument
 from ..instruments.period import Period, FrequencyAttributes
+from ..exceptions import (
+    DataProviderError, DataNotFoundError, AllowanceLimitExceededError,
+    ConnectionError, AuthenticationError, RateLimitError,
+    # Legacy exceptions for backward compatibility
+    DownloadError, LowDataError
+)
 from retrying import retry
+
+
+# Legacy exception aliases for backward compatibility
+# These reference the modern exceptions from the exceptions module
+# TODO: Remove these in a future version after migrating all code
+
+# Re-export all legacy exceptions for backward compatibility  
+# These are imported from the exceptions module and re-exported here
+# so that existing code that imports from data_provider.py continues to work
+NotFoundError = DataNotFoundError
+AllowanceLimitExceeded = AllowanceLimitExceededError
+# DownloadError and LowDataError are imported directly from exceptions.py above
 
 
 class HistoricalDataResult(enum.Enum):
@@ -18,36 +36,24 @@ class HistoricalDataResult(enum.Enum):
     LOW = 5
 
 
-class DownloadError(Exception):
-    def __init__(self, status, msg):
-        self.status = status
-        self.msg = msg
-
-
-class LowDataError(Exception):
-    pass
-
-
-@dataclass
-class NotFoundError(Exception):
-    symbol: str
-    period: Period
-    start_date: datetime
-    end_date: datetime
-    http_code: int
-
-
-class AllowanceLimitExceeded(Exception):
-    def __init__(self, current_allowance, max_allowance):
-        self.current_allowance = current_allowance
-        self.max_allowance = max_allowance
-
-    def __str__(self):
-        return f"Allowance limit exceeded. Allowance is {self.current_allowance}. Limit is {self.max_allowance}."
-
-
 def should_retry(exception):
-    return not isinstance(exception, (NotFoundError, AllowanceLimitExceeded, LowDataError))
+    """Determine if an exception should trigger a retry.
+    
+    Do not retry for:
+    - Data not found (permanent condition)
+    - Allowance limits exceeded (need to wait or upgrade)
+    - Authentication failures (need credential fix)
+    
+    Do retry for:
+    - Connection errors (transient network issues)
+    - Rate limit errors (temporary API throttling)
+    - General data provider errors (may be transient)
+    """
+    return not isinstance(exception, (
+        DataNotFoundError, 
+        AllowanceLimitExceededError, 
+        AuthenticationError
+    ))
 
 
 class DataProvider(ABC):

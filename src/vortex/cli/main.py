@@ -20,6 +20,25 @@ from ..exceptions import (
 from ..config import ConfigManager
 from ..logging_integration import configure_logging_from_manager, get_logger, run_health_checks
 
+# Optional resilience imports
+try:
+    from ..resilience.correlation import CorrelationIdManager, with_correlation
+    from ..resilience.circuit_breaker import get_circuit_breaker_stats
+    from ..resilience.recovery import ErrorRecoveryManager
+    RESILIENCE_IMPORTS_AVAILABLE = True
+except ImportError:
+    RESILIENCE_IMPORTS_AVAILABLE = False
+    # Dummy implementations to prevent errors
+    def with_correlation(*args, **kwargs):
+        def decorator(func):
+            return func
+        return decorator
+    
+    class CorrelationIdManager:
+        @staticmethod
+        def get_current_id():
+            return None
+
 try:
     from rich.console import Console
     RICH_AVAILABLE = True
@@ -33,6 +52,14 @@ from .commands import download, config, providers, validate
 from .help import help as help_command
 from .ux import get_ux, CommandWizard
 from .completion import install_completion
+
+# Optional resilience commands
+try:
+    from .commands import resilience
+    RESILIENCE_COMMANDS_AVAILABLE = True
+except ImportError as e:
+    RESILIENCE_COMMANDS_AVAILABLE = False
+    resilience = None
 
 def setup_logging(config_file: Optional[Path] = None, verbose: int = 0) -> None:
     """Set up logging using Vortex configuration system."""
@@ -215,6 +242,11 @@ cli.add_command(help_command)
 cli.add_command(install_completion)
 cli.add_command(validate.validate)
 
+# Add resilience commands if available
+if RESILIENCE_COMMANDS_AVAILABLE and resilience:
+    cli.add_command(resilience.resilience)
+    cli.add_command(resilience.resilience_status)
+
 def main() -> None:
     """Main entry point for the CLI."""
     try:
@@ -227,17 +259,29 @@ def main() -> None:
         sys.exit(1)
     
     except AuthenticationError as e:
-        # Handle authentication failures with specific guidance
+        # Handle authentication failures with comprehensive context
         if RICH_AVAILABLE and console:
             console.print(f"[red]🔐 Authentication Failed: {e.message}[/red]")
             if e.help_text:
                 console.print(f"[blue]💡 {e.help_text}[/blue]")
+            if e.user_action:
+                console.print(f"[green]🔧 Action: {e.user_action}[/green]")
+            if e.technical_details:
+                console.print(f"[dim]📋 Details: {e.technical_details}[/dim]")
+            console.print(f"[dim]🔍 Error ID: {e.correlation_id}[/dim]")
         else:
             print(f"🔐 Authentication Failed: {e.message}")
             if e.help_text:
                 print(f"💡 {e.help_text}")
+            if e.user_action:
+                print(f"🔧 Action: {e.user_action}")
+            print(f"🔍 Error ID: {e.correlation_id}")
         
-        logging.error(f"Authentication error for provider {e.provider}: {e.message}")
+        # Enhanced logging with error context
+        logger = get_logger("vortex.cli.error")
+        logger.error("Authentication error occurred", 
+                    error_dict=e.to_dict(),
+                    correlation_id=e.correlation_id)
         sys.exit(2)
     
     except ConfigurationError as e:
@@ -339,17 +383,31 @@ def main() -> None:
         sys.exit(9)
     
     except VortexError as e:
-        # Handle any other Vortex exceptions
+        # Handle any other Vortex exceptions with full context
         if RICH_AVAILABLE and console:
             console.print(f"[red]❌ Error: {e.message}[/red]")
             if e.help_text:
                 console.print(f"[blue]💡 {e.help_text}[/blue]")
+            if e.user_action:
+                console.print(f"[green]🔧 Action: {e.user_action}[/green]")
+            if e.context:
+                context_items = [f"{k}: {v}" for k, v in e.context.items() if v is not None]
+                if context_items:
+                    console.print(f"[dim]📋 Context: {', '.join(context_items)}[/dim]")
+            console.print(f"[dim]🔍 Error ID: {e.correlation_id}[/dim]")
         else:
             print(f"❌ Error: {e.message}")
             if e.help_text:
                 print(f"💡 {e.help_text}")
+            if e.user_action:
+                print(f"🔧 Action: {e.user_action}")
+            print(f"🔍 Error ID: {e.correlation_id}")
         
-        logging.error(f"Vortex error ({e.error_code}): {e.message}")
+        # Enhanced logging with full error context
+        logger = get_logger("vortex.cli.error")
+        logger.error("Vortex error occurred", 
+                    error_dict=e.to_dict(),
+                    correlation_id=e.correlation_id)
         sys.exit(10)
     
     except (OSError, IOError) as e:
