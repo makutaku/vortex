@@ -17,7 +17,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 # or on Windows: powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
 
 # Create virtual environment and install vortex with all dependencies
-uv venv
+uv venv .venv
 source .venv/bin/activate  # Linux/Mac
 # or .venv\Scripts\activate  # Windows
 
@@ -30,6 +30,13 @@ uv pip install -e ".[test]"    # Testing dependencies
 uv pip install -e ".[lint]"    # Linting dependencies
 ```
 
+**⚠️ IMPORTANT for Local Development:**
+Always use the virtual environment setup above for local testing and development. Do NOT rely solely on Docker for testing - use Docker only for deployment testing. The virtual environment provides:
+- Faster testing cycles (no Docker build overhead)
+- Better debugging with direct access to stack traces
+- Proper dependency resolution and imports
+- Real development workflow with all Python tooling
+
 **Alternative methods:**
 ```bash
 # Method 2: Traditional pip (slower)
@@ -41,8 +48,18 @@ uv pip install vortex
 ```
 
 ### Testing
+
+**🚀 Local Testing (Recommended):**
 ```bash
-# Using uv (recommended)
+# First, ensure virtual environment is set up and activated
+source .venv/bin/activate
+
+# Test CLI functionality locally
+vortex --help
+vortex providers --list
+vortex config --show
+
+# Run unit tests with uv
 uv run pytest src/vortex/tests/
 uv run pytest src/vortex/tests/test_downloader.py
 
@@ -52,8 +69,14 @@ uv run pytest --cov=vortex src/vortex/tests/
 # Install test dependencies and run
 uv pip install -e ".[test]"
 uv run pytest
+```
 
-# Traditional method
+**🐳 Docker Testing (For Deployment Validation):**
+```bash
+# Only use Docker for final deployment testing
+./scripts/test-docker-build.sh
+
+# Traditional method (slower, use only if uv unavailable)
 pytest src/vortex/tests/
 ```
 
