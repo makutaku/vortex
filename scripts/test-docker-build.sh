@@ -178,12 +178,19 @@ timeout 60s docker run --rm \
     -e VORTEX_DOWNLOAD_ARGS="--yes --symbol AAPL" \
     vortex-test:latest > test-data-yahoo/output.log 2>&1
 
+echo "Container finished (exit code: $?), checking results..."
+
 # Check output regardless of container exit code (timeout kills it after successful download)
 if [ -f test-data-yahoo/output.log ]; then
     
     # Check for success indicators in the output
     if grep -q "Download completed successfully\|Starting download\|Processing.*AAPL" test-data-yahoo/output.log; then
-        echo -e "${GREEN}✓ Yahoo download test successful${NC}\n"
+        echo -e "${GREEN}✓ Yahoo download test successful${NC}"
+        echo "Key indicators found:"
+        grep -E "(Download completed successfully|✓ Download completed|Processing.*AAPL)" test-data-yahoo/output.log | head -3
+        echo "Downloaded files:"
+        ls -la test-data-yahoo/stocks/1d/ 2>/dev/null | grep -v "^total" || echo "No data files found"
+        echo ""
     else
         echo -e "${YELLOW}⚠ Yahoo download completed but success message unclear${NC}"
         echo "Last few lines of output:"

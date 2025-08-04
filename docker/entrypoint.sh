@@ -38,36 +38,72 @@ check_write_permission() {
 setup_configuration() {
     log_info "Setting up configuration..."
     
-    # Create config directory at standard location
-    VORTEX_CONFIG_DIR="${VORTEX_CONFIG_DIR:-/root/.config/vortex}"
-    mkdir -p "$(dirname "$VORTEX_CONFIG_DIR")" "$VORTEX_CONFIG_DIR"
+    # Create config directory at user home location
+    if ! mkdir -p "$(dirname "$VORTEX_CONFIG_DIR")" "$VORTEX_CONFIG_DIR" 2>/dev/null; then
+        # Fallback to temp directory if home not writable
+        VORTEX_CONFIG_DIR="/tmp/.vortex"
+        mkdir -p "$VORTEX_CONFIG_DIR"
+        log_warning "Using fallback config directory: $VORTEX_CONFIG_DIR"
+    fi
     
     # Check if config.toml exists
     if [ ! -f "$VORTEX_CONFIG_DIR/config.toml" ]; then
         log_info "Creating default config.toml..."
-        cat > "$VORTEX_CONFIG_DIR/config.toml" << EOF
+        
+        # Try to create config file, with fallback on failure
+        if ! {
+            cat > "$VORTEX_CONFIG_DIR/config.toml" << 'EOF'
 # Vortex Configuration (automatically generated)
 [general]
-output_directory = "${VORTEX_OUTPUT_DIR:-/data}"
-backup_enabled = ${VORTEX_BACKUP_ENABLED:-false}
-default_provider = "${VORTEX_DEFAULT_PROVIDER:-yahoo}"
+output_directory = "/data"
+backup_enabled = false
+default_provider = "yahoo"
 
 [general.logging]
-level = "${VORTEX_LOG_LEVEL:-INFO}"
-format = "${VORTEX_LOGGING_FORMAT:-console}"
+level = "INFO"
+format = "console"
 
 [providers.barchart]
 # Set credentials via environment variables
-daily_limit = ${VORTEX_BARCHART_DAILY_LIMIT:-150}
+daily_limit = 150
 
 [providers.yahoo]
 # No configuration required - works out of the box
 
 [providers.ibkr]
-host = "${VORTEX_IBKR_HOST:-localhost}"
-port = ${VORTEX_IBKR_PORT:-7497}
-client_id = ${VORTEX_IBKR_CLIENT_ID:-1}
+host = "localhost"
+port = 7497
+client_id = 1
 EOF
+        } 2>/dev/null; then
+            # Fallback if config file creation fails
+            VORTEX_CONFIG_DIR="/tmp/.vortex"
+            mkdir -p "$VORTEX_CONFIG_DIR"
+            log_warning "Config file creation failed, using fallback: $VORTEX_CONFIG_DIR"
+            cat > "$VORTEX_CONFIG_DIR/config.toml" << 'EOF'
+# Vortex Configuration (automatically generated)
+[general]
+output_directory = "/data"
+backup_enabled = false
+default_provider = "yahoo"
+
+[general.logging]
+level = "INFO"
+format = "console"
+
+[providers.barchart]
+# Set credentials via environment variables
+daily_limit = 150
+
+[providers.yahoo]
+# No configuration required - works out of the box
+
+[providers.ibkr]
+host = "localhost"
+port = 7497
+client_id = 1
+EOF
+        fi
     fi
     
     log_info "Using configuration directory: $VORTEX_CONFIG_DIR"
@@ -102,6 +138,12 @@ update_cron_schedule() {
     VORTEX_SCHEDULE="${VORTEX_SCHEDULE:-0 8 * * *}"
     VORTEX_OUTPUT_DIR="${VORTEX_OUTPUT_DIR:-/data}"
     
+    # Skip cron setup if running as non-root user (crontab requires passwd entry)
+    if [ "$(id -u)" -ne 0 ]; then
+        log_warning "Skipping cron setup - running as non-root user"
+        return 0
+    fi
+    
     if [ -n "$VORTEX_SCHEDULE" ]; then
         log_info "Updating cron schedule to: $VORTEX_SCHEDULE"
         
@@ -127,9 +169,15 @@ EOF
 main() {
     log_info "Starting Vortex container with modern configuration..."
     
+    # Set HOME if not set (happens with --user flag)
+    if [ -z "$HOME" ] || [ "$HOME" = "/" ]; then
+        HOME="/home/vortex"
+        export HOME
+    fi
+    
     # Set defaults for required directories
     VORTEX_OUTPUT_DIR="${VORTEX_OUTPUT_DIR:-/data}"
-    VORTEX_CONFIG_DIR="${VORTEX_CONFIG_DIR:-/root/.config/vortex}"
+    VORTEX_CONFIG_DIR="${VORTEX_CONFIG_DIR:-$HOME/.config/vortex}"
     VORTEX_RUN_ON_STARTUP="${VORTEX_RUN_ON_STARTUP:-true}"
     
     # Validate required directories
@@ -138,9 +186,9 @@ main() {
         exit 1
     fi
     
-    if ! check_write_permission "$(dirname "$VORTEX_CONFIG_DIR")"; then
-        log_error "Config parent directory $(dirname "$VORTEX_CONFIG_DIR") is not writable"
-        exit 1
+    # Check config directory permissions (with fallback)
+    if ! check_write_permission "$(dirname "$VORTEX_CONFIG_DIR")" 2>/dev/null; then
+        log_warning "Config directory $(dirname "$VORTEX_CONFIG_DIR") not writable, will use fallback"
     fi
     
     # Setup configuration
