@@ -10,7 +10,7 @@ from typing import Dict, Any, List, Type
 from pydantic import BaseModel, Field
 
 from ..base import BuiltinProviderPlugin, PluginMetadata, ProviderConfigSchema
-from ..exceptions import PluginConfigurationError
+from ...exceptions import PluginConfigurationError
 from ...data_providers.data_provider import DataProvider
 from ...data_providers.yf_data_provider import YahooDataProvider
 from ...instruments.stock import Stock

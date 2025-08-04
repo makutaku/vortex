@@ -1,8 +1,10 @@
 """
 Plugin system exceptions.
+
+All exceptions related to the plugin system for data providers and extensibility.
 """
 
-from ..exceptions import VortexError
+from .base import VortexError
 
 
 class PluginError(VortexError):

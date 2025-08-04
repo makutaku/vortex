@@ -12,6 +12,8 @@ NC='\033[0m'
 # Cleanup function (only called explicitly)
 cleanup() {
     echo -e "\n${YELLOW}Cleaning up test directories...${NC}"
+    # Fix permissions before cleanup (Docker containers may create files as different users)
+    chmod -R 777 test-data test-config test-data-* test-config-* 2>/dev/null || true
     rm -rf test-data test-config test-data-* test-config-*
 }
 
@@ -66,16 +68,16 @@ timeout 20s docker run --rm --entrypoint="" vortex-test:latest vortex --help
 echo -e "${GREEN}✓ CLI help command works${NC}\n"
 
 # Test 5: Test providers list
-echo -e "${YELLOW}Test 5: Testing 'vortex providers --list' command...${NC}"
+echo -e "${YELLOW}Test 5: Testing 'vortex providers' command...${NC}"
 mkdir -p test-config-providers/vortex
-if timeout 20s docker run --rm \
+if timeout 30s docker run --rm \
     --user "$(id -u):$(id -g)" \
     -v "$(pwd)/test-config-providers:/root/.config" \
     --entrypoint="" \
-    vortex-test:latest vortex providers --list; then
-    echo -e "${GREEN}✓ Providers list command works${NC}\n"
+    vortex-test:latest vortex providers | grep -q "Total providers available"; then
+    echo -e "${GREEN}✓ Providers command works${NC}\n"
 else
-    echo -e "${YELLOW}⚠ Providers command failed (likely disk space issue)${NC}\n"
+    echo -e "${YELLOW}⚠ Providers command failed${NC}\n"
 fi
 
 # Test 6: Test with environment variables
@@ -162,47 +164,76 @@ fi
 
 # Test 12: Test Yahoo download (no credentials needed)
 echo -e "${YELLOW}Test 12: Testing Yahoo download...${NC}"
-mkdir -p test-data-yahoo test-config-yahoo
+# Clean up test directories (may have permission issues from Docker containers)
+if [ -d "test-data-yahoo" ] || [ -d "test-config-yahoo" ]; then
+    echo "Cleaning up previous test directories..."
+    # Try to fix permissions first, then remove
+    find test-data-yahoo test-config-yahoo -type d -exec chmod 755 {} \; 2>/dev/null || true
+    find test-data-yahoo test-config-yahoo -type f -exec chmod 644 {} \; 2>/dev/null || true
+    rm -rf test-data-yahoo test-config-yahoo 2>/dev/null || {
+        echo "Warning: Could not remove some files (permission issue), continuing anyway..."
+        # Create new directories with unique names to avoid conflicts
+        TEST_SUFFIX="_$(date +%s)"
+        mkdir -p "test-data-yahoo${TEST_SUFFIX}" "test-config-yahoo${TEST_SUFFIX}"
+        # Update variables to use new directory names
+        TEST_DATA_DIR="test-data-yahoo${TEST_SUFFIX}"
+        TEST_CONFIG_DIR="test-config-yahoo${TEST_SUFFIX}"
+    }
+fi
+
+# Ensure directories exist (use clean names if cleanup succeeded)
+if [ -z "$TEST_DATA_DIR" ]; then
+    TEST_DATA_DIR="test-data-yahoo"
+    TEST_CONFIG_DIR="test-config-yahoo"
+fi
+mkdir -p "$TEST_DATA_DIR" "$TEST_CONFIG_DIR"
 
 # Test with timeout - container will be killed after download completes and starts tailing logs
 echo "Running Yahoo download test (real download with timeout)..."
 CONTAINER_EXIT_CODE=0
+TEST_12_PASSED=false
 timeout 30s docker run --rm \
     --user "$(id -u):$(id -g)" \
-    -v "$(pwd)/test-data-yahoo:/data" \
-    -v "$(pwd)/test-config-yahoo:/config" \
+    -v "$(pwd)/$TEST_DATA_DIR:/data" \
+    -v "$(pwd)/$TEST_CONFIG_DIR:/config" \
     -e VORTEX_DEFAULT_PROVIDER=yahoo \
     -e VORTEX_RUN_ON_STARTUP=true \
     -e VORTEX_DOWNLOAD_ARGS="--yes --symbol AAPL" \
-    vortex-test:latest > test-data-yahoo/output.log 2>&1 || CONTAINER_EXIT_CODE=$?
+    vortex-test:latest > "$TEST_DATA_DIR/output.log" 2>&1 || CONTAINER_EXIT_CODE=$?
 
 echo "Container finished (exit code: $CONTAINER_EXIT_CODE), checking results..."
 
 # Check output regardless of container exit code (timeout kills it after successful download)
-if [ -f test-data-yahoo/output.log ]; then
+if [ -f "$TEST_DATA_DIR/output.log" ]; then
     
-    # Check for success indicators in the output
-    if grep -q "Download completed successfully\|Starting download\|Processing.*AAPL" test-data-yahoo/output.log; then
+    # Check for success indicators in the output - look for actual download processing
+    if grep -q "Fetched remote data\|Download completed successfully\|✓ Completed" "$TEST_DATA_DIR/output.log"; then
         echo -e "${GREEN}✓ Yahoo download test successful${NC}"
         echo "Key indicators found:"
-        grep -E "(Download completed successfully|✓ Download completed|Processing.*AAPL)" test-data-yahoo/output.log | head -3
+        grep -E "(Fetched remote data|Download completed successfully|✓ Completed)" "$TEST_DATA_DIR/output.log" | head -3
         echo "Downloaded files:"
-        ls -la test-data-yahoo/stocks/1d/ 2>/dev/null | grep -v "^total" || echo "No data files found"
+        find "$TEST_DATA_DIR" -name "*.csv" -type f 2>/dev/null | head -5 || echo "No CSV files found (may be permission issue)"
         echo ""
+        TEST_12_PASSED=true
     else
         echo -e "${YELLOW}⚠ Yahoo download completed but success message unclear${NC}"
         echo "Last few lines of output:"
-        tail -5 test-data-yahoo/output.log 2>/dev/null || echo "No output file generated"
+        tail -5 "$TEST_DATA_DIR/output.log" 2>/dev/null || echo "No output file generated"
         echo ""
     fi
 else
     echo -e "${YELLOW}⚠ Yahoo download test timeout or failure${NC}"
     echo "Container output (if available):"
-    head -10 test-data-yahoo/output.log 2>/dev/null || echo "No output captured"
+    head -10 "$TEST_DATA_DIR/output.log" 2>/dev/null || echo "No output captured"
     echo ""
 fi
 
-echo -e "${GREEN}All tests passed! 🎉${NC}"
+if [ "$TEST_12_PASSED" = true ]; then
+    echo -e "${GREEN}All tests passed! 🎉${NC}"
+else
+    echo -e "${RED}Test 12 (Yahoo download) failed! ❌${NC}"
+    echo -e "${YELLOW}Some tests may have issues. Check the output above.${NC}"
+fi
 
 # Call cleanup function explicitly at the end
 cleanup

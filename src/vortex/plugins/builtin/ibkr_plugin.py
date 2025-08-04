@@ -9,7 +9,7 @@ from typing import Dict, Any, List, Type
 from pydantic import BaseModel, Field, validator
 
 from ..base import BuiltinProviderPlugin, PluginMetadata, ProviderConfigSchema
-from ..exceptions import PluginConfigurationError
+from ...exceptions import PluginConfigurationError
 from ...data_providers.data_provider import DataProvider
 from ...data_providers.ib_data_provider import IbkrDataProvider
 from ...logging_integration import get_module_logger

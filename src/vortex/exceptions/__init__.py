@@ -55,18 +55,24 @@ from .providers import (
     DataProviderError,
     AuthenticationError,
     RateLimitError,
-    ConnectionError,
+    VortexConnectionError,
     DataNotFoundError,
     AllowanceLimitExceededError,
 )
+
+# For backward compatibility
+ConnectionError = VortexConnectionError
 
 # Storage exceptions
 from .storage import (
     DataStorageError,
     FileStorageError,
-    PermissionError,
+    VortexPermissionError,
     DiskSpaceError,
 )
+
+# For backward compatibility
+PermissionError = VortexPermissionError
 
 # Instrument exceptions
 from .instruments import (
@@ -81,6 +87,15 @@ from .cli import (
     InvalidCommandError,
     MissingArgumentError,
     UserAbortError,
+)
+
+# Plugin exceptions
+from .plugins import (
+    PluginError,
+    PluginNotFoundError,
+    PluginValidationError,
+    PluginConfigurationError,
+    PluginLoadError,
 )
 
 # Legacy compatibility
@@ -105,14 +120,16 @@ __all__ = [
     'DataProviderError',
     'AuthenticationError',
     'RateLimitError',
-    'ConnectionError',
+    'VortexConnectionError',
+    'ConnectionError',  # Backward compatibility alias
     'DataNotFoundError',
     'AllowanceLimitExceededError',
     
     # Storage
     'DataStorageError',
     'FileStorageError',
-    'PermissionError',
+    'VortexPermissionError',
+    'PermissionError',  # Backward compatibility alias
     'DiskSpaceError',
     
     # Instruments
@@ -125,6 +142,13 @@ __all__ = [
     'InvalidCommandError',
     'MissingArgumentError',
     'UserAbortError',
+    
+    # Plugins
+    'PluginError',
+    'PluginNotFoundError',
+    'PluginValidationError',
+    'PluginConfigurationError',
+    'PluginLoadError',
     
     # Legacy compatibility
     'DownloadError',

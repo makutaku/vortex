@@ -30,7 +30,7 @@ class FileStorageError(DataStorageError):
         super().__init__(message, help_text, "FILE_STORAGE_ERROR")
 
 
-class PermissionError(DataStorageError):
+class VortexPermissionError(DataStorageError):
     """Raised when file system permissions prevent operations."""
     
     def __init__(self, path: Path, operation: str = "access"):

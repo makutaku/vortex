@@ -247,3 +247,152 @@ Each assets file defines futures, forex, and stock instruments with metadata lik
 ### Testing Strategy
 
 Tests use pytest with fixture-based setup. The main test file `test_downloader.py` validates credential handling and download functionality with temporary directories.
+
+## 🚨 CRITICAL: Docker Test Protection
+
+**Tests 5 and 12 frequently break during refactoring. Follow these rules to prevent breakage:**
+
+### Test 5: Providers Command (`vortex providers`)
+
+**What it tests:** CLI command functionality and provider plugin loading
+**Common breakage patterns:**
+- ❌ Moving plugin exception files without updating imports
+- ❌ Changing CLI command syntax/options  
+- ❌ Breaking dependency injection system
+- ❌ Import errors in command modules
+
+**Protection Rules:**
+1. **BEFORE moving any exception files:** Check all `__init__.py` files that import them
+2. **AFTER refactoring imports:** Always test: `docker run --rm vortex-test:latest vortex providers`
+3. **When changing CLI commands:** Update corresponding test scripts immediately
+4. **Plugin system changes:** Verify plugin registry can load all 3 providers (BARCHART, YAHOO, IBKR)
+
+**Expected behavior:** Shows table with "Total providers available: 3"
+
+### Test 12: Yahoo Download (`vortex download --symbol AAPL`)
+
+**What it tests:** End-to-end download functionality with real data
+**Common breakage patterns:**
+- ❌ Docker permission issues (container user vs host user)
+- ❌ CLI argument changes not reflected in test environment variables
+- ❌ Output directory path assumptions
+- ❌ Success detection patterns changed
+
+**Protection Rules:**
+1. **Container user consistency:** Always use `--user "1000:1000"` in Docker tests
+2. **Permission management:** Ensure test directories are writable by container user
+3. **Success detection:** Test looks for "Fetched remote data" and "Download completed successfully"
+4. **File validation:** Expects CSV files in `test-data-yahoo/stocks/1d/AAPL.csv`
+
+**Expected behavior:** Downloads AAPL data and creates CSV file
+
+### 🛡️ Refactoring Checklist
+
+**BEFORE any major refactoring:**
+```bash
+# 1. Run full Docker test to establish baseline
+./scripts/test-docker-build.sh
+
+# 2. Note which tests pass
+# 3. After refactoring, run again and compare
+```
+
+**AFTER refactoring (MANDATORY):**
+```bash
+# 1. Quick validation script (recommended)
+./scripts/validate-critical-tests.sh
+
+# 2. Manual validation (if needed)
+docker run --rm vortex-test:latest vortex providers | grep "Total providers available"
+docker run --rm vortex-test:latest vortex --help | grep "Commands:"
+
+# 3. If either fails, fix IMMEDIATELY before committing
+# 4. Run full test suite to confirm
+./scripts/test-docker-build.sh
+```
+
+### 🔧 Quick Debug Commands
+
+**Test 5 debugging:**
+```bash
+# Check if commands are available
+docker run --rm vortex-test:latest python3 -c "
+from vortex.cli.dependencies import get_availability_summary
+print(get_availability_summary())
+"
+
+# Test provider imports
+docker run --rm vortex-test:latest python3 -c "
+from vortex.plugins import get_provider_registry
+registry = get_provider_registry()
+print(f'Providers: {registry.list_plugins()}')
+"
+```
+
+**Test 12 debugging:**
+```bash
+# Check download with verbose logging
+docker run --rm --user "1000:1000" -v "$(pwd)/debug:/data" vortex-test:latest \
+  vortex download --symbol AAPL --output-dir /data --yes -v
+```
+
+### 📋 Import Movement Checklist
+
+**When moving exception/plugin files:**
+1. ✅ Update the file being moved
+2. ✅ Update all `__init__.py` files that import it
+3. ✅ Search codebase for old import paths: `grep -r "from.*old_path"`
+4. ✅ Update plugin registrations if applicable
+5. ✅ Rebuild Docker image: `docker build -t vortex-test:latest .`
+6. ✅ Test both CLI commands: `vortex providers` and `vortex download --help`
+
+### 🎯 Success Criteria
+
+**Test 5 SUCCESS indicators:**
+- Providers table displays with 3 providers
+- No "requires dependencies" error messages
+- All 3 plugins load: barchart, yahoo, ibkr
+
+**Test 12 SUCCESS indicators:**  
+- "Fetched remote data: (X, Y), AAPL" in logs
+- "Download completed successfully" message
+- CSV file created: `find test-data-yahoo -name "*.csv"`
+- No permission denied errors
+
+### 🚫 Never Break These Patterns
+
+1. **Plugin Exception Imports:** Always check `vortex/plugins/__init__.py` when moving exception files
+2. **CLI Command Registration:** Verify dependency injection system works after import changes
+3. **Docker User Permissions:** Always use consistent user ID (1000:1000) in tests
+4. **Success Detection:** Don't change log messages that tests depend on for validation
+
+**Remember: Tests 5 and 12 are integration tests that validate the entire system works end-to-end. They catch real user-facing issues that unit tests miss.**
+
+### 🎓 Lessons Learned from Recent Breakages
+
+**Import Simplification (Import Dependencies):**
+- ✅ **What worked:** Centralized dependency injection eliminated scattered try/catch blocks
+- ❌ **What broke:** Didn't update `plugins/__init__.py` when moving `plugins/exceptions.py` → `exceptions/plugins.py`
+- 🛡️ **Prevention:** Always check `__init__.py` files when moving modules
+
+**Error Handling Consolidation:**
+- ✅ **What worked:** Standardized templates and consolidated handlers
+- ❌ **What broke:** CLI command syntax changes not reflected in test script (`--list` option removed)
+- 🛡️ **Prevention:** Update test scripts immediately when changing CLI interfaces
+
+**Docker Permission Issues:**
+- ✅ **What worked:** Using consistent container user (1000:1000)  
+- ❌ **What broke:** Host/container user ID mismatches causing permission denied
+- 🛡️ **Prevention:** Always use `--user "1000:1000"` and proper directory permissions
+
+### 🔄 Refactoring Safety Pattern
+
+**The Safe Refactoring Workflow:**
+1. **Baseline:** `./scripts/test-docker-build.sh` (establish what works)
+2. **Refactor:** Make your changes
+3. **Quick Check:** `./scripts/validate-critical-tests.sh` (catch obvious breaks)
+4. **Fix Immediately:** Don't proceed until Tests 5 & 12 pass
+5. **Full Validation:** `./scripts/test-docker-build.sh` (ensure nothing else broke)
+6. **Commit:** Only after all tests pass
+
+**This pattern prevents the cascade failures where one broken test leads to debugging rabbit holes.**

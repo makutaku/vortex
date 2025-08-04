@@ -10,6 +10,7 @@ from datetime import datetime
 from typing import Optional, TYPE_CHECKING
 
 from .base import VortexError
+from .templates import ErrorMessageTemplates, RecoverySuggestions, ErrorCodes
 
 if TYPE_CHECKING:
     from ..instruments.period import Period
@@ -20,7 +21,7 @@ class DataProviderError(VortexError):
     
     def __init__(self, provider: str, message: str, help_text: Optional[str] = None, error_code: Optional[str] = None):
         self.provider = provider
-        full_message = f"[{provider.upper()}] {message}"
+        full_message = ErrorMessageTemplates.PROVIDER_ERROR.format(provider=provider, message=message)
         super().__init__(full_message, help_text, error_code)
 
 
@@ -28,11 +29,13 @@ class AuthenticationError(DataProviderError):
     """Raised when authentication with a data provider fails."""
     
     def __init__(self, provider: str, details: Optional[str] = None, http_code: Optional[int] = None):
-        message = "Authentication failed"
+        message = f"Authentication failed"
         if details:
-            message += f": {details}"
+            message += f" - {details}"
         
-        help_text = f"Verify your {provider} credentials are correct and active"
+        # Use standardized recovery suggestions
+        recovery_suggestions = RecoverySuggestions.for_auth_error(provider)
+        help_text = recovery_suggestions[0] if recovery_suggestions else f"Verify your {provider} credentials"
         user_action = f"Run: vortex config --provider {provider} --set-credentials"
         
         context = {"provider": provider}
@@ -48,7 +51,7 @@ class AuthenticationError(DataProviderError):
             technical_details = "HTTP 429 Too Many Requests - Authentication rate limited"
             
         super().__init__(
-            provider, message, help_text, "AUTH_FAILED"
+            provider, message, help_text, ErrorCodes.PROVIDER_AUTH_FAILED
         )
         self.context.update(context)
         self.user_action = user_action
@@ -71,7 +74,7 @@ class RateLimitError(DataProviderError):
         super().__init__(provider, message, help_text, "RATE_LIMIT")
 
 
-class ConnectionError(DataProviderError):
+class VortexConnectionError(DataProviderError):
     """Raised when connection to data provider fails."""
     
     def __init__(self, provider: str, details: Optional[str] = None):

@@ -15,7 +15,7 @@ from typing import Dict, List, Optional, Type, Any
 from pydantic import BaseModel
 
 from .base import ProviderPlugin, BuiltinProviderPlugin
-from .exceptions import PluginNotFoundError, PluginLoadError, PluginValidationError
+from ..exceptions import PluginNotFoundError, PluginLoadError, PluginValidationError
 from ..data_providers.data_provider import DataProvider
 from ..logging_integration import get_module_logger
 

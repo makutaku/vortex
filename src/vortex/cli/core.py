@@ -18,7 +18,7 @@ except ImportError:
 from .setup import setup_logging
 from .welcome import show_welcome
 from .wizard import wizard_command
-from .error_handlers import handle_cli_errors
+from .error_handler import handle_cli_exceptions, create_error_handler
 
 # Try to import UX - if it fails, create a dummy
 try:
@@ -191,8 +191,30 @@ if RESILIENCE_COMMANDS_AVAILABLE and resilience:
     cli.add_command(resilience.resilience_status)
 
 
-@handle_cli_errors
 def main() -> None:
     """Main entry point for the CLI with error handling."""
-    # Execute CLI (commands already registered at module level)
-    cli()
+    # Create error handler with available dependencies
+    try:
+        from rich.console import Console
+        console = Console()
+        rich_available = True
+    except ImportError:
+        console = None
+        rich_available = False
+    
+    try:
+        from ..logging_integration import get_logger
+        config_available = True
+    except ImportError:
+        get_logger = None
+        config_available = False
+    
+    error_handler = create_error_handler(
+        rich_available=rich_available,
+        console=console,
+        config_available=config_available,
+        get_logger_func=get_logger
+    )
+    
+    # Execute CLI with centralized error handling
+    handle_cli_exceptions(error_handler, cli)
