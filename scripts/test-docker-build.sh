@@ -164,15 +164,18 @@ fi
 echo -e "${YELLOW}Test 12: Testing Yahoo download...${NC}"
 mkdir -p test-data-yahoo test-config-yahoo
 
-# Test with a short timeout to avoid hanging
-echo "Running Yahoo download test (dry-run with timeout)..."
-if timeout 60s docker run --rm \
+# Test with timeout - container will be killed after download completes and starts tailing logs
+echo "Running Yahoo download test (real download with timeout)..."
+timeout 60s docker run --rm \
     -v "$(pwd)/test-data-yahoo:/data" \
     -v "$(pwd)/test-config-yahoo:/config" \
     -e VORTEX_DEFAULT_PROVIDER=yahoo \
     -e VORTEX_RUN_ON_STARTUP=true \
     -e VORTEX_DOWNLOAD_ARGS="--yes --symbol AAPL" \
-    vortex-test:latest > test-data-yahoo/output.log 2>&1; then
+    vortex-test:latest > test-data-yahoo/output.log 2>&1
+
+# Check output regardless of container exit code (timeout kills it after successful download)
+if [ -f test-data-yahoo/output.log ]; then
     
     # Check for success indicators in the output
     if grep -q "Download completed successfully\|Starting download\|Processing.*AAPL" test-data-yahoo/output.log; then
