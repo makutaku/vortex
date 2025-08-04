@@ -17,9 +17,9 @@
 |----------|--------|--------------|-----------|
 | [System Overview](01-system-overview.md) | ✅ **Updated** | 2025-08-03 | System Architect, Lead Developer, DevOps Lead |
 | [Component Architecture](02-component-architecture.md) | ✅ **Updated** | 2025-08-03 | Lead Developer, Senior Engineer, QA Lead |
-| [Data Flow Design](03-data-flow-design.md) | ⚠️ Needs Update | 2025-01-08 | Senior Developer, Data Engineer, QA Lead |
-| [Provider Abstraction](04-provider-abstraction.md) | ⚠️ Needs Update | 2025-01-08 | Senior Developer, Integration Architect, QA Lead |
-| [Storage Architecture](05-storage-architecture.md) | ⚠️ Needs Update | 2025-01-08 | Senior Developer, Data Engineer, Infrastructure Lead |
+| [Data Flow Design](03-data-flow-design.md) | ✅ **Updated** | 2025-08-04 | Senior Developer, Data Engineer, QA Lead |
+| [Provider Abstraction](04-provider-abstraction.md) | ✅ **Updated** | 2025-08-04 | Senior Developer, Integration Architect, QA Lead |
+| [Storage Architecture](05-storage-architecture.md) | ✅ **Updated** | 2025-08-04 | Senior Developer, Data Engineer, Infrastructure Lead |
 | [Security Design](06-security-design.md) | ⚠️ Needs Update | 2025-01-08 | Security Architect, Compliance Officer, DevOps Lead |
 | [Deployment Architecture](07-deployment-architecture.md) | ⚠️ Needs Update | 2025-01-08 | DevOps Lead, Security Architect, Infrastructure Team |
 | [Integration Design](08-integration-design.md) | ⚠️ Needs Update | 2025-01-08 | Integration Architect, Senior Developer, DevOps Lead |
@@ -36,16 +36,19 @@
 
 **For Security Review:** [Security Design](06-security-design.md) → [Integration Design](08-integration-design.md)
 
-### Recent Updates (2025-08-03)
+### Recent Updates (2025-08-04)
 
-**✅ Completed:**
+**✅ Major Architecture Updates Completed:**
 - **System Overview**: Updated with modern CLI architecture, Docker deployment, uv package management
 - **Component Architecture**: Reflects actual Click CLI, TOML configuration, single dispatch patterns
+- **Data Flow Design**: Completely refreshed with modern CLI-driven pipeline, plugin architecture, and comprehensive error handling
+- **Provider Abstraction**: Updated to reflect plugin-based provider system with registry pattern and dynamic loading
+- **Storage Architecture**: Documented dual CSV/Parquet storage with bridge pattern, atomic operations, and intelligent deduplication
 
-**🔄 Priority Updates Needed:**
-- **Provider Abstraction**: Update to reflect single dispatch methods and actual provider implementations
-- **Storage Architecture**: Document dual CSV/Parquet storage with bridge pattern
+**🔄 Remaining Updates Needed:**
+- **Security Design**: Update credential management and Docker security patterns
 - **Deployment Architecture**: Add comprehensive Docker Compose setup and container orchestration
+- **Integration Design**: Document modern external system interfaces and API patterns
 
 ## 📋 Document Standards
 

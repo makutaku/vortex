@@ -1,53 +1,103 @@
 # Vortex Data Flow Design
 
-**Version:** 1.0  
-**Date:** 2025-01-08  
+**Version:** 2.0  
+**Date:** 2025-08-04  
 **Related:** [Component Architecture](02-component-architecture.md) | [Provider Abstraction](04-provider-abstraction.md)
 
 ## 1. Data Flow Overview
 
-### 1.1 End-to-End Pipeline
-Vortex implements a linear data processing pipeline with clear stages, error handling, and validation checkpoints at each transformation.
+### 1.1 Modern CLI-Driven Pipeline
+Vortex implements a sophisticated data processing pipeline with modern CLI interface, plugin architecture, comprehensive error handling, and dual-format storage with validation checkpoints.
 
 ```mermaid
 graph TB
-    subgraph "Data Acquisition"
-        Config[Configuration Loading]
-        JobGen[Job Generation]
-        ProvSelect[Provider Selection]
+    subgraph "CLI Layer"
+        User[User Input]
+        Click[Click CLI Framework]
+        Rich[Rich Terminal Output]
+        ConfigMgr[TOML Configuration Manager]
+    end
+    
+    subgraph "Application Layer"
+        DownloadCmd[Download Command]
+        ConfigCmd[Config Command]
+        ProvidersCmd[Providers Command]
+        ValidateCmd[Validate Command]
+    end
+    
+    subgraph "Core Processing"
+        JobFactory[Download Job Factory]
+        PluginRegistry[Provider Plugin Registry]
+        Orchestrator[Download Orchestrator]
+        RetryLogic[Retry with Exponential Backoff]
+    end
+    
+    subgraph "Data Provider Layer"
+        Strategy[Provider Strategy Pattern]
+        BarchartPlugin[Barchart Provider Plugin]
+        YahooPlugin[Yahoo Provider Plugin]
+        IBKRPlugin[IBKR Provider Plugin]
     end
     
     subgraph "Data Processing"
-        Fetch[Data Fetching]
-        Parse[Response Parsing]
-        Validate[Data Validation]
-        Transform[Format Transform]
+        Fetcher[Data Fetcher with Retries]
+        Parser[Response Parser]
+        Validator[Data Quality Validator]
+        Transformer[OHLCV Format Transformer]
     end
     
-    subgraph "Data Persistence"
-        Dedup[Deduplication]
-        Store[Storage Operation]
-        Backup[Backup Creation]
-        Meta[Metadata Update]
+    subgraph "Storage Layer"
+        StorageBridge[Storage Bridge Pattern]
+        CSVStorage[CSV Primary Storage]
+        ParquetStorage[Parquet Backup Storage]
+        MetadataStore[Metadata & Status Store]
+        Deduplicator[Smart Data Deduplication]
     end
     
-    Config --> JobGen
-    JobGen --> ProvSelect
-    ProvSelect --> Fetch
-    Fetch --> Parse
-    Parse --> Validate
-    Validate --> Transform
-    Transform --> Dedup
-    Dedup --> Store
-    Store --> Backup
-    Backup --> Meta
+    User --> Click
+    Click --> Rich
+    Click --> ConfigMgr
+    Click --> DownloadCmd
+    DownloadCmd --> JobFactory
+    JobFactory --> PluginRegistry
+    PluginRegistry --> Strategy
+    Strategy --> Orchestrator
+    Orchestrator --> RetryLogic
+    RetryLogic --> Fetcher
     
-    style Validate fill:#fff3e0
-    style Store fill:#e8f5e8
-    style Meta fill:#e1f5fe
+    Strategy --> BarchartPlugin
+    Strategy --> YahooPlugin
+    Strategy --> IBKRPlugin
+    
+    Fetcher --> Parser
+    Parser --> Validator
+    Validator --> Transformer
+    Transformer --> StorageBridge
+    StorageBridge --> Deduplicator
+    Deduplicator --> CSVStorage
+    StorageBridge --> ParquetStorage
+    StorageBridge --> MetadataStore
+    
+    style Click fill:#e1f5fe
+    style Strategy fill:#fff3e0
+    style StorageBridge fill:#e8f5e8
+    style Validator fill:#ffecb3
+    style MetadataStore fill:#f3e5f5
 ```
 
-### 1.2 Data States and Transformations
+### 1.2 Data Flow Architecture Principles
+
+**Plugin-Based Extensibility:** Modern plugin architecture using registry pattern enables adding new data providers without modifying core system components.
+
+**CLI-First Design:** Rich Click-based CLI provides professional user experience with progress bars, colored output, and comprehensive help system.
+
+**Configuration-Driven Operation:** TOML-based configuration with environment variable overrides and interactive setup wizards.
+
+**Dual Storage Strategy:** Primary CSV storage for human readability and analytics, with Parquet backup for performance and compression.
+
+**Comprehensive Error Handling:** Hierarchical exception system with provider-specific error handling and user-friendly error messages.
+
+### 1.3 Data States and Transformations
 | State | Format | Location | Purpose |
 |-------|--------|----------|---------|
 | **Raw** | Provider-specific | Memory buffer | Initial API response |
@@ -477,5 +527,5 @@ graph LR
 
 ---
 
-**Next Review:** 2025-02-08  
+**Next Review:** 2025-09-04  
 **Reviewers:** Senior Developer, Data Engineer, QA Lead

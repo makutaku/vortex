@@ -1,103 +1,135 @@
 # Vortex Storage Architecture
 
-**Version:** 1.0  
-**Date:** 2025-01-08  
+**Version:** 2.0  
+**Date:** 2025-08-04  
 **Related:** [Component Architecture](02-component-architecture.md) | [Data Flow Design](03-data-flow-design.md)
 
-## 1. Storage Architecture Overview
+## 1. Modern Dual-Format Storage Architecture
 
-### 1.1 Design Philosophy
-Vortex implements a dual-format storage strategy optimized for both human accessibility and analytical performance. The architecture supports pluggable storage backends with automatic format conversion and data lifecycle management.
+### 1.1 Storage Bridge Pattern Design
+Vortex implements a sophisticated dual-format storage architecture using the Bridge pattern, enabling simultaneous persistence in multiple formats while maintaining a unified interface. This design optimizes for both human accessibility (CSV) and analytical performance (Parquet).
 
-### 1.2 Storage Objectives
-- **Dual Format:** CSV for human readability, Parquet for performance
-- **Data Integrity:** Atomic operations with rollback capability
-- **Scalability:** Handle datasets from MB to multi-GB scale
-- **Portability:** Standard formats compatible with analytical tools
-- **Efficiency:** Compression and columnar storage optimization
+### 1.2 Architecture Objectives
+- **Dual Storage Strategy:** Primary CSV storage for human readability + Parquet backup for performance
+- **Bridge Pattern Implementation:** Clean separation between storage interface and format implementations
+- **Atomic Operations:** ACID-compliant operations with comprehensive rollback capability
+- **Intelligent Deduplication:** Smart data merging with conflict resolution strategies
+- **Comprehensive Metadata:** Complete audit trail with data quality metrics
+- **Format Extensibility:** Plugin architecture for adding new storage formats
 
-### 1.3 Storage Components
+### 1.3 Storage Bridge Architecture
 ```mermaid
 graph TB
+    subgraph "Storage Orchestration Layer"
+        StorageBridge[Storage Bridge Controller]
+        FormatRegistry[Storage Format Registry]
+        OperationCoordinator[Atomic Operation Coordinator]
+    end
+    
     subgraph "Storage Interface Layer"
-        DSI[DataStorage Interface]
-        FSB[FileStorage Base]
+        DataStorage[DataStorage Abstract Interface]
+        FileStorage[FileStorage Template Base]
+        MetadataManager[Metadata Management Interface]
     end
     
-    subgraph "Format Implementations"
-        CSV[CSV Storage]
-        Parquet[Parquet Storage]
-        JSON[JSON Metadata]
+    subgraph "Primary Storage Implementations"
+        CSVStorage[CSV Primary Storage]
+        CSVFormatter[CSV Data Formatter]
+        CSVDeduplicator[CSV Smart Deduplication]
+        CSVValidator[CSV Data Validation]
     end
     
-    subgraph "Storage Features"
-        Dedup[Deduplication Engine]
-        Compress[Compression Manager]
-        Backup[Backup Controller]
-        Validate[Data Validator]
+    subgraph "Backup Storage Implementations"
+        ParquetStorage[Parquet Backup Storage]
+        ParquetCompressor[Snappy Compression Engine]
+        ParquetOptimizer[Columnar Storage Optimizer]
+        ParquetValidator[Parquet Schema Validation]
     end
     
-    subgraph "File System Layer"
-        Local[Local File System]
-        Network[Network Storage]
-        Cloud[Cloud Storage]
+    subgraph "Metadata & Audit Layer"
+        MetadataStore[JSON Metadata Store]
+        AuditTracker[Operation Audit Tracker]
+        QualityScorer[Data Quality Scorer]
+        StatusTracker[Download Status Tracker]
     end
     
-    DSI --> FSB
-    FSB --> CSV
-    FSB --> Parquet
-    FSB --> JSON
+    subgraph "File System Integration"
+        LocalFS[Local File System]
+        AtomicWriter[Atomic File Writer]
+        TempManager[Temporary File Manager]
+        PathResolver[Intelligent Path Resolution]
+    end
     
-    CSV --> Dedup
-    CSV --> Backup
-    Parquet --> Compress
-    Parquet --> Validate
+    StorageBridge --> FormatRegistry
+    StorageBridge --> OperationCoordinator
+    OperationCoordinator --> DataStorage
     
-    FSB --> Local
-    FSB --> Network
-    FSB --> Cloud
+    DataStorage --> FileStorage
+    FileStorage --> CSVStorage
+    FileStorage --> ParquetStorage
+    FileStorage --> MetadataStore
     
-    style DSI fill:#e1f5fe
-    style CSV fill:#e8f5e8
-    style Parquet fill:#fff3e0
+    CSVStorage --> CSVFormatter
+    CSVStorage --> CSVDeduplicator
+    CSVStorage --> CSVValidator
+    
+    ParquetStorage --> ParquetCompressor
+    ParquetStorage --> ParquetOptimizer
+    ParquetStorage --> ParquetValidator
+    
+    MetadataStore --> AuditTracker
+    MetadataStore --> QualityScorer
+    MetadataStore --> StatusTracker
+    
+    FileStorage --> LocalFS
+    LocalFS --> AtomicWriter
+    LocalFS --> TempManager
+    LocalFS --> PathResolver
+    
+    style StorageBridge fill:#e1f5fe
+    style CSVStorage fill:#e8f5e8
+    style ParquetStorage fill:#fff3e0
+    style MetadataStore fill:#f3e5f5
+    style OperationCoordinator fill:#ffecb3
 ```
 
-## 2. Storage Interface Architecture
+## 2. Storage Bridge Pattern Implementation
 
-### 2.1 Abstract Storage Interface Design
-The storage interface defines a unified contract for all storage implementations, enabling pluggable backends while maintaining consistent behavior across different storage formats.
+### 2.1 Bridge Controller Architecture
+The Storage Bridge Controller orchestrates dual-format persistence while maintaining a clean separation between the storage interface and format-specific implementations. This enables runtime format selection and simultaneous multi-format operations.
 
-**Interface Design Principles:**
-- **Format Agnostic:** Common interface abstracts specific file format details
-- **CRUD Operations:** Complete Create, Read, Update, Delete functionality
-- **Metadata Integration:** Built-in metadata tracking and management
-- **Dry Run Support:** Testing and validation mode without actual storage operations
+**Bridge Pattern Benefits:**
+- **Format Independence:** Client code works with any storage format combination
+- **Runtime Flexibility:** Enable/disable storage formats based on configuration
+- **Atomic Coordination:** Ensure consistency across multiple storage formats
+- **Rollback Capability:** Complete transaction rollback if any format operation fails
 
-**Core Interface Responsibilities:**
-- **Data Persistence:** Save and retrieve structured financial data
-- **File Management:** List, check existence, and delete stored files
-- **Metadata Operations:** Track file statistics and storage information
-- **Path Management:** Handle file paths and directory structure
-- **Error Handling:** Consistent error reporting across implementations
+**Bridge Controller Responsibilities:**
+- **Operation Orchestration:** Coordinate save/load operations across multiple formats
+- **Transaction Management:** Ensure ACID properties for multi-format operations
+- **Format Registry:** Maintain catalog of available storage format implementations
+- **Error Coordination:** Handle partial failures and rollback scenarios
 
-**Interface Contract:**
-All storage implementations must provide:
-- Atomic save operations with rollback capability
-- DataFrame-based data handling for structured financial data
-- Pattern-based file discovery and listing
-- Comprehensive metadata tracking
-- Directory structure management
+### 2.2 Dual Storage Implementation Strategy
+The dual storage strategy implements primary CSV storage with Parquet backup, optimizing for both immediate usability and long-term analytical performance.
 
-*Detailed interface implementation available in [Storage Implementation](../lld/04-storage-implementation.md)*
+**Primary Storage (CSV):**
+- **Human Readable:** Immediate accessibility for debugging and manual analysis
+- **Universal Compatibility:** Works with spreadsheets, text editors, and simple scripts
+- **Incremental Updates:** Efficient merging and deduplication for new data
+- **Audit Trail:** Clear format for tracking data changes and sources
 
-### 2.2 File Storage Base Architecture
-The file storage base class provides common functionality for all file-based storage implementations, implementing shared patterns for atomic operations, directory management, and backup handling.
+**Backup Storage (Parquet):**
+- **Analytical Performance:** Columnar format optimized for query operations
+- **Storage Efficiency:** Snappy compression reduces storage footprint by 60-80%
+- **Schema Evolution:** Handle changing data structures over time
+- **Fast Aggregation:** Optimized for time-series analysis and reporting
 
-**Base Class Design Patterns:**
-- **Template Method:** Common workflow with format-specific implementations
-- **Atomic Operations:** Safe file operations with rollback capabilities
-- **Directory Management:** Automatic directory creation and path validation
-- **Backup Strategy:** Optional backup creation for data protection
+**Coordination Strategy:**
+- **Synchronous Operations:** Both formats updated atomically in single transaction
+- **Consistency Validation:** Verify data integrity across both formats
+- **Recovery Support:** Use either format for data recovery scenarios
+- **Performance Monitoring:** Track operation metrics for both storage paths
 
 **File Storage Architecture Features:**
 - **Atomic Save Operations:** Temporary file staging with atomic moves
@@ -276,5 +308,5 @@ The validation system ensures storage implementations maintain data quality and 
 
 ---
 
-**Next Review:** 2025-02-08  
+**Next Review:** 2025-09-04  
 **Reviewers:** Senior Developer, Storage Architect, QA Lead

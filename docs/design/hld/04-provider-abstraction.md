@@ -1,53 +1,83 @@
 # Vortex Provider Abstraction Design
 
-**Version:** 1.0  
-**Date:** 2025-01-08  
+**Version:** 2.0  
+**Date:** 2025-08-04  
 **Related:** [Component Architecture](02-component-architecture.md) | [Data Flow Design](03-data-flow-design.md)
 
-## 1. Provider Abstraction Overview
+## 1. Modern Plugin Architecture Overview
 
-### 1.1 Design Rationale
-The provider abstraction layer enables Vortex to integrate with multiple financial data sources through a unified interface. This design supports the Strategy pattern, allowing runtime provider selection and seamless addition of new data sources.
+### 1.1 Plugin-Based Provider System
+Vortex implements a modern plugin-based provider architecture using the registry pattern, enabling dynamic provider discovery, configuration validation, and comprehensive error handling through a unified interface.
 
-### 1.2 Key Benefits
-- **Extensibility:** Add new providers without modifying existing code
-- **Reliability:** Graceful fallback when providers are unavailable
-- **Testability:** Mock providers for comprehensive testing
-- **Maintainability:** Provider-specific logic isolated in dedicated modules
+### 1.2 Architecture Benefits
+- **Dynamic Loading:** Automatic provider discovery and registration at runtime
+- **Configuration Validation:** Pydantic-based schema validation for provider configurations
+- **Extensibility:** Add new providers through plugin system without modifying core code
+- **Reliability:** Built-in error handling, retry logic, and graceful fallback mechanisms
+- **Testability:** Mock provider plugins for comprehensive testing scenarios
+- **Maintainability:** Clean separation of provider-specific logic in isolated plugin modules
 
-### 1.3 Supported Providers
+### 1.3 Provider Plugin Architecture
 ```mermaid
 graph TB
-    subgraph "Provider Interface"
-        Base[DataProvider Abstract Base]
+    subgraph "Plugin Registry"
+        Registry[Provider Registry]
+        Loader[Dynamic Plugin Loader]
+        Validator[Configuration Validator]
     end
     
-    subgraph "Current Implementations"
-        Barchart[BarchartDataProvider]
-        Yahoo[YahooDataProvider] 
-        IBKR[IbkrDataProvider]
+    subgraph "Built-in Provider Plugins"
+        BarchartPlugin[Barchart Plugin]
+        YahooPlugin[Yahoo Plugin] 
+        IBKRPlugin[IBKR Plugin]
     end
     
-    subgraph "Planned Implementations"
-        Alpha[AlphaVantage Provider]
-        Quandl[Quandl Provider]
-        Polygon[Polygon.io Provider]
+    subgraph "Plugin Interface"
+        PluginBase[ProviderPlugin Abstract Base]
+        ConfigSchema[Provider Config Schema]
+        Metadata[Plugin Metadata]
+        TestConnection[Connection Testing]
     end
     
-    Base --> Barchart
-    Base --> Yahoo
-    Base --> IBKR
-    Base --> Alpha
-    Base --> Quandl
-    Base --> Polygon
+    subgraph "External Provider Plugins"
+        AlphaPlugin[AlphaVantage Plugin]
+        QuandlPlugin[Quandl Plugin]
+        PolygonPlugin[Polygon.io Plugin]
+        CustomPlugin[Custom Plugins]
+    end
     
-    style Base fill:#e1f5fe
-    style Barchart fill:#e8f5e8
-    style Yahoo fill:#e8f5e8
-    style IBKR fill:#e8f5e8
+    subgraph "Data Provider Layer"
+        ProviderFactory[Provider Factory]
+        Strategy[Provider Strategy]
+        DataProvider[Data Provider Instances]
+    end
+    
+    Registry --> Loader
+    Registry --> Validator
+    Loader --> PluginBase
+    
+    PluginBase --> BarchartPlugin
+    PluginBase --> YahooPlugin
+    PluginBase --> IBKRPlugin
+    PluginBase --> AlphaPlugin
+    PluginBase --> QuandlPlugin
+    PluginBase --> PolygonPlugin
+    PluginBase --> CustomPlugin
+    
+    BarchartPlugin --> ProviderFactory
+    YahooPlugin --> ProviderFactory
+    IBKRPlugin --> ProviderFactory
+    
+    ProviderFactory --> Strategy
+    Strategy --> DataProvider
+    
+    style Registry fill:#e1f5fe
+    style PluginBase fill:#fff3e0
+    style ProviderFactory fill:#e8f5e8
+    style Strategy fill:#ffecb3
 ```
 
-## 2. Provider Interface Design
+## 2. Plugin Interface Design
 
 ### 2.1 Core Interface Design
 The provider abstraction defines a unified contract that all data providers must implement, ensuring consistent behavior across different external data sources.
@@ -307,5 +337,5 @@ The validation architecture ensures provider implementations deliver consistent,
 
 ---
 
-**Next Review:** 2025-02-08  
+**Next Review:** 2025-09-04  
 **Reviewers:** Senior Developer, Integration Architect, QA Lead
