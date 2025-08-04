@@ -171,11 +171,11 @@ if timeout 60s docker run --rm \
     -v "$(pwd)/test-config-yahoo:/config" \
     -e VORTEX_DEFAULT_PROVIDER=yahoo \
     -e VORTEX_RUN_ON_STARTUP=true \
-    -e VORTEX_DOWNLOAD_ARGS="--yes --symbol AAPL --dry-run" \
+    -e VORTEX_DOWNLOAD_ARGS="--yes --symbol AAPL" \
     vortex-test:latest > test-data-yahoo/output.log 2>&1; then
     
     # Check for success indicators in the output
-    if grep -q "Download completed successfully\|vortex download\|dry.*run" test-data-yahoo/output.log; then
+    if grep -q "Download completed successfully\|Starting download\|Processing.*AAPL" test-data-yahoo/output.log; then
         echo -e "${GREEN}✓ Yahoo download test successful${NC}\n"
     else
         echo -e "${YELLOW}⚠ Yahoo download completed but success message unclear${NC}"
