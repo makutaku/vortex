@@ -3,11 +3,10 @@
 
 Modern command-line interface for financial data download automation.
 
-This is the restored main CLI module that maintains the original structure
-while keeping the benefits of the refactored components for logging and exceptions.
+This refactored version uses clean dependency injection to eliminate complex
+import handling and provide consistent fallback behavior.
 """
 
-import sys
 import logging
 from datetime import datetime
 from pathlib import Path
@@ -21,116 +20,44 @@ from ..exceptions import (
     ConnectionError as VortexConnectionError, PermissionError as VortexPermissionError
 )
 
-# Optional imports with fallbacks
-try:
-    from ..config import ConfigManager
-    from ..logging_integration import configure_logging_from_manager, get_logger, run_health_checks
-    CONFIG_AVAILABLE = True
-except ImportError:
-    CONFIG_AVAILABLE = False
-
-# Optional resilience imports
-try:
-    from ..resilience.correlation import CorrelationIdManager, with_correlation
-    from ..resilience.circuit_breaker import get_circuit_breaker_stats
-    from ..resilience.recovery import ErrorRecoveryManager
-    RESILIENCE_IMPORTS_AVAILABLE = True
-except ImportError:
-    RESILIENCE_IMPORTS_AVAILABLE = False
-    # Dummy implementations to prevent errors
-    def with_correlation(*args, **kwargs):
-        def decorator(func):
-            return func
-        return decorator
-    
-    class CorrelationIdManager:
-        @staticmethod
-        def get_current_id():
-            return None
-
-try:
-    from rich.console import Console
-    RICH_AVAILABLE = True
-    console = Console()
-except ImportError:
-    RICH_AVAILABLE = False
-    console = None
-
 from . import __version__
 from .error_handler import create_error_handler, handle_cli_exceptions
-
-# Lazy import command modules to avoid dependency issues
-def _import_commands():
-    """Lazy import of command modules."""
-    try:
-        from .commands import download, config, providers, validate
-        from .help import help as help_command
-        from .completion import install_completion
-        return download, config, providers, validate, help_command, install_completion, True
-    except ImportError as e:
-        return None, None, None, None, None, None, False
-
-def _import_ux():
-    """Lazy import of UX module."""
-    try:
-        from .ux import get_ux, CommandWizard
-        return get_ux, CommandWizard, True
-    except ImportError:
-        # Fallback UX implementation
-        def get_ux():
-            class DummyUX:
-                def set_quiet(self, quiet): pass
-                def set_force_yes(self, force): pass
-                def print_panel(self, text, title="", style=""):
-                    print(f"\n{title}\n{text}\n")
-            return DummyUX()
-        
-        class DummyWizard:
-            def __init__(self, ux): pass
-            def run_download_wizard(self): return {}
-            def run_config_wizard(self): return {}
-        
-        return get_ux, DummyWizard, False
-
-# Optional resilience commands
-def _import_resilience():
-    try:
-        from .commands import resilience
-        return resilience, True
-    except ImportError:
-        return None, False
-
-# Get UX functions
-get_ux, CommandWizard, UX_AVAILABLE = _import_ux()
+from .dependencies import get_dependency, is_available, get_availability_summary
 
 def setup_logging(config_file: Optional[Path] = None, verbose: int = 0) -> None:
     """Set up logging using Vortex configuration system."""
-    # Set up fallback logging first to avoid missing log messages
-    import logging
+    # Set up fallback logging first
     logging.basicConfig(
         level=logging.DEBUG if verbose > 1 else logging.INFO if verbose else logging.WARNING,
         format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
     )
     fallback_logger = logging.getLogger("vortex.cli")
     
-    if not CONFIG_AVAILABLE:
+    # Try to use advanced configuration if available
+    if not is_available('config'):
         if verbose > 0:
             fallback_logger.debug("Using fallback logging (config module not available)")
         return
     
     try:
-        # Try to load configuration and set up advanced logging
-        config_manager = ConfigManager(config_file)
-        configure_logging_from_manager(config_manager, service_name="vortex-cli", version=__version__)
+        # Use dependency injection to get config components
+        ConfigManager = get_dependency('config', 'ConfigManager')
+        configure_logging_from_manager = get_dependency('config', 'configure_logging_from_manager')
+        get_logger = get_dependency('config', 'get_logger')
         
-        # Get logger for CLI - this will use advanced logging if successful
-        logger = get_logger("vortex.cli")
-        logger.info("Vortex CLI started", version=__version__, verbose_level=verbose)
-        
+        if ConfigManager and configure_logging_from_manager and get_logger:
+            config_manager = ConfigManager(config_file)
+            configure_logging_from_manager(config_manager, service_name="vortex-cli", version=__version__)
+            
+            logger = get_logger("vortex.cli")
+            logger.info("Vortex CLI started", version=__version__, verbose_level=verbose)
+        else:
+            if verbose > 0:
+                fallback_logger.debug("Config components not fully available, using fallback logging")
+    
     except Exception as e:
-        # Continue with fallback logging - no warning needed as this is expected in containers
-        if verbose > 0:  # Only show warning in verbose mode
-            fallback_logger.debug(f"Using fallback logging configuration (advanced config not available: {e})")
+        if verbose > 0:
+            fallback_logger.debug(f"Using fallback logging configuration: {e}")
 
 @click.group(invoke_without_command=True)
 @click.version_option(version=__version__, prog_name="vortex")
@@ -190,10 +117,13 @@ def cli(ctx: click.Context, config: Optional[Path], verbose: int, dry_run: bool)
     ctx.obj['verbose'] = verbose
     ctx.obj['dry_run'] = dry_run
     
-    # Configure UX based on options
-    ux = get_ux()
-    ux.set_quiet(verbose == 0 and not ctx.invoked_subcommand)
-    ux.set_force_yes(dry_run)
+    # Configure UX based on options using dependency injection
+    get_ux_func = get_dependency('ux', 'get_ux')
+    ux = get_ux_func() if get_ux_func else None
+    
+    if ux:
+        ux.set_quiet(verbose == 0 and not ctx.invoked_subcommand)
+        ux.set_force_yes(dry_run)
     
     # If no command provided, show enhanced welcome
     if ctx.invoked_subcommand is None:
@@ -201,6 +131,14 @@ def cli(ctx: click.Context, config: Optional[Path], verbose: int, dry_run: bool)
 
 def show_welcome(ux):
     """Show enhanced welcome message."""
+    if not ux:
+        # Fallback welcome message
+        print(f"\n🚀 Vortex v{__version__}")
+        print("Financial data download automation tool")
+        print("\nGet Started: vortex download --symbol AAPL")
+        print("Help: vortex --help")
+        return
+    
     ux.print_panel(
         f"🚀 **Vortex v{__version__}**\n\n"
         "Financial data download automation tool\n\n"
@@ -216,16 +154,28 @@ def show_welcome(ux):
         style="green"
     )
     
-    # Show helpful tips
-    from .help import get_help_system
-    help_system = get_help_system()
-    help_system.show_tips(2)
+    # Show helpful tips if help system available
+    try:
+        from .help import get_help_system
+        help_system = get_help_system()
+        help_system.show_tips(2)
+    except ImportError:
+        pass  # Skip tips if help system unavailable
 
 @cli.command()
 @click.pass_context
 def wizard(ctx: click.Context):
     """Interactive setup and command wizard."""
-    ux = get_ux()
+    # Get UX and wizard using dependency injection
+    get_ux_func = get_dependency('ux', 'get_ux')
+    CommandWizard = get_dependency('ux', 'CommandWizard')
+    
+    if not get_ux_func or not CommandWizard:
+        click.echo("❌ Interactive wizard unavailable - missing dependencies.")
+        click.echo("💡 Install with: pip install -e . or uv pip install -e .")
+        return
+    
+    ux = get_ux_func()
     command_wizard = CommandWizard(ux)
     
     ux.print_panel(
@@ -244,21 +194,30 @@ def wizard(ctx: click.Context):
     if action == "Download data":
         config = command_wizard.run_download_wizard()
         if config.get("execute"):
-            # Execute the download command
-            from .commands.download import download
-            ctx.invoke(download, **_convert_wizard_config_to_params(config))
+            # Execute the download command if available
+            commands = get_dependency('commands')
+            if commands and commands.get('download'):
+                ctx.invoke(commands['download'].download, **_convert_wizard_config_to_params(config))
+            else:
+                click.echo("❌ Download command unavailable")
     
     elif action == "Configure providers":
         config = command_wizard.run_config_wizard()
         if config.get("provider"):
-            # Execute the config command
-            from .commands.config import config as config_cmd
-            ctx.invoke(config_cmd, provider=config["provider"], set_credentials=True)
+            # Execute the config command if available
+            commands = get_dependency('commands')
+            if commands and commands.get('config'):
+                ctx.invoke(commands['config'].config, provider=config["provider"], set_credentials=True)
+            else:
+                click.echo("❌ Config command unavailable")
     
     elif action == "View help":
-        from .help import get_help_system
-        help_system = get_help_system()
-        help_system.show_quick_start()
+        try:
+            from .help import get_help_system
+            help_system = get_help_system()
+            help_system.show_quick_start()
+        except ImportError:
+            click.echo("📚 Help: vortex --help")
     
     else:
         ux.print("👋 Goodbye!")
@@ -280,20 +239,26 @@ def _convert_wizard_config_to_params(config: dict) -> dict:
     }
     return {k: v for k, v in params.items() if v is not None}
 
-# Lazy command registration function
-def _register_commands():
-    """Register commands with lazy loading."""
-    download, config, providers, validate, help_command, install_completion, commands_available = _import_commands()
+def register_commands():
+    """Register commands using dependency injection."""
+    commands = get_dependency('commands')
     
-    if commands_available:
-        cli.add_command(download.download)
-        cli.add_command(config.config)
-        cli.add_command(providers.providers)
-        cli.add_command(help_command)
-        cli.add_command(install_completion)
-        cli.add_command(validate.validate)
+    if commands:
+        # Register available commands
+        if commands.get('download'):
+            cli.add_command(commands['download'].download)
+        if commands.get('config'):
+            cli.add_command(commands['config'].config)
+        if commands.get('providers'):
+            cli.add_command(commands['providers'].providers)
+        if commands.get('validate'):
+            cli.add_command(commands['validate'].validate)
+        if commands.get('help_command'):
+            cli.add_command(commands['help_command'])
+        if commands.get('install_completion'):
+            cli.add_command(commands['install_completion'])
     else:
-        # Add dummy commands that inform about missing dependencies
+        # Add fallback commands that inform about missing dependencies
         @cli.command()
         def download():
             """Download financial data (requires dependencies)."""
@@ -319,22 +284,28 @@ def _register_commands():
             click.echo("💡 Install with: pip install -e . or uv pip install -e .")
     
     # Add resilience commands if available
-    resilience, resilience_available = _import_resilience()
-    if resilience_available:
-        cli.add_command(resilience.resilience)
-        cli.add_command(resilience.resilience_status)
+    resilience_commands = get_dependency('resilience_commands')
+    if resilience_commands and resilience_commands.get('resilience'):
+        cli.add_command(resilience_commands['resilience'].resilience)
+        cli.add_command(resilience_commands['resilience'].resilience_status)
 
 # Register commands when the module is imported
-_register_commands()
+register_commands()
 
 def main() -> None:
     """Main entry point for the CLI."""
+    # Get dependencies for error handler
+    rich_console = get_dependency('rich', 'Console')
+    console = rich_console() if rich_console else None
+    config_available = is_available('config')
+    get_logger_func = get_dependency('config', 'get_logger') if config_available else None
+    
     # Create configured error handler
     error_handler = create_error_handler(
-        rich_available=RICH_AVAILABLE,
+        rich_available=bool(rich_console),
         console=console,
-        config_available=CONFIG_AVAILABLE,
-        get_logger_func=get_logger if CONFIG_AVAILABLE else None
+        config_available=config_available,
+        get_logger_func=get_logger_func
     )
     
     # Use centralized error handling
