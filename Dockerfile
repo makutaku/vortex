@@ -48,11 +48,11 @@ COPY docker/entrypoint.sh docker/ping.sh /app/
 COPY assets/ /app/assets/
 
 # Create directories, user, and set permissions in single layer
-RUN mkdir -p /data /config /root/.config \
-    && useradd -m -r vortex \
-    && chown -R vortex:vortex /app /data /config \
-    && chmod +x /app/entrypoint.sh /app/ping.sh \
-    && chmod 755 /root /root/.config
+RUN mkdir -p /data /config /home/vortex/.config/vortex \
+    && groupadd -g 1000 vortex \
+    && useradd -u 1000 -g 1000 -m -r vortex \
+    && chown -R vortex:vortex /app /data /config /home/vortex \
+    && chmod +x /app/entrypoint.sh /app/ping.sh
 
 # Default environment variables (modern Vortex configuration)
 ENV VORTEX_DEFAULT_PROVIDER=yahoo \
@@ -65,8 +65,8 @@ ENV VORTEX_DEFAULT_PROVIDER=yahoo \
 # Volume mounts
 VOLUME ["/data", "/config"]
 
-# Stay as root for cron and permissions
-# USER vortex  # Keep as root for cron functionality
+# Use the vortex user with proper UID/GID mapping
+USER vortex
 
 # Use tini as init system
 ENTRYPOINT ["/usr/bin/tini", "--", "/app/entrypoint.sh"]

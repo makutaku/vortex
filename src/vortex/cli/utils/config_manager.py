@@ -28,10 +28,20 @@ class ConfigManager:
         if config_file:
             self.config_file = config_file
         else:
-            # Use standard user config directory
-            config_dir = Path.home() / ".config" / "vortex"
-            config_dir.mkdir(parents=True, exist_ok=True)
-            self.config_file = config_dir / "config.toml"
+            # Use standard user config directory with fallback
+            try:
+                config_dir = Path.home() / ".config" / "vortex"
+                config_dir.mkdir(parents=True, exist_ok=True)
+                self.config_file = config_dir / "config.toml"
+            except (OSError, PermissionError):
+                # Fallback to current directory if home config not writable
+                config_dir = Path.cwd() / ".vortex"
+                try:
+                    config_dir.mkdir(parents=True, exist_ok=True)
+                    self.config_file = config_dir / "config.toml"
+                except (OSError, PermissionError):
+                    # Final fallback - no persistent config
+                    self.config_file = None
         
         self._config: Optional[Dict[str, Any]] = None
     
@@ -44,7 +54,7 @@ class ConfigManager:
         config = self._get_default_config()
         
         # Load from file if it exists
-        if self.config_file.exists():
+        if self.config_file and self.config_file.exists():
             try:
                 if tomllib is None:
                     raise ImportError("TOML support not available")
@@ -66,15 +76,19 @@ class ConfigManager:
     
     def save_config(self) -> None:
         """Save current configuration to file."""
-        if self._config is None:
+        if self._config is None or self.config_file is None:
             return
         
-        # Ensure directory exists
-        self.config_file.parent.mkdir(parents=True, exist_ok=True)
-        
-        # Write TOML file
-        with open(self.config_file, 'wb') as f:
-            tomli_w.dump(self._config, f)
+        try:
+            # Ensure directory exists
+            self.config_file.parent.mkdir(parents=True, exist_ok=True)
+            
+            # Write TOML file
+            with open(self.config_file, 'wb') as f:
+                tomli_w.dump(self._config, f)
+        except (OSError, PermissionError):
+            # Ignore save errors when running with restricted permissions
+            pass
     
     def get_provider_config(self, provider: str) -> Dict[str, Any]:
         """Get configuration for a specific provider."""

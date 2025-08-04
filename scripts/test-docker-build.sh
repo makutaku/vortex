@@ -50,7 +50,7 @@ echo -e "${GREEN}✓ Image details retrieved${NC}\n"
 echo -e "${YELLOW}Test 3: Testing container startup...${NC}"
 echo "Testing vortex command..."
 mkdir -p test-data test-config
-if timeout 20s docker run --rm -v "$(pwd)/test-data:/data" -v "$(pwd)/test-config:/config" --entrypoint="" vortex-test:latest vortex --help >/dev/null 2>&1; then
+if timeout 20s docker run --rm --user "$(id -u):$(id -g)" -v "$(pwd)/test-data:/data" -v "$(pwd)/test-config:/config" --entrypoint="" vortex-test:latest vortex --help >/dev/null 2>&1; then
     echo -e "${GREEN}✓ Container runs successfully${NC}\n"
 else
     echo -e "${RED}✗ Container failed to run vortex command${NC}"
@@ -72,6 +72,7 @@ echo -e "${GREEN}✓ CLI help command works${NC}\n"
 echo -e "${YELLOW}Test 5: Testing 'vortex providers --list' command...${NC}"
 mkdir -p test-config-providers/vortex
 if timeout 20s docker run --rm \
+    --user "$(id -u):$(id -g)" \
     -v "$(pwd)/test-config-providers:/root/.config" \
     --entrypoint="" \
     vortex-test:latest vortex providers --list; then
@@ -98,6 +99,7 @@ fi
 echo -e "${YELLOW}Test 7: Testing volume mounts...${NC}"
 mkdir -p test-data test-config
 if timeout 20s docker run --rm \
+    --user "$(id -u):$(id -g)" \
     -v "$(pwd)/test-data:/data" \
     -v "$(pwd)/test-config:/config" \
     --entrypoint="" \
@@ -150,6 +152,7 @@ fi
 echo -e "${YELLOW}Test 11: Testing entrypoint without startup download...${NC}"
 mkdir -p test-data-entrypoint test-config-entrypoint
 if timeout 20 docker run --rm \
+    --user "$(id -u):$(id -g)" \
     -v "$(pwd)/test-data-entrypoint:/data" \
     -v "$(pwd)/test-config-entrypoint:/config" \
     -e VORTEX_RUN_ON_STARTUP=false \
@@ -167,6 +170,7 @@ mkdir -p test-data-yahoo test-config-yahoo
 # Test with timeout - container will be killed after download completes and starts tailing logs
 echo "Running Yahoo download test (real download with timeout)..."
 timeout 60s docker run --rm \
+    --user "$(id -u):$(id -g)" \
     -v "$(pwd)/test-data-yahoo:/data" \
     -v "$(pwd)/test-config-yahoo:/config" \
     -e VORTEX_DEFAULT_PROVIDER=yahoo \
@@ -194,5 +198,10 @@ else
 fi
 
 echo -e "${GREEN}All tests passed! 🎉${NC}"
+
+# Clean up test directories with proper permissions
+echo "Cleaning up test directories..."
+rm -rf test-data-* test-config-* 2>/dev/null || true
+
 echo -e "\nTo clean up test image, run:"
 echo -e "  docker rmi vortex-test:latest"

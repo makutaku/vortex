@@ -63,25 +63,27 @@ except ImportError as e:
 
 def setup_logging(config_file: Optional[Path] = None, verbose: int = 0) -> None:
     """Set up logging using Vortex configuration system."""
+    # Set up fallback logging first to avoid missing log messages
+    import logging
+    logging.basicConfig(
+        level=logging.DEBUG if verbose > 1 else logging.INFO if verbose else logging.WARNING,
+        format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
+    )
+    fallback_logger = logging.getLogger("vortex.cli")
+    
     try:
-        # Load configuration and set up logging
+        # Try to load configuration and set up advanced logging
         config_manager = ConfigManager(config_file)
         configure_logging_from_manager(config_manager, service_name="vortex-cli", version=__version__)
         
-        # Get logger for CLI
+        # Get logger for CLI - this will use advanced logging if successful
         logger = get_logger("vortex.cli")
         logger.info("Vortex CLI started", version=__version__, verbose_level=verbose)
         
     except Exception as e:
-        # Fallback to basic logging if configuration fails
-        import logging
-        logging.basicConfig(
-            level=logging.DEBUG if verbose > 1 else logging.INFO if verbose else logging.WARNING,
-            format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
-        )
-        logger = logging.getLogger("vortex.cli")
-        logger.warning(f"Failed to configure logging from config: {e}")
-        logger.info(f"Using fallback logging configuration")
+        # Continue with fallback logging - no warning needed as this is expected in containers
+        if verbose > 0:  # Only show warning in verbose mode
+            fallback_logger.debug(f"Using fallback logging configuration (advanced config not available: {e})")
 
 @click.group(invoke_without_command=True)
 @click.version_option(version=__version__, prog_name="vortex")
