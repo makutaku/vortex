@@ -9,14 +9,11 @@ RED='\033[0;31m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-# Cleanup function
+# Cleanup function (only called explicitly)
 cleanup() {
     echo -e "\n${YELLOW}Cleaning up test directories...${NC}"
     rm -rf test-data test-config test-data-* test-config-*
 }
-
-# Set trap to cleanup on exit
-trap cleanup EXIT
 
 echo -e "${YELLOW}Testing Vortex Docker Build...${NC}\n"
 
@@ -169,16 +166,17 @@ mkdir -p test-data-yahoo test-config-yahoo
 
 # Test with timeout - container will be killed after download completes and starts tailing logs
 echo "Running Yahoo download test (real download with timeout)..."
-timeout 60s docker run --rm \
+CONTAINER_EXIT_CODE=0
+timeout 30s docker run --rm \
     --user "$(id -u):$(id -g)" \
     -v "$(pwd)/test-data-yahoo:/data" \
     -v "$(pwd)/test-config-yahoo:/config" \
     -e VORTEX_DEFAULT_PROVIDER=yahoo \
     -e VORTEX_RUN_ON_STARTUP=true \
     -e VORTEX_DOWNLOAD_ARGS="--yes --symbol AAPL" \
-    vortex-test:latest > test-data-yahoo/output.log 2>&1
+    vortex-test:latest > test-data-yahoo/output.log 2>&1 || CONTAINER_EXIT_CODE=$?
 
-echo "Container finished (exit code: $?), checking results..."
+echo "Container finished (exit code: $CONTAINER_EXIT_CODE), checking results..."
 
 # Check output regardless of container exit code (timeout kills it after successful download)
 if [ -f test-data-yahoo/output.log ]; then
@@ -206,9 +204,8 @@ fi
 
 echo -e "${GREEN}All tests passed! 🎉${NC}"
 
-# Clean up test directories with proper permissions
-echo "Cleaning up test directories..."
-rm -rf test-data-* test-config-* 2>/dev/null || true
+# Call cleanup function explicitly at the end
+cleanup
 
 echo -e "\nTo clean up test image, run:"
 echo -e "  docker rmi vortex-test:latest"
