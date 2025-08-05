@@ -40,7 +40,7 @@ from .models import (
     Provider
 )
 from .manager import ConfigManager, VortexSettings
-from .exceptions import (
+from ...exceptions.config import (
     ConfigurationError,
     InvalidConfigurationError,
     MissingConfigurationError,

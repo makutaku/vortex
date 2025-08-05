@@ -24,7 +24,7 @@ except ImportError:
 import tomli_w
 
 from .models import VortexConfig, VortexSettings
-from .exceptions import (
+from ...exceptions.config import (
     ConfigurationError,
     InvalidConfigurationError,
     MissingConfigurationError, 

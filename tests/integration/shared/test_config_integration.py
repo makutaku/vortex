@@ -15,9 +15,9 @@ from vortex.core.config import (
     ConfigManager, VortexConfig, 
     BarchartConfig, YahooConfig, IBKRConfig,
     GeneralConfig, ProvidersConfig, DateRangeConfig,
-    LogLevel
+    LogLevel,
+    ConfigurationError, ConfigurationValidationError
 )
-from vortex.core.config.exceptions import ConfigurationError, ConfigurationValidationError
 
 
 @pytest.mark.integration
