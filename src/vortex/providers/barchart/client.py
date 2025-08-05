@@ -11,7 +11,7 @@ from datetime import datetime
 import requests
 
 from vortex.models.period import FrequencyAttributes
-from vortex.shared.utils.logging_utils import LoggingContext
+from vortex.utils.logging_utils import LoggingContext
 from .auth import BarchartAuth
 
 

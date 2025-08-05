@@ -7,7 +7,7 @@ from enum import Enum
 
 from vortex.models.columns import VOLUME_COLUMN
 from vortex.models.period import Period
-from vortex.shared.utils.utils import convert_date_strings_to_datetime
+from vortex.utils.utils import convert_date_strings_to_datetime
 
 
 @dataclass

@@ -15,7 +15,7 @@ from vortex.storage.csv_storage import CsvStorage
 from vortex.storage.parquet_storage import ParquetStorage
 from vortex.services.updating_downloader import UpdatingDownloader
 from vortex.services.download_job import DownloadJob
-from vortex.shared.exceptions import (
+from vortex.exceptions import (
     CLIError, MissingArgumentError, InvalidCommandError,
     ConfigurationError, DataProviderError, DataStorageError
 )

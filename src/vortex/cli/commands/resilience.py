@@ -10,9 +10,9 @@ from typing import Optional, Dict, Any
 from datetime import datetime
 
 try:
-    from vortex.shared.resilience.circuit_breaker import get_circuit_breaker_stats, reset_all_circuit_breakers
-    from vortex.shared.resilience.recovery import ErrorRecoveryManager
-    from vortex.shared.resilience.correlation import get_request_tracker
+    from vortex.resilience.circuit_breaker import get_circuit_breaker_stats, reset_all_circuit_breakers
+    from vortex.resilience.recovery import ErrorRecoveryManager
+    from vortex.resilience.correlation import get_request_tracker
     RESILIENCE_AVAILABLE = True
 except ImportError as e:
     # Graceful fallback if resilience system is not available

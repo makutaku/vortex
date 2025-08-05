@@ -9,18 +9,18 @@ from typing import Optional, Any, Dict
 from datetime import datetime, timedelta
 import pandas as pd
 
-from .data_provider import DataProvider
+from .base import DataProvider
 from vortex.models.instrument import Instrument
 from vortex.models.period import FrequencyAttributes
-from vortex.shared.exceptions import (
+from vortex.exceptions import (
     DataProviderError, AuthenticationError, ConnectionError,
     RateLimitError, DataNotFoundError
 )
-from vortex.shared.resilience.circuit_breaker import get_circuit_breaker, CircuitBreakerConfig
-from vortex.shared.resilience.retry import provider_retry, RetryStrategy
-from vortex.shared.resilience.correlation import with_correlation, CorrelationIdManager
-from vortex.shared.resilience.recovery import ErrorRecoveryManager, DataProviderRecoveryPolicy
-from vortex.shared.logging import get_logger
+from vortex.resilience.circuit_breaker import get_circuit_breaker, CircuitBreakerConfig
+from vortex.resilience.retry import provider_retry, RetryStrategy
+from vortex.resilience.correlation import with_correlation, CorrelationIdManager
+from vortex.resilience.recovery import ErrorRecoveryManager, DataProviderRecoveryPolicy
+from vortex.logging import get_logger
 
 logger = get_logger(__name__)
 

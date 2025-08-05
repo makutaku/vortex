@@ -9,7 +9,7 @@ from ib_insync import IB, util
 from ib_insync import Stock as IB_Stock, Future as IB_Future, Forex as IB_Forex
 from pandas import DataFrame
 
-from .data_provider import DataProvider
+from ..base import DataProvider
 from vortex.models.columns import DATE_TIME_COLUMN, VOLUME_COLUMN
 from vortex.models.forex import Forex
 from vortex.models.future import Future

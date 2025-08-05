@@ -1,12 +1,12 @@
 import logging
 from datetime import timedelta
 
-from vortex.providers.data_provider import HistoricalDataResult
+from vortex.providers.base import HistoricalDataResult
 from .base_downloader import BaseDownloader
 from .download_job import DownloadJob
 from vortex.models.price_series import LOW_DATA_THRESHOLD
-from vortex.shared.utils.logging_utils import LoggingContext
-from vortex.shared.utils.utils import random_sleep
+from vortex.utils.logging_utils import LoggingContext
+from vortex.utils.utils import random_sleep
 
 
 class UpdatingDownloader(BaseDownloader):

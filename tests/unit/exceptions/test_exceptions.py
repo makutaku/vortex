@@ -4,7 +4,7 @@ Unit tests for the Vortex exception system.
 
 import pytest
 
-from vortex.shared.exceptions import (
+from vortex.exceptions import (
     VortexError, ConfigurationError, InvalidConfigurationError,
     ConfigurationValidationError, MissingConfigurationError,
     DataProviderError, DataStorageError, CLIError,

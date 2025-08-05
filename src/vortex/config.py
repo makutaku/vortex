@@ -45,7 +45,7 @@ except ImportError:
 
 import tomli_w
 
-from .shared.exceptions import (
+from .exceptions import (
     ConfigurationError, 
     InvalidConfigurationError, 
     MissingConfigurationError,

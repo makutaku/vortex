@@ -15,8 +15,8 @@ from vortex.models.instrument import Instrument
 from vortex.models.period import Period
 from vortex.models.price_series import PriceSeries
 from vortex.models.stock import Stock
-from vortex.shared.utils.logging_utils import LoggingContext
-from vortex.shared.utils.utils import create_full_path
+from vortex.utils.logging_utils import LoggingContext
+from vortex.utils.utils import create_full_path
 
 DATE_TIME_FORMAT = '%Y-%m-%dT%H:%M:%S%z'
 

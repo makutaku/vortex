@@ -5,10 +5,10 @@ Contains concrete implementations of data providers that fetch financial data
 from external sources like APIs and web services.
 """
 
-from .data_provider import DataProvider
+from .base import DataProvider
 from .barchart import BarchartDataProvider
-from .yf_data_provider import YahooDataProvider
-from .ib_data_provider import IbkrDataProvider
+from .yahoo import YahooDataProvider
+from .ibkr import IbkrDataProvider
 from .resilient_provider import ResilientDataProvider
 
 __all__ = [

@@ -66,9 +66,9 @@ except ImportError as e:
 
 # Optional resilience imports
 try:
-    from vortex.shared.resilience.correlation import CorrelationIdManager, with_correlation
-    from vortex.shared.resilience.circuit_breaker import get_circuit_breaker_stats
-    from vortex.shared.resilience.recovery import ErrorRecoveryManager
+    from vortex.resilience.correlation import CorrelationIdManager, with_correlation
+    from vortex.resilience.circuit_breaker import get_circuit_breaker_stats
+    from vortex.resilience.recovery import ErrorRecoveryManager
     RESILIENCE_IMPORTS_AVAILABLE = True
 except ImportError:
     RESILIENCE_IMPORTS_AVAILABLE = False

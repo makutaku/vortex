@@ -5,16 +5,16 @@ from itertools import cycle
 from typing import List, Dict
 
 from .download_job import DownloadJob
-from vortex.providers.data_provider import DataProvider, HistoricalDataResult
-from vortex.shared.exceptions import LowDataError, AllowanceLimitExceededError, DataNotFoundError
+from vortex.providers.base import DataProvider, HistoricalDataResult
+from vortex.exceptions import LowDataError, AllowanceLimitExceededError, DataNotFoundError
 from vortex.storage.data_storage import DataStorage
 from vortex.initialization.config_utils import InstrumentConfig, InstrumentType
 from vortex.models.forex import Forex
 from vortex.models.future import Future
 from vortex.models.price_series import LOW_DATA_THRESHOLD
 from vortex.models.stock import Stock
-from vortex.shared.utils.logging_utils import LoggingContext
-from vortex.shared.utils.utils import (
+from vortex.utils.logging_utils import LoggingContext
+from vortex.utils.utils import (
     date_range_generator, total_elements_in_dict_of_lists,
     get_first_and_last_day_of_years, generate_year_month_tuples,
     is_list_of_strings, merge_dicts

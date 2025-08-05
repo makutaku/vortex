@@ -6,7 +6,7 @@ import pandas as pd
 import yfinance as yf
 from pandas import DataFrame
 
-from .data_provider import DataProvider
+from ..base import DataProvider
 from vortex.models.columns import DATE_TIME_COLUMN
 from vortex.models.instrument import Instrument
 from vortex.models.period import Period, FrequencyAttributes

@@ -20,7 +20,7 @@ from vortex.cli.completion import (
     CompletionInstaller
 )
 from vortex.cli.analytics import CliAnalytics, analytics_decorator
-from vortex.shared.exceptions import VortexError, ConfigurationError
+from vortex.exceptions import VortexError, ConfigurationError
 
 
 @pytest.mark.unit

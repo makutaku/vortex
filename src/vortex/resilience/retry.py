@@ -15,14 +15,14 @@ from enum import Enum
 from typing import Any, Callable, Optional, Type, Tuple, Union, List
 from abc import ABC, abstractmethod
 
-from vortex.shared.exceptions import (
+from vortex.exceptions import (
     VortexError, DataProviderError, AuthenticationError, 
     RateLimitError, ConnectionError, DataNotFoundError,
     AllowanceLimitExceededError
 )
 # Optional logging - graceful fallback if not available
 try:
-    from vortex.shared.logging import get_logger
+    from vortex.logging import get_logger
     logger = get_logger(__name__)
 except ImportError:
     import logging

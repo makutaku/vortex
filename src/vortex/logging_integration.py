@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Optional
 
 from .config import VortexConfig, ConfigManager
-from .shared.logging import (
+from .logging import (
     LoggingConfig as LogConfig, 
     LoggingManager, 
     VortexLogger, 

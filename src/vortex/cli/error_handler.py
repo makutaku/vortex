@@ -9,9 +9,9 @@ import sys
 import logging
 from typing import Optional, Any
 
-from vortex.shared.utils.logging_utils import get_structured_logger
+from vortex.utils.logging_utils import get_structured_logger
 
-from vortex.shared.exceptions import (
+from vortex.exceptions import (
     VortexError, CLIError, ConfigurationError, DataProviderError,
     DataStorageError, InstrumentError, AuthenticationError,
     ConnectionError as VortexConnectionError, PermissionError as VortexPermissionError

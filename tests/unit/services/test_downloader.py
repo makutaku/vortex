@@ -3,8 +3,8 @@ import pytest
 from unittest.mock import Mock, patch
 
 from vortex.providers.barchart import BarchartDataProvider
-from vortex.providers.yf_data_provider import YahooDataProvider
-from vortex.providers.ib_data_provider import IbkrDataProvider
+from vortex.providers.yahoo import YahooDataProvider
+from vortex.providers.ibkr import IbkrDataProvider
 from vortex.storage.csv_storage import CsvStorage  
 from vortex.storage.parquet_storage import ParquetStorage
 from vortex.services.updating_downloader import UpdatingDownloader
@@ -108,7 +108,7 @@ class TestDataProviders:
         assert provider.max_allowance == 100
         mock_login.assert_called_once()
     
-    @patch('vortex.providers.ib_data_provider.IbkrDataProvider.login')
+    @patch('vortex.providers.ibkr.provider.IbkrDataProvider.login')
     def test_ibkr_provider_creation(self, mock_login):
         """Test IBKR provider creation with connection details."""
         mock_login.return_value = None  # Mock successful login

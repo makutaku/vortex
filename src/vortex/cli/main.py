@@ -14,7 +14,7 @@ from typing import Optional
 
 import click
 
-from vortex.shared.exceptions import (
+from vortex.exceptions import (
     VortexError, CLIError, ConfigurationError, DataProviderError,
     DataStorageError, InstrumentError, AuthenticationError,
     ConnectionError as VortexConnectionError, PermissionError as VortexPermissionError

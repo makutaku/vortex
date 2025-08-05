@@ -2,7 +2,7 @@ from abc import ABC
 from dataclasses import dataclass
 from datetime import datetime
 
-from vortex.providers.data_provider import DataProvider
+from vortex.providers.base import DataProvider
 from vortex.storage.data_storage import DataStorage
 from vortex.storage.metadata import Metadata
 from vortex.models.instrument import Instrument

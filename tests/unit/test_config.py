@@ -16,7 +16,7 @@ from vortex.config import (
     GeneralConfig, ProvidersConfig, DateRangeConfig,
     LogLevel, Provider
 )
-from vortex.shared.exceptions import (
+from vortex.exceptions import (
     ConfigurationError, InvalidConfigurationError, 
     ConfigurationValidationError
 )

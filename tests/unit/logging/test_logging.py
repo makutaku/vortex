@@ -10,7 +10,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from vortex.shared.logging import (
+from vortex.logging import (
     VortexLogger, PerformanceLogger, TimedOperation, LoggingManager,
     StructuredFormatter, get_logger, get_performance_logger
 )
