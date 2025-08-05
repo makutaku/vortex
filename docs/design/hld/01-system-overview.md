@@ -1,12 +1,12 @@
 # Vortex System Overview
 
-**Version:** 2.0  
-**Date:** 2025-08-03  
+**Version:** 3.0  
+**Date:** 2025-08-05  
 **Status:** Active  
 
 ## 1. Executive Summary
 
-Vortex is an automated financial data acquisition pipeline that transforms manual, time-intensive data collection into a reliable, scalable system. The architecture follows modern Python packaging standards with a modular, extensible design supporting multiple data providers, modern CLI interface with Click framework, and comprehensive Docker deployment scenarios.
+Vortex is an automated financial data acquisition pipeline implementing Clean Architecture principles that transforms manual, time-intensive data collection into a reliable, scalable system. The architecture follows modern Python packaging standards with strict layer separation, dependency inversion, and comprehensive separation of concerns supporting multiple data providers, modern CLI interface with Click framework, and comprehensive Docker deployment scenarios.
 
 ### 1.1 System Purpose
 - **Automate** historic financial data downloads from multiple sources (Barchart, Yahoo Finance, Interactive Brokers)
@@ -15,12 +15,27 @@ Vortex is an automated financial data acquisition pipeline that transforms manua
 - **Scale** from individual research to institutional data operations with Docker deployment
 - **Provide** modern CLI interface with rich terminal output and configuration management
 
-### 1.2 Key Quality Attributes
-- **Reliability:** Robust error handling with retry mechanisms and graceful failure modes
-- **Extensibility:** Strategy pattern for data providers, extensible storage backends, and CLI command structure
-- **Performance:** Efficient data processing with pandas, intelligent data merging to avoid duplicates
-- **Security:** TOML-based credential management, no hardcoded secrets, secure Docker deployment
-- **Usability:** Modern CLI with Rich terminal output, comprehensive help system, and configuration management
+### 1.2 Clean Architecture Implementation
+Vortex implements Clean Architecture with four distinct layers:
+
+- **Interface Layer** (`vortex/cli/`): User interaction through modern CLI with Click framework
+- **Application Layer** (`vortex/services/`): Business use cases and workflow orchestration  
+- **Domain Layer** (`vortex/models/`): Core business entities independent of external concerns
+- **Infrastructure Layer** (`vortex/infrastructure/`): External integrations (providers, storage, resilience)
+
+**Core Systems** (`vortex/core/`) provide cross-cutting concerns:
+- **Configuration Management**: Centralized TOML-based configuration with validation
+- **Correlation & Observability**: Request tracking and performance monitoring
+- **Exception Management**: Comprehensive error hierarchy with actionable messages
+
+### 1.3 Key Quality Attributes
+- **Maintainability:** Clear separation of concerns with dependency inversion
+- **Testability:** Each layer tested in isolation with easy mock injection
+- **Extensibility:** Plugin architecture for providers, storage, and commands
+- **Reliability:** Circuit breakers, retry mechanisms, and comprehensive error handling
+- **Performance:** Efficient data processing with intelligent deduplication
+- **Security:** Secure credential management with no hardcoded secrets
+- **Usability:** Professional CLI with rich terminal output and guided setup
 
 ## 2. System Context
 

@@ -1,12 +1,75 @@
 # Component Implementation Details
 
-**Version:** 2.0  
-**Date:** 2025-08-03  
+**Version:** 3.0  
+**Date:** 2025-08-05  
 **Related:** [Component Architecture](../hld/02-component-architecture.md)
 
-## 1. CLI Implementation
+## 1. Clean Architecture Layer Implementations
 
-### 1.1 Click Framework Architecture
+### 1.1 Core Systems Implementation (`vortex/core/`)
+
+#### Configuration Management (`core/config/`)
+
+**Pydantic Model Pattern:**
+```python
+class VortexConfig(BaseModel):
+    general: GeneralConfig
+    providers: ProvidersConfig
+    logging: LoggingConfig
+    date_range: DateRangeConfig
+    
+    class Config:
+        env_prefix = "VORTEX_"
+        validate_assignment = True
+```
+
+**Configuration Manager Pattern:**
+```python
+class ConfigManager:
+    def __init__(self, config_path: Optional[Path] = None):
+        self.config_path = config_path or self._get_default_config_path()
+    
+    def load_config(self) -> VortexConfig:
+        # TOML file + environment variables + defaults
+        config_data = self._merge_config_sources()
+        return VortexConfig(**config_data)
+```
+
+**Source Reference:** `src/vortex/core/config/manager.py`
+
+#### Correlation System (`core/correlation/`)
+
+**Thread-Local Correlation Pattern:**
+```python
+class CorrelationIdManager:
+    _context: ContextVar[str] = ContextVar('correlation_id')
+    
+    @classmethod
+    def set_correlation_id(cls, correlation_id: str) -> None:
+        cls._context.set(correlation_id)
+    
+    @classmethod
+    def get_correlation_id(cls) -> Optional[str]:
+        return cls._context.get(None)
+```
+
+**Decorator Pattern for Correlation:**
+```python
+def with_correlation(operation_name: str):
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            correlation_id = CorrelationIdManager.generate_id()
+            with CorrelationContext(correlation_id, operation_name):
+                return func(*args, **kwargs)
+        return wrapper
+    return decorator
+```
+
+**Source Reference:** `src/vortex/core/correlation/manager.py`
+
+## 2. Interface Layer Implementation (`vortex/cli/`)
+
+### 2.1 Click Framework Architecture
 
 **Command Structure:**
 ```python
@@ -27,248 +90,145 @@ def cli():
 
 **Source Reference:** `src/vortex/cli/main.py`
 
-### 1.2 Configuration Management
+### 2.2 Command Implementation Pattern
 
-**TOML Configuration Pattern:**
+**Dependency Injection Pattern:**
 ```python
-class ConfigManager:
-    def __init__(self, config_path: Optional[Path] = None):
-        self.config_path = config_path or self._get_default_config_path()
-        self.config = self._load_config()
+class DownloadCommand:
+    def __init__(self, config_manager: ConfigManager, 
+                 downloader_factory: DownloaderFactory):
+        self.config_manager = config_manager
+        self.downloader_factory = downloader_factory
     
-    def _load_config(self) -> Dict[str, Any]:
-        with open(self.config_path, 'rb') as f:
-            return tomllib.load(f)
+    def execute(self, provider: str, symbols: List[str]) -> None:
+        config = self.config_manager.load_config()
+        downloader = self.downloader_factory.create(provider, config)
+        downloader.download(symbols)
 ```
 
-**Interactive Setup:**
-- Provider credential configuration with secure prompts
-- Automatic TOML file generation
-- Validation of configuration values
+**Source Reference:** `src/vortex/cli/commands/download.py`
 
-**Source Reference:** `src/vortex/cli/utils/config_manager.py`
+## 3. Application Layer Implementation (`vortex/services/`)
 
-## 2. Download Orchestration Implementation
+### 3.1 Service Orchestration Pattern
 
-### 2.1 Core Workflow Pattern
-
-**Algorithm: Incremental Download Workflow**
-```
-1. PARSE symbols and date ranges from CLI arguments
-2. LOAD instrument configurations from assets JSON
-3. CREATE DownloadJob objects for each instrument/period
-4. SCHEDULE jobs with round-robin across instruments
-5. FETCH raw data from provider (with retry logic)
-6. MERGE with existing data (intelligent deduplication)
-7. PERSIST to CSV storage with Parquet backup
-8. UPDATE metadata with coverage information
-```
-
-**Error Recovery Strategy:**
-- **Rate Limit**: Random sleep intervals (2-5 seconds)
-- **Authentication**: Provider-specific re-authentication
-- **Network Errors**: Exponential backoff with `@retry` decorator
-- **Data Quality**: Validation with PriceSeries container
-
-**Source Reference:** `src/vortex/downloaders/updating_downloader.py`
-
-### 2.2 Single Dispatch Pattern Implementation
-
-**Provider Strategy with Type Dispatch:**
+**UpdatingDownloader Implementation:**
 ```python
-from functools import singledispatchmethod
-
-class DataProvider:
-    @singledispatchmethod
-    def _fetch_historical_data(self, instrument, period, start_date, end_date):
-        raise NotImplementedError
+class UpdatingDownloader:
+    def __init__(self, data_storage: DataStorage, 
+                 data_provider: DataProvider,
+                 backup_storage: Optional[DataStorage] = None):
+        self.data_storage = data_storage
+        self.data_provider = data_provider
+        self.backup_storage = backup_storage
     
-    @_fetch_historical_data.register
-    def _(self, instrument: Future, period, start_date, end_date):
-        # Future-specific implementation
-        return self._fetch_futures_data(...)
-    
-    @_fetch_historical_data.register  
-    def _(self, instrument: Stock, period, start_date, end_date):
-        # Stock-specific implementation
-        return self._fetch_stock_data(...)
+    @with_correlation("download_operation")
+    def download(self, instruments: List[Instrument]) -> DownloadResult:
+        # Orchestrate download workflow
+        jobs = self._create_jobs(instruments)
+        return self._execute_jobs(jobs)
 ```
 
-**Source Reference:** `src/vortex/data_providers/data_provider.py`
+**Download Job Scheduling Algorithm:**
+```
+FOR each instrument in instruments:
+  CREATE job with date range validation
+  CHECK existing data coverage
+  IF gaps found: ADD to job queue
+  ELSE: SKIP with coverage message
 
-## 3. Storage Architecture Implementation
+EXECUTE jobs with round-robin scheduling
+APPLY rate limiting per provider
+HANDLE errors with circuit breaker pattern
+```
 
-### 3.1 Bridge Pattern for Dual Storage
+**Source Reference:** `src/vortex/services/updating_downloader.py`
 
-**Storage Bridge Implementation:**
+## 4. Infrastructure Layer Implementation (`vortex/infrastructure/`)
+
+### 4.1 Provider Plugin Pattern
+
+**DataProvider Interface:**
 ```python
-class FileStorage(DataStorage):
-    @singledispatchmethod
-    def _get_file_path(self, instrument, period):
-        raise NotImplementedError
+class DataProvider(ABC):
+    @abstractmethod
+    def fetch_data(self, instrument: Instrument, 
+                   date_range: DateRange) -> PriceSeries:
+        pass
     
-    @_get_file_path.register
-    def _(self, instrument: Future, period):
-        return Path(f"futures/{period}/{instrument.symbol}.csv")
+    @abstractmethod
+    def authenticate(self, credentials: Dict[str, Any]) -> bool:
+        pass
+```
+
+**Provider Registry Implementation:**
+```python
+class ProviderRegistry:
+    _providers: Dict[str, Type[DataProvider]] = {}
     
-    @_get_file_path.register
-    def _(self, instrument: Stock, period):
-        return Path(f"stocks/{period}/{instrument.symbol}.csv")
+    @classmethod
+    def register(cls, name: str, provider_class: Type[DataProvider]):
+        cls._providers[name] = provider_class
+    
+    @classmethod
+    def get_provider(cls, name: str) -> DataProvider:
+        if name not in cls._providers:
+            raise PluginError(f"Provider '{name}' not registered")
+        return cls._providers[name]()
 ```
 
-**Dual Format Persistence:**
-- Primary: CSV for human readability and compatibility
-- Backup: Parquet for performance and compression
-- Metadata: JSON sidecar files for tracking coverage
+**Source Reference:** `src/vortex/plugins.py`
 
-**Source Reference:** `src/vortex/data_storage/file_storage.py`
+### 4.2 Storage Implementation Pattern
 
-### 1.2 Job Management Architecture
-
-**Job State Machine:**
-```
-PENDING → IN_PROGRESS → COMPLETED
-    ↓         ↓              ↓
-  FAILED ←─ RETRY ←─────── FAILED
-```
-
-**Path Generation Pattern:**
-```
-{base_dir}/{instrument_type}/{symbol}_1D_{start}_{end}.csv
-
-Examples:
-- futures/GCM25_1D_20250101_20250201.csv
-- stocks/AAPL_1D_20250101_20250201.csv
-- forex/EUR_USD_1D_20250101_20250201.csv
+**Dual Storage Architecture:**
+```python
+class StorageManager:
+    def __init__(self, primary: DataStorage, backup: DataStorage):
+        self.primary = primary
+        self.backup = backup
+    
+    def save(self, data: PriceSeries, metadata: Dict[str, Any]) -> None:
+        # Atomic save with backup
+        with self._transaction():
+            self.primary.save(data, metadata)
+            if self.backup:
+                self.backup.save(data, metadata)
 ```
 
-**Key Features:**
-- Unique job IDs for tracking
-- State lifecycle management
-- Automatic retry configuration
-- Duration tracking
+**Source Reference:** `src/vortex/infrastructure/storage/`
 
-**Source Reference:** `src/vortex/downloaders/download_job.py`
+## 5. Key Implementation Patterns
 
-## 2. Instrument Model Implementation
+### 5.1 Dependency Injection
+- Constructor-based dependency injection throughout all layers
+- Interface contracts for easy testing and extensibility
+- Factory pattern for complex object creation
 
-### 2.1 Future Contract Architecture
+### 5.2 Plugin Architecture
+- Registry pattern for provider and command extensions
+- Dynamic loading with fallback implementations
+- Metadata-driven plugin configuration
 
-**Contract Generation Algorithm:**
-```
-FOR each month in cycle (e.g., GJMQVZ):
-  FOR each year in range:
-    CREATE contract symbol (e.g., GCM25)
-    CALCULATE expiry date by exchange rules
-    CHECK if active during requested period
-    ADD to active contracts list
-SORT contracts by expiry date
-```
+### 5.3 Error Handling
+- Comprehensive exception hierarchy with context information
+- Circuit breaker pattern for external service calls
+- Automatic retry with exponential backoff
 
-**Exchange Expiry Rules:**
-| Exchange | Instruments | Expiry Rule |
-|----------|-------------|-------------|
-| COMEX | Gold, Silver | 3rd-to-last business day |
-| CBOT | Corn, Wheat | Business day before 15th |
-| CME | S&P, Currencies | 3rd Friday of month |
-
-**Contract Specifications:**
-- **Symbol Format**: `{code}{month}{year}` (e.g., GCM25)
-- **Active Period**: First notice day to expiry
-- **Contract Size**: Varies by instrument (100 oz for Gold)
-- **Tick Value**: Minimum price movement
-
-**Source Reference:** `src/vortex/instruments/future.py`
-
-### 2.2 Stock Architecture
-
-**Corporate Action Pattern:**
-```
-1. RECORD corporate action with metadata
-2. ADJUST historical prices retroactively
-3. MAINTAIN action audit trail
-4. APPLY adjustments on data retrieval
-```
-
-**Split Adjustment Algorithm:**
-```
-FOR prices before split date:
-  adjusted_price = original_price / split_ratio
-  adjusted_volume = original_volume * split_ratio
-```
-
-**Key Features:**
-- Multi-currency support
-- Sector/industry classification
-- Corporate action tracking
-- Automatic price adjustments
-
-**Source Reference:** `src/vortex/instruments/stock.py`
-
-## 3. Configuration Implementation
-
-### 3.1 Configuration Architecture
-
-**Configuration Sources (Priority Order):**
-1. Environment variables
-2. Configuration file
-3. Default values
-
-**Validation Rules:**
-- **Provider-specific**: Barchart requires credentials, IBKR requires host/port
-- **Date ranges**: start_year ≤ end_year ≤ current_year + 1
-- **Directory access**: Write permissions validation
-- **Numeric limits**: Positive values for limits and concurrency
-
-**Key Configuration Groups:**
-```
-├── Provider Settings (type, credentials, limits)
-├── Download Settings (directory, date range, chunking)
-├── Operational Settings (dry_run, concurrency, logging)
-└── Retry Settings (max_retries, delays)
-```
-
-**Source Reference:** `src/vortex/initialization/session_config.py`
-
-### 3.2 Component Factory Architecture
-
-**Factory Pattern Implementation:**
-```
-1. PARSE configuration object
-2. CREATE storage components (primary + backup)
-3. CREATE data provider with credentials
-4. CREATE validator with quality rules
-5. CREATE metadata store
-6. WIRE components together
-7. RETURN configured downloader
-```
-
-**Component Dependencies:**
-```
-Downloader
-├── Primary Storage (CSV)
-├── Backup Storage (Parquet, optional)
-├── Data Provider (Barchart/Yahoo/IBKR)
-├── Data Validator (business + statistical rules)
-└── Metadata Store (tracking)
-```
-
-**Provider-Specific Configurations:**
-- **Barchart**: Session-based auth, 150/day limit
-- **Yahoo**: No auth required, public API
-- **IBKR**: TWS/Gateway connection, real-time data
-
-**Source Reference:** `src/vortex/initialization/component_factory.py`
+### 5.4 Observability
+- Correlation ID tracking across all operations
+- Structured logging with JSON output support
+- Performance metrics collection and reporting
 
 ## Related Documents
 
 - **[Component Architecture](../hld/02-component-architecture.md)** - High-level component design
-- **[Provider Implementation](03-provider-implementation.md)** - Data provider details
-- **[Storage Implementation](04-storage-implementation.md)** - Storage layer details
-- **[Testing Implementation](06-testing-implementation.md)** - Testing strategies
+- **[Data Processing Implementation](02-data-processing-implementation.md)** - Data transformation details
+- **[Provider Implementation](03-provider-implementation.md)** - Provider-specific patterns
 
 ---
 
-**Implementation Level:** Low-Level Design  
-**Last Updated:** 2025-01-08  
-**Reviewers:** Senior Developer, Lead Engineer
+**Next Review:** 2025-11-05  
+**Reviewers:** Senior Developer, Lead Engineer  
+
+*This document has been updated to reflect the Clean Architecture implementation completed on 2025-08-05*

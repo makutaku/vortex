@@ -1,595 +1,242 @@
 # Vortex Component Architecture
 
-**Version:** 2.0  
-**Date:** 2025-08-03  
+**Version:** 3.0  
+**Date:** 2025-08-05  
 **Related:** [System Overview](01-system-overview.md) | [Data Flow Design](03-data-flow-design.md)
 
 ## 1. Component Overview
 
-### 1.1 System Decomposition
-Vortex follows a modern layered architecture with clear separation of concerns using established design patterns. The architecture emphasizes extensibility through strategy patterns and single dispatch methods.
+### 1.1 Clean Architecture Implementation
+Vortex implements Clean Architecture principles with strict layer separation and dependency inversion. The architecture ensures that business logic is independent of external frameworks and infrastructure concerns.
 
 ```mermaid
 graph TB
-    subgraph "CLI Layer"
-        Click[Click Framework CLI]
-        Rich[Rich Terminal Output]
+    subgraph "Interface Layer (CLI)"
+        CLI[Click Framework CLI]
         Commands[Command Implementations]
-        ConfigMgr[TOML Configuration Manager]
+        UX[Rich Terminal UX]
+        Wizard[Interactive Wizard]
     end
     
-    subgraph "Application Layer"
+    subgraph "Application Layer (Services)"
         Orchestrator[Download Orchestrator]
+        UpdatingDownloader[Updating Downloader]
+        BackfillDownloader[Backfill Downloader]
         JobScheduler[Job Scheduler]
-        RetryLogic[Retry with Backoff]
     end
     
-    subgraph "Domain Layer"
+    subgraph "Domain Layer (Models)"
         Instruments[Instrument Models]
         PriceSeries[Price Series Container]
         DownloadJobs[Download Jobs]
-        Metadata[Data Metadata]
+        Period[Period Types]
     end
     
-    subgraph "Provider Layer"
-        ProviderStrategy[Data Provider Strategy]
-        SingleDispatch[Single Dispatch Methods]
-        BarchartImpl[Barchart Implementation]
-        YahooImpl[Yahoo Implementation]
-        IBKRImpl[IBKR Implementation]
+    subgraph "Core Systems"
+        Config[Configuration Management]
+        Correlation[Correlation & Observability]
+        Exceptions[Exception Hierarchy]
+        Logging[Structured Logging]
     end
     
-    subgraph "Storage Layer"
-        StorageBridge[Storage Bridge Pattern]
-        CSVStorage[CSV Primary Storage]
-        ParquetStorage[Parquet Backup Storage]
-        MetadataStore[Metadata Management]
+    subgraph "Infrastructure Layer"
+        Providers[Data Providers]
+        Storage[Storage Systems]
+        Resilience[Resilience Patterns]
+        Plugins[Plugin Registry]
     end
     
-    Click --> Commands
-    Commands --> ConfigMgr
+    CLI --> Commands
     Commands --> Orchestrator
-    Orchestrator --> JobScheduler
-    JobScheduler --> RetryLogic
-    JobScheduler --> DownloadJobs
-    DownloadJobs --> Instruments
-    DownloadJobs --> ProviderStrategy
-    ProviderStrategy --> SingleDispatch
-    SingleDispatch --> BarchartImpl
-    SingleDispatch --> YahooImpl
-    SingleDispatch --> IBKRImpl
-    ProviderStrategy --> PriceSeries
-    PriceSeries --> StorageBridge
-    StorageBridge --> CSVStorage
-    StorageBridge --> ParquetStorage
-    StorageBridge --> MetadataStore
+    Orchestrator --> Instruments
+    Orchestrator --> Providers
+    Providers --> Storage
     
+    Config -.-> Commands
+    Correlation -.-> Orchestrator
+    Exceptions -.-> CLI
+    Logging -.-> Orchestrator
+    Commands --> Orchestrator
+    
+    style CLI fill:#e3f2fd
     style Orchestrator fill:#e1f5fe
-    style ProviderStrategy fill:#fff3e0
-    style StorageBridge fill:#e8f5e8
+    style Instruments fill:#f3e5f5
+    style Config fill:#fff3e0
+    style Providers fill:#e8f5e8
 ```
 
-### 1.2 Component Responsibilities
-| Layer | Components | Responsibility |
-|-------|------------|----------------|
-| **Presentation** | CLI, Configuration | User interaction and system setup |
-| **Application** | Download Manager, Job Control | Business workflow orchestration |
-| **Domain** | Instruments, Validation | Core business logic and rules |
-| **Infrastructure** | Providers, Storage, Logging | External integrations and persistence |
+### 1.2 Clean Architecture Layer Responsibilities
+
+| Layer | Directory | Components | Responsibility |
+|-------|-----------|------------|----------------|
+| **Interface** | `vortex/cli/` | CLI Commands, UX, Wizard | User interaction and command handling |
+| **Application** | `vortex/services/` | Downloaders, Orchestration | Business use cases and workflow coordination |
+| **Domain** | `vortex/models/` | Instruments, PriceSeries, Jobs | Core business entities and rules |
+| **Core Systems** | `vortex/core/` | Config, Correlation, Exceptions | Cross-cutting concerns and shared utilities |
+| **Infrastructure** | `vortex/infrastructure/` | Providers, Storage, Resilience | External integrations and technical concerns |
 
 ## 2. Core Components
 
-### 2.1 Download Manager (`downloaders/updating_downloader.py`)
+### 2.1 Download Services (`vortex/services/`)
 
-#### Purpose
-Central orchestrator that coordinates the entire data acquisition workflow from configuration to storage.
+#### Application Layer Services
+The application layer contains the business use case implementations that orchestrate domain entities and infrastructure components.
 
-#### Responsibilities
-- **Job Creation:** Convert configuration into download jobs
-- **Provider Selection:** Choose appropriate data provider for each instrument
-- **Workflow Orchestration:** Manage download → validation → storage pipeline
-- **Error Handling:** Coordinate retries and fallback strategies
-- **Progress Tracking:** Monitor and report download progress
+**UpdatingDownloader** (`services/updating_downloader.py`):
+- **Purpose:** Incremental data downloads with existing data checking
+- **Responsibilities:** 
+  - Intelligent update detection to avoid duplicate downloads
+  - Coordinate download → validation → storage pipeline
+  - Progress tracking and error handling
+  - Integration with correlation system for request tracing
 
-#### Key Interface Design
-The Download Manager exposes a clean interface that abstracts the complexity of the data acquisition workflow:
+**BackfillDownloader** (`services/backfill_downloader.py`):
+- **Purpose:** Historical data range downloads
+- **Responsibilities:**
+  - Large historical dataset acquisition
+  - Date range processing and validation
+  - Batch job coordination with rate limiting
 
-**Primary Interface Responsibilities:**
-- **Single Instrument Processing:** Execute complete download workflow for individual instruments
-- **Batch Processing:** Handle multiple instruments with coordinated scheduling
-- **Progress Reporting:** Provide real-time status and statistics for monitoring
-- **Configuration Integration:** Accept and validate configuration parameters
+### 2.2 Core Systems (`vortex/core/`)
 
-#### Dependencies
-- **Data Providers:** Abstract interface for data acquisition
-- **Storage Engines:** Primary and backup data persistence
-- **Validation Service:** Data quality assurance
-- **Configuration:** Instrument and system settings
+#### Configuration Management (`core/config/`)
+**Purpose:** Centralized configuration system with validation and environment support.
 
-#### Workflow Overview
-The Download Manager orchestrates a five-stage process:
-1. **Job Creation** - Convert configuration to executable download jobs
-2. **Data Acquisition** - Fetch data from appropriate provider
-3. **Quality Validation** - Ensure data meets business rules
-4. **Storage Operations** - Persist to primary and backup storage
-5. **Metadata Management** - Track download history and status
+**Key Components:**
+- **VortexConfig:** Pydantic-based configuration models with comprehensive validation
+- **ConfigManager:** TOML file management with environment variable overrides
+- **Provider Configs:** Specialized configuration for each data provider
+- **Interactive Setup:** Guided configuration wizard for user-friendly setup
 
-*Detailed implementation specifications available in [Component Implementation](../lld/01-component-implementation.md)*
+**Design Patterns:**
+- Strategy pattern for different configuration sources
+- Builder pattern for complex configuration construction
+- Validation decorator pattern for configuration validation
 
-### 2.2 Data Provider Interface (`data_providers/data_provider.py`)
+#### Correlation & Observability (`core/correlation/`)
+**Purpose:** Request tracking, performance monitoring, and distributed tracing.
 
-#### Purpose
-Abstract interface that standardizes data acquisition across different external providers.
+**Key Components:**
+- **CorrelationIdManager:** Thread-local correlation ID management
+- **RequestTracker:** Performance metrics and operation timing
+- **Correlation Decorators:** Automatic correlation injection for operations
+- **Context Managers:** Operation scoping and resource management
 
-#### Architecture Pattern
-**Strategy Pattern:** Enables runtime selection of data provider based on configuration.
+### 2.3 Infrastructure Layer (`vortex/infrastructure/`)
 
-```mermaid
-classDiagram
-    class DataProvider {
-        <<abstract>>
-        +get_data(instrument, date_range)*
-        +authenticate(credentials)*
-        +get_supported_instruments()*
-        +get_rate_limits()*
-    }
-    
-    class BarchartProvider {
-        +get_data(instrument, date_range)
-        +authenticate(username, password)
-        +_handle_pagination()
-        +_parse_csv_response()
-    }
-    
-    class YahooProvider {
-        +get_data(instrument, date_range)
-        +authenticate(api_key)
-        +_handle_redirects()
-        +_parse_json_response()
-    }
-    
-    class IBKRProvider {
-        +get_data(instrument, date_range)
-        +authenticate(gateway_host, port)
-        +_establish_connection()
-        +_handle_realtime_data()
-    }
-    
-    DataProvider <|-- BarchartProvider
-    DataProvider <|-- YahooProvider
-    DataProvider <|-- IBKRProvider
-```
+#### Data Providers (`infrastructure/providers/`)
+**Purpose:** External data source integrations with unified interface.
 
-#### Provider Implementation Requirements
-Each provider must implement:
-1. **Authentication:** Handle provider-specific credential types
-2. **Rate Limiting:** Respect API limits and implement backoff
-3. **Data Formatting:** Convert to standard OHLCV schema
-4. **Error Handling:** Classify and handle provider-specific errors
-5. **Metadata Extraction:** Capture provider-specific attributes
-
-#### Provider Implementation Patterns
-Each provider implements the common interface but handles provider-specific concerns:
-
-**Barchart Provider:**
-- Session-based authentication with CSRF protection
-- Rate limiting (150 downloads/day default)
-- CSV response parsing and standardization
-
-**Yahoo Provider:**
-- No authentication required for basic data
-- JSON API with automatic retry logic
-- Real-time and historical data support
-
-**IBKR Provider:**
-- TWS Gateway connection management
-- Binary protocol handling
-- Contract specification and market data
-
-*Detailed provider implementations available in [Provider Implementation](../lld/03-provider-implementation.md)*
-
-### 2.3 Storage Architecture (`data_storage/`)
-
-#### Purpose
-Provides pluggable storage backends with dual-format persistence for different use cases.
-
-#### Component Structure
-```mermaid
-graph TB
-    subgraph "Storage Interface"
-        DS[DataStorage Abstract]
-        FS[FileStorage Base]
-    end
-    
-    subgraph "Storage Implementations"
-        CSV[CSV Storage]
-        Parquet[Parquet Storage]
-        Meta[Metadata Storage]
-    end
-    
-    subgraph "Storage Features"
-        Dedup[Deduplication]
-        Compress[Compression]
-        Validate[Validation]
-    end
-    
-    DS --> FS
-    FS --> CSV
-    FS --> Parquet
-    FS --> Meta
-    
-    CSV --> Dedup
-    CSV --> Validate
-    Parquet --> Compress
-    Parquet --> Validate
-    
-    style FS fill:#e8f5e8
-    style CSV fill:#fff3e0
-    style Parquet fill:#fff3e0
-```
-
-#### Storage Implementation Strategy
-The storage layer uses a dual-format approach:
-
-**CSV Storage:**
-- Human-readable format for debugging and manual analysis
-- Atomic write operations with temporary files
-- Automatic data merging and deduplication
-- UTF-8 encoding with proper escaping
-
-**Parquet Storage:**
-- Columnar format optimized for analytical workloads
-- Snappy compression for space efficiency
-- Date-based partitioning for query performance
-- Schema evolution support
+**Provider Implementations:**
+- **BarchartDataProvider:** Premium web scraping with authentication and session management
+- **YahooDataProvider:** Free Yahoo Finance API integration with rate limiting
+- **IbkrDataProvider:** Interactive Brokers TWS/Gateway connection
 
 **Common Features:**
-- Pluggable backend architecture
-- Metadata tracking and integrity verification
-- Backup and recovery capabilities
-- Transaction-like semantics with rollback
+- Unified DataProvider interface with consistent error handling
+- Automatic retry mechanisms with exponential backoff
+- Rate limiting and quota management
+- Authentication and session persistence
 
-*Detailed storage implementations available in [Storage Implementation](../lld/04-storage-implementation.md)*
+#### Storage Systems (`infrastructure/storage/`)
+**Purpose:** Data persistence with multiple format support and atomic operations.
 
-### 2.4 Instrument Model (`instruments/`)
+**Storage Implementations:**
+- **CsvStorage:** Primary CSV format storage with metadata tracking
+- **ParquetStorage:** Backup Parquet format for efficient data access
+- **FileStorage:** Base file operations with atomic write guarantees
 
-#### Purpose
-Domain models that encapsulate business logic for different financial instrument types.
+#### Resilience Patterns (`infrastructure/resilience/`)
+**Purpose:** Failure handling, circuit breakers, and system reliability.
 
-#### Class Hierarchy
+**Key Components:**
+- **CircuitBreaker:** Failure isolation with configurable thresholds
+- **RetryManager:** Configurable retry strategies with backoff
+- **ErrorRecoveryManager:** Automated recovery procedures
+
+## 3. Dependency Flow and Clean Architecture Compliance
+
+### 3.1 Dependency Direction
+The architecture strictly follows Clean Architecture dependency rules:
+
 ```mermaid
-classDiagram
-    class Instrument {
-        <<abstract>>
-        +symbol: str
-        +get_download_params()*
-        +validate_data()*
-        +get_file_path()*
-    }
+graph TD
+    Interface[Interface Layer] --> Application[Application Layer]
+    Application --> Domain[Domain Layer]
+    Application --> Core[Core Systems]
+    Interface --> Core
+    Infrastructure[Infrastructure Layer] --> Domain
+    Infrastructure --> Core
     
-    class Future {
-        +contract_month: str
-        +exchange: str
-        +get_contract_code()
-        +calculate_expiry()
-        +handle_rollover()
-    }
-    
-    class Stock {
-        +exchange: str
-        +currency: str
-        +handle_splits()
-        +handle_dividends()
-    }
-    
-    class Forex {
-        +base_currency: str
-        +quote_currency: str
-        +get_pip_value()
-        +handle_weekends()
-    }
-    
-    Instrument <|-- Future
-    Instrument <|-- Stock
-    Instrument <|-- Forex
+    style Domain fill:#f3e5f5,stroke:#9c27b0,stroke-width:3px
+    style Core fill:#fff3e0,stroke:#ff9800,stroke-width:2px
+    style Application fill:#e1f5fe,stroke:#2196f3,stroke-width:2px
+    style Interface fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
+    style Infrastructure fill:#e8f5e8,stroke:#4caf50,stroke-width:2px
 ```
 
-#### Instrument Model Hierarchy
-The instrument models encapsulate business logic for different financial instrument types:
+### 3.2 Interface Contracts
+Each layer defines clear interfaces that enforce the dependency inversion principle:
 
-**Future Contracts:**
-- Contract cycle management (GJMQVZ months)
-- Expiry date calculation with exchange-specific rules
-- Active contract generation for date ranges
-- Rollover handling and chain construction
+- **DataProvider Interface:** Abstracts external data sources
+- **DataStorage Interface:** Abstracts persistence mechanisms  
+- **ConfigManager Interface:** Abstracts configuration sources
+- **CorrelationManager Interface:** Abstracts observability concerns
 
-**Stock Instruments:**
-- Corporate action handling (splits, dividends)
-- Exchange-specific symbol mapping
-- Currency conversion support
-- Sector and industry classification
+### 3.3 Plugin Architecture
+The system supports extensibility through a plugin registry pattern:
 
-**Forex Pairs:**
-- Base/quote currency management
-- Pip value calculations
-- Market hours and weekend gap handling
-- Central bank intervention periods
+- **Provider Plugins:** Add new data sources without core changes
+- **Storage Plugins:** Add new persistence formats
+- **Command Plugins:** Extend CLI functionality
 
-*Detailed instrument implementations available in [Component Implementation](../lld/01-component-implementation.md)*
+## 4. Architecture Benefits and Design Decisions
 
-### 2.5 Configuration Management (`initialization/`)
+### 4.1 Clean Architecture Benefits
 
-#### Purpose
-Centralized configuration loading and validation with support for multiple sources.
+**Maintainability:**
+- Clear separation of concerns reduces coupling between components
+- Business logic isolated from external dependencies
+- Changes to infrastructure don't affect domain models
 
-#### Configuration Sources
-```mermaid
-graph LR
-    subgraph "Configuration Sources"
-        JSON[JSON Files]
-        ENV[Environment Variables]
-        CLI[Command Line Args]
-        Defaults[Default Values]
-    end
-    
-    subgraph "Configuration Processor"
-        Loader[Config Loader]
-        Validator[Config Validator]
-        Merger[Config Merger]
-    end
-    
-    subgraph "Configuration Objects"
-        Session[Session Config]
-        Instrument[Instrument Config]
-        Provider[Provider Config]
-    end
-    
-    JSON --> Loader
-    ENV --> Loader
-    CLI --> Loader
-    Defaults --> Loader
-    
-    Loader --> Validator
-    Validator --> Merger
-    Merger --> Session
-    Merger --> Instrument
-    Merger --> Provider
-    
-    style Loader fill:#e1f5fe
-```
+**Testability:**
+- Each layer can be tested in isolation
+- Mock implementations easily injected at layer boundaries
+- Business logic tested without external dependencies
 
-#### Configuration Architecture
-The configuration system supports multiple input sources with a clear precedence hierarchy:
+**Extensibility:**
+- New providers can be added without core changes
+- Plugin architecture supports runtime extensibility
+- Interface contracts enable easy substitution
 
-**Configuration Sources (in precedence order):**
-1. Command-line arguments (highest priority)
-2. Environment variables
-3. Configuration files (JSON)
-4. Default values (lowest priority)
+### 4.2 Key Design Decisions
 
-**Configuration Categories:**
-- **Provider Settings:** Authentication and connection parameters
-- **Download Settings:** Date ranges, limits, and output locations
-- **Operational Settings:** Logging, dry-run mode, backup preferences
-- **Instrument Settings:** Symbol definitions and data requirements
+**Configuration Management:**
+- Centralized configuration system with unified validation
+- TOML format for human-readable configuration files
+- Environment variable overrides for deployment flexibility
 
-**Validation and Defaults:**
-- Schema validation for all configuration inputs
-- Automatic directory creation for output paths
-- Credential validation before data operations
-- Comprehensive error reporting for invalid configurations
+**Observability:**
+- Unified correlation system for request tracking
+- Structured logging across all components
+- Performance metrics and operation timing
 
-*Detailed configuration implementation available in [Component Implementation](../lld/01-component-implementation.md)*
-
-## 3. Component Interactions
-
-### 3.1 Download Workflow Sequence
-```mermaid
-sequenceDiagram
-    participant CLI
-    participant DM as Download Manager
-    participant Config
-    participant Provider
-    participant Validator
-    participant Storage
-    participant Metadata
-    
-    CLI->>Config: Load configuration
-    Config->>DM: Initialize with config
-    DM->>DM: Create download jobs
-    
-    loop For each instrument
-        DM->>Provider: Request data
-        Provider->>DM: Return raw data
-        DM->>Validator: Validate data quality
-        Validator->>DM: Return validated data
-        DM->>Storage: Save primary format
-        DM->>Storage: Save backup format
-        DM->>Metadata: Record success
-    end
-    
-    DM->>CLI: Return completion status
-```
-
-### 3.2 Error Handling Flow
-```mermaid
-graph TB
-    Error[Error Occurs] --> Classify{Classify Error}
-    
-    Classify -->|Network| NetworkRetry[Network Retry Logic]
-    Classify -->|Rate Limit| RateWait[Wait & Retry]
-    Classify -->|Auth| AuthRefresh[Refresh Authentication]
-    Classify -->|Data Quality| QualityLog[Log Quality Issue]
-    Classify -->|System| SystemAlert[System Alert]
-    
-    NetworkRetry --> Success{Success?}
-    RateWait --> Success
-    AuthRefresh --> Success
-    
-    Success -->|Yes| Continue[Continue Processing]
-    Success -->|No| MaxRetries{Max Retries?}
-    
-    MaxRetries -->|No| NetworkRetry
-    MaxRetries -->|Yes| FailJob[Fail Job]
-    
-    QualityLog --> Continue
-    SystemAlert --> FailJob
-    
-    style Error fill:#ffcdd2
-    style Success fill:#c8e6c9
-    style Continue fill:#e8f5e8
-```
-
-## 4. Component Dependencies
-
-### 4.1 Dependency Graph
-```mermaid
-graph TB
-    subgraph "External Dependencies"
-        Pandas[pandas]
-        Requests[requests]
-        BS4[beautifulsoup4]
-        PyArrow[pyarrow]
-        IBAPI[ib-insync]
-    end
-    
-    subgraph "Vortex Components"
-        CLI[CLI Module]
-        DM[Download Manager]
-        Providers[Data Providers]
-        Storage[Storage Layer]
-        Instruments[Instrument Models]
-        Config[Configuration]
-    end
-    
-    CLI --> Config
-    CLI --> DM
-    DM --> Providers
-    DM --> Storage
-    DM --> Instruments
-    Providers --> Instruments
-    Storage --> Instruments
-    
-    Providers --> Requests
-    Providers --> BS4
-    Providers --> IBAPI
-    Storage --> Pandas
-    Storage --> PyArrow
-    Instruments --> Pandas
-    
-    style DM fill:#e1f5fe
-    style Providers fill:#fff3e0
-    style Storage fill:#e8f5e8
-```
-
-### 4.2 Package Dependencies
-| Component | Internal Dependencies | External Dependencies |
-|-----------|----------------------|----------------------|
-| **Download Manager** | Storage, Providers, Instruments | pandas, logging |
-| **Data Providers** | Instruments, Validation | requests, beautifulsoup4, ib-insync |
-| **Storage Layer** | Instruments, Metadata | pandas, pyarrow |
-| **Instruments** | Price Series, Periods | pandas, pytz |
-| **Configuration** | Utilities | json, os |
-
-### 4.3 Architectural Dependency Management
-The system employs several design patterns to prevent circular dependencies and maintain clean architectural boundaries:
-
-**Dependency Management Patterns:**
-- **Dependency Injection:** Constructor-based dependency provision for testability and flexibility
-- **Interface Segregation:** Small, focused interfaces that prevent unnecessary coupling
-- **Event-Driven Architecture:** Loose coupling through publish-subscribe patterns where appropriate
-- **Factory Pattern:** Centralized component creation and dependency wiring
-
-## 5. Component Configuration
-
-### 5.1 Configuration Architecture
-The component configuration system supports multiple input sources with a clear precedence hierarchy and validation framework:
-
-**Configuration Source Hierarchy:**
-- **Environment Variables:** System-level configuration for deployment environments
-- **Configuration Files:** Structured settings for complex component parameters
-- **Command Line Arguments:** Runtime overrides for operational flexibility
-- **Default Values:** Sensible defaults for optional configuration parameters
-
-**Configuration Design Patterns:**
-- **Hierarchical Override:** Higher precedence sources override lower precedence values
-- **Template Expansion:** Variable substitution for environment-specific values
-- **Schema Validation:** Type checking and constraint validation for all configuration
-- **Hot Reload:** Runtime configuration updates without system restart
-
-### 5.2 Component Assembly
-The system uses dependency injection and factory patterns for component assembly:
-
-**Factory Responsibilities:**
-- Create configured component instances
-- Wire dependencies between components
-- Apply configuration settings to components
-- Handle provider-specific initialization
-
-**Dependency Injection Pattern:**
-- Components receive dependencies through constructors
-- Interfaces used instead of concrete classes where possible
-- Configuration drives component selection and setup
-- Testable design with easy mock injection
-
-**Component Lifecycle:**
-1. Configuration loading and validation
-2. Factory creates component instances
-3. Dependencies injected during construction
-4. Components initialized and ready for use
-5. Cleanup and resource disposal on shutdown
-
-*Detailed factory implementations available in [Component Implementation](../lld/01-component-implementation.md)*
-
-## 6. Testing Strategy
-
-### 6.1 Component Test Structure
-```
-tests/
-├── unit/                    # Component isolation tests
-│   ├── test_downloaders/
-│   ├── test_providers/
-│   ├── test_storage/
-│   └── test_instruments/
-├── integration/             # Component interaction tests
-│   ├── test_download_workflow/
-│   └── test_provider_storage/
-└── fixtures/               # Test data and mocks
-    ├── sample_data/
-    └── mock_providers/
-```
-
-### 6.2 Component Testing Strategy
-The testing approach emphasizes component isolation and integration validation:
-
-**Unit Testing:**
-- Component isolation through dependency injection
-- Mock implementations for external dependencies
-- Interface contract validation
-- Error condition testing
-
-**Integration Testing:**
-- Component interaction validation
-- End-to-end workflow testing
-- Provider integration testing with test accounts
-- Storage system integration testing
-
-**Test Infrastructure:**
-- Mock provider implementations for reliable testing
-- Test data fixtures for various scenarios
-- Automated test data generation
-- Test environment isolation
-
-*Detailed testing implementations available in [Testing Implementation](../lld/06-testing-implementation.md)*
+**Error Handling:**
+- Comprehensive exception hierarchy with actionable messages
+- Circuit breaker patterns for external service failures
+- Automatic retry with exponential backoff
 
 ## Related Documents
 
 - **[Data Flow Design](03-data-flow-design.md)** - Detailed data processing pipeline
-- **[Provider Abstraction](04-provider-abstraction.md)** - Data provider interface details
+- **[Provider Abstraction](04-provider-abstraction.md)** - Data provider interface details  
 - **[Storage Architecture](05-storage-architecture.md)** - Storage implementation details
 - **[System Overview](01-system-overview.md)** - High-level system context
+- **[Component Implementation](../lld/01-component-implementation.md)** - Low-level implementation details
 
 ---
 
-**Next Review:** 2025-02-08  
+**Next Review:** 2025-09-05  
 **Reviewers:** Lead Developer, Senior Engineer, QA Lead
+
+*This document has been updated to reflect the Clean Architecture implementation completed on 2025-08-05*

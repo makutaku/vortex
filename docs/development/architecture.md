@@ -2,45 +2,103 @@
 
 ## Overview
 
-Vortex follows Clean Architecture principles with clear separation of concerns:
+Vortex implements Clean Architecture with strict layer separation and dependency inversion:
 
 ```
 src/vortex/
-├── models/       # Domain models (Instrument, Future, Stock, etc.)
-├── services/     # Business services (downloaders, processors)
-├── providers/    # External data provider implementations
-├── storage/      # Data storage implementations
-├── cli/          # Command-line interface
-└── shared/       # Cross-cutting concerns (logging, exceptions, etc.)
+├── cli/              # Interface Layer - User interaction
+├── services/         # Application Layer - Business use cases
+├── models/           # Domain Layer - Core business entities
+├── infrastructure/   # Infrastructure Layer - External integrations
+│   ├── providers/    # Data provider implementations
+│   ├── storage/      # Storage system implementations
+│   └── resilience/   # Circuit breakers, retry logic
+├── core/             # Core Systems - Cross-cutting concerns
+│   ├── config/       # Configuration management
+│   ├── correlation/  # Request tracking & observability
+│   └── __init__.py
+├── exceptions/       # Exception hierarchy
+├── logging/          # Structured logging
+└── utils/           # Shared utilities
 ```
 
-## Key Components
+## Clean Architecture Layers
 
-### Domain Models (`models/`)
+### Interface Layer (`cli/`)
+**Purpose**: User interaction and command handling
+- Click-based CLI with rich terminal output
+- Command implementations and argument parsing
+- Interactive wizards and configuration management
+- **Dependencies**: Application Layer only
+
+### Application Layer (`services/`)
+**Purpose**: Business use case orchestration
+- `UpdatingDownloader`: Incremental data downloads with duplicate detection
+- `BackfillDownloader`: Historical data range processing
+- Workflow coordination between domain and infrastructure
+- **Dependencies**: Domain Layer and Core Systems
+
+### Domain Layer (`models/`)
+**Purpose**: Core business entities and rules
 - `Instrument`: Base class for tradeable instruments
-- `Future`, `Stock`, `Forex`: Specific instrument types
-- `PriceSeries`: Time series data representation
+- `Future`, `Stock`, `Forex`: Specialized instrument types
+- `PriceSeries`: Time series data with validation
+- `Period`: Time intervals and frequency management
+- **Dependencies**: None (pure business logic)
 
-### Business Services (`services/`)
-- `UpdatingDownloader`: Main downloader with existing data checks
-- `BackfillDownloader`: Historical data range downloads
-- `DownloadJob`: Individual download task representation
+### Infrastructure Layer (`infrastructure/`)
+**Purpose**: External system integrations
+- **Providers**: Barchart, Yahoo Finance, Interactive Brokers
+- **Storage**: CSV/Parquet dual-format persistence
+- **Resilience**: Circuit breakers, retry mechanisms, error recovery
+- **Dependencies**: Domain Layer and Core Systems
 
-### Data Providers (`providers/`)
-- `BarchartDataProvider`: Barchart.com integration
-- `YahooDataProvider`: Yahoo Finance API
-- `IbkrDataProvider`: Interactive Brokers TWS/Gateway
+### Core Systems (`core/`)
+**Purpose**: Cross-cutting concerns and shared functionality
+- **Configuration**: Pydantic-based validation with TOML support
+- **Correlation**: Request tracking and performance monitoring
+- Dependency injection and plugin management
+- **Dependencies**: Domain Layer only
 
-### Storage Layer (`storage/`)
-- `CsvStorage`: Primary CSV format storage
-- `ParquetStorage`: Backup Parquet format
-- `FileStorage`: Base file storage abstraction
+## Dependency Flow
+
+The architecture enforces Clean Architecture dependency rules:
+
+```mermaid
+graph TD
+    CLI[Interface Layer] --> Services[Application Layer]
+    Services --> Models[Domain Layer]
+    Services --> Core[Core Systems]
+    CLI --> Core
+    Infrastructure[Infrastructure Layer] --> Models
+    Infrastructure --> Core
+    
+    style Models fill:#f3e5f5,stroke:#9c27b0,stroke-width:3px
+    style Core fill:#fff3e0,stroke:#ff9800,stroke-width:2px
+    style Services fill:#e1f5fe,stroke:#2196f3,stroke-width:2px
+    style CLI fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
+    style Infrastructure fill:#e8f5e8,stroke:#4caf50,stroke-width:2px
+```
+
+**Key Principles:**
+- Dependencies point inward only (Dependency Rule)
+- Domain layer has no external dependencies
+- Infrastructure implements interfaces defined by inner layers
+- Core systems support all layers without creating circular dependencies
 
 ## Data Flow
 
-1. CLI receives user commands
-2. Configuration loaded and validated
-3. Appropriate downloader created based on provider
-4. Instrument definitions processed into download jobs
-5. Data downloaded and stored in multiple formats
-6. Existing data checked to avoid duplicates
+1. **CLI Layer** receives user commands and validates input
+2. **Configuration** loaded from TOML files with environment overrides
+3. **Application Services** orchestrate business workflows
+4. **Domain Models** validate business rules and constraints
+5. **Infrastructure Providers** fetch data from external sources
+6. **Infrastructure Storage** persists data in dual formats (CSV/Parquet)
+7. **Correlation System** tracks requests across all operations
+
+## Key Benefits
+
+- **Maintainability**: Clear separation makes changes predictable and isolated
+- **Testability**: Each layer can be tested independently with mock injection
+- **Extensibility**: New providers, commands, and storage formats can be added easily
+- **Code Quality**: Eliminated duplication and enforced consistent patterns
