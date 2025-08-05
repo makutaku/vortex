@@ -50,8 +50,8 @@ class TestCircuitBreakerConfig:
         config = CircuitBreakerConfig()
         
         assert config.failure_threshold == 5
-        assert config.timeout == 60.0
-        assert config.success_threshold == 2
+        assert config.timeout == 30
+        assert config.success_threshold == 3
 
     def test_config_validation(self):
         """Test CircuitBreakerConfig validation."""
@@ -76,30 +76,32 @@ class TestCircuitBreakerConfig:
 class TestCallResult:
     def test_call_result_success(self):
         """Test CallResult for successful calls."""
+        timestamp = datetime.now()
         result = CallResult(
+            timestamp=timestamp,
             success=True,
-            result="success_data",
             duration=1.5,
             exception=None
         )
         
         assert result.success is True
-        assert result.result == "success_data"
+        assert result.timestamp == timestamp
         assert result.duration == 1.5
         assert result.exception is None
 
     def test_call_result_failure(self):
         """Test CallResult for failed calls."""
+        timestamp = datetime.now()
         exception = ConnectionError("Failed")
         result = CallResult(
+            timestamp=timestamp,
             success=False,
-            result=None,
             duration=0.5,
             exception=exception
         )
         
         assert result.success is False
-        assert result.result is None
+        assert result.timestamp == timestamp
         assert result.duration == 0.5
         assert result.exception == exception
 
