@@ -17,7 +17,7 @@ from vortex.core.config import (
     GeneralConfig, ProvidersConfig, DateRangeConfig,
     LogLevel
 )
-from vortex.exceptions.config import ConfigurationError, ConfigurationValidationError
+from vortex.core.config.exceptions import ConfigurationError, ConfigurationValidationError
 
 
 @pytest.mark.integration
@@ -59,11 +59,17 @@ class TestConfigManagerIntegration:
         # Valid credentials should pass
         assert config_manager.validate_provider_credentials("barchart") is True
         
-        # Missing credentials should fail
-        assert config_manager.validate_provider_credentials("ibkr") is False
+        # IBKR with connection details should pass (IBKR only needs connection details)
+        assert config_manager.validate_provider_credentials("ibkr") is True
+        
+        # Yahoo should always pass (no credentials required)
+        assert config_manager.validate_provider_credentials("yahoo") is True
 
-    def test_get_missing_credentials(self, config_manager):
+    def test_get_missing_credentials(self, temp_dir):
         """Test getting missing credential information."""
+        # Create a config manager with no existing config (defaults only)
+        empty_config_file = temp_dir / "empty_config.toml"
+        config_manager = ConfigManager(empty_config_file)
         missing = config_manager.get_missing_credentials("barchart")
         
         assert "username" in missing
@@ -108,12 +114,14 @@ class TestEnvironmentVariablesIntegration:
         os.environ["VORTEX_OUTPUT_DIR"] = "/custom/path"
         os.environ["VORTEX_LOG_LEVEL"] = "DEBUG"
         os.environ["VORTEX_BARCHART_USERNAME"] = "env_user@example.com"
+        os.environ["VORTEX_BARCHART_PASSWORD"] = "env_password"
         
         config = config_manager.load_config()
         
         assert str(config.general.output_directory).endswith("custom/path")
         assert config.general.log_level == LogLevel.DEBUG
         assert config.providers.barchart.username == "env_user@example.com"
+        assert config.providers.barchart.password == "env_password"
 
     def test_default_provider_configuration(self, config_manager, clean_environment):
         """Test default provider configuration from environment."""
@@ -129,13 +137,12 @@ class TestConfigurationErrorsIntegration:
     
     def test_permission_errors(self, config_manager, temp_dir):
         """Test handling of file permission errors."""
-        # Create a read-only directory
-        readonly_dir = temp_dir / "readonly"
-        readonly_dir.mkdir()
-        readonly_dir.chmod(0o444)
+        # Create a config file and make it readonly
+        readonly_config = temp_dir / "readonly_config.toml"
+        readonly_config.write_text("")  # Create the file
+        readonly_config.chmod(0o444)  # Make it readonly
         
-        # Try to create config in readonly directory
-        readonly_config = readonly_dir / "config.toml"
+        # Try to write to readonly config
         manager = ConfigManager(readonly_config)
         
         with pytest.raises(ConfigurationError):

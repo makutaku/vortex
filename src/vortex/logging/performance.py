@@ -21,8 +21,13 @@ class PerformanceLogger:
     
     def time_operation(self, operation: str, duration_ms: float, **context):
         """Log operation timing."""
+        context_str = ""
+        if context:
+            context_parts = [f"{k}={v}" for k, v in context.items()]
+            context_str = f" ({', '.join(context_parts)})"
+        
         self.logger.info(
-            f"Operation '{operation}' completed in {duration_ms:.2f}ms",
+            f"Operation '{operation}' completed in {duration_ms:.2f}ms{context_str}",
             operation=operation,
             duration=duration_ms,
             **context
@@ -31,15 +36,38 @@ class PerformanceLogger:
     def start_operation(self, operation: str, **context) -> 'TimedOperation':
         """Start timing an operation."""
         return TimedOperation(operation, self.logger, context)
+    
+    def log_metric(self, metric_name: str, value: float, **context):
+        """Log a performance metric."""
+        self.logger.info(
+            f"Metric {metric_name}: {value}",
+            metric=metric_name,
+            value=value,
+            **context
+        )
+    
+    def log_counter(self, counter_name: str, count: int, **context):
+        """Log a performance counter."""
+        self.logger.info(
+            f"Counter {counter_name}: {count}",
+            counter=counter_name,
+            count=count,
+            **context
+        )
 
 
 class TimedOperation:
     """Context manager for timing operations with automatic logging."""
     
-    def __init__(self, operation: str, logger: VortexLogger, context: Optional[Dict[str, Any]] = None):
+    def __init__(self, operation: str, logger: Optional[VortexLogger] = None, context: Optional[Dict[str, Any]] = None):
         self.operation = operation
-        self.logger = logger
-        self.context = context or {}
+        # If logger is a dict, it's actually the context and logger was omitted
+        if isinstance(logger, dict):
+            self.context = logger
+            self.logger = get_logger(f"performance.{operation}")
+        else:
+            self.logger = logger or get_logger(f"performance.{operation}")
+            self.context = context or {}
         self.start_time = None
     
     def __enter__(self):

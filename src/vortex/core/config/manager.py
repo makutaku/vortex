@@ -122,6 +122,9 @@ class ConfigManager:
     
     def _apply_env_overrides(self, config_data: Dict[str, Any]) -> Dict[str, Any]:
         """Apply environment variable overrides to configuration."""
+        # Refresh settings to pick up any environment variable changes
+        settings = VortexSettings()
+        
         # Initialize nested dictionaries if they don't exist
         if "general" not in config_data:
             config_data["general"] = {}
@@ -133,45 +136,45 @@ class ConfigManager:
             config_data["providers"]["ibkr"] = {}
         
         # Apply modern environment variables
-        if self._settings.vortex_output_directory:
-            config_data["general"]["output_directory"] = self._settings.vortex_output_directory
-        if self._settings.vortex_log_level:
-            config_data["general"]["log_level"] = self._settings.vortex_log_level
-        if self._settings.vortex_backup_enabled is not None:
-            config_data["general"]["backup_enabled"] = self._settings.vortex_backup_enabled
-        if self._settings.vortex_dry_run is not None:
-            config_data["general"]["dry_run"] = self._settings.vortex_dry_run
-        if self._settings.vortex_default_provider:
-            config_data["general"]["default_provider"] = self._settings.vortex_default_provider
+        if settings.vortex_output_directory:
+            config_data["general"]["output_directory"] = settings.vortex_output_directory
+        if settings.vortex_log_level:
+            config_data["general"]["log_level"] = settings.vortex_log_level
+        if settings.vortex_backup_enabled is not None:
+            config_data["general"]["backup_enabled"] = settings.vortex_backup_enabled
+        if settings.vortex_dry_run is not None:
+            config_data["general"]["dry_run"] = settings.vortex_dry_run
+        if settings.vortex_default_provider:
+            config_data["general"]["default_provider"] = settings.vortex_default_provider
         
         # Apply logging environment variables
         if "logging" not in config_data["general"]:
             config_data["general"]["logging"] = {}
         
-        if self._settings.vortex_logging_level:
-            config_data["general"]["logging"]["level"] = self._settings.vortex_logging_level
-        if self._settings.vortex_logging_format:
-            config_data["general"]["logging"]["format"] = self._settings.vortex_logging_format
-        if self._settings.vortex_logging_output:
+        if settings.vortex_logging_level:
+            config_data["general"]["logging"]["level"] = settings.vortex_logging_level
+        if settings.vortex_logging_format:
+            config_data["general"]["logging"]["format"] = settings.vortex_logging_format
+        if settings.vortex_logging_output:
             # Parse comma-separated outputs
-            outputs = [o.strip() for o in self._settings.vortex_logging_output.split(",")]
+            outputs = [o.strip() for o in settings.vortex_logging_output.split(",")]
             config_data["general"]["logging"]["output"] = outputs
-        if self._settings.vortex_logging_file_path:
-            config_data["general"]["logging"]["file_path"] = self._settings.vortex_logging_file_path
+        if settings.vortex_logging_file_path:
+            config_data["general"]["logging"]["file_path"] = settings.vortex_logging_file_path
         
-        if self._settings.vortex_barchart_username:
-            config_data["providers"]["barchart"]["username"] = self._settings.vortex_barchart_username
-        if self._settings.vortex_barchart_password:
-            config_data["providers"]["barchart"]["password"] = self._settings.vortex_barchart_password
-        if self._settings.vortex_barchart_daily_limit:
-            config_data["providers"]["barchart"]["daily_limit"] = self._settings.vortex_barchart_daily_limit
+        if settings.vortex_barchart_username:
+            config_data["providers"]["barchart"]["username"] = settings.vortex_barchart_username
+        if settings.vortex_barchart_password:
+            config_data["providers"]["barchart"]["password"] = settings.vortex_barchart_password
+        if settings.vortex_barchart_daily_limit:
+            config_data["providers"]["barchart"]["daily_limit"] = settings.vortex_barchart_daily_limit
         
-        if self._settings.vortex_ibkr_host:
-            config_data["providers"]["ibkr"]["host"] = self._settings.vortex_ibkr_host
-        if self._settings.vortex_ibkr_port:
-            config_data["providers"]["ibkr"]["port"] = self._settings.vortex_ibkr_port
-        if self._settings.vortex_ibkr_client_id:
-            config_data["providers"]["ibkr"]["client_id"] = self._settings.vortex_ibkr_client_id
+        if settings.vortex_ibkr_host:
+            config_data["providers"]["ibkr"]["host"] = settings.vortex_ibkr_host
+        if settings.vortex_ibkr_port:
+            config_data["providers"]["ibkr"]["port"] = settings.vortex_ibkr_port
+        if settings.vortex_ibkr_client_id:
+            config_data["providers"]["ibkr"]["client_id"] = settings.vortex_ibkr_client_id
         
         return config_data
     
@@ -285,7 +288,7 @@ class ConfigManager:
         config = self.load_config()
         return config.general.default_provider.value
     
-    def import_config(self, file_path: Path) -> None:
+    def import_config(self, file_path: Path) -> VortexConfig:
         """Import configuration from another TOML file."""
         if not file_path.exists():
             raise ConfigurationError(
@@ -306,6 +309,8 @@ class ConfigManager:
             # Update cached config
             self._config = imported_config
             
+            return imported_config
+            
         except Exception as e:
             raise ConfigurationValidationError([f"Invalid configuration file: {e}"])
     
@@ -319,6 +324,9 @@ class ConfigManager:
         # Convert to dictionary for serialization
         config_dict = config.model_dump(exclude_unset=False, mode='json')
         
+        # Filter out None values (not TOML serializable)
+        config_dict = self._filter_none_values(config_dict)
+        
         # Convert Path objects to strings
         if 'general' in config_dict and 'output_directory' in config_dict['general']:
             config_dict['general']['output_directory'] = str(config_dict['general']['output_directory'])
@@ -331,6 +339,15 @@ class ConfigManager:
                 f"Cannot write to export file: {e}",
                 f"Check write permissions for {file_path.parent}"
             )
+    
+    def _filter_none_values(self, data: Any) -> Any:
+        """Recursively filter out None values from nested dictionaries."""
+        if isinstance(data, dict):
+            return {k: self._filter_none_values(v) for k, v in data.items() if v is not None}
+        elif isinstance(data, list):
+            return [self._filter_none_values(item) for item in data if item is not None]
+        else:
+            return data
     
     def reset_config(self) -> None:
         """Reset configuration to defaults."""

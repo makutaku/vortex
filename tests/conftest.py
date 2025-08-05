@@ -17,6 +17,8 @@ except ImportError:
     freeze_time = None
 
 from vortex.core.config import VortexConfig, ConfigManager
+from vortex.logging.loggers import get_logger
+from vortex.logging.performance import get_performance_logger
 
 
 @pytest.fixture
@@ -224,6 +226,19 @@ def pytest_collection_modifyitems(config, items):
         # Mark slow tests
         if "slow" in item.name.lower() or "integration" in item.name.lower():
             item.add_marker(pytest.mark.slow)
+
+
+# Logging fixtures
+@pytest.fixture
+def logger():
+    """Create a VortexLogger instance for testing."""
+    return get_logger("test.module")
+
+
+@pytest.fixture
+def perf_logger():
+    """Create a PerformanceLogger instance for testing."""
+    return get_performance_logger("test.module")
 
 
 # Add environment info for debugging

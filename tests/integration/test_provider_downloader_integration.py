@@ -45,14 +45,14 @@ class TestProviderDownloaderIntegration:
         """Test Yahoo provider integration with updating downloader."""
         # Create downloader with real provider and storage
         downloader = UpdatingDownloader(
-            provider=yahoo_provider,
-            storage=csv_storage
+            data_storage=csv_storage,
+            data_provider=yahoo_provider
         )
         
         # This would be a real integration test
         # For now, we'll just verify the components can be initialized together
-        assert downloader.provider == yahoo_provider
-        assert downloader.storage == csv_storage
+        assert downloader.data_provider == yahoo_provider
+        assert downloader.data_storage == csv_storage
         
         # In a real integration test, we might:
         # 1. Download a small amount of real data

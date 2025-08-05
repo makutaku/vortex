@@ -5,6 +5,7 @@ Provides VortexLogger with correlation tracking and context management.
 """
 
 import logging
+from contextlib import contextmanager
 from typing import Any, Dict, Optional
 from uuid import uuid4
 
@@ -71,6 +72,26 @@ class VortexLogger:
         new_logger.extra_context = self.extra_context.copy()
         new_logger.extra_context.update(kwargs)
         return new_logger
+    
+    @contextmanager
+    def context(self, context_dict: Dict[str, Any]):
+        """Context manager for temporary context addition."""
+        original_context = self.extra_context.copy()
+        self.extra_context.update(context_dict)
+        try:
+            yield self
+        finally:
+            self.extra_context = original_context
+    
+    @contextmanager
+    def temp_context(self, **kwargs):
+        """Context manager for temporary context (keyword arguments)."""
+        original_context = self.extra_context.copy()
+        self.extra_context.update(kwargs)
+        try:
+            yield self
+        finally:
+            self.extra_context = original_context
 
 
 def get_logger(name: str, correlation_id: Optional[str] = None) -> VortexLogger:
