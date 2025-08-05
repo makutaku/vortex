@@ -9,7 +9,7 @@ and other transient problems.
 from .circuit_breaker import CircuitBreaker, CircuitState
 from .retry import RetryManager, ExponentialBackoffStrategy, RetryPolicy
 from .recovery import ErrorRecoveryManager, RecoveryStrategy
-from .correlation import CorrelationIdManager
+from vortex.core.correlation import CorrelationIdManager
 
 __all__ = [
     'CircuitBreaker',

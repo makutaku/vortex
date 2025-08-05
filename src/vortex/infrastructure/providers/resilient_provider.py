@@ -16,10 +16,10 @@ from vortex.exceptions import (
     DataProviderError, AuthenticationError, ConnectionError,
     RateLimitError, DataNotFoundError
 )
-from vortex.resilience.circuit_breaker import get_circuit_breaker, CircuitBreakerConfig
-from vortex.resilience.retry import provider_retry, RetryStrategy
-from vortex.resilience.correlation import with_correlation, CorrelationIdManager
-from vortex.resilience.recovery import ErrorRecoveryManager, DataProviderRecoveryPolicy
+from vortex.infrastructure.resilience.circuit_breaker import get_circuit_breaker, CircuitBreakerConfig
+from vortex.infrastructure.resilience.retry import provider_retry, RetryStrategy
+from vortex.core.correlation import with_correlation, CorrelationIdManager
+from vortex.infrastructure.resilience.recovery import ErrorRecoveryManager, DataProviderRecoveryPolicy
 from vortex.logging import get_logger
 
 logger = get_logger(__name__)

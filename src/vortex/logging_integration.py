@@ -8,7 +8,7 @@ Vortex configuration and provides easy access to loggers throughout the applicat
 from pathlib import Path
 from typing import Optional
 
-from .config import VortexConfig, ConfigManager
+from .core.config import VortexConfig, ConfigManager
 from .logging import (
     LoggingConfig as LogConfig, 
     LoggingManager, 
@@ -217,7 +217,7 @@ def _check_logging_system():
 def _check_config_system():
     """Check that configuration system is accessible."""
     try:
-        from .config import ConfigManager
+        from .core.config import ConfigManager
         manager = ConfigManager()
         config = manager.load_config()
         return {

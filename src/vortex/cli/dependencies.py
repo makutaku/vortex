@@ -137,9 +137,9 @@ def _import_config():
 
 def _import_resilience():
     """Import resilience modules."""
-    from vortex.resilience.correlation import CorrelationIdManager, with_correlation
-    from vortex.resilience.circuit_breaker import get_circuit_breaker_stats
-    from vortex.resilience.recovery import ErrorRecoveryManager
+    from vortex.infrastructure.resilience.correlation import CorrelationIdManager, with_correlation
+    from vortex.infrastructure.resilience.circuit_breaker import get_circuit_breaker_stats
+    from vortex.infrastructure.resilience.recovery import ErrorRecoveryManager
     return {
         'CorrelationIdManager': CorrelationIdManager,
         'with_correlation': with_correlation,

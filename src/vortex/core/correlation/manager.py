@@ -1,21 +1,20 @@
 """
-Correlation ID Management for Request Tracing.
+Core correlation ID management and request tracking.
 
-Provides correlation ID generation and propagation for tracking requests
-across different components and external services.
+This module provides the main CorrelationIdManager class and supporting
+infrastructure for managing correlation IDs across the Vortex system.
 """
 
 import uuid
 import threading
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Optional, Dict, Any, Callable
-from functools import wraps
+from typing import Optional, Dict, Any
 
 # Optional logging - graceful fallback if not available
 try:
-    from vortex.logging import get_logger
+    from vortex.shared.logging import get_logger
     logger = get_logger(__name__)
 except ImportError:
     import logging
@@ -28,33 +27,37 @@ _context_storage = threading.local()
 
 @dataclass
 class CorrelationContext:
-    """Context information for request correlation."""
+    """
+    Context information for request correlation.
+    
+    Stores all relevant information about a correlated operation,
+    including timing, metadata, and hierarchical relationships.
+    """
     correlation_id: str
     parent_id: Optional[str] = None
     operation: Optional[str] = None
     provider: Optional[str] = None
-    start_time: datetime = None
-    metadata: Dict[str, Any] = None
+    start_time: datetime = field(default_factory=datetime.now)
+    metadata: Dict[str, Any] = field(default_factory=dict)
     
-    def __post_init__(self):
-        if self.start_time is None:
-            self.start_time = datetime.now()
-        if self.metadata is None:
-            self.metadata = {}
+    def elapsed_seconds(self) -> float:
+        """Get elapsed time since operation start."""
+        return (datetime.now() - self.start_time).total_seconds()
 
 
 class CorrelationIdManager:
     """
     Manager for correlation IDs and request tracing.
     
-    Provides context management for tracking requests across
-    multiple components and external service calls.
+    Provides comprehensive context management for tracking requests across
+    multiple components and external service calls. Combines features from
+    both the utils and resilience correlation implementations.
     """
     
     @staticmethod
     def generate_id() -> str:
         """Generate a new correlation ID."""
-        return str(uuid.uuid4())[:8]
+        return str(uuid.uuid4())[:8]  # Short ID for readability
     
     @staticmethod
     def get_current_id() -> Optional[str]:
@@ -67,8 +70,13 @@ class CorrelationIdManager:
         return getattr(_context_storage, 'context', None)
     
     @staticmethod
+    def set_correlation_id(correlation_id: str) -> None:
+        """Set just the correlation ID for this thread (simple mode)."""
+        _context_storage.correlation_id = correlation_id
+    
+    @staticmethod
     def set_context(context: CorrelationContext):
-        """Set the correlation context for the current thread."""
+        """Set the full correlation context for the current thread."""
         _context_storage.context = context
         _context_storage.correlation_id = context.correlation_id
         
@@ -139,7 +147,7 @@ class CorrelationIdManager:
             yield context
             
             # Log successful completion
-            elapsed = (datetime.now() - context.start_time).total_seconds()
+            elapsed = context.elapsed_seconds()
             logger.info("Operation completed successfully",
                        correlation_id=correlation_id,
                        operation=operation,
@@ -147,7 +155,7 @@ class CorrelationIdManager:
             
         except Exception as e:
             # Log error with context
-            elapsed = (datetime.now() - context.start_time).total_seconds()
+            elapsed = context.elapsed_seconds()
             logger.error("Operation failed",
                         correlation_id=correlation_id,
                         operation=operation,
@@ -155,7 +163,7 @@ class CorrelationIdManager:
                         exception_message=str(e),
                         elapsed_seconds=elapsed)
             
-            # Add correlation ID to exception if it's a VortexError
+            # Add correlation ID to exception if it supports it
             if hasattr(e, 'correlation_id'):
                 e.correlation_id = correlation_id
             if hasattr(e, 'add_context'):
@@ -186,55 +194,12 @@ class CorrelationIdManager:
                         metadata=metadata)
 
 
-def with_correlation(
-    operation: Optional[str] = None,
-    provider: Optional[str] = None,
-    generate_id: bool = True
-):
-    """
-    Decorator to add correlation context to a function.
-    
-    Args:
-        operation: Name of the operation (defaults to function name)
-        provider: Data provider name
-        generate_id: Whether to generate a new correlation ID
-    """
-    def decorator(func: Callable) -> Callable:
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            op_name = operation or func.__name__
-            
-            # Use existing correlation ID if present and not generating new
-            correlation_id = None
-            if not generate_id:
-                correlation_id = CorrelationIdManager.get_current_id()
-            
-            with CorrelationIdManager.correlation_context(
-                correlation_id=correlation_id,
-                operation=op_name,
-                provider=provider
-            ):
-                return func(*args, **kwargs)
-        
-        return wrapper
-    return decorator
-
-
-def with_provider_correlation(provider: str):
-    """
-    Decorator specifically for data provider operations.
-    
-    Args:
-        provider: Name of the data provider
-    """
-    return with_correlation(provider=provider, generate_id=True)
-
-
 class RequestTracker:
     """
     Helper class for tracking request metrics and performance.
     
-    Works with correlation context to provide detailed request analytics.
+    Works with correlation context to provide detailed request analytics
+    and performance monitoring across the system.
     """
     
     def __init__(self):

@@ -5,7 +5,7 @@ This module provides a plugin system for managing data provider implementations.
 """
 
 from vortex.exceptions.plugins import PluginNotFoundError
-from vortex.providers import BarchartDataProvider, YahooDataProvider, IbkrDataProvider
+from vortex.infrastructure.providers import BarchartDataProvider, YahooDataProvider, IbkrDataProvider
 
 
 class ProviderRegistry:

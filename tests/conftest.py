@@ -16,7 +16,7 @@ try:
 except ImportError:
     freeze_time = None
 
-from vortex.config import VortexConfig, ConfigManager
+from vortex.core.config import VortexConfig, ConfigManager
 
 
 @pytest.fixture

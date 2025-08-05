@@ -12,7 +12,7 @@ from typing import List, Optional, Tuple
 
 import click
 
-from vortex.config import ConfigManager
+from vortex.core.config import ConfigManager
 from vortex.logging_integration import get_module_logger
 
 logger = get_module_logger()

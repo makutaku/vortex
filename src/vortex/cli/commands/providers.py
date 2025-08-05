@@ -369,7 +369,7 @@ def test_single_provider(config_manager: ConfigManager, provider: str) -> dict:
         
         # Test Barchart connectivity by attempting login and checking allowance
         try:
-            from vortex.providers.bc_data_provider import BarchartDataProvider
+            from vortex.infrastructure.providers.bc_data_provider import BarchartDataProvider
             
             username = provider_config.get("username")
             password = provider_config.get("password")
@@ -408,7 +408,7 @@ def test_single_provider(config_manager: ConfigManager, provider: str) -> dict:
         # Test Yahoo Finance connectivity by fetching a small amount of data
         try:
             from datetime import datetime, timedelta
-            from vortex.providers.yf_data_provider import YahooDataProvider
+            from vortex.infrastructure.providers.yf_data_provider import YahooDataProvider
             
             # Test with a reliable ticker (Apple) for the last 5 days
             end_date = datetime.now()

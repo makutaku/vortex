@@ -7,7 +7,7 @@ from datetime import timedelta
 import pandas as pd
 from pandas import DataFrame
 
-from vortex.storage.metadata import Metadata
+from vortex.infrastructure.storage.metadata import Metadata
 from .columns import DATE_TIME_COLUMN
 
 EXPIRATION_THRESHOLD = timedelta(days=7)

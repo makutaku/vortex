@@ -8,8 +8,8 @@ from rich.console import Console
 from rich.table import Table
 from rich.prompt import Prompt, Confirm
 
-from vortex.exceptions import ConfigurationError, InvalidConfigurationError, MissingArgumentError
-from vortex.config import ConfigManager, Provider
+from vortex.shared.exceptions import ConfigurationError, InvalidConfigurationError, MissingArgumentError
+from vortex.core.config import ConfigManager, Provider
 from vortex.logging_integration import get_module_logger
 
 console = Console()

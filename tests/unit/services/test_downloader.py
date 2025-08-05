@@ -2,13 +2,13 @@ import os
 import pytest
 from unittest.mock import Mock, patch
 
-from vortex.providers.barchart import BarchartDataProvider
-from vortex.providers.yahoo import YahooDataProvider
-from vortex.providers.ibkr import IbkrDataProvider
-from vortex.storage.csv_storage import CsvStorage  
-from vortex.storage.parquet_storage import ParquetStorage
+from vortex.infrastructure.providers.barchart import BarchartDataProvider
+from vortex.infrastructure.providers.yahoo import YahooDataProvider
+from vortex.infrastructure.providers.ibkr import IbkrDataProvider
+from vortex.infrastructure.storage.csv_storage import CsvStorage  
+from vortex.infrastructure.storage.parquet_storage import ParquetStorage
 from vortex.services.updating_downloader import UpdatingDownloader
-from vortex.config import ConfigManager, VortexConfig
+from vortex.core.config import ConfigManager, VortexConfig
 
 
 @pytest.fixture
@@ -19,7 +19,7 @@ def download_dir(temp_dir):
     return download_dir
 
 
-@patch('vortex.providers.barchart.auth.BarchartAuth.login')
+@patch('vortex.infrastructure.providers.barchart.auth.BarchartAuth.login')
 def create_barchart_downloader(config: VortexConfig, download_dir: str, mock_login=None) -> UpdatingDownloader:
     """Create a barchart downloader for testing."""
     if mock_login:
@@ -93,7 +93,7 @@ class TestDataProviders:
         provider = YahooDataProvider()
         assert provider is not None
     
-    @patch('vortex.providers.barchart.auth.BarchartAuth.login')
+    @patch('vortex.infrastructure.providers.barchart.auth.BarchartAuth.login')
     def test_barchart_provider_creation(self, mock_login):
         """Test Barchart provider creation with credentials."""
         mock_login.return_value = None  # Mock successful login
@@ -108,7 +108,7 @@ class TestDataProviders:
         assert provider.max_allowance == 100
         mock_login.assert_called_once()
     
-    @patch('vortex.providers.ibkr.provider.IbkrDataProvider.login')
+    @patch('vortex.infrastructure.providers.ibkr.provider.IbkrDataProvider.login')
     def test_ibkr_provider_creation(self, mock_login):
         """Test IBKR provider creation with connection details."""
         mock_login.return_value = None  # Mock successful login

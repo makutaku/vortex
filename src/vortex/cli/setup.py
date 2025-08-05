@@ -26,7 +26,7 @@ def setup_logging(config_file: Optional[Path] = None, verbose: int = 0) -> None:
     
     try:
         # Try to load configuration and set up advanced logging
-        from vortex.config import ConfigManager
+        from vortex.core.config import ConfigManager
         from vortex.logging_integration import configure_logging_from_manager, get_logger
         
         config_manager = ConfigManager(config_file)

@@ -1,7 +1,7 @@
 import logging
 from datetime import timedelta
 
-from vortex.providers.base import HistoricalDataResult
+from vortex.infrastructure.providers.base import HistoricalDataResult
 from .base_downloader import BaseDownloader
 from .download_job import DownloadJob
 from vortex.models.price_series import LOW_DATA_THRESHOLD

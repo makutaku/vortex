@@ -5,10 +5,10 @@ from itertools import cycle
 from typing import List, Dict
 
 from .download_job import DownloadJob
-from vortex.providers.base import DataProvider, HistoricalDataResult
+from vortex.infrastructure.providers.base import DataProvider, HistoricalDataResult
 from vortex.exceptions import LowDataError, AllowanceLimitExceededError, DataNotFoundError
-from vortex.storage.data_storage import DataStorage
-from vortex.initialization.config_utils import InstrumentConfig, InstrumentType
+from vortex.infrastructure.storage.data_storage import DataStorage
+from vortex.core.instruments import InstrumentConfig, InstrumentType
 from vortex.models.forex import Forex
 from vortex.models.future import Future
 from vortex.models.price_series import LOW_DATA_THRESHOLD

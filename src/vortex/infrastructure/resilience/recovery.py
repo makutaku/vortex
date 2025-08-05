@@ -27,7 +27,7 @@ except ImportError:
     logger = logging.getLogger(__name__)
 
 from .circuit_breaker import CircuitBreaker, get_circuit_breaker
-from .correlation import CorrelationIdManager, with_correlation
+from vortex.core.correlation import CorrelationIdManager, with_correlation
 
 
 class RecoveryStrategy(Enum):

@@ -2,9 +2,9 @@ from abc import ABC
 from dataclasses import dataclass
 from datetime import datetime
 
-from vortex.providers.base import DataProvider
-from vortex.storage.data_storage import DataStorage
-from vortex.storage.metadata import Metadata
+from vortex.infrastructure.providers.base import DataProvider
+from vortex.infrastructure.storage.data_storage import DataStorage
+from vortex.infrastructure.storage.metadata import Metadata
 from vortex.models.instrument import Instrument
 from vortex.models.period import Period
 from vortex.models.price_series import PriceSeries

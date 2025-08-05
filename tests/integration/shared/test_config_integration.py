@@ -11,7 +11,7 @@ from unittest.mock import patch
 
 import pytest
 
-from vortex.config import (
+from vortex.core.config import (
     ConfigManager, VortexConfig, 
     BarchartConfig, YahooConfig, IBKRConfig,
     GeneralConfig, ProvidersConfig, DateRangeConfig,

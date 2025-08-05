@@ -1,6 +1,6 @@
 import logging
 
-from vortex.providers.base import HistoricalDataResult
+from vortex.infrastructure.providers.base import HistoricalDataResult
 from .download_job import DownloadJob
 from .base_downloader import BaseDownloader
 from vortex.utils.logging_utils import LoggingContext

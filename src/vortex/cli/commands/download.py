@@ -10,16 +10,16 @@ from rich.table import Table
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
 # Local imports (organized by hierarchy)
-from vortex.config import ConfigManager
-from vortex.storage.csv_storage import CsvStorage
-from vortex.storage.parquet_storage import ParquetStorage
+from vortex.core.config import ConfigManager
+from vortex.infrastructure.storage.csv_storage import CsvStorage
+from vortex.infrastructure.storage.parquet_storage import ParquetStorage
 from vortex.services.updating_downloader import UpdatingDownloader
 from vortex.services.download_job import DownloadJob
 from vortex.exceptions import (
     CLIError, MissingArgumentError, InvalidCommandError,
     ConfigurationError, DataProviderError, DataStorageError
 )
-from vortex.initialization.config_utils import InstrumentConfig
+from vortex.core.instruments import InstrumentConfig
 from vortex.models.stock import Stock
 from vortex.models.period import Period
 from vortex.logging_integration import get_module_logger, get_module_performance_logger

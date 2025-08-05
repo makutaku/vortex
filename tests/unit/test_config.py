@@ -10,13 +10,13 @@ from unittest.mock import patch
 
 import pytest
 
-from vortex.config import (
+from vortex.core.config import (
     ConfigManager, VortexConfig, VortexSettings,
     BarchartConfig, YahooConfig, IBKRConfig,
     GeneralConfig, ProvidersConfig, DateRangeConfig,
     LogLevel, Provider
 )
-from vortex.exceptions import (
+from vortex.core.config import (
     ConfigurationError, InvalidConfigurationError, 
     ConfigurationValidationError
 )
