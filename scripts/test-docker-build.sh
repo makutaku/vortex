@@ -1,6 +1,24 @@
 #!/bin/bash
 # Robust Docker Test Suite for Vortex
 # Follows containerized application testing best practices
+#
+# Usage:
+#   ./scripts/test-docker-build.sh [options] [test_numbers...]
+#
+# Options:
+#   -h, --help          Show help message
+#   -l, --list          List all available tests
+#   -v, --verbose       Enable verbose output
+#   -q, --quiet         Run in quiet mode (minimal output)
+#   --skip-build        Skip Docker image build (use existing image)
+#   --keep-containers   Keep containers after test completion
+#   --keep-data         Keep test data directories after completion
+#
+# Examples:
+#   ./scripts/test-docker-build.sh              # Run all tests
+#   ./scripts/test-docker-build.sh 1 3 5        # Run tests 1, 3, and 5
+#   ./scripts/test-docker-build.sh -v 12 13     # Run tests 12 and 13 with verbose output
+#   ./scripts/test-docker-build.sh --list       # List all available tests
 
 set -euo pipefail  # Fail fast with proper error handling
 
@@ -27,12 +45,39 @@ TESTS_FAILED=0
 CONTAINERS_TO_CLEANUP=()
 DIRECTORIES_TO_CLEANUP=()
 
+# Command line options
+VERBOSE=false
+QUIET=false
+SKIP_BUILD=false
+KEEP_CONTAINERS=false
+KEEP_DATA=false
+SPECIFIC_TESTS=()
+
+# Test registry - maps test numbers to function names and descriptions
+declare -A TEST_REGISTRY=(
+    [1]="test_docker_build:Docker Image Build"
+    [2]="test_image_details:Image Details"
+    [3]="test_basic_container_startup:Basic Container Startup"
+    [4]="test_cli_help:CLI Help Command"
+    [5]="test_providers_command:Providers Command"
+    [6]="test_environment_variables:Environment Variables"
+    [7]="test_volume_mounts:Volume Mounts"
+    [8]="test_entrypoint_dry_run:Entrypoint (Dry Run)"
+    [9]="test_docker_compose_config:Docker Compose Configuration"
+    [10]="test_download_dry_run:Download Command (Dry Run)"
+    [11]="test_entrypoint_no_startup:Entrypoint Without Startup Download"
+    [12]="test_yahoo_download:Yahoo Download (Real Data)"
+    [13]="test_cron_job_setup:Cron Job Setup and Validation"
+)
+
 # ============================================================================
 # UTILITY FUNCTIONS
 # ============================================================================
 
 log_info() {
-    echo -e "${BLUE}[INFO]${NC} $1"
+    if [[ "$QUIET" != true ]]; then
+        echo -e "${BLUE}[INFO]${NC} $1"
+    fi
 }
 
 log_success() {
@@ -46,11 +91,69 @@ log_error() {
 }
 
 log_warning() {
-    echo -e "${YELLOW}[WARN]${NC} $1"
+    if [[ "$QUIET" != true ]]; then
+        echo -e "${YELLOW}[WARN]${NC} $1"
+    fi
 }
 
 log_test() {
-    echo -e "\n${YELLOW}=== $1 ===${NC}"
+    if [[ "$QUIET" != true ]]; then
+        echo -e "\n${YELLOW}=== $1 ===${NC}"
+    fi
+}
+
+log_verbose() {
+    if [[ "$VERBOSE" == true ]]; then
+        echo -e "${BLUE}[VERBOSE]${NC} $1"
+    fi
+}
+
+show_help() {
+    cat << 'EOF'
+Vortex Docker Test Suite
+
+USAGE:
+    ./scripts/test-docker-build.sh [OPTIONS] [TEST_NUMBERS...]
+
+OPTIONS:
+    -h, --help          Show this help message
+    -l, --list          List all available tests with descriptions
+    -v, --verbose       Enable verbose output for debugging
+    -q, --quiet         Run in quiet mode (minimal output)
+    --skip-build        Skip Docker image build (use existing image)
+    --keep-containers   Keep containers after test completion for debugging
+    --keep-data         Keep test data directories after completion
+
+EXAMPLES:
+    # Run all tests
+    ./scripts/test-docker-build.sh
+
+    # Run specific tests
+    ./scripts/test-docker-build.sh 1 3 5
+
+    # Run cron and download tests with verbose output
+    ./scripts/test-docker-build.sh -v 12 13
+
+    # List all available tests
+    ./scripts/test-docker-build.sh --list
+
+    # Quick test run (skip build, quiet mode)
+    ./scripts/test-docker-build.sh --skip-build -q 4 5
+
+    # Debug failing test (keep containers and data)
+    ./scripts/test-docker-build.sh --keep-containers --keep-data -v 12
+EOF
+}
+
+list_tests() {
+    echo "Available Tests:"
+    echo "================"
+    for test_num in $(printf '%s\n' "${!TEST_REGISTRY[@]}" | sort -n); do
+        IFS=':' read -r func_name description <<< "${TEST_REGISTRY[$test_num]}"
+        printf "  %2d: %s\n" "$test_num" "$description"
+    done
+    echo
+    echo "Usage: ./scripts/test-docker-build.sh [test_numbers...]"
 }
 
 # ============================================================================
@@ -123,26 +226,45 @@ exec_container() {
 # ============================================================================
 
 cleanup_containers() {
+    if [[ "$KEEP_CONTAINERS" == true ]]; then
+        log_info "Keeping containers for debugging (--keep-containers specified)"
+        log_info "Container IDs: ${CONTAINERS_TO_CLEANUP[*]}"
+        return 0
+    fi
+    
     log_info "Cleaning up containers..."
     
     for container_id in "${CONTAINERS_TO_CLEANUP[@]}"; do
         if [[ -n "$container_id" ]]; then
+            log_verbose "Removing container: $container_id"
             docker kill "$container_id" >/dev/null 2>&1 || true
             docker rm -f "$container_id" >/dev/null 2>&1 || true
         fi
     done
     
     # Clean up any remaining test containers
-    docker ps -a --filter "ancestor=$TEST_IMAGE" --format "{{.ID}}" | xargs -r docker rm -f >/dev/null 2>&1 || true
+    local remaining_containers
+    remaining_containers=$(docker ps -a --filter "ancestor=$TEST_IMAGE" --format "{{.ID}}" | tr '\n' ' ')
+    if [[ -n "$remaining_containers" ]]; then
+        log_verbose "Cleaning up remaining test containers: $remaining_containers"
+        echo "$remaining_containers" | xargs -r docker rm -f >/dev/null 2>&1 || true
+    fi
     
     CONTAINERS_TO_CLEANUP=()
 }
 
 cleanup_directories() {
+    if [[ "$KEEP_DATA" == true ]]; then
+        log_info "Keeping test data directories for debugging (--keep-data specified)"
+        log_info "Data directories: ${DIRECTORIES_TO_CLEANUP[*]}"
+        return 0
+    fi
+    
     log_info "Cleaning up test directories..."
     
     for dir in "${DIRECTORIES_TO_CLEANUP[@]}"; do
         if [[ -d "$dir" ]]; then
+            log_verbose "Removing directory: $dir"
             # Fix permissions first
             find "$dir" -type d -exec chmod 755 {} \; 2>/dev/null || true
             find "$dir" -type f -exec chmod 644 {} \; 2>/dev/null || true
@@ -202,14 +324,39 @@ create_test_directory() {
 test_docker_build() {
     log_test "Test 1: Docker Image Build"
     
+    if [[ "$SKIP_BUILD" == true ]]; then
+        log_info "Skipping Docker build (--skip-build specified)"
+        if docker image inspect "$TEST_IMAGE" >/dev/null 2>&1; then
+            log_success "Using existing Docker image"
+            return 0
+        else
+            log_error "No existing image found, but --skip-build specified"
+            return 1
+        fi
+    fi
+    
     cd "$PROJECT_ROOT"
     
-    if timeout "$BUILD_TIMEOUT" docker build -t "$TEST_IMAGE" . >/dev/null 2>&1; then
-        log_success "Docker build completed successfully"
-        return 0
+    log_verbose "Building Docker image with timeout ${BUILD_TIMEOUT}s..."
+    
+    if [[ "$VERBOSE" == true ]]; then
+        # Show build output in verbose mode
+        if timeout "$BUILD_TIMEOUT" docker build -t "$TEST_IMAGE" .; then
+            log_success "Docker build completed successfully"
+            return 0
+        else
+            log_error "Docker build failed"
+            return 1
+        fi
     else
-        log_error "Docker build failed"
-        return 1
+        # Hide build output in normal mode
+        if timeout "$BUILD_TIMEOUT" docker build -t "$TEST_IMAGE" . >/dev/null 2>&1; then
+            log_success "Docker build completed successfully"
+            return 0
+        else
+            log_error "Docker build failed"
+            return 1
+        fi
     fi
 }
 
@@ -250,15 +397,23 @@ test_cli_help() {
     
     local output
     
+    log_verbose "Testing 'vortex --help' command..."
+    
     if output=$(exec_container 20 "test-help" --entrypoint="" "$TEST_IMAGE" vortex --help 2>&1); then
         if [[ "$output" == *"Vortex: Financial data download automation tool"* ]]; then
             log_success "CLI help command works"
+            if [[ "$VERBOSE" == true ]]; then
+                echo "Help output preview:"
+                echo "$output" | head -10
+            fi
             return 0
         fi
     fi
     
     log_error "CLI help command failed"
-    echo "Output: $output"
+    if [[ "$VERBOSE" == true ]] || [[ "$QUIET" != true ]]; then
+        echo "Output: $output"
+    fi
     return 1
 }
 
@@ -615,29 +770,56 @@ test_cron_job_setup() {
 # MAIN EXECUTION
 # ============================================================================
 
-run_all_tests() {
+run_specific_tests() {
+    local tests_to_run=("$@")
+    local test_failed=false
+    
+    if [[ ${#tests_to_run[@]} -eq 0 ]]; then
+        # Run all tests if none specified
+        tests_to_run=($(printf '%s\n' "${!TEST_REGISTRY[@]}" | sort -n))
+    fi
+    
     log_info "Starting Vortex Docker Test Suite"
+    if [[ ${#tests_to_run[@]} -lt ${#TEST_REGISTRY[@]} ]]; then
+        log_info "Running selected tests: ${tests_to_run[*]}"
+    else
+        log_info "Running all tests"
+    fi
     echo "========================================"
     
-    # Setup
+    # Setup test environment
     setup_test_environment || return 1
     
-    # Core tests - continue even if some fail to get full picture
-    test_docker_build || return 1  # Critical - must pass
-    test_image_details || true
-    test_basic_container_startup || return 1  # Critical - must pass  
-    test_cli_help || true
-    test_providers_command || true
-    test_environment_variables || true
-    test_volume_mounts || true
-    test_entrypoint_dry_run || true
-    test_docker_compose_config || true
-    test_download_dry_run || true
-    test_entrypoint_no_startup || true
-    test_yahoo_download || true
-    test_cron_job_setup || true
+    # Run specified tests
+    for test_num in "${tests_to_run[@]}"; do
+        if [[ -n "${TEST_REGISTRY[$test_num]:-}" ]]; then
+            IFS=':' read -r func_name description <<< "${TEST_REGISTRY[$test_num]}"
+            log_verbose "Executing test $test_num: $func_name"
+            
+            # Run the test function
+            if ! "$func_name"; then
+                # Special handling for critical tests
+                if [[ "$test_num" == "1" ]] || [[ "$test_num" == "3" ]]; then
+                    log_error "Critical test $test_num failed, stopping execution"
+                    return 1
+                fi
+                test_failed=true
+            fi
+        else
+            log_error "Unknown test number: $test_num"
+            test_failed=true
+        fi
+    done
+    
+    if [[ "$test_failed" == true ]]; then
+        return 1
+    fi
     
     return 0
+}
+
+run_all_tests() {
+    run_specific_tests
 }
 
 show_results() {
@@ -658,12 +840,97 @@ show_results() {
     fi
 }
 
+parse_arguments() {
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            -h|--help)
+                show_help
+                exit 0
+                ;;
+            -l|--list)
+                list_tests
+                exit 0
+                ;;
+            -v|--verbose)
+                VERBOSE=true
+                shift
+                ;;
+            -q|--quiet)
+                QUIET=true
+                shift
+                ;;
+            --skip-build)
+                SKIP_BUILD=true
+                shift
+                ;;
+            --keep-containers)
+                KEEP_CONTAINERS=true
+                shift
+                ;;
+            --keep-data)
+                KEEP_DATA=true
+                shift
+                ;;
+            -*)
+                echo "Error: Unknown option $1" >&2
+                echo "Run with --help for usage information" >&2
+                exit 1
+                ;;
+            *)
+                # Assume it's a test number
+                if [[ "$1" =~ ^[0-9]+$ ]]; then
+                    SPECIFIC_TESTS+=("$1")
+                else
+                    echo "Error: Invalid test number '$1'" >&2
+                    echo "Run with --list to see available tests" >&2
+                    exit 1
+                fi
+                shift
+                ;;
+        esac
+    done
+}
+
 main() {
     local exit_code=0
     
-    run_all_tests
+    # Parse command line arguments
+    parse_arguments "$@"
+    
+    # Validate test numbers if specified
+    if [[ ${#SPECIFIC_TESTS[@]} -gt 0 ]]; then
+        for test_num in "${SPECIFIC_TESTS[@]}"; do
+            if [[ -z "${TEST_REGISTRY[$test_num]:-}" ]]; then
+                echo "Error: Test $test_num does not exist" >&2
+                echo "Available tests: $(printf '%s ' "${!TEST_REGISTRY[@]}" | sort -n)" >&2
+                exit 1
+            fi
+        done
+    fi
+    
+    # Show configuration in verbose mode
+    if [[ "$VERBOSE" == true ]]; then
+        log_verbose "Configuration:"
+        log_verbose "  Verbose: $VERBOSE"
+        log_verbose "  Quiet: $QUIET"
+        log_verbose "  Skip Build: $SKIP_BUILD"
+        log_verbose "  Keep Containers: $KEEP_CONTAINERS"
+        log_verbose "  Keep Data: $KEEP_DATA"
+        log_verbose "  Test Image: $TEST_IMAGE"
+        if [[ ${#SPECIFIC_TESTS[@]} -gt 0 ]]; then
+            log_verbose "  Specific Tests: ${SPECIFIC_TESTS[*]}"
+        fi
+    fi
+    
+    # Run tests
+    if [[ ${#SPECIFIC_TESTS[@]} -gt 0 ]]; then
+        run_specific_tests "${SPECIFIC_TESTS[@]}"
+    else
+        run_all_tests
+    fi
     exit_code=$?
     
+    # Show results
     show_results
     
     return $exit_code
