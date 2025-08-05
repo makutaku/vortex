@@ -300,7 +300,7 @@ Tests use pytest with fixture-based setup. The main test file `test_downloader.p
 **AFTER refactoring (MANDATORY):**
 ```bash
 # 1. Quick validation script (recommended)
-./scripts/validate-critical-tests.sh
+./scripts/test-docker-build.sh 5 12 --quiet
 
 # 2. Manual validation (if needed)
 docker run --rm vortex-test:latest vortex providers | grep "Total providers available"
@@ -390,7 +390,7 @@ docker run --rm --user "1000:1000" -v "$(pwd)/debug:/data" vortex-test:latest \
 **The Safe Refactoring Workflow:**
 1. **Baseline:** `./scripts/test-docker-build.sh` (establish what works)
 2. **Refactor:** Make your changes
-3. **Quick Check:** `./scripts/validate-critical-tests.sh` (catch obvious breaks)
+3. **Quick Check:** `./scripts/test-docker-build.sh 5 12 --quiet` (catch obvious breaks)
 4. **Fix Immediately:** Don't proceed until Tests 5 & 12 pass
 5. **Full Validation:** `./scripts/test-docker-build.sh` (ensure nothing else broke)
 6. **Commit:** Only after all tests pass

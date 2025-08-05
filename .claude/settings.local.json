@@ -42,8 +42,7 @@
       "Bash(docker logs:*)",
       "Bash(./scripts/test-docker-build-robust.sh:*)",
       "Bash(./scripts/test-docker-build.sh:*)",
-      "Bash(ln:*)",
-      "Bash(./scripts/validate-critical-tests.sh:*)"
+      "Bash(ln:*)"
     ],
     "deny": []
   }
