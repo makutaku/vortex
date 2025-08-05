@@ -80,7 +80,7 @@ Repository = "https://github.com/makutaku/vortex"
 Issues = "https://github.com/makutaku/vortex/issues"
 
 [project.scripts]
-vortex = "vortex.cli.main:cli"
+vortex = "vortex.application.cli.main:cli"
 
 
 [build-system]

@@ -1,0 +1,49 @@
+# Vortex Production Environment Configuration
+
+[general]
+output_directory = "/data"
+backup_enabled = true
+default_provider = "barchart"
+log_level = "INFO"
+
+[general.logging]
+level = "INFO"
+format = "json"
+output = "file"
+file_path = "/logs/vortex.log"
+rotation = "daily"
+retention_days = 30
+
+[providers.barchart]
+# Barchart production settings
+daily_limit = 150
+timeout = 60
+retry_attempts = 5
+rate_limit_delay = 2.0
+
+[providers.yahoo]
+# Yahoo Finance production settings
+timeout = 30
+retry_attempts = 5
+rate_limit_delay = 2.0
+
+[providers.ibkr]
+# Interactive Brokers production settings
+host = "localhost"
+port = 7496  # Live trading port
+client_id = 1
+timeout = 60
+
+[production]
+# Production-specific settings
+performance_monitoring = true
+metrics_enabled = true
+health_checks_enabled = true
+circuit_breaker_enabled = true
+
+[monitoring]
+# Monitoring and observability
+enable_tracing = true
+enable_metrics = true
+metrics_port = 8080
+health_check_port = 8081
