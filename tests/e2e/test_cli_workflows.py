@@ -10,7 +10,7 @@ import tempfile
 from pathlib import Path
 from click.testing import CliRunner
 
-from vortex.cli.main import main
+from vortex.cli.main import cli
 
 
 class TestCLIWorkflows:
@@ -29,7 +29,7 @@ class TestCLIWorkflows:
 
     def test_help_command_workflow(self, cli_runner):
         """Test the complete help command workflow."""
-        result = cli_runner.invoke(main, ['--help'])
+        result = cli_runner.invoke(cli, ['--help'])
         
         assert result.exit_code == 0
         assert "Vortex: Financial data download automation tool" in result.output
@@ -37,7 +37,7 @@ class TestCLIWorkflows:
 
     def test_providers_list_workflow(self, cli_runner):
         """Test the complete providers list workflow."""
-        result = cli_runner.invoke(main, ['providers'])
+        result = cli_runner.invoke(cli, ['providers'])
         
         # Should not fail even if some providers have dependency issues
         assert result.exit_code in [0, 1]  # May fail due to missing dependencies
@@ -47,7 +47,7 @@ class TestCLIWorkflows:
 
     def test_config_show_workflow(self, cli_runner):
         """Test the configuration display workflow."""
-        result = cli_runner.invoke(main, ['config', '--show'])
+        result = cli_runner.invoke(cli, ['config', '--show'])
         
         # Should show configuration even if some providers are unavailable
         assert result.exit_code in [0, 1]
@@ -58,7 +58,7 @@ class TestCLIWorkflows:
         # This would test the complete download workflow in dry-run mode
         # to avoid actually downloading data in tests
         
-        result = cli_runner.invoke(main, [
+        result = cli_runner.invoke(cli, [
             'download',
             '--provider', 'yahoo',
             '--symbol', 'AAPL',
@@ -72,7 +72,7 @@ class TestCLIWorkflows:
 
     def test_invalid_command_workflow(self, cli_runner):
         """Test handling of invalid commands."""
-        result = cli_runner.invoke(main, ['invalid-command'])
+        result = cli_runner.invoke(cli, ['invalid-command'])
         
         assert result.exit_code != 0
         assert "No such command" in result.output or "Usage:" in result.output

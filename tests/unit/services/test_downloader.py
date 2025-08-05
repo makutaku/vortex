@@ -52,10 +52,24 @@ class TestDownloader:
         with pytest.raises(Exception):
             downloader = create_barchart_downloader(config, str(download_dir))
 
-    @pytest.mark.skip(reason="Authentication testing moved to integration tests")
     def test_bad_barchart_credentials(self, download_dir):
-        """Test downloader creation fails with bad credentials - moved to integration tests."""
-        pass
+        """Test downloader creation fails with bad credentials."""
+        from unittest.mock import patch
+        
+        # Create config with bad credentials
+        config = VortexConfig()
+        config.providers.barchart.username = "bad_user"
+        config.providers.barchart.password = "bad_pass"
+        
+        # The create_barchart_downloader function is already patched to mock login
+        # We'll modify the mock within the function to simulate authentication failure
+        with patch('vortex.infrastructure.providers.barchart.BarchartDataProvider.__init__') as mock_init:
+            from vortex.exceptions import AuthenticationError
+            mock_init.side_effect = AuthenticationError("Invalid credentials")
+            
+            # Should raise exception when trying to create downloader
+            with pytest.raises(AuthenticationError, match="Invalid credentials"):
+                downloader = create_barchart_downloader(config, str(download_dir))
 
     @pytest.mark.credentials
     @pytest.mark.network

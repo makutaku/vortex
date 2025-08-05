@@ -28,6 +28,32 @@ class MockDataProvider(DataProvider):
         self.download_count = 0
         self.downloaded_symbols = []
     
+    def get_name(self) -> str:
+        """Return provider name."""
+        return "MockDataProvider"
+    
+    def _get_frequency_attributes(self):
+        """Return mock frequency attributes."""
+        from vortex.models.period import FrequencyAttributes, Period
+        return [
+            FrequencyAttributes(Period.DAILY, "1d", None, None)
+        ]
+    
+    def _fetch_historical_data(self, instrument, frequency_attributes, start_date, end_date):
+        """Mock implementation of _fetch_historical_data."""
+        import pandas as pd
+        
+        # Use the existing download_data logic but return DataFrame
+        data_list = self.download_data(instrument, start_date, end_date)
+        
+        if not data_list:
+            return None
+        
+        # Convert to DataFrame
+        df = pd.DataFrame(data_list)
+        df['date'] = pd.to_datetime(df['date'])
+        return df.set_index('date')
+    
     def download_data(self, instrument: Instrument, start_date: datetime, end_date: datetime) -> List[Dict[str, Any]]:
         """Mock download data implementation."""
         import time
@@ -36,7 +62,7 @@ class MockDataProvider(DataProvider):
             time.sleep(self.delay)
         
         self.download_count += 1
-        symbol = instrument.name
+        symbol = instrument.id
         self.downloaded_symbols.append(symbol)
         
         if self.fail_on_symbol and symbol == self.fail_on_symbol:
@@ -81,11 +107,22 @@ class MockFileStorage(FileStorage):
             fail_on_save: Whether to fail on save operations
             fail_on_load: Whether to fail on load operations
         """
+        super().__init__("/tmp/mock", False)
         self.fail_on_save = fail_on_save
         self.fail_on_load = fail_on_load
         self.saved_data = {}
         self.save_count = 0
         self.load_count = 0
+    
+    def _load(self, file_path):
+        """Mock implementation of _load."""
+        # This would normally return a DataFrame, but for testing we'll return None
+        return None
+    
+    def _persist(self, downloaded_data, file_path: str) -> None:
+        """Mock implementation of _persist."""
+        # This would normally save data to file, but for testing we do nothing
+        pass
     
     def save(self, data: List[Dict[str, Any]], instrument: Instrument, 
              start_date: datetime, end_date: datetime) -> bool:
@@ -95,7 +132,7 @@ class MockFileStorage(FileStorage):
         if self.fail_on_save:
             raise Exception("Mock save failure")
         
-        key = f"{instrument.name}_{start_date}_{end_date}"
+        key = f"{instrument.id}_{start_date}_{end_date}"
         self.saved_data[key] = data.copy()
         return True
     
@@ -106,19 +143,19 @@ class MockFileStorage(FileStorage):
         if self.fail_on_load:
             raise Exception("Mock load failure")
         
-        key = f"{instrument.name}_{start_date}_{end_date}"
+        key = f"{instrument.id}_{start_date}_{end_date}"
         return self.saved_data.get(key, [])
     
     def exists(self, instrument: Instrument, start_date: datetime, end_date: datetime) -> bool:
         """Mock exists check."""
-        key = f"{instrument.name}_{start_date}_{end_date}"
+        key = f"{instrument.id}_{start_date}_{end_date}"
         return key in self.saved_data
     
     def reset_stats(self):
         """Reset storage statistics."""
         self.save_count = 0
         self.load_count = 0
-        self.saved_data = {}
+        # Don't reset saved_data - it should persist after stats reset
 
 
 class MockInstrument(Instrument):
@@ -130,7 +167,19 @@ class MockInstrument(Instrument):
         self.symbol = symbol
     
     def __str__(self) -> str:
-        return f"MockInstrument({self.name})"
+        return f"MockInstrument({self.id})"
+    
+    def get_code(self):
+        """Return instrument code."""
+        return self.symbol
+    
+    def get_symbol(self):
+        """Return instrument symbol."""
+        return self.symbol
+    
+    def is_dated(self):
+        """Return whether instrument is dated."""
+        return False
 
 
 @pytest.fixture
@@ -339,7 +388,7 @@ class TestMockInstrument:
         """Test mock instrument creation."""
         instrument = MockInstrument("TEST", "SYMBOL")
         
-        assert instrument.name == "TEST"
+        assert instrument.id == "TEST"
         assert instrument.symbol == "SYMBOL"
         assert str(instrument) == "MockInstrument(TEST)"
     
@@ -347,5 +396,5 @@ class TestMockInstrument:
         """Test default values."""
         instrument = MockInstrument()
         
-        assert instrument.name == "TEST"
+        assert instrument.id == "TEST"
         assert instrument.symbol == "TEST"
