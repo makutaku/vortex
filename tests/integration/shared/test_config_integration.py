@@ -17,7 +17,7 @@ from vortex.core.config import (
     GeneralConfig, ProvidersConfig, DateRangeConfig,
     LogLevel
 )
-from vortex.shared.exceptions import ConfigurationError, ConfigurationValidationError
+from vortex.exceptions.config import ConfigurationError, ConfigurationValidationError
 
 
 @pytest.mark.integration

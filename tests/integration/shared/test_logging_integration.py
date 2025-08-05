@@ -10,10 +10,9 @@ from pathlib import Path
 
 import pytest
 
-from vortex.shared.logging import (
-    LoggingManager, PerformanceLogger, TimedOperation,
-    get_logger, get_performance_logger, timed
-)
+from vortex.logging.manager import LoggingManager
+from vortex.logging.performance import PerformanceLogger, TimedOperation, get_performance_logger, timed
+from vortex.logging.loggers import get_logger
 
 
 @pytest.mark.integration

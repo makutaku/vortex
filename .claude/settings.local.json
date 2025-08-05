@@ -44,7 +44,10 @@
       "Bash(./scripts/test-docker-build.sh:*)",
       "Bash(ln:*)",
       "Bash(docker images:*)",
-      "Bash(docker system prune:*)"
+      "Bash(docker system prune:*)",
+      "Bash(pytest:*)",
+      "Bash(pip install:*)",
+      "Bash(uv:*)"
     ],
     "deny": []
   }

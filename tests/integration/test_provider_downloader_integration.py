@@ -9,10 +9,10 @@ import pytest
 from pathlib import Path
 import tempfile
 
-from vortex.core.services.downloaders import UpdatingDownloader
-from vortex.infrastructure.providers.data_providers import YahooDataProvider
-from vortex.infrastructure.storage.data_storage import CsvStorage
-from vortex.core.models.instruments import Stock
+from vortex.services.updating_downloader import UpdatingDownloader
+from vortex.infrastructure.providers.yahoo.provider import YahooDataProvider
+from vortex.infrastructure.storage.csv_storage import CsvStorage
+from vortex.models.stock import Stock
 
 
 class TestProviderDownloaderIntegration:

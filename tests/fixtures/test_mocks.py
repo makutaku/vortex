@@ -8,9 +8,9 @@ from unittest.mock import Mock
 
 import pytest
 
-from vortex.infrastructure.providers.data_providers.data_provider import DataProvider
-from vortex.infrastructure.storage.data_storage.file_storage import FileStorage
-from vortex.core.models.instruments.instrument import Instrument
+from vortex.infrastructure.providers.base import DataProvider
+from vortex.infrastructure.storage.file_storage import FileStorage
+from vortex.models.instrument import Instrument
 
 
 class MockDataProvider(DataProvider):
