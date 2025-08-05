@@ -3,7 +3,7 @@ import logging
 from vortex.providers.data_provider import HistoricalDataResult
 from .download_job import DownloadJob
 from .base_downloader import BaseDownloader
-from vortex.utils.logging_utils import LoggingContext
+from vortex.shared.utils.logging_utils import LoggingContext
 
 
 class MockDownloader(BaseDownloader):

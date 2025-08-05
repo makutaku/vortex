@@ -13,8 +13,8 @@ import pandas as pd
 from pandas import DataFrame
 
 from ..data_provider import DataProvider
-from vortex.exceptions import DataNotFoundError, AllowanceLimitExceededError, LowDataError
-from vortex.exceptions import DataProviderError
+from vortex.shared.exceptions import DataNotFoundError, AllowanceLimitExceededError, LowDataError
+from vortex.shared.exceptions import DataProviderError
 from vortex.models.forex import Forex
 from vortex.models.future import Future
 from vortex.models.period import Period, FrequencyAttributes

@@ -61,3 +61,13 @@ Thumbs.db
 .env.local
 /data
 *.log
+
+# Test artifacts
+test-*/
+test-config-*/
+test-data-*/
+
+# Build artifacts (setuptools)
+*.egg-info/
+build/dist/
+build/lib/

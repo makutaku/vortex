@@ -5,8 +5,8 @@ from vortex.providers.data_provider import HistoricalDataResult
 from .base_downloader import BaseDownloader
 from .download_job import DownloadJob
 from vortex.models.price_series import LOW_DATA_THRESHOLD
-from vortex.utils.logging_utils import LoggingContext
-from vortex.utils.utils import random_sleep
+from vortex.shared.utils.logging_utils import LoggingContext
+from vortex.shared.utils.utils import random_sleep
 
 
 class UpdatingDownloader(BaseDownloader):

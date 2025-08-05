@@ -13,14 +13,14 @@ from typing import Any, Callable, List, Optional, Dict, Union
 import time
 import threading
 
-from vortex.exceptions import (
+from vortex.shared.exceptions import (
     VortexError, DataProviderError, AuthenticationError,
     ConnectionError, RateLimitError, DataNotFoundError,
     AllowanceLimitExceededError
 )
 # Optional logging - graceful fallback if not available
 try:
-    from vortex.logging import get_logger
+    from vortex.shared.logging import get_logger
     logger = get_logger(__name__)
 except ImportError:
     import logging

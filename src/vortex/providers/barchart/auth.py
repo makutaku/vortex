@@ -7,7 +7,7 @@ Handles login, logout, CSRF token extraction, and session creation for Barchart.
 import requests
 from bs4 import BeautifulSoup
 
-from vortex.utils.logging_utils import LoggingContext
+from vortex.shared.utils.logging_utils import LoggingContext
 
 
 class BarchartAuth:

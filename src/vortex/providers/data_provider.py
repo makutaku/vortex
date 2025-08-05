@@ -7,7 +7,7 @@ from pandas import DataFrame
 
 from vortex.models.instrument import Instrument
 from vortex.models.period import Period, FrequencyAttributes
-from vortex.exceptions import (
+from vortex.shared.exceptions import (
     DataProviderError, DataNotFoundError, AllowanceLimitExceededError,
     ConnectionError, AuthenticationError, RateLimitError,
     # Legacy exceptions for backward compatibility

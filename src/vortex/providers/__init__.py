@@ -6,7 +6,7 @@ from external sources like APIs and web services.
 """
 
 from .data_provider import DataProvider
-from .bc_data_provider import BarchartDataProvider
+from .barchart import BarchartDataProvider
 from .yf_data_provider import YahooDataProvider
 from .ib_data_provider import IbkrDataProvider
 from .resilient_provider import ResilientDataProvider

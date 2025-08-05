@@ -2,7 +2,7 @@ import os
 import pytest
 from unittest.mock import Mock, patch
 
-from vortex.providers.bc_data_provider import BarchartDataProvider
+from vortex.providers.barchart import BarchartDataProvider
 from vortex.providers.yf_data_provider import YahooDataProvider
 from vortex.providers.ib_data_provider import IbkrDataProvider
 from vortex.storage.csv_storage import CsvStorage  
