@@ -8,7 +8,7 @@ from rich.console import Console
 from rich.table import Table
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
-from ..utils.config_manager import ConfigManager
+from vortex.core.config import ConfigManager
 from vortex.plugins import get_provider_registry
 from ..utils.provider_utils import get_available_providers, check_provider_configuration
 

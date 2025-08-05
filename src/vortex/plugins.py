@@ -32,6 +32,21 @@ class ProviderRegistry:
         """Register a new plugin."""
         self._plugins[name] = plugin_class
     
+    def create_provider(self, name: str, config):
+        """Create a provider instance with the given configuration."""
+        if name not in self._plugins:
+            raise PluginNotFoundError(f"Plugin '{name}' not found")
+        
+        provider_class = self._plugins[name]
+        
+        # Handle different provider constructor signatures
+        if name == 'yahoo':
+            # Yahoo provider doesn't take config parameters
+            return provider_class()
+        else:
+            # Other providers (barchart, ibkr) take config parameters
+            return provider_class(config)
+    
     def get_plugin_info(self, name: str):
         """Get plugin information."""
         if name not in self._plugins:

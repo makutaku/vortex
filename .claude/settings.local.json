@@ -42,7 +42,9 @@
       "Bash(docker logs:*)",
       "Bash(./scripts/test-docker-build-robust.sh:*)",
       "Bash(./scripts/test-docker-build.sh:*)",
-      "Bash(ln:*)"
+      "Bash(ln:*)",
+      "Bash(docker images:*)",
+      "Bash(docker system prune:*)"
     ],
     "deny": []
   }

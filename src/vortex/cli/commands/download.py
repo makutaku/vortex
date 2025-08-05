@@ -413,7 +413,7 @@ def create_downloader(provider: str, download_config: dict):
         
     except Exception as e:
         logger.error(f"Failed to create provider '{provider}' via plugin system: {e}")
-        raise DataProviderError(f"Provider '{provider}' initialization failed: {e}")
+        raise DataProviderError(provider, f"Initialization failed: {e}")
     
     # Create and return the downloader
     return UpdatingDownloader(

@@ -125,7 +125,7 @@ def null_correlation_decorator(*args, **kwargs):
 # Import functions for lazy loading
 def _import_config():
     """Import configuration modules."""
-    from vortex.cli.utils.config_manager import ConfigManager
+    from vortex.core.config import ConfigManager
     from vortex.logging_integration import configure_logging_from_manager, get_logger, run_health_checks
     return {
         'ConfigManager': ConfigManager,
