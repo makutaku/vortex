@@ -1,0 +1,32 @@
+#!/bin/bash
+# Modern Python build script
+
+set -e  # Exit on error
+
+echo "Building vortex..."
+
+# Output directory for build artifacts
+DEST_DIR="./build"
+
+# Clean previous build
+if [[ -d "$DEST_DIR" ]]; then
+  echo "Removing existing build directory: $DEST_DIR"
+  rm -rf "$DEST_DIR"
+fi
+
+# Create build structure
+mkdir -p "$DEST_DIR/app"
+
+echo "Copying application code..."
+cp -r src/vortex "$DEST_DIR/app/"
+# requirements.txt removed - dependencies managed via pyproject.toml
+
+echo "Copying deployment files..."
+cp -r docker/* "$DEST_DIR/app/"
+
+echo "Copying configuration..."
+mkdir -p "$DEST_DIR/config"
+cp -r assets/ "$DEST_DIR/config/"
+
+echo "Build completed successfully!"
+echo "Build artifacts in: $DEST_DIR"
