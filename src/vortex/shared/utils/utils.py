@@ -6,7 +6,7 @@ from random import randint
 
 from dateutil import parser
 
-from ..instruments.period import Period
+from vortex.models.period import Period
 
 
 def random_sleep(n=15):

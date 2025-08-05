@@ -13,7 +13,7 @@ from .base import VortexError
 from .templates import ErrorMessageTemplates, RecoverySuggestions, ErrorCodes
 
 if TYPE_CHECKING:
-    from ..instruments.period import Period
+    from vortex.models.period import Period
 
 
 class DataProviderError(VortexError):

@@ -10,7 +10,7 @@ import tempfile
 from pathlib import Path
 from click.testing import CliRunner
 
-from vortex.application.cli.main import main
+from vortex.cli.main import main
 
 
 class TestCLIWorkflows:

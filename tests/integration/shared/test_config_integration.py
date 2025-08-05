@@ -1,0 +1,148 @@
+"""
+Integration tests for the Vortex configuration system.
+
+These tests involve file I/O, environment variables, and system integration.
+"""
+
+import os
+import tempfile
+from pathlib import Path
+from unittest.mock import patch
+
+import pytest
+
+from vortex.config import (
+    ConfigManager, VortexConfig, 
+    BarchartConfig, YahooConfig, IBKRConfig,
+    GeneralConfig, ProvidersConfig, DateRangeConfig,
+    LogLevel
+)
+from vortex.shared.exceptions import ConfigurationError, ConfigurationValidationError
+
+
+@pytest.mark.integration
+class TestConfigManagerIntegration:
+    """Integration tests for ConfigManager involving file operations."""
+    
+    def test_save_and_load_config(self, config_manager, vortex_config):
+        """Test saving and loading configuration to/from files."""
+        # Save config
+        config_manager.save_config(vortex_config)
+        assert config_manager.config_file.exists()
+        
+        # Create new manager and load
+        new_manager = ConfigManager(config_manager.config_file)
+        loaded_config = new_manager.load_config()
+        
+        assert loaded_config.general.log_level == LogLevel.DEBUG
+        assert loaded_config.providers.barchart.username == "test@example.com"
+        assert loaded_config.providers.barchart.daily_limit == 100
+
+    def test_set_provider_config(self, config_manager):
+        """Test setting provider configuration with file persistence."""
+        # Set barchart config
+        config_manager.set_provider_config("barchart", {
+            "username": "new_user@example.com",
+            "password": "new_password",
+            "daily_limit": 200
+        })
+        
+        # Verify it's saved
+        config = config_manager.load_config()
+        assert config.providers.barchart.username == "new_user@example.com"
+        assert config.providers.barchart.daily_limit == 200
+
+    def test_validate_provider_credentials(self, config_manager, vortex_config):
+        """Test provider credential validation."""
+        config_manager._config = vortex_config
+        
+        # Valid credentials should pass
+        assert config_manager.validate_provider_credentials("barchart") is True
+        
+        # Missing credentials should fail
+        assert config_manager.validate_provider_credentials("ibkr") is False
+
+    def test_get_missing_credentials(self, config_manager):
+        """Test getting missing credential information."""
+        missing = config_manager.get_missing_credentials("barchart")
+        
+        assert "username" in missing
+        assert "password" in missing
+
+    def test_import_export_config(self, config_manager, vortex_config, temp_dir):
+        """Test configuration import and export."""
+        export_file = temp_dir / "exported_config.toml"
+        
+        # Set up config and export
+        config_manager._config = vortex_config
+        config_manager.export_config(export_file)
+        assert export_file.exists()
+        
+        # Create new manager and import
+        new_manager = ConfigManager()
+        imported_config = new_manager.import_config(export_file)
+        
+        assert imported_config.providers.barchart.username == "test@example.com"
+
+    def test_reset_config(self, config_manager, vortex_config):
+        """Test configuration reset."""
+        # Set custom config
+        config_manager._config = vortex_config
+        config_manager.save_config()
+        
+        # Reset to defaults
+        config_manager.reset_config()
+        
+        # Should be back to defaults
+        default_config = config_manager.load_config()
+        assert default_config.general.log_level == LogLevel.INFO
+        assert default_config.providers.barchart.username is None
+
+
+@pytest.mark.integration
+class TestEnvironmentVariablesIntegration:
+    """Integration tests for environment variable handling."""
+    
+    def test_modern_environment_variables(self, config_manager, clean_environment):
+        """Test modern environment variable configuration."""
+        os.environ["VORTEX_OUTPUT_DIR"] = "/custom/path"
+        os.environ["VORTEX_LOG_LEVEL"] = "DEBUG"
+        os.environ["VORTEX_BARCHART_USERNAME"] = "env_user@example.com"
+        
+        config = config_manager.load_config()
+        
+        assert str(config.general.output_directory).endswith("custom/path")
+        assert config.general.log_level == LogLevel.DEBUG
+        assert config.providers.barchart.username == "env_user@example.com"
+
+    def test_default_provider_configuration(self, config_manager, clean_environment):
+        """Test default provider configuration from environment."""
+        os.environ["VORTEX_DEFAULT_PROVIDER"] = "barchart"
+        
+        config = config_manager.load_config()
+        assert config.general.default_provider.value == "barchart"
+
+
+@pytest.mark.integration 
+class TestConfigurationErrorsIntegration:
+    """Integration tests for configuration error handling."""
+    
+    def test_permission_errors(self, config_manager, temp_dir):
+        """Test handling of file permission errors."""
+        # Create a read-only directory
+        readonly_dir = temp_dir / "readonly"
+        readonly_dir.mkdir()
+        readonly_dir.chmod(0o444)
+        
+        # Try to create config in readonly directory
+        readonly_config = readonly_dir / "config.toml"
+        manager = ConfigManager(readonly_config)
+        
+        with pytest.raises(ConfigurationError):
+            manager.save_config()
+
+    def test_validation_errors(self, config_manager):
+        """Test configuration validation error handling."""
+        # Try to set invalid provider config
+        with pytest.raises(ConfigurationValidationError):
+            config_manager.set_provider_config("invalid_provider", {})

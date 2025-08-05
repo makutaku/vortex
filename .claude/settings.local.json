@@ -40,7 +40,8 @@
       "Bash(env)",
       "Bash(./minimal-test.sh:*)",
       "Bash(docker logs:*)",
-      "Bash(./scripts/test-docker-build-robust.sh:*)"
+      "Bash(./scripts/test-docker-build-robust.sh:*)",
+      "Bash(./build/scripts/test-docker-build.sh:*)"
     ],
     "deny": []
   }

@@ -12,7 +12,7 @@ DEPRECATED: This module is deprecated. Import from vortex.shared.exceptions pack
 import warnings
 
 # Import everything from the new exceptions package
-from .exceptions import *
+from .shared.exceptions import *
 
 # Issue deprecation warning
 warnings.warn(

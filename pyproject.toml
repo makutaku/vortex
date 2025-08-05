@@ -5,7 +5,7 @@ description = "Financial data automation tool for multiple providers (Barchart, 
 authors = [{name = "Andy Geach", email = "andy@bugorfeature.net"}]
 license = {text = "BSD-3-Clause"}
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 keywords = ["trading", "finance", "data", "automation", "barchart", "yahoo", "ibkr"]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -14,7 +14,6 @@ classifiers = [
     "Intended Audience :: Developers",
     "Operating System :: OS Independent",
     "Programming Language :: Python",
-    "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
@@ -80,7 +79,7 @@ Repository = "https://github.com/makutaku/vortex"
 Issues = "https://github.com/makutaku/vortex/issues"
 
 [project.scripts]
-vortex = "vortex.application.cli.main:cli"
+vortex = "vortex.cli.main:cli"
 
 
 [build-system]

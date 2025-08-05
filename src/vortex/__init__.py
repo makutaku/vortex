@@ -5,9 +5,11 @@ A Python library for downloading historic futures contract prices from multiple 
 including Barchart.com, Yahoo Finance, and Interactive Brokers.
 
 Architecture Overview:
-- Core: Domain models, business services, and application logic
-- Infrastructure: External data providers, storage, and third-party integrations  
-- Application: User interfaces (CLI) and workflow orchestration
+- Models: Domain models for financial instruments and data structures
+- Services: Business services for downloading and processing data
+- Providers: External data provider integrations (Barchart, Yahoo, IBKR)
+- Storage: Data persistence and retrieval implementations
+- CLI: Command-line interface and user interaction
 - Shared: Cross-cutting concerns like logging, exceptions, and resilience
 """
 
@@ -24,18 +26,18 @@ def _import_with_fallback(module_path, name, fallback=None):
         return fallback
 
 # Core imports with fallbacks
-Instrument = _import_with_fallback('vortex.core.models.instruments', 'Instrument')
-Future = _import_with_fallback('vortex.core.models.instruments', 'Future')
-Stock = _import_with_fallback('vortex.core.models.instruments', 'Stock')
-Forex = _import_with_fallback('vortex.core.models.instruments', 'Forex')
-PriceSeries = _import_with_fallback('vortex.core.models.instruments', 'PriceSeries')
+Instrument = _import_with_fallback('vortex.models', 'Instrument')
+Future = _import_with_fallback('vortex.models', 'Future')
+Stock = _import_with_fallback('vortex.models', 'Stock')
+Forex = _import_with_fallback('vortex.models', 'Forex')
+PriceSeries = _import_with_fallback('vortex.models', 'PriceSeries')
 
-UpdatingDownloader = _import_with_fallback('vortex.core.services.downloaders', 'UpdatingDownloader')
-BackfillDownloader = _import_with_fallback('vortex.core.services.downloaders', 'BackfillDownloader')
-DownloadJob = _import_with_fallback('vortex.core.services.downloaders', 'DownloadJob')
+UpdatingDownloader = _import_with_fallback('vortex.services', 'UpdatingDownloader')
+BackfillDownloader = _import_with_fallback('vortex.services', 'BackfillDownloader')
+DownloadJob = _import_with_fallback('vortex.services', 'DownloadJob')
 
-DataProvider = _import_with_fallback('vortex.infrastructure.providers.data_providers', 'DataProvider')
-DataStorage = _import_with_fallback('vortex.infrastructure.storage.data_storage', 'DataStorage')
+DataProvider = _import_with_fallback('vortex.providers', 'DataProvider')
+DataStorage = _import_with_fallback('vortex.storage', 'DataStorage')
 
 VortexError = _import_with_fallback('vortex.shared.exceptions', 'VortexError')
 VortexConfig = _import_with_fallback('vortex.config', 'VortexConfig')

@@ -18,6 +18,7 @@ from .manager import LoggingManager, configure_logging, logging_manager
 from .loggers import VortexLogger, get_logger
 from .performance import PerformanceLogger, get_performance_logger, timed, TimedOperation
 from .context import LoggingContext, logged
+from .formatters import StructuredFormatter
 
 # Legacy compatibility - these functions were in the original logging.py
 from .legacy import init_logging
@@ -43,6 +44,9 @@ __all__ = [
     # Context management
     'LoggingContext',
     'logged',
+    
+    # Formatters
+    'StructuredFormatter',
     
     # Legacy compatibility
     'init_logging',

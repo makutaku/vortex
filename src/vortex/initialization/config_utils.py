@@ -6,9 +6,9 @@ from datetime import datetime, timedelta
 import pandas as pd
 import pytz
 
-from ..instruments.period import Period
-from ..utils.logging_utils import LoggingContext
-from ..utils.utils import convert_date_strings_to_datetime
+from vortex.models.period import Period
+from vortex.utils.logging_utils import LoggingContext
+from vortex.utils.utils import convert_date_strings_to_datetime
 
 DEFAULT_CONTRACT_DURATION_IN_DAYS = 360
 

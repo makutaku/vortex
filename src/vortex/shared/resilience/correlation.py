@@ -15,7 +15,7 @@ from functools import wraps
 
 # Optional logging - graceful fallback if not available
 try:
-    from ..logging import get_logger
+    from vortex.logging import get_logger
     logger = get_logger(__name__)
 except ImportError:
     import logging

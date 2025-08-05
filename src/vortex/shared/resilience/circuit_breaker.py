@@ -13,11 +13,11 @@ from enum import Enum
 from typing import Any, Callable, Optional, Dict, List
 from collections import deque
 
-from ..exceptions import DataProviderError, ConnectionError, RateLimitError
+from vortex.exceptions import DataProviderError, ConnectionError, RateLimitError
 
 # Optional logging - graceful fallback if not available
 try:
-    from ..logging import get_logger
+    from vortex.logging import get_logger
     logger = get_logger(__name__)
 except ImportError:
     import logging

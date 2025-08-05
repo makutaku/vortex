@@ -12,7 +12,7 @@ DEPRECATED: This module is deprecated. Import from vortex.shared.logging package
 import warnings
 
 # Import everything from the new logging package
-from .logging import *
+from .shared.logging import *
 
 # Issue deprecation warning
 warnings.warn(
