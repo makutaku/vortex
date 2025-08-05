@@ -27,7 +27,7 @@ class TestProviderDownloaderIntegration:
     @pytest.fixture
     def csv_storage(self, temp_storage_dir):
         """Create CSV storage instance for tests."""
-        return CsvStorage(base_directory=temp_storage_dir)
+        return CsvStorage(base_path=str(temp_storage_dir), dry_run=False)
 
     @pytest.fixture  
     def yahoo_provider(self):
@@ -37,7 +37,7 @@ class TestProviderDownloaderIntegration:
     @pytest.fixture
     def sample_stock(self):
         """Create sample stock instrument for tests."""
-        return Stock(symbol="AAPL", name="Apple Inc.")
+        return Stock(id="AAPL", symbol="AAPL")
 
     def test_yahoo_provider_with_updating_downloader(
         self, yahoo_provider, csv_storage, sample_stock, temp_storage_dir
@@ -63,7 +63,7 @@ class TestProviderDownloaderIntegration:
         """Test that provider output is compatible with storage input."""
         # Verify that the data format from providers
         # matches what storage components expect
-        assert hasattr(yahoo_provider, 'fetch_data')
-        assert hasattr(csv_storage, 'save_data')
+        assert hasattr(yahoo_provider, '_fetch_historical_data')
+        assert hasattr(csv_storage, 'persist')
         
         # In a real test, we'd verify data format compatibility

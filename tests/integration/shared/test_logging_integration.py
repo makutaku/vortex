@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 
 from vortex.logging.manager import LoggingManager
+from vortex.logging.config import LoggingConfig
 from vortex.logging.performance import PerformanceLogger, TimedOperation, get_performance_logger, timed
 from vortex.logging.loggers import get_logger
 
@@ -132,11 +133,13 @@ class TestLoggingEndToEndIntegration:
         
         # Configure logging to file
         logging_manager = LoggingManager()
-        logging_manager.configure(
+        config = LoggingConfig(
             level=logging.INFO,
             format_type="json",
-            output_file=str(log_file)
+            output="file",
+            file_path=log_file
         )
+        logging_manager.configure(config)
         
         logger = get_logger("test.module")
         logger.info("Test message", extra={"user": "test_user"})
@@ -149,13 +152,13 @@ class TestLoggingEndToEndIntegration:
     
     def test_performance_logging_integration(self, caplog):
         """Test performance logging integration."""
-        perf_logger = get_performance_logger()
+        perf_logger = get_performance_logger("test.module")
         
-        # Log various performance metrics
-        perf_logger.log_metric("cpu_usage", 85.5)
-        perf_logger.log_counter("api_calls", 42)
+        # Log timing operation
+        perf_logger.time_operation("data_processing", 12.5, cpu_usage=85.5, api_calls=42)
         
-        with perf_logger.time_operation("data_processing"):
+        # Use timed context manager
+        with perf_logger.start_operation("data_processing"):
             import time
             time.sleep(0.01)
         

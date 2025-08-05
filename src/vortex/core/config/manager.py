@@ -175,6 +175,15 @@ class ConfigManager:
         
         return config_data
     
+    def _remove_none_values(self, data):
+        """Recursively remove None values from dictionary to avoid TOML serialization issues."""
+        if isinstance(data, dict):
+            return {k: self._remove_none_values(v) for k, v in data.items() if v is not None}
+        elif isinstance(data, list):
+            return [self._remove_none_values(item) for item in data if item is not None]
+        else:
+            return data
+    
     def save_config(self, config: Optional[VortexConfig] = None) -> None:
         """Save configuration to TOML file."""
         if config is None:
@@ -193,6 +202,9 @@ class ConfigManager:
         # Convert Path objects to strings for TOML serialization
         if 'general' in config_dict and 'output_directory' in config_dict['general']:
             config_dict['general']['output_directory'] = str(config_dict['general']['output_directory'])
+        
+        # Remove None values to avoid TOML serialization issues
+        config_dict = self._remove_none_values(config_dict)
         
         try:
             with open(self.config_file, 'wb') as f:
