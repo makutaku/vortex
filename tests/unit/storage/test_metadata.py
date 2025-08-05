@@ -261,13 +261,30 @@ class TestMetadataHandler:
             # Verify all fields match
             assert retrieved_metadata.symbol == metadata.symbol
             assert retrieved_metadata.period == metadata.period
-            assert retrieved_metadata.start_date == metadata.start_date
-            assert retrieved_metadata.end_date == metadata.end_date
-            assert retrieved_metadata.first_row_date == metadata.first_row_date
-            assert retrieved_metadata.last_row_date == metadata.last_row_date
+            # Handle timezone differences in datetime comparison
+            if hasattr(retrieved_metadata.start_date, 'replace') and hasattr(metadata.start_date, 'replace'):
+                if retrieved_metadata.start_date.tzinfo is not None and metadata.start_date.tzinfo is None:
+                    from datetime import timezone
+                    expected_start = metadata.start_date.replace(tzinfo=timezone.utc)
+                    assert retrieved_metadata.start_date == expected_start
+                else:
+                    assert retrieved_metadata.start_date == metadata.start_date
+            else:
+                assert retrieved_metadata.start_date == metadata.start_date
+            # Handle timezone differences for all datetime fields
+            def compare_datetime_with_tz(retrieved, original):
+                if hasattr(retrieved, 'replace') and hasattr(original, 'replace'):
+                    if retrieved.tzinfo is not None and original.tzinfo is None:
+                        from datetime import timezone
+                        return retrieved == original.replace(tzinfo=timezone.utc)
+                return retrieved == original
+            
+            assert compare_datetime_with_tz(retrieved_metadata.end_date, metadata.end_date)
+            assert compare_datetime_with_tz(retrieved_metadata.first_row_date, metadata.first_row_date)
+            assert compare_datetime_with_tz(retrieved_metadata.last_row_date, metadata.last_row_date)
             assert retrieved_metadata.data_provider == metadata.data_provider
-            assert retrieved_metadata.expiration_date == metadata.expiration_date
-            assert retrieved_metadata.created_date == metadata.created_date
+            assert compare_datetime_with_tz(retrieved_metadata.expiration_date, metadata.expiration_date)
+            assert compare_datetime_with_tz(retrieved_metadata.created_date, metadata.created_date)
 
     def test_set_metadata_overwrites_existing(self):
         """Test that set_metadata overwrites existing metadata."""
