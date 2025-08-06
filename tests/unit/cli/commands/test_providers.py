@@ -5,8 +5,8 @@ from click.testing import CliRunner
 from datetime import datetime, timedelta
 
 from vortex.cli.commands.providers import (
-    providers, show_providers_list, test_providers, test_single_provider_via_plugin,
-    test_single_provider, show_provider_info, show_barchart_info, show_yahoo_info,
+    providers, show_providers_list, check_providers, check_single_provider_via_plugin,
+    check_single_provider, show_provider_info, show_barchart_info, show_yahoo_info,
     show_ibkr_info, _show_fallback_providers_list, _test_providers_fallback
 )
 from vortex.core.config import ConfigManager
@@ -163,7 +163,7 @@ class TestProvidersCommand:
 
     @patch('vortex.cli.commands.providers.get_provider_registry')
     @patch('vortex.cli.commands.providers.ConfigManager')
-    @patch('vortex.cli.commands.providers.test_single_provider_via_plugin')
+    @patch('vortex.cli.commands.providers.check_single_provider_via_plugin')
     @patch('vortex.cli.commands.providers.get_available_providers')
     def test_test_single_provider_success(self, mock_get_available, mock_test_single, mock_config_class, 
                                         mock_get_registry, runner, mock_registry):
@@ -188,7 +188,7 @@ class TestProvidersCommand:
 
     @patch('vortex.cli.commands.providers.get_provider_registry')
     @patch('vortex.cli.commands.providers.ConfigManager')  
-    @patch('vortex.cli.commands.providers.test_single_provider_via_plugin')
+    @patch('vortex.cli.commands.providers.check_single_provider_via_plugin')
     @patch('vortex.cli.commands.providers.get_available_providers')
     def test_test_single_provider_failure(self, mock_get_available, mock_test_single, mock_config_class,
                                         mock_get_registry, runner, mock_registry):
@@ -212,7 +212,7 @@ class TestProvidersCommand:
 
     @patch('vortex.cli.commands.providers.get_provider_registry')
     @patch('vortex.cli.commands.providers.ConfigManager')
-    @patch('vortex.cli.commands.providers.test_single_provider_via_plugin')
+    @patch('vortex.cli.commands.providers.check_single_provider_via_plugin')
     @patch('vortex.cli.commands.providers.get_available_providers')
     def test_test_all_providers(self, mock_get_available, mock_test_single, mock_config_class,
                               mock_get_registry, runner, mock_registry):
@@ -349,7 +349,7 @@ class TestProvidersCommand:
 
     @patch('vortex.cli.commands.providers.get_provider_registry')
     @patch('vortex.cli.commands.providers.ConfigManager')
-    @patch('vortex.cli.commands.providers.test_single_provider_via_plugin')
+    @patch('vortex.cli.commands.providers.check_single_provider_via_plugin')
     @patch('vortex.cli.commands.providers.get_available_providers')
     def test_test_provider_with_progress(self, mock_get_available, mock_test_single, mock_config_class, 
                                        mock_get_registry, runner, mock_registry):
@@ -374,7 +374,7 @@ class TestProvidersCommand:
 
     @patch('vortex.cli.commands.providers.get_provider_registry')
     @patch('vortex.cli.commands.providers.ConfigManager')
-    @patch('vortex.cli.commands.providers.test_single_provider_via_plugin')
+    @patch('vortex.cli.commands.providers.check_single_provider_via_plugin')
     @patch('vortex.cli.commands.providers.get_available_providers')
     def test_test_multiple_providers_summary(self, mock_get_available, mock_test_single, mock_config_class,
                                            mock_get_registry, runner, mock_registry):
@@ -496,7 +496,7 @@ class TestProvidersCommand:
 
     @patch('vortex.cli.commands.providers.get_provider_registry')
     @patch('vortex.cli.commands.providers.ConfigManager')
-    @patch('vortex.cli.commands.providers.test_single_provider_via_plugin')
+    @patch('vortex.cli.commands.providers.check_single_provider_via_plugin')
     @patch('vortex.cli.commands.providers.get_available_providers')
     def test_test_provider_exception_handling(self, mock_get_available, mock_test_single, mock_config_class,
                                              mock_get_registry, runner, mock_registry):
@@ -564,6 +564,32 @@ class TestProvidersCommand:
 
 class TestShowProvidersList:
     """Test show_providers_list function."""
+    
+    @pytest.fixture  
+    def mock_vortex_config(self):
+        """Create a mock VortexConfig object."""
+        config = Mock()
+        config.providers = Mock()
+        
+        # Create provider sub-configs
+        barchart_config = Mock()
+        barchart_config.model_dump.return_value = {}
+        barchart_config.username = None
+        barchart_config.password = None
+        
+        yahoo_config = Mock()
+        yahoo_config.model_dump.return_value = {}
+        
+        ibkr_config = Mock()
+        ibkr_config.model_dump.return_value = {}
+        ibkr_config.host = "localhost"
+        ibkr_config.port = 7497
+        
+        config.providers.barchart = barchart_config
+        config.providers.yahoo = yahoo_config
+        config.providers.ibkr = ibkr_config
+        
+        return config
     
     @patch('vortex.cli.commands.providers.get_provider_registry')
     @patch('vortex.cli.commands.providers.check_provider_configuration')

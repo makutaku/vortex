@@ -170,25 +170,24 @@ def wizard(ctx: click.Context):
 
 # Register commands at module level (like original code)
 if COMMANDS_AVAILABLE:
-    cli.add_command(download.download)
-    cli.add_command(config.config)
-    cli.add_command(providers.providers)
+    cli.add_command(download)
+    cli.add_command(config)
+    cli.add_command(providers)
     cli.add_command(help_command)
     cli.add_command(install_completion)
-    cli.add_command(validate.validate)
+    cli.add_command(validate)
 else:
     # Add dummy commands with helpful error messages
-    cli.add_command(download.download, name="download")
-    cli.add_command(config.config, name="config")
-    cli.add_command(providers.providers, name="providers")
+    cli.add_command(download, name="download")
+    cli.add_command(config, name="config")
+    cli.add_command(providers, name="providers")
     cli.add_command(help_command, name="help")
     cli.add_command(install_completion, name="install-completion")
-    cli.add_command(validate.validate, name="validate")
+    cli.add_command(validate, name="validate")
 
 # Add resilience commands if available
 if RESILIENCE_COMMANDS_AVAILABLE and resilience:
-    cli.add_command(resilience.resilience)
-    cli.add_command(resilience.resilience_status)
+    cli.add_command(resilience)
 
 
 def main() -> None:

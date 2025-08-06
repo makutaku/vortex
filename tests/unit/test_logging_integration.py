@@ -235,7 +235,7 @@ class TestHealthChecker:
         """Test running checks when no checks registered."""
         monitor = HealthChecker()
         
-        with patch('vortex.logging_integration.datetime') as mock_datetime:
+        with patch('datetime.datetime') as mock_datetime:
             mock_now = Mock()
             mock_now.isoformat.return_value = "2024-01-01T12:00:00Z"
             mock_datetime.now.return_value = mock_now
@@ -262,7 +262,7 @@ class TestHealthChecker:
         monitor.register_check("healthy", healthy_check)
         monitor.register_check("unhealthy", unhealthy_check)
         
-        with patch('vortex.logging_integration.datetime') as mock_datetime:
+        with patch('datetime.datetime') as mock_datetime:
             mock_start = Mock()
             mock_end = Mock()
             mock_now = Mock()
@@ -297,7 +297,7 @@ class TestHealthChecker:
         
         monitor.register_check("dict_check", dict_check)
         
-        with patch('vortex.logging_integration.datetime') as mock_datetime:
+        with patch('datetime.datetime') as mock_datetime:
             mock_start = Mock()
             mock_end = Mock()
             mock_now = Mock()
@@ -328,7 +328,7 @@ class TestHealthChecker:
         
         monitor.register_check("string_check", string_check)
         
-        with patch('vortex.logging_integration.datetime') as mock_datetime:
+        with patch('datetime.datetime') as mock_datetime:
             mock_start = Mock()
             mock_end = Mock()
             mock_now = Mock()
@@ -361,20 +361,21 @@ class TestHealthChecker:
         monitor.register_check("failing", failing_check)
         monitor.register_check("working", working_check)
         
-        with patch('vortex.logging_integration.datetime') as mock_datetime:
+        with patch('datetime.datetime') as mock_datetime:
             with patch.object(monitor.logger, 'error') as mock_error:
-                mock_start = Mock()
-                mock_end = Mock()
                 mock_now = Mock()
                 mock_now.isoformat.return_value = "2024-01-01T12:00:00Z"
+                
+                # Create mock datetime objects that can be subtracted
+                from datetime import datetime, timedelta
+                mock_start = datetime(2024, 1, 1, 12, 0, 0)
+                mock_end = datetime(2024, 1, 1, 12, 0, 0, 10000)  # 10ms later
                 
                 mock_datetime.now.side_effect = [
                     mock_now,
                     mock_start, mock_end,  # failing check
                     mock_start, mock_end   # working check
                 ]
-                
-                mock_end.__sub__ = Mock(return_value=Mock(total_seconds=Mock(return_value=0.01)))
                 
                 results = monitor.run_checks()
                 
@@ -404,7 +405,7 @@ class TestHealthChecker:
         monitor.register_check("h1", healthy1)
         monitor.register_check("h2", healthy2)
         
-        with patch('vortex.logging_integration.datetime') as mock_datetime:
+        with patch('datetime.datetime') as mock_datetime:
             mock_start = Mock()
             mock_end = Mock()
             mock_now = Mock()

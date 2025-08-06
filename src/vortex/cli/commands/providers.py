@@ -69,7 +69,7 @@ def providers(
             console.print(f"Available providers: {', '.join(available_providers)}")
             console.print("Use 'all' to test all providers")
             return
-        test_providers(config_manager, test)
+        check_providers(config_manager, test)
         return
     
     if info:
@@ -262,7 +262,7 @@ def _show_fallback_providers_list(config_manager: ConfigManager) -> None:
     console.print("\n[dim]Use 'vortex config --provider PROVIDER --set-credentials' to configure[/dim]")
 
 
-def test_providers(config_manager: ConfigManager, provider: str) -> None:
+def check_providers(config_manager: ConfigManager, provider: str) -> None:
     """Test provider connectivity using plugin registry."""
     try:
         registry = get_provider_registry()
@@ -284,7 +284,7 @@ def test_providers(config_manager: ConfigManager, provider: str) -> None:
                 task = progress.add_task(f"Testing {prov.upper()}...", total=None)
                 
                 try:
-                    result = test_single_provider_via_plugin(config_manager, prov, registry)
+                    result = check_single_provider_via_plugin(config_manager, prov, registry)
                     
                     if result["success"]:
                         progress.update(task, description=f"✓ {prov.upper()} - {result['message']}")
@@ -301,7 +301,7 @@ def test_providers(config_manager: ConfigManager, provider: str) -> None:
         _test_providers_fallback(config_manager, provider)
 
 
-def test_single_provider_via_plugin(config_manager: ConfigManager, provider: str, registry) -> dict:
+def check_single_provider_via_plugin(config_manager: ConfigManager, provider: str, registry) -> dict:
     """Test connectivity to a single provider via plugin system."""
     try:
         # Get provider configuration
@@ -370,7 +370,7 @@ def _test_providers_fallback(config_manager: ConfigManager, provider: str) -> No
             except Exception as e:
                 progress.update(task, description=f"✗ {prov.upper()} - Error: {e}")
 
-def test_single_provider(config_manager: ConfigManager, provider: str) -> dict:
+def check_single_provider(config_manager: ConfigManager, provider: str) -> dict:
     """Test connectivity to a single provider."""
     provider_config = config_manager.get_provider_config(provider)
     
