@@ -762,9 +762,11 @@ test_cron_job_setup() {
     test_config_dir=$(create_test_directory "test-config-cron")
     output_file="$test_data_dir/container.log"
     
-    # Start container with cron job enabled and short schedule
+    # Ensure test directories are writable by container user (UID 1000)
+    chmod 777 "$test_data_dir" "$test_config_dir" 2>/dev/null || true
+    
+    # Start container with cron job enabled and short schedule (uses new secure cron setup)
     container_id=$(run_container "test-cron-setup" \
-        --user "0:0" \
         -v "$PWD/$test_data_dir:/data" \
         -v "$PWD/$test_config_dir:/config" \
         -e VORTEX_DEFAULT_PROVIDER=yahoo \
@@ -785,13 +787,13 @@ test_cron_job_setup() {
     local health_check_created=false
     
     if [[ -f "$output_file" ]]; then
-        # Check for cron setup indicators
-        if grep -q "Updating cron schedule to: $cron_schedule" "$output_file"; then
+        # Check for new vortex user cron setup indicators
+        if grep -F "Setting up crontab for vortex user with schedule: $cron_schedule" "$output_file"; then
             cron_setup_success=true
         fi
         
         # Check if cron daemon started
-        if grep -q "Starting cron daemon" "$output_file"; then
+        if grep -F "Starting cron daemon" "$output_file"; then
             cron_daemon_started=true
         fi
         
@@ -800,9 +802,9 @@ test_cron_job_setup() {
             health_check_created=true
         fi
         
-        # Verify crontab was installed (check inside container)
+        # Verify crontab was installed for vortex user (check inside container)
         local crontab_output
-        crontab_output=$(docker exec "$container_id" crontab -l 2>/dev/null || echo "no crontab")
+        crontab_output=$(docker exec "$container_id" su vortex -c "crontab -l" 2>/dev/null || echo "no crontab")
         
         local crontab_configured=false
         if [[ "$crontab_output" == *"$cron_schedule"* ]] && [[ "$crontab_output" == *"vortex download"* ]]; then
@@ -817,10 +819,10 @@ test_cron_job_setup() {
         local total_checks=4
         
         if [[ "$cron_setup_success" == true ]]; then
-            log_info "✓ Cron schedule configured correctly"
+            log_info "✓ Vortex user cron schedule configured correctly"
             ((passed_checks++))
         else
-            log_warning "✗ Cron schedule setup not found in logs"
+            log_warning "✗ Vortex user cron schedule setup not found in logs"
         fi
         
         if [[ "$cron_daemon_started" == true ]]; then
@@ -838,10 +840,10 @@ test_cron_job_setup() {
         fi
         
         if [[ "$crontab_configured" == true ]]; then
-            log_info "✓ Crontab contains proper download command"
+            log_info "✓ Vortex user crontab contains proper download command"
             ((passed_checks++))
         else
-            log_warning "✗ Crontab not properly configured"
+            log_warning "✗ Vortex user crontab not properly configured"
             echo "Crontab content: $crontab_output"
         fi
         
@@ -875,14 +877,16 @@ test_cron_job_execution() {
     local check_interval=30  # Check every 30 seconds
     
     test_data_dir=$(create_test_directory "test-data-cron-exec")
-    test_config_dir=$(create_test_directory "test-config-cron-exec")
+    test_config_dir=$(create_test_directory "test-config-cron-exec") 
     output_file="$test_data_dir/container.log"
+    
+    # Ensure test directories are writable by container user (UID 1000)
+    chmod 777 "$test_data_dir" "$test_config_dir" 2>/dev/null || true
     
     log_info "Starting container with cron schedule: $cron_schedule"
     
-    # Start container with cron job enabled (requires root for cron daemon)
+    # Start container with cron job enabled (starts as root, sets up cron, then switches to vortex user)
     container_id=$(run_container "test-cron-execution" \
-        --user root \
         -v "$PWD/$test_data_dir:/data" \
         -v "$PWD/$test_config_dir:/config" \
         -e VORTEX_DEFAULT_PROVIDER=yahoo \
@@ -904,24 +908,17 @@ test_cron_job_execution() {
         return 1
     fi
     
-    # Also check that cron schedule was set up (should not skip for root user)  
-    if grep -F "Skipping cron setup - running as non-root user" "$output_file"; then
+    # Verify cron schedule was actually configured for vortex user
+    if ! grep -F "Setting up crontab for vortex user with schedule: $cron_schedule" "$output_file"; then
         docker kill "$container_id" >/dev/null 2>&1 || true
-        log_error "Cron setup was skipped - container should run as root for cron functionality"
-        return 1
-    fi
-    
-    # Verify cron schedule was actually configured (use literal pattern to avoid shell expansion issues)
-    if ! grep -F "Updating cron schedule to: $cron_schedule" "$output_file"; then
-        docker kill "$container_id" >/dev/null 2>&1 || true
-        log_error "Cron schedule update not found in logs"
-        log_verbose "Looking for pattern: 'Updating cron schedule to: $cron_schedule'"
+        log_error "Vortex user cron schedule setup not found in logs"
+        log_verbose "Looking for pattern: 'Setting up crontab for vortex user with schedule: $cron_schedule'"
         log_verbose "Available logs preview:"
         grep "cron schedule\|Starting cron" "$output_file" | head -3 | sed 's/^/  /'
         return 1
     fi
     
-    log_info "✓ Cron daemon started and schedule configured, waiting for first execution..."
+    log_info "✓ Cron daemon started and vortex user crontab configured, waiting for first execution..."
     
     # Wait for cron job to actually execute and download data
     local elapsed_time=0
@@ -973,14 +970,6 @@ test_cron_job_execution() {
     
     # Kill container
     docker kill "$container_id" >/dev/null 2>&1 || true
-    
-    # Fix permissions on created files (since container ran as root)
-    if command -v sudo >/dev/null 2>&1; then
-        sudo chown -R "$(id -u):$(id -g)" "$test_data_dir" "$test_config_dir" 2>/dev/null || true
-    else
-        # Try without sudo if it's not available
-        chown -R "$(id -u):$(id -g)" "$test_data_dir" "$test_config_dir" 2>/dev/null || true
-    fi
     
     # Final validation
     local success_indicators=0
