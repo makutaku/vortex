@@ -880,9 +880,9 @@ test_cron_job_execution() {
     
     log_info "Starting container with cron schedule: $cron_schedule"
     
-    # Start container with cron job enabled
+    # Start container with cron job enabled (requires root for cron daemon)
     container_id=$(run_container "test-cron-execution" \
-        --user "1000:1000" \
+        --user root \
         -v "$PWD/$test_data_dir:/data" \
         -v "$PWD/$test_config_dir:/config" \
         -e VORTEX_DEFAULT_PROVIDER=yahoo \
@@ -898,13 +898,30 @@ test_cron_job_execution() {
     
     # Check if cron setup was successful
     docker logs "$container_id" > "$output_file" 2>&1
-    if ! grep -q "Starting cron daemon" "$output_file"; then
+    if ! grep -F "Starting cron daemon" "$output_file"; then
         docker kill "$container_id" >/dev/null 2>&1 || true
         log_error "Cron daemon failed to start"
         return 1
     fi
     
-    log_info "✓ Cron daemon started, waiting for first execution..."
+    # Also check that cron schedule was set up (should not skip for root user)  
+    if grep -F "Skipping cron setup - running as non-root user" "$output_file"; then
+        docker kill "$container_id" >/dev/null 2>&1 || true
+        log_error "Cron setup was skipped - container should run as root for cron functionality"
+        return 1
+    fi
+    
+    # Verify cron schedule was actually configured (use literal pattern to avoid shell expansion issues)
+    if ! grep -F "Updating cron schedule to: $cron_schedule" "$output_file"; then
+        docker kill "$container_id" >/dev/null 2>&1 || true
+        log_error "Cron schedule update not found in logs"
+        log_verbose "Looking for pattern: 'Updating cron schedule to: $cron_schedule'"
+        log_verbose "Available logs preview:"
+        grep "cron schedule\|Starting cron" "$output_file" | head -3 | sed 's/^/  /'
+        return 1
+    fi
+    
+    log_info "✓ Cron daemon started and schedule configured, waiting for first execution..."
     
     # Wait for cron job to actually execute and download data
     local elapsed_time=0
@@ -915,10 +932,19 @@ test_cron_job_execution() {
         # Update logs
         docker logs "$container_id" > "$output_file" 2>&1
         
-        # Check if cron job has executed
-        if ! $cron_executed && grep -q "Starting scheduled download" "$output_file"; then
-            log_info "✓ Cron job executed! (after ${elapsed_time}s)"
-            cron_executed=true
+        # Check if cron job has executed by looking for vortex command output
+        # Also check the vortex.log file directly (cron output goes there)
+        if ! $cron_executed; then
+            # Check docker logs output
+            if grep -q "Starting download\|vortex download\|Download completed successfully" "$output_file"; then
+                log_info "✓ Cron job executed! (after ${elapsed_time}s)"
+                cron_executed=true
+            # Also check vortex.log file inside container
+            elif docker exec "$container_id" test -f "/data/vortex.log" 2>/dev/null && \
+                 docker exec "$container_id" grep -q "Download completed successfully\|Fetched remote data\|Starting download" "/data/vortex.log" 2>/dev/null; then
+                log_info "✓ Cron job executed (found in vortex.log)! (after ${elapsed_time}s)"
+                cron_executed=true
+            fi
         fi
         
         # Check if data was actually downloaded
@@ -947,6 +973,14 @@ test_cron_job_execution() {
     
     # Kill container
     docker kill "$container_id" >/dev/null 2>&1 || true
+    
+    # Fix permissions on created files (since container ran as root)
+    if command -v sudo >/dev/null 2>&1; then
+        sudo chown -R "$(id -u):$(id -g)" "$test_data_dir" "$test_config_dir" 2>/dev/null || true
+    else
+        # Try without sudo if it's not available
+        chown -R "$(id -u):$(id -g)" "$test_data_dir" "$test_config_dir" 2>/dev/null || true
+    fi
     
     # Final validation
     local success_indicators=0
