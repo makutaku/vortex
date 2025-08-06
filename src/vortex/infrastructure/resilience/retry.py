@@ -15,9 +15,10 @@ from enum import Enum
 from typing import Any, Callable, Optional, Type, Tuple, Union, List
 from abc import ABC, abstractmethod
 
-from vortex.exceptions import (
-    VortexError, DataProviderError, AuthenticationError, 
-    RateLimitError, ConnectionError, DataNotFoundError,
+from vortex.exceptions.base import VortexError
+from vortex.exceptions.providers import (
+    DataProviderError, AuthenticationError, 
+    RateLimitError, VortexConnectionError as ConnectionError, DataNotFoundError,
     AllowanceLimitExceededError
 )
 # Optional logging - graceful fallback if not available

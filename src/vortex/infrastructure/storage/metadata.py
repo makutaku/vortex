@@ -1,55 +1,17 @@
+"""
+Infrastructure layer metadata handling.
+
+This module provides file I/O operations for metadata persistence.
+The Metadata class itself has been moved to vortex.models.metadata
+following Clean Architecture principles.
+"""
+
 import json
-import logging
 import os
-from dataclasses import dataclass, asdict
-from datetime import datetime
-from enum import Enum
+from dataclasses import asdict
 
-from vortex.models.columns import VOLUME_COLUMN
-from vortex.models.period import Period
+from vortex.models.metadata import Metadata, default_serializer
 from vortex.utils.utils import convert_date_strings_to_datetime
-
-
-@dataclass
-class Metadata:
-    symbol: str
-    period: Period
-    start_date: datetime
-    end_date: datetime
-    first_row_date: datetime
-    last_row_date: datetime
-    data_provider: str = None
-    expiration_date: datetime = None
-    created_date: datetime = datetime.utcnow()
-
-    def __str__(self):
-        return (f"{self.symbol}, {self.period.value}, "
-                f"{self.start_date.strftime('%Y-%m-%d')}, {self.end_date.strftime('%Y-%m-%d')}")
-
-    @staticmethod
-    def create_metadata(df, provider_name, symbol, period: Period, start, end):
-        df = df.sort_index()
-        first_row_date = df.index[0].to_pydatetime()
-        last_row_date = df.index[-1].to_pydatetime()
-        expiration_date = None
-        if df[VOLUME_COLUMN].iloc[-1] == 0:
-            logging.debug(
-                f"Detected possible contract expiration: last bar has volume 0. Adjusting expected end date.")
-            expiration_date = last_row_date
-        metadata = Metadata(symbol, period, start, end, first_row_date, last_row_date,
-                            data_provider=provider_name,
-                            expiration_date=expiration_date)
-        return metadata
-
-
-def default_serializer(obj):
-    if isinstance(obj, datetime):
-        return obj.isoformat()
-    elif isinstance(obj, (str, int, float)):
-        return obj  # Serialize strings, ints, and floats as-is
-    elif isinstance(obj, Enum):
-        return obj.value
-    raise TypeError("Type not serializable")
 
 
 class MetadataHandler:

@@ -11,6 +11,7 @@ from .stock import Stock
 from .forex import Forex
 from .price_series import PriceSeries
 from .period import Period
+from .metadata import Metadata
 from .columns import CLOSE_COLUMN, DATE_TIME_COLUMN, VOLUME_COLUMN
 
 __all__ = [
@@ -20,6 +21,7 @@ __all__ = [
     'Forex',
     'PriceSeries',
     'Period',
+    'Metadata',
     'CLOSE_COLUMN',
     'DATE_TIME_COLUMN', 
     'VOLUME_COLUMN',

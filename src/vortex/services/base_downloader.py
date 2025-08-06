@@ -6,7 +6,7 @@ from typing import List, Dict
 
 from .download_job import DownloadJob
 from vortex.infrastructure.providers.base import DataProvider, HistoricalDataResult
-from vortex.exceptions import LowDataError, AllowanceLimitExceededError, DataNotFoundError
+from vortex.exceptions.providers import AllowanceLimitExceededError, DataNotFoundError
 from vortex.infrastructure.storage.data_storage import DataStorage
 from vortex.core.instruments import InstrumentConfig, InstrumentType
 from vortex.models.forex import Forex

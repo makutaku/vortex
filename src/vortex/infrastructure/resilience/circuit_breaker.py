@@ -13,7 +13,7 @@ from enum import Enum
 from typing import Any, Callable, Optional, Dict, List
 from collections import deque
 
-from vortex.exceptions import DataProviderError, ConnectionError, RateLimitError
+from vortex.exceptions.providers import DataProviderError, VortexConnectionError as ConnectionError, RateLimitError
 
 # Optional logging - graceful fallback if not available
 try:

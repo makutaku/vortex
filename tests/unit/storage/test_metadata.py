@@ -7,11 +7,8 @@ from enum import Enum
 from unittest.mock import Mock, patch
 import pandas as pd
 
-from vortex.infrastructure.storage.metadata import (
-    Metadata,
-    MetadataHandler,
-    default_serializer
-)
+from vortex.models.metadata import Metadata, default_serializer
+from vortex.infrastructure.storage.metadata import MetadataHandler
 from vortex.models.period import Period
 from vortex.models.columns import VOLUME_COLUMN
 
@@ -83,7 +80,7 @@ class TestMetadata:
         expected = "ES, 1d, 2024-02-01, 2024-02-29"
         assert result == expected
 
-    @patch('vortex.infrastructure.storage.metadata.logging.debug')
+    @patch('vortex.models.metadata.logging.debug')
     def test_create_metadata_basic(self, mock_debug):
         """Test basic create_metadata functionality."""
         # Create mock DataFrame
@@ -111,7 +108,7 @@ class TestMetadata:
         assert metadata.expiration_date is None
         mock_debug.assert_not_called()
 
-    @patch('vortex.infrastructure.storage.metadata.logging.debug')
+    @patch('vortex.models.metadata.logging.debug')
     def test_create_metadata_with_expiration_detection(self, mock_debug):
         """Test create_metadata with contract expiration detection."""
         # Create DataFrame with zero volume in last row

@@ -11,7 +11,7 @@ from vortex.models.price_series import (
     EXPIRATION_THRESHOLD,
     LOW_DATA_THRESHOLD
 )
-from vortex.infrastructure.storage.metadata import Metadata
+from vortex.models.metadata import Metadata
 from vortex.models.columns import DATE_TIME_COLUMN
 from vortex.models.period import Period
 

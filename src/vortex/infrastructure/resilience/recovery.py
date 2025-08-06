@@ -13,9 +13,10 @@ from typing import Any, Callable, List, Optional, Dict, Union
 import time
 import threading
 
-from vortex.exceptions import (
-    VortexError, DataProviderError, AuthenticationError,
-    ConnectionError, RateLimitError, DataNotFoundError,
+from vortex.exceptions.base import VortexError
+from vortex.exceptions.providers import (
+    DataProviderError, AuthenticationError,
+    VortexConnectionError as ConnectionError, RateLimitError, DataNotFoundError,
     AllowanceLimitExceededError
 )
 # Optional logging - graceful fallback if not available

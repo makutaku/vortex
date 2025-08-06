@@ -9,12 +9,12 @@ from .data_storage import DataStorage
 from .csv_storage import CsvStorage
 from .parquet_storage import ParquetStorage
 from .file_storage import FileStorage
-from .metadata import Metadata
+from .metadata import MetadataHandler
 
 __all__ = [
     'DataStorage',
     'CsvStorage',
     'ParquetStorage',
     'FileStorage', 
-    'Metadata',
+    'MetadataHandler',
 ]

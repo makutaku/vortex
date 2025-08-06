@@ -12,8 +12,8 @@ import pandas as pd
 from .base import DataProvider
 from vortex.models.instrument import Instrument
 from vortex.models.period import FrequencyAttributes
-from vortex.exceptions import (
-    DataProviderError, AuthenticationError, ConnectionError,
+from vortex.exceptions.providers import (
+    DataProviderError, AuthenticationError, VortexConnectionError as ConnectionError,
     RateLimitError, DataNotFoundError
 )
 from vortex.infrastructure.resilience.circuit_breaker import get_circuit_breaker, CircuitBreakerConfig

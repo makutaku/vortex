@@ -123,7 +123,7 @@ class TestProviderDownloaderIntegration:
         """Test that provider output is compatible with storage input."""
         from vortex.models.period import Period
         from vortex.models.price_series import PriceSeries
-        from vortex.infrastructure.storage.metadata import Metadata
+        from vortex.models.metadata import Metadata
         from datetime import datetime, timedelta
         import pandas as pd
         import pytz
