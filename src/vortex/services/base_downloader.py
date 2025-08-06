@@ -248,7 +248,6 @@ class BaseDownloader(ABC):
 
     def _process_jobs(self, job_list: list[DownloadJob]) -> None:
 
-        low_data = []
         not_found = []
         jobs_processed = 0
         jobs_downloaded = 0
@@ -262,10 +261,6 @@ class BaseDownloader(ABC):
                 try:
                     result = self._process_job(job)
                     jobs_downloaded += 1 if result == HistoricalDataResult.OK else 0
-                except LowDataError:
-                    logging.warning(f"Downloaded data is too low. {job}")
-                    low_data.append(job)
-                    continue
                 except DataNotFoundError:
                     logging.warning(f"Instrument not found. Check starting date. {job}")
                     not_found.append(job)
@@ -275,10 +270,6 @@ class BaseDownloader(ABC):
                     logging.info(f"--------------------------- "
                                  f"{jobs_processed}/{len(job_list)} jobs processed ----  "
                                  f"{jobs_downloaded} downloads -----------------------")
-
-            if low_data:
-                formatted_jobs = [f"({j})" for j in low_data]
-                logging.warning(f"Low/poor data found for: {formatted_jobs}, maybe check config")
 
             if not_found:
                 formatted_jobs = [f"({j})" for j in not_found]
