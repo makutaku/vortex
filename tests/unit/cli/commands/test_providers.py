@@ -2,8 +2,13 @@ import pytest
 import logging
 from unittest.mock import Mock, patch, MagicMock, call
 from click.testing import CliRunner
+from datetime import datetime, timedelta
 
-from vortex.cli.commands.providers import providers
+from vortex.cli.commands.providers import (
+    providers, show_providers_list, test_providers, test_single_provider_via_plugin,
+    test_single_provider, show_provider_info, show_barchart_info, show_yahoo_info,
+    show_ibkr_info, _show_fallback_providers_list, _test_providers_fallback
+)
 from vortex.core.config import ConfigManager
 from vortex.plugins import ProviderRegistry
 
@@ -555,3 +560,68 @@ class TestProvidersCommand:
         
         # Should log command execution (exact logging depends on implementation)
         assert result.exit_code == 0
+
+
+class TestShowProvidersList:
+    """Test show_providers_list function."""
+    
+    @patch('vortex.cli.commands.providers.get_provider_registry')
+    @patch('vortex.cli.commands.providers.check_provider_configuration')
+    @patch('vortex.cli.commands.providers.console')
+    def test_show_providers_list_success(self, mock_console, mock_check_config, mock_get_registry, mock_vortex_config):
+        """Test successful provider list display."""
+        mock_registry = Mock()
+        mock_registry.list_plugins.return_value = ['barchart', 'yahoo']
+        mock_registry.get_plugin_info.return_value = {
+            'supported_assets': ['futures', 'stocks'],
+            'requires_auth': True,
+            'description': 'Test provider',
+            'rate_limits': '150/day'
+        }
+        mock_get_registry.return_value = mock_registry
+        
+        mock_config_manager = Mock()
+        mock_config_manager.load_config.return_value = mock_vortex_config
+        
+        mock_check_config.return_value = {'configured': True}
+        
+        show_providers_list(mock_config_manager)
+        
+        # Verify console output was called
+        mock_console.print.assert_called()
+        assert mock_console.print.call_count >= 3  # Table + tips + count
+    
+    @patch('vortex.cli.commands.providers.get_provider_registry')
+    @patch('vortex.cli.commands.providers._show_fallback_providers_list')
+    @patch('vortex.cli.commands.providers.console')
+    @patch('vortex.cli.commands.providers.logger')
+    def test_show_providers_list_fallback(self, mock_logger, mock_console, mock_fallback, mock_get_registry):
+        """Test fallback when registry fails."""
+        mock_get_registry.side_effect = Exception("Registry failed")
+        
+        mock_config_manager = Mock()
+        
+        show_providers_list(mock_config_manager)
+        
+        mock_logger.error.assert_called()
+        mock_console.print.assert_called()  # Error messages
+        mock_fallback.assert_called_once_with(mock_config_manager)
+    
+    @patch('vortex.cli.commands.providers.get_provider_registry')
+    @patch('vortex.cli.commands.providers.check_provider_configuration')
+    @patch('vortex.cli.commands.providers.console')
+    @patch('vortex.cli.commands.providers.logger')
+    def test_show_providers_list_plugin_error(self, mock_logger, mock_console, mock_check_config, mock_get_registry, mock_vortex_config):
+        """Test handling plugin-specific errors."""
+        mock_registry = Mock()
+        mock_registry.list_plugins.return_value = ['barchart', 'yahoo']
+        mock_registry.get_plugin_info.side_effect = Exception("Plugin info failed")
+        mock_get_registry.return_value = mock_registry
+        
+        mock_config_manager = Mock()
+        mock_config_manager.load_config.return_value = mock_vortex_config
+        
+        show_providers_list(mock_config_manager)
+        
+        mock_logger.warning.assert_called()
+        mock_console.print.assert_called()

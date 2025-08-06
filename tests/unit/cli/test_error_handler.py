@@ -14,9 +14,11 @@ from click.testing import CliRunner
 from vortex.cli.error_handler import (
     create_error_handler, handle_cli_exceptions, CLIErrorHandler
 )
-from vortex.exceptions.cli import CLIError
-from vortex.exceptions.providers import DataProviderError, AuthenticationError
-from vortex.exceptions.config import ConfigurationError
+from vortex.exceptions import (
+    CLIError, DataProviderError, AuthenticationError, ConfigurationError,
+    VortexError, DataStorageError, InstrumentError, VortexConnectionError,
+    VortexPermissionError
+)
 
 
 class TestCreateErrorHandler:
@@ -427,3 +429,74 @@ class TestErrorHandlerLogging:
         assert handler is not None
         # Logging integration depends on actual error handling
         assert True
+
+
+class TestCLIErrorHandlerMethods:
+    """Test all CLIErrorHandler error handling methods."""
+    
+    @patch('sys.exit')
+    @patch('builtins.print')
+    def test_handle_configuration_error_plain(self, mock_print, mock_exit):
+        """Test configuration error handling without rich."""
+        handler = CLIErrorHandler(rich_available=False)
+        error = ConfigurationError("Invalid config file")
+        
+        handler.handle_configuration_error(error)
+        
+        mock_print.assert_called()
+        mock_exit.assert_called_once_with(3)
+    
+    @patch('sys.exit')
+    def test_handle_configuration_error_rich(self, mock_exit):
+        """Test configuration error handling with rich."""
+        mock_console = Mock()
+        handler = CLIErrorHandler(rich_available=True, console=mock_console)
+        error = ConfigurationError("Invalid config file")
+        error.help_text = "Check your config file syntax"
+        
+        handler.handle_configuration_error(error)
+        
+        mock_console.print.assert_called()
+        mock_exit.assert_called_once_with(3)
+    
+    @patch('sys.exit')
+    @patch('builtins.print')
+    def test_handle_vortex_error_plain(self, mock_print, mock_exit):
+        """Test generic Vortex error handling without rich."""
+        handler = CLIErrorHandler(rich_available=False)
+        error = VortexError("Generic Vortex error")
+        error.help_text = "Check logs for details"
+        error.user_action = "Retry with --verbose"
+        error.context = {"operation": "download", "symbol": "AAPL"}
+        
+        handler.handle_vortex_error(error)
+        
+        mock_print.assert_called()
+        mock_exit.assert_called_once_with(10)
+    
+    @patch('sys.exit')
+    def test_handle_vortex_error_rich(self, mock_exit):
+        """Test generic Vortex error handling with rich."""
+        mock_console = Mock()
+        handler = CLIErrorHandler(rich_available=True, console=mock_console)
+        error = VortexError("Operation failed")
+        error.context = {"provider": "yahoo", "symbol": "GOOGL"}
+        
+        handler.handle_vortex_error(error)
+        
+        mock_console.print.assert_called()
+        mock_exit.assert_called_once_with(10)
+    
+    @patch('sys.exit')
+    @patch('builtins.print')
+    @patch('logging.exception')
+    def test_handle_unexpected_error_plain(self, mock_logging, mock_print, mock_exit):
+        """Test unexpected error handling without rich."""
+        handler = CLIErrorHandler(rich_available=False)
+        error = RuntimeError("Unexpected runtime error")
+        
+        handler.handle_unexpected_error(error)
+        
+        mock_print.assert_called()
+        mock_logging.assert_called_once()
+        mock_exit.assert_called_once_with(1)

@@ -7,10 +7,14 @@ from click.testing import CliRunner
 import tempfile
 import csv
 import json
+import pandas as pd
 
 from vortex.cli.commands.validate import (
     validate, get_files_to_validate, run_validation, 
-    validate_single_file, validate_csv_file
+    validate_single_file, validate_csv_file, validate_parquet_file,
+    validate_provider_format, attempt_fixes, display_results,
+    display_table_results, display_json_results, display_csv_results,
+    show_validation_summary, show_detailed_issues, format_file_size
 )
 
 
@@ -358,3 +362,531 @@ class TestValidateCsvFile:
                 assert isinstance(result["metrics"], dict)
             finally:
                 temp_path.unlink()
+    
+    def test_csv_invalid_ohlc_relationships(self):
+        """Test CSV with invalid OHLC relationships."""
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as temp_file:
+            writer = csv.writer(temp_file)
+            writer.writerow(["Date", "Open", "High", "Low", "Close", "Volume"])
+            # Invalid: Low > High
+            writer.writerow(["2024-01-01", "100", "90", "110", "95", "1000"])
+            temp_path = Path(temp_file.name)
+            
+            try:
+                result = validate_csv_file(temp_path, None)
+                assert any("invalid OHLC relationships" in error for error in result["errors"])
+            finally:
+                temp_path.unlink()
+    
+    def test_csv_missing_columns(self):
+        """Test CSV with missing expected columns."""
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as temp_file:
+            writer = csv.writer(temp_file)
+            writer.writerow(["Date", "Price"])  # Missing OHLC columns
+            writer.writerow(["2024-01-01", "100"])
+            temp_path = Path(temp_file.name)
+            
+            try:
+                result = validate_csv_file(temp_path, None)
+                assert any("Missing common columns" in warning for warning in result["warnings"])
+            finally:
+                temp_path.unlink()
+    
+    def test_csv_empty_rows(self):
+        """Test CSV with empty rows."""
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as temp_file:
+            writer = csv.writer(temp_file)
+            writer.writerow(["Date", "Open", "High", "Low", "Close", "Volume"])
+            writer.writerow(["2024-01-01", "100", "105", "98", "102", "1000"])
+            writer.writerow(["", "", "", "", "", ""])  # Empty row
+            temp_path = Path(temp_file.name)
+            
+            try:
+                result = validate_csv_file(temp_path, None)
+                assert any("empty rows" in warning for warning in result["warnings"])
+            finally:
+                temp_path.unlink()
+    
+    def test_csv_file_not_found(self):
+        """Test CSV validation with non-existent file."""
+        nonexistent_path = Path("nonexistent.csv")
+        result = validate_csv_file(nonexistent_path, None)
+        
+        assert "File not found" in result["errors"]
+    
+    @patch('pandas.read_csv')
+    def test_csv_pandas_error(self, mock_read_csv):
+        """Test CSV validation with pandas errors."""
+        import pandas as pd
+        mock_read_csv.side_effect = pd.errors.EmptyDataError("No data")
+        
+        with tempfile.NamedTemporaryFile(suffix='.csv', delete=False) as temp_file:
+            temp_path = Path(temp_file.name)
+            try:
+                result = validate_csv_file(temp_path, None)
+                assert any("empty or invalid" in error for error in result["errors"])
+            finally:
+                temp_path.unlink()
+
+
+class TestValidateParquetFile:
+    """Test the validate_parquet_file function."""
+    
+    @patch('pandas.read_parquet')
+    def test_valid_parquet_basic(self, mock_read_parquet):
+        """Test validation of basic Parquet file."""
+        import pandas as pd
+        
+        # Mock a valid DataFrame
+        mock_df = pd.DataFrame({
+            'Date': ['2024-01-01', '2024-01-02'],
+            'Open': [100.0, 101.0],
+            'High': [105.0, 106.0],
+            'Low': [98.0, 99.0],
+            'Close': [102.0, 103.0],
+            'Volume': [1000, 1100]
+        })
+        mock_read_parquet.return_value = mock_df
+        
+        with tempfile.NamedTemporaryFile(suffix='.parquet', delete=False) as temp_file:
+            temp_path = Path(temp_file.name)
+            try:
+                result = validate_parquet_file(temp_path, None)
+                assert result["metrics"]["rows"] == 2
+                assert result["metrics"]["columns"] == 6
+                assert len(result["errors"]) == 0
+            finally:
+                temp_path.unlink()
+    
+    @patch('pandas.read_parquet')
+    def test_parquet_empty_data(self, mock_read_parquet):
+        """Test Parquet file with no data."""
+        import pandas as pd
+        
+        mock_df = pd.DataFrame()  # Empty DataFrame
+        mock_read_parquet.return_value = mock_df
+        
+        with tempfile.NamedTemporaryFile(suffix='.parquet', delete=False) as temp_file:
+            temp_path = Path(temp_file.name)
+            try:
+                result = validate_parquet_file(temp_path, None)
+                assert "contains no data" in result["errors"][0]
+            finally:
+                temp_path.unlink()
+    
+    @patch('pandas.read_parquet')
+    def test_parquet_missing_columns(self, mock_read_parquet):
+        """Test Parquet file with missing expected columns."""
+        import pandas as pd
+        
+        mock_df = pd.DataFrame({
+            'Date': ['2024-01-01'],
+            'Price': [100.0]  # Missing OHLC columns
+        })
+        mock_read_parquet.return_value = mock_df
+        
+        with tempfile.NamedTemporaryFile(suffix='.parquet', delete=False) as temp_file:
+            temp_path = Path(temp_file.name)
+            try:
+                result = validate_parquet_file(temp_path, None)
+                assert any("Missing common columns" in warning for warning in result["warnings"])
+            finally:
+                temp_path.unlink()
+    
+    @patch('pandas.read_parquet')
+    def test_parquet_wrong_data_types(self, mock_read_parquet):
+        """Test Parquet file with wrong data types."""
+        import pandas as pd
+        
+        mock_df = pd.DataFrame({
+            'Date': ['2024-01-01'],
+            'Open': ['not_a_number'],  # Should be numeric
+            'High': ['also_not_numeric'],
+            'Low': ['still_not_numeric'],
+            'Close': ['definitely_not_numeric'],
+            'Volume': ['nope']
+        })
+        mock_read_parquet.return_value = mock_df
+        
+        with tempfile.NamedTemporaryFile(suffix='.parquet', delete=False) as temp_file:
+            temp_path = Path(temp_file.name)
+            try:
+                result = validate_parquet_file(temp_path, None)
+                assert any("should be numeric" in warning for warning in result["warnings"])
+            finally:
+                temp_path.unlink()
+    
+    def test_parquet_file_not_found(self):
+        """Test Parquet validation with non-existent file."""
+        nonexistent_path = Path("nonexistent.parquet")
+        result = validate_parquet_file(nonexistent_path, None)
+        
+        assert "File not found" in result["errors"]
+
+
+class TestValidateProviderFormat:
+    """Test the validate_provider_format function."""
+    
+    @patch('pandas.read_csv')
+    def test_barchart_provider_validation(self, mock_read_csv):
+        """Test Barchart provider format validation."""
+        import pandas as pd
+        
+        mock_df = pd.DataFrame({
+            'Date': ['2024-01-01'],
+            'Time': ['09:30:00'],
+            'Open': [100.0],
+            'High': [105.0],
+            'Low': [98.0],
+            'Close': [102.0],
+            'Volume': [1000],
+            'OpenInterest': [500]
+        })
+        mock_read_csv.return_value = mock_df
+        
+        with tempfile.NamedTemporaryFile(suffix='.csv', delete=False) as temp_file:
+            temp_path = Path(temp_file.name)
+            try:
+                result = validate_provider_format(temp_path, "barchart")
+                # Should not have warnings for complete Barchart format
+                assert len(result["warnings"]) == 0
+            finally:
+                temp_path.unlink()
+    
+    @patch('pandas.read_csv')
+    def test_yahoo_provider_validation(self, mock_read_csv):
+        """Test Yahoo provider format validation."""
+        import pandas as pd
+        
+        mock_df = pd.DataFrame({
+            'Date': ['2024-01-01'],
+            'Open': [100.0],
+            'High': [105.0],
+            'Low': [98.0],
+            'Close': [102.0],
+            'Adj Close': [101.5],  # Yahoo-specific column
+            'Volume': [1000]
+        })
+        mock_read_csv.return_value = mock_df
+        
+        with tempfile.NamedTemporaryFile(suffix='.csv', delete=False) as temp_file:
+            temp_path = Path(temp_file.name)
+            try:
+                result = validate_provider_format(temp_path, "yahoo")
+                # Should not warn about missing Adj Close
+                assert not any("Adj Close" in warning for warning in result["warnings"])
+            finally:
+                temp_path.unlink()
+    
+    @patch('pandas.read_csv')
+    def test_ibkr_provider_validation(self, mock_read_csv):
+        """Test IBKR provider format validation."""
+        import pandas as pd
+        
+        mock_df = pd.DataFrame({
+            'Date': ['2024-01-01'],
+            'Open': [100.0],
+            'High': [105.0],
+            'Low': [98.0],
+            'Close': [102.0],
+            'Volume': [1000],
+            'WAP': [101.2],  # IBKR-specific
+            'Count': [50]    # IBKR-specific
+        })
+        mock_read_csv.return_value = mock_df
+        
+        with tempfile.NamedTemporaryFile(suffix='.csv', delete=False) as temp_file:
+            temp_path = Path(temp_file.name)
+            try:
+                result = validate_provider_format(temp_path, "ibkr")
+                # Should not warn about missing WAP or Count
+                assert not any("WAP" in warning for warning in result["warnings"])
+                assert not any("Count" in warning for warning in result["warnings"])
+            finally:
+                temp_path.unlink()
+    
+    @patch('pandas.read_csv')
+    def test_unknown_provider_validation(self, mock_read_csv):
+        """Test validation with unknown provider."""
+        import pandas as pd
+        
+        mock_df = pd.DataFrame({'Date': ['2024-01-01'], 'Price': [100.0]})
+        mock_read_csv.return_value = mock_df
+        
+        with tempfile.NamedTemporaryFile(suffix='.csv', delete=False) as temp_file:
+            temp_path = Path(temp_file.name)
+            try:
+                result = validate_provider_format(temp_path, "unknown_provider")
+                assert any("Unknown provider" in warning for warning in result["warnings"])
+            finally:
+                temp_path.unlink()
+    
+    def test_unsupported_file_format(self):
+        """Test provider validation with unsupported file format."""
+        with tempfile.NamedTemporaryFile(suffix='.txt', delete=False) as temp_file:
+            temp_path = Path(temp_file.name)
+            try:
+                result = validate_provider_format(temp_path, "yahoo")
+                assert any("Unsupported file format" in error for error in result["errors"])
+            finally:
+                temp_path.unlink()
+
+
+class TestAttemptFixes:
+    """Test the attempt_fixes function."""
+    
+    def test_attempt_fixes_empty_file(self):
+        """Test fix attempts for empty file (should not be fixable)."""
+        errors = ["File is empty"]
+        
+        with tempfile.NamedTemporaryFile(suffix='.csv', delete=False) as temp_file:
+            temp_path = Path(temp_file.name)
+            try:
+                result = attempt_fixes(temp_path, errors)
+                assert result == False  # Cannot fix empty files
+            finally:
+                temp_path.unlink()
+    
+    def test_attempt_fixes_ohlc_relationships(self):
+        """Test fix attempts for OHLC relationship errors."""
+        errors = ["Found 5 rows with invalid OHLC relationships"]
+        
+        with tempfile.NamedTemporaryFile(suffix='.csv', delete=False) as temp_file:
+            temp_path = Path(temp_file.name)
+            try:
+                result = attempt_fixes(temp_path, errors)
+                assert result == False  # Cannot auto-fix OHLC issues
+            finally:
+                temp_path.unlink()
+    
+    def test_attempt_fixes_unknown_error(self):
+        """Test fix attempts for unknown error types."""
+        errors = ["Unknown validation error"]
+        
+        with tempfile.NamedTemporaryFile(suffix='.csv', delete=False) as temp_file:
+            temp_path = Path(temp_file.name)
+            try:
+                result = attempt_fixes(temp_path, errors)
+                assert result == False  # No automatic fixes implemented
+            finally:
+                temp_path.unlink()
+    
+    @patch('vortex.cli.commands.validate.logger')
+    def test_attempt_fixes_exception(self, mock_logger):
+        """Test fix attempts with exception."""
+        errors = ["Some error"]
+        nonexistent_path = Path("nonexistent.csv")
+        
+        result = attempt_fixes(nonexistent_path, errors)
+        assert result == False
+        mock_logger.exception.assert_called()
+
+
+class TestDisplayResults:
+    """Test display result functions."""
+    
+    @patch('vortex.cli.commands.validate.display_table_results')
+    def test_display_results_table(self, mock_display_table):
+        """Test display results in table format."""
+        results = [{"file": Path("test.csv"), "valid": True}]
+        display_results(results, True, "table")
+        mock_display_table.assert_called_once_with(results, True)
+    
+    @patch('vortex.cli.commands.validate.display_json_results')
+    def test_display_results_json(self, mock_display_json):
+        """Test display results in JSON format."""
+        results = [{"file": Path("test.csv"), "valid": True}]
+        display_results(results, False, "json")
+        mock_display_json.assert_called_once_with(results)
+    
+    @patch('vortex.cli.commands.validate.display_csv_results')
+    def test_display_results_csv(self, mock_display_csv):
+        """Test display results in CSV format."""
+        results = [{"file": Path("test.csv"), "valid": True}]
+        display_results(results, False, "csv")
+        mock_display_csv.assert_called_once_with(results)
+
+
+class TestDisplayTableResults:
+    """Test table display functionality."""
+    
+    @patch('vortex.cli.commands.validate.console')
+    @patch('vortex.cli.commands.validate.show_detailed_issues')
+    def test_display_table_results_basic(self, mock_show_detailed, mock_console):
+        """Test basic table display."""
+        with tempfile.NamedTemporaryFile(suffix='.csv', delete=False) as temp_file:
+            temp_file.write(b"test,data\n1,2\n")
+            temp_path = Path(temp_file.name)
+            try:
+                results = [{
+                    "file": temp_path,
+                    "valid": True,
+                    "fixed": False,
+                    "errors": [],
+                    "warnings": [],
+                    "metrics": {"rows": 1}
+                }]
+                
+                display_table_results(results, False)
+                mock_console.print.assert_called()
+                mock_show_detailed.assert_not_called()
+            finally:
+                temp_path.unlink()
+    
+    @patch('vortex.cli.commands.validate.console')
+    @patch('vortex.cli.commands.validate.show_detailed_issues')
+    def test_display_table_results_detailed(self, mock_show_detailed, mock_console):
+        """Test detailed table display."""
+        with tempfile.NamedTemporaryFile(suffix='.csv', delete=False) as temp_file:
+            temp_path = Path(temp_file.name)
+            try:
+                results = [{
+                    "file": temp_path,
+                    "valid": False,
+                    "fixed": True,
+                    "errors": ["Error 1"],
+                    "warnings": ["Warning 1"],
+                    "metrics": {"rows": 10}
+                }]
+                
+                display_table_results(results, True)
+                mock_console.print.assert_called()
+                mock_show_detailed.assert_called_once_with(results)
+            finally:
+                temp_path.unlink()
+
+
+class TestDisplayJsonResults:
+    """Test JSON display functionality."""
+    
+    @patch('vortex.cli.commands.validate.console')
+    def test_display_json_results(self, mock_console):
+        """Test JSON results display."""
+        results = [{
+            "file": Path("test.csv"),
+            "valid": True,
+            "errors": [],
+            "warnings": [],
+            "metrics": {"rows": 5}
+        }]
+        
+        display_json_results(results)
+        mock_console.print.assert_called_once()
+        # Check that the printed content is valid JSON
+        printed_content = mock_console.print.call_args[0][0]
+        parsed = json.loads(printed_content)
+        assert len(parsed) == 1
+        assert parsed[0]["file"] == "test.csv"  # Path converted to string
+
+
+class TestDisplayCsvResults:
+    """Test CSV display functionality."""
+    
+    @patch('vortex.cli.commands.validate.console')
+    def test_display_csv_results(self, mock_console):
+        """Test CSV results display."""
+        results = [{
+            "file": Path("test.csv"),
+            "valid": True,
+            "errors": [],
+            "warnings": ["Warning"],
+            "metrics": {"rows": 5, "columns": 3}
+        }]
+        
+        display_csv_results(results)
+        mock_console.print.assert_called_once()
+        # Check that the printed content contains CSV header
+        printed_content = mock_console.print.call_args[0][0]
+        assert "File,Valid,Errors,Warnings,Rows,Columns" in printed_content
+        assert "test.csv,True,0,1,5,3" in printed_content
+
+
+class TestShowDetailedIssues:
+    """Test detailed issues display."""
+    
+    @patch('vortex.cli.commands.validate.console')
+    def test_show_detailed_issues_with_errors(self, mock_console):
+        """Test showing detailed issues with errors and warnings."""
+        results = [
+            {
+                "file": Path("test1.csv"),
+                "errors": ["Error 1", "Error 2"],
+                "warnings": ["Warning 1"]
+            },
+            {
+                "file": Path("test2.csv"),
+                "errors": [],
+                "warnings": []
+            }
+        ]
+        
+        show_detailed_issues(results)
+        
+        # Should print details for test1.csv but not test2.csv
+        assert mock_console.print.call_count >= 3  # Filename + 2 errors + 1 warning
+    
+    @patch('vortex.cli.commands.validate.console')
+    def test_show_detailed_issues_no_issues(self, mock_console):
+        """Test showing detailed issues when there are none."""
+        results = [{
+            "file": Path("test.csv"),
+            "errors": [],
+            "warnings": []
+        }]
+        
+        show_detailed_issues(results)
+        
+        # Should not print anything for files with no issues
+        mock_console.print.assert_not_called()
+
+
+class TestShowValidationSummary:
+    """Test validation summary display."""
+    
+    @patch('vortex.cli.commands.validate.console')
+    def test_show_validation_summary(self, mock_console):
+        """Test validation summary display."""
+        results = [
+            {"valid": True, "fixed": False, "errors": [], "warnings": ["Warning"]},
+            {"valid": False, "fixed": True, "errors": ["Error"], "warnings": []},
+            {"valid": True, "fixed": False, "errors": [], "warnings": []}
+        ]
+        
+        show_validation_summary(results)
+        
+        # Should print summary information
+        assert mock_console.print.call_count >= 5  # Title + total + valid + invalid + warnings
+    
+    @patch('vortex.cli.commands.validate.console')
+    def test_show_validation_summary_all_valid(self, mock_console):
+        """Test validation summary with all valid files."""
+        results = [
+            {"valid": True, "fixed": False, "errors": [], "warnings": []},
+            {"valid": True, "fixed": False, "errors": [], "warnings": []}
+        ]
+        
+        show_validation_summary(results)
+        
+        # Should not print error/warning counts when there are none
+        assert mock_console.print.call_count >= 3  # Title + total + valid + invalid
+
+
+class TestFormatFileSize:
+    """Test file size formatting function."""
+    
+    def test_format_bytes(self):
+        """Test formatting bytes."""
+        assert format_file_size(500) == "500 B"
+        assert format_file_size(1023) == "1023 B"
+    
+    def test_format_kilobytes(self):
+        """Test formatting kilobytes."""
+        assert format_file_size(1024) == "1.0 KB"
+        assert format_file_size(1536) == "1.5 KB"
+        assert format_file_size(1024 * 1023) == "1023.0 KB"
+    
+    def test_format_megabytes(self):
+        """Test formatting megabytes."""
+        assert format_file_size(1024 * 1024) == "1.0 MB"
+        assert format_file_size(1024 * 1024 * 2.5) == "2.5 MB"
+        assert format_file_size(1024 * 1024 * 1024) == "1024.0 MB"
