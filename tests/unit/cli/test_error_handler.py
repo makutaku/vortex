@@ -500,3 +500,177 @@ class TestCLIErrorHandlerMethods:
         mock_print.assert_called()
         mock_logging.assert_called_once()
         mock_exit.assert_called_once_with(1)
+
+    @patch('sys.exit')
+    def test_handle_connection_error_plain(self, mock_exit):
+        """Test connection error handling without rich."""
+        handler = CLIErrorHandler(rich_available=False)
+        error = VortexConnectionError("yahoo", "Connection timeout")
+        error.help_text = "Check your internet connection"
+
+        with patch('builtins.print'):
+            handler.handle_connection_error(error)
+
+        mock_exit.assert_called_once_with(4)
+
+    @patch('sys.exit')
+    def test_handle_permission_error_plain(self, mock_exit):
+        """Test permission error handling without rich."""
+        handler = CLIErrorHandler(rich_available=False)
+        error = VortexPermissionError("Cannot write to directory")
+        error.help_text = "Check file permissions"
+
+        with patch('builtins.print'):
+            handler.handle_permission_error(error)
+
+        mock_exit.assert_called_once_with(5)
+
+    @patch('sys.exit')
+    def test_handle_storage_error_plain(self, mock_exit):
+        """Test storage error handling without rich."""
+        handler = CLIErrorHandler(rich_available=False)
+        error = DataStorageError("Failed to write CSV file")
+        error.help_text = "Check disk space"
+
+        with patch('builtins.print'):
+            handler.handle_storage_error(error)
+
+        mock_exit.assert_called_once_with(6)
+
+    @patch('sys.exit')
+    def test_handle_instrument_error_plain(self, mock_exit):
+        """Test instrument error handling without rich."""
+        handler = CLIErrorHandler(rich_available=False)
+        error = InstrumentError("Invalid symbol INVALID")
+        error.help_text = "Check symbol format"
+
+        with patch('builtins.print'):
+            handler.handle_instrument_error(error)
+
+        mock_exit.assert_called_once_with(8)
+
+    @patch('sys.exit')
+    def test_handle_system_error_plain(self, mock_exit):
+        """Test system error handling without rich."""
+        handler = CLIErrorHandler(rich_available=False)
+        error = OSError("Disk full")
+
+        with patch('builtins.print'):
+            handler.handle_system_error(error)
+
+        mock_exit.assert_called_once_with(11)
+
+    @patch('sys.exit')
+    def test_handle_import_error_plain(self, mock_exit):
+        """Test import error handling without rich."""
+        handler = CLIErrorHandler(rich_available=False)
+        error = ImportError("No module named 'missing_module'")
+
+        with patch('builtins.print'):
+            handler.handle_import_error(error)
+
+        mock_exit.assert_called_once_with(12)
+
+
+class TestErrorHandlerLoggingMethods:
+    """Test error handler logging methods."""
+
+    def test_log_simple_error(self):
+        """Test _log_simple_error method."""
+        handler = CLIErrorHandler()
+
+        with patch('logging.error') as mock_log:
+            handler._log_simple_error("Test error message")
+            mock_log.assert_called_once_with("Test error message")
+
+    def test_log_error_with_vortex_error(self):
+        """Test _log_error method with VortexError."""
+        handler = CLIErrorHandler()
+        error = VortexError("Test error")
+        error.error_code = "TEST_001"
+
+        with patch.object(handler.structured_logger, 'log_error') as mock_log:
+            handler._log_error("Test message", error)
+            mock_log.assert_called_once()
+
+    def test_log_error_with_config_and_logger(self):
+        """Test _log_error with config available and custom logger."""
+        mock_logger = Mock()
+        mock_get_logger = Mock(return_value=mock_logger)
+        
+        handler = CLIErrorHandler(
+            config_available=True,
+            get_logger_func=mock_get_logger
+        )
+        
+        error = VortexError("Test error with context")
+        error.correlation_id = "test-correlation-id"
+
+        with patch.object(handler.structured_logger, 'log_error'):
+            handler._log_error("Test message", error)
+            # Should try to use both structured logging and custom logger
+
+    def test_log_error_fallback_to_basic_logging(self):
+        """Test _log_error fallback when structured logging fails."""
+        handler = CLIErrorHandler()
+        error = VortexError("Test error")
+
+        # Mock structured logger to raise exception
+        with patch.object(handler.structured_logger, 'log_error', side_effect=Exception("Logging failed")):
+            with patch('logging.error') as mock_basic_log:
+                handler._log_error("Test message", error)
+                mock_basic_log.assert_called_once()
+
+
+class TestErrorHandlerHelperMethods:
+    """Test error handler helper and utility methods."""
+
+    def test_create_error_handler_factory_function(self):
+        """Test create_error_handler factory function with all parameters."""
+        mock_console = Mock()
+        mock_get_logger = Mock()
+
+        handler = create_error_handler(
+            rich_available=True,
+            console=mock_console,
+            config_available=True,
+            get_logger_func=mock_get_logger
+        )
+
+        assert isinstance(handler, CLIErrorHandler)
+        assert handler.rich_available is True
+        assert handler.console is mock_console
+        assert handler.config_available is True
+        assert handler.get_logger is mock_get_logger
+
+    def test_handle_cli_exceptions_function_signature(self):
+        """Test handle_cli_exceptions function signature."""
+        from inspect import signature
+        sig = signature(handle_cli_exceptions)
+        
+        # Should have error_handler, func, and *args, **kwargs
+        param_names = list(sig.parameters.keys())
+        assert "error_handler" in param_names
+        assert "func" in param_names
+
+    def test_handle_cli_exceptions_with_return_value(self):
+        """Test handle_cli_exceptions preserves return value."""
+        def success_func():
+            return "success_result"
+
+        handler = create_error_handler()
+        result = handle_cli_exceptions(handler, success_func)
+        
+        assert result == "success_result"
+
+    def test_handle_cli_exceptions_with_args_kwargs(self):
+        """Test handle_cli_exceptions passes args and kwargs."""
+        def func_with_params(arg1, arg2, kwarg1=None):
+            return f"{arg1}_{arg2}_{kwarg1}"
+
+        handler = create_error_handler()
+        result = handle_cli_exceptions(
+            handler, func_with_params, "test1", "test2", kwarg1="test3"
+        )
+        
+        assert result == "test1_test2_test3"
