@@ -377,3 +377,249 @@ class TestBaseDownloader:
         
         # All jobs should still be processed despite the exception
         assert len(downloader.processed_jobs) == 3
+
+    def test_download_with_string_input(self, downloader):
+        """Test download method with string input (file path)."""
+        mock_contract_map = {
+            InstrumentType.Stock: Mock(
+                code='AAPL', asset_class=InstrumentType.Stock, periods=[Period.Daily],
+                start_date=None, tz=None, cycle=None, days_count=None, tick_date=None
+            )
+        }
+        
+        with patch.object(InstrumentConfig, 'load_from_json', return_value=mock_contract_map):
+            with patch('vortex.services.base_downloader.is_list_of_strings', return_value=False):
+                with patch.object(downloader, '_schedule_jobs', return_value=[]):
+                    with patch.object(downloader, '_process_jobs'):
+                        with patch('vortex.services.base_downloader.logging'):
+                            downloader.download('test_file.json', 2024, 2024)
+        
+        InstrumentConfig.load_from_json.assert_called_once_with('test_file.json')
+
+    def test_create_instrument_jobs_stock(self, downloader):
+        """Test job creation for stock instrument."""
+        from pytz import UTC
+        
+        # Create mock InstrumentConfig for stock
+        config = Mock()
+        config.code = 'AAPL'
+        config.cycle = None
+        config.asset_class = InstrumentType.Stock
+        config.periods = [Period.Daily]
+        config.tick_date = None
+        config.start_date = None
+        config.tz = UTC
+        config.days_count = None
+        
+        start = datetime(2024, 1, 1, tzinfo=UTC)  # Make timezone aware
+        end = datetime(2024, 12, 31, tzinfo=UTC)
+        
+        with patch.object(downloader, 'create_jobs_for_undated_instrument') as mock_create_undated:
+            mock_create_undated.return_value = [Mock()]
+            jobs = downloader._create_instrument_jobs('AAPL', config, start, end)
+        
+        assert len(jobs) == 1
+        mock_create_undated.assert_called_once()
+
+    def test_create_instrument_jobs_forex(self, downloader):
+        """Test job creation for forex instrument."""
+        from pytz import UTC
+        
+        # Create mock InstrumentConfig for forex
+        config = Mock()
+        config.code = 'EURUSD'
+        config.cycle = None
+        config.asset_class = InstrumentType.Forex
+        config.periods = [Period.Daily]
+        config.tick_date = None
+        config.start_date = None
+        config.tz = UTC
+        config.days_count = None
+        
+        start = datetime(2024, 1, 1, tzinfo=UTC)
+        end = datetime(2024, 12, 31, tzinfo=UTC)
+        
+        with patch.object(downloader, 'create_jobs_for_undated_instrument') as mock_create_undated:
+            mock_create_undated.return_value = [Mock()]
+            jobs = downloader._create_instrument_jobs('EURUSD', config, start, end)
+        
+        assert len(jobs) == 1
+        mock_create_undated.assert_called_once()
+
+    def test_create_instrument_jobs_future(self, downloader):
+        """Test job creation for futures instrument."""
+        from pytz import UTC
+        
+        # Create mock InstrumentConfig for future
+        config = Mock()
+        config.code = 'GC'
+        config.cycle = 'GJMQVZ'
+        config.asset_class = InstrumentType.Future
+        config.periods = [Period.Daily]
+        config.tick_date = datetime(2020, 1, 1)
+        config.start_date = None
+        config.tz = UTC
+        config.days_count = 360
+        
+        start = datetime(2024, 1, 1, tzinfo=UTC)
+        end = datetime(2024, 12, 31, tzinfo=UTC)
+        
+        with patch.object(downloader, '_create_future_jobs') as mock_create_future:
+            mock_create_future.return_value = [Mock()]
+            jobs = downloader._create_instrument_jobs('GC', config, start, end)
+        
+        assert len(jobs) == 1
+        mock_create_future.assert_called_once()
+
+    def test_create_instrument_jobs_unsupported_type(self, downloader):
+        """Test job creation with unsupported instrument type."""
+        config = Mock()
+        config.code = 'UNKNOWN'
+        config.cycle = None
+        config.asset_class = 'UNKNOWN_TYPE'  # Invalid type
+        config.periods = [Period.Daily]
+        config.tick_date = None
+        config.start_date = None
+        config.tz = None
+        config.days_count = None
+        
+        start = datetime(2024, 1, 1, tzinfo=UTC)
+        end = datetime(2024, 12, 31, tzinfo=UTC)
+        
+        with pytest.raises(ValueError, match="Instrument type 'UNKNOWN_TYPE' is not supported"):
+            downloader._create_instrument_jobs('UNKNOWN', config, start, end)
+
+    def test_create_future_jobs(self, downloader):
+        """Test creation of future jobs with roll cycle."""
+        from pytz import UTC
+        
+        start = datetime(2024, 1, 1, tzinfo=UTC)
+        end = datetime(2024, 12, 31, tzinfo=UTC)
+        periods = [Period.Daily]
+        tick_date = datetime(2020, 1, 1)
+        roll_cycle = 'GJMQVZ'
+        days_count = 360
+        tz = UTC
+        
+        with patch('vortex.services.base_downloader.generate_year_month_tuples') as mock_gen:
+            mock_gen.return_value = [(2024, 1), (2024, 3), (2024, 6)]
+            
+            with patch.object(downloader, 'filter_periods') as mock_filter:
+                mock_filter.return_value = periods
+                
+                with patch.object(downloader, 'create_jobs_for_dated_instrument') as mock_create_dated:
+                    mock_create_dated.return_value = [Mock()]
+                    
+                    jobs = downloader._create_future_jobs(
+                        'GC', 'GC', start, end, periods, tick_date, 
+                        roll_cycle, days_count, tz
+                    )
+        
+        # Should create jobs for G (January), J (March), M (June) months
+        # Each call to create_jobs_for_dated_instrument returns one job, called 3 times
+        assert len(jobs) == 3
+        assert mock_create_dated.call_count == 3
+
+    def test_create_future_jobs_no_roll_cycle(self, downloader):
+        """Test future jobs creation without roll cycle raises error."""
+        start = datetime(2024, 1, 1, tzinfo=UTC)
+        end = datetime(2024, 12, 31, tzinfo=UTC)
+        periods = [Period.Daily]
+        tick_date = datetime(2020, 1, 1)
+        roll_cycle = None  # Missing roll cycle
+        days_count = 360
+        tz = None
+        
+        with pytest.raises(ValueError, match="does not have a roll_cycle"):
+            downloader._create_future_jobs(
+                'GC', 'GC', start, end, periods, tick_date, 
+                roll_cycle, days_count, tz
+            )
+
+    def test_filter_periods(self, downloader):
+        """Test filtering periods based on provider support."""
+        instrument = Mock()
+        periods = [Period.Daily, Period.Hourly, Period.Minute_5]
+        supported_periods = [Period.Daily, Period.Hourly]  # 5-minute not supported
+        
+        downloader.data_provider.get_supported_timeframes.return_value = supported_periods
+        
+        with patch('vortex.services.base_downloader.logging') as mock_logging:
+            filtered = downloader.filter_periods(instrument, periods)
+        
+        assert len(filtered) == 2
+        assert Period.Daily in filtered
+        assert Period.Hourly in filtered
+        assert Period.Minute_5 not in filtered
+        mock_logging.warning.assert_called_once()
+
+    def test_create_jobs_for_undated_instrument(self, downloader):
+        """Test creating jobs for undated instruments (stocks/forex)."""
+        instrument = Stock('AAPL', 'AAPL')
+        start = datetime(2024, 1, 1, tzinfo=UTC)
+        end = datetime(2024, 12, 31, tzinfo=UTC)
+        periods = [Period.Daily]
+        tick_date = datetime(2020, 1, 1)
+        
+        # Mock provider methods
+        downloader.data_provider.get_supported_timeframes.return_value = periods
+        downloader.data_provider.get_min_start.return_value = None
+        downloader.data_provider.get_max_range.return_value = timedelta(days=365)
+        
+        with patch('vortex.services.base_downloader.date_range_generator') as mock_gen:
+            mock_gen.return_value = [(start, end)]
+            
+            jobs = downloader.create_jobs_for_undated_instrument(
+                instrument, start, end, periods, tick_date
+            )
+        
+        assert len(jobs) == 1
+        assert jobs[0].instrument == instrument
+        assert jobs[0].period == Period.Daily
+
+    def test_create_jobs_for_undated_instrument_with_provider_min_start(self, downloader):
+        """Test job creation when provider has minimum start date."""
+        instrument = Stock('AAPL', 'AAPL')
+        start = datetime(2024, 1, 1, tzinfo=UTC)
+        end = datetime(2024, 12, 31, tzinfo=UTC)
+        periods = [Period.Daily]
+        tick_date = None
+        
+        # Provider has minimum start date after our end date
+        provider_min_start = datetime(2025, 1, 1)  # After our end date
+        
+        downloader.data_provider.get_supported_timeframes.return_value = periods
+        downloader.data_provider.get_min_start.return_value = provider_min_start
+        
+        with patch('vortex.services.base_downloader.logging') as mock_logging:
+            jobs = downloader.create_jobs_for_undated_instrument(
+                instrument, start, end, periods, tick_date
+            )
+        
+        # Should create no jobs and log a warning
+        assert len(jobs) == 0
+        mock_logging.warning.assert_called()
+
+    def test_create_jobs_for_undated_instrument_with_tick_date_and_intraday(self, downloader):
+        """Test job creation with tick date for intraday periods."""
+        instrument = Stock('AAPL', 'AAPL')
+        start = datetime(2024, 1, 1, tzinfo=UTC)
+        end = datetime(2024, 12, 31, tzinfo=UTC)
+        periods = [Period.Hourly]  # Intraday period
+        tick_date = datetime(2024, 6, 1)  # Tick date after start
+        
+        downloader.data_provider.get_supported_timeframes.return_value = periods
+        downloader.data_provider.get_min_start.return_value = None
+        downloader.data_provider.get_max_range.return_value = timedelta(days=365)
+        
+        with patch('vortex.services.base_downloader.date_range_generator') as mock_gen:
+            # Should use tick_date as start for intraday
+            mock_gen.return_value = [(tick_date, end)]
+            
+            jobs = downloader.create_jobs_for_undated_instrument(
+                instrument, start, end, periods, tick_date
+            )
+        
+        assert len(jobs) == 1
+        # Verify that tick_date was used instead of original start
+        mock_gen.assert_called_with(tick_date, end, timedelta(days=365))
