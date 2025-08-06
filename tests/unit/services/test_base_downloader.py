@@ -543,8 +543,8 @@ class TestBaseDownloader:
         instr = 'GC'
         config = InstrumentConfig(
             name='Gold', code='GC', cycle='GJMQVZ', asset_class=InstrumentType.Future,
-            start_date=datetime(2020, 1, 1),
-            tick_date=datetime(2020, 1, 1), days_count=360
+            start_date=datetime(2020, 1, 1, tzinfo=timezone.utc),
+            tick_date=datetime(2020, 1, 1, tzinfo=timezone.utc), days_count=360
         )
         start = datetime(2024, 1, 1, tzinfo=timezone.utc)
         end = datetime(2024, 12, 31, tzinfo=timezone.utc)
@@ -562,7 +562,7 @@ class TestBaseDownloader:
         instr = 'AAPL'
         config = InstrumentConfig(
             name='Apple', code='AAPL', asset_class=InstrumentType.Stock,
-            tick_date=datetime(2020, 1, 1)
+            tick_date=datetime(2020, 1, 1, tzinfo=timezone.utc)
         )
         start = datetime(2024, 1, 1, tzinfo=timezone.utc)
         end = datetime(2024, 12, 31, tzinfo=timezone.utc)
@@ -584,7 +584,7 @@ class TestBaseDownloader:
         instr = 'EURUSD'
         config = InstrumentConfig(
             name='EURUSD', code='EURUSD', asset_class=InstrumentType.Forex,
-            tick_date=datetime(2020, 1, 1)
+            tick_date=datetime(2020, 1, 1, tzinfo=timezone.utc)
         )
         start = datetime(2024, 1, 1, tzinfo=timezone.utc)
         end = datetime(2024, 12, 31, tzinfo=timezone.utc)
@@ -604,10 +604,16 @@ class TestBaseDownloader:
     def test_create_instrument_jobs_unsupported_instrument(self, downloader):
         """Test _create_instrument_jobs with unsupported instrument type."""
         instr = 'UNKNOWN'
-        config = InstrumentConfig(
-            name='Unknown', code='UNKNOWN', asset_class='UnsupportedType',  # Invalid type
-            tick_date=datetime(2020, 1, 1)
-        )
+        # Create a mock config with an invalid asset_class that bypasses enum validation
+        config = Mock(spec=InstrumentConfig)
+        config.code = 'UNKNOWN'
+        config.cycle = None
+        config.asset_class = 'UnsupportedType'  # Invalid type
+        config.periods = [Period.Daily]
+        config.tick_date = datetime(2020, 1, 1, tzinfo=timezone.utc)
+        config.start_date = datetime(2020, 1, 1, tzinfo=timezone.utc)
+        config.tz = timezone.utc
+        
         start = datetime(2024, 1, 1, tzinfo=timezone.utc)
         end = datetime(2024, 12, 31, tzinfo=timezone.utc)
         
@@ -619,8 +625,8 @@ class TestBaseDownloader:
         instr = 'GC'
         config = InstrumentConfig(
             name='Gold', code='GC', cycle='GJMQVZ', asset_class=InstrumentType.Future,
-            start_date=datetime(2022, 6, 1),  # Later than request start
-            tick_date=datetime(2020, 1, 1), days_count=360
+            start_date=datetime(2022, 6, 1, tzinfo=timezone.utc),  # Later than request start
+            tick_date=datetime(2020, 1, 1, tzinfo=timezone.utc), days_count=360
         )
         start = datetime(2022, 1, 1, tzinfo=timezone.utc)  # Earlier than config start
         end = datetime(2025, 12, 31, tzinfo=timezone.utc)  # Future date
@@ -659,7 +665,7 @@ class TestBaseDownloader:
 
     def test_create_jobs_for_dated_instrument(self, downloader):
         """Test creating jobs for dated instruments (futures)."""
-        future = Future('GC', 'GC', 2024, 'G', datetime(2020, 1, 1), 360)
+        future = Future('GC', 'GC', 2024, 'G', datetime(2020, 1, 1, tzinfo=timezone.utc), 360)
         periods = [Period.Daily, Period.Hourly]
         start = datetime(2024, 1, 1, tzinfo=timezone.utc)
         end = datetime(2024, 3, 31, tzinfo=timezone.utc)
@@ -686,7 +692,7 @@ class TestBaseDownloader:
 
     def test_create_jobs_for_dated_instrument_low_data_threshold(self, downloader):
         """Test that jobs are skipped when date range is too small."""
-        future = Future('GC', 'GC', 2024, 'G', datetime(2020, 1, 1), 360)
+        future = Future('GC', 'GC', 2024, 'G', datetime(2020, 1, 1, tzinfo=timezone.utc), 360)
         periods = [Period.Daily]
         start = datetime(2024, 1, 1, tzinfo=timezone.utc)
         end = datetime(2024, 3, 31, tzinfo=timezone.utc)
@@ -730,7 +736,7 @@ class TestBaseDownloader:
 
     def test_create_jobs_for_dated_instrument_skip_provider_min_start(self, downloader):
         """Test skipping periods when start date is before provider minimum."""
-        future = Future('GC', 'GC', 2024, 'G', datetime(2020, 1, 1), 360)
+        future = Future('GC', 'GC', 2024, 'G', datetime(2020, 1, 1, tzinfo=timezone.utc), 360)
         periods = [Period.Daily, Period.Hourly]
         start = datetime(2024, 1, 1, tzinfo=timezone.utc)
         end = datetime(2024, 3, 31, tzinfo=timezone.utc)
@@ -789,7 +795,7 @@ class TestBaseDownloader:
         tick_date = None
         
         # Provider has minimum start date after our end date
-        provider_min_start = datetime(2025, 1, 1)  # After our end date
+        provider_min_start = datetime(2025, 1, 1, tzinfo=timezone.utc)  # After our end date
         
         downloader.data_provider.get_supported_timeframes.return_value = periods
         downloader.data_provider.get_min_start.return_value = provider_min_start
