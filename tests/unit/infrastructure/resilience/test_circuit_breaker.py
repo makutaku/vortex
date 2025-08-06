@@ -129,6 +129,7 @@ class TestCircuitBreaker:
         config = CircuitBreakerConfig(
             failure_threshold=3,
             timeout=1.0,  # Short timeout for testing
+            recovery_timeout=1,  # Short recovery timeout for testing
             success_threshold=2
         )
         return CircuitBreaker("test_circuit", config)
@@ -139,6 +140,7 @@ class TestCircuitBreaker:
         config = CircuitBreakerConfig(
             failure_threshold=2,
             timeout=0.1,  # Very short for testing
+            recovery_timeout=0.5,  # Short recovery timeout for testing
             success_threshold=1
         )
         return CircuitBreaker("custom_circuit", config)
