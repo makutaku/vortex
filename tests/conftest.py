@@ -11,9 +11,10 @@ from unittest.mock import Mock
 
 import pytest
 
-# Note: There is a minor cosmetic warning from Click library during pytest collection.
-# This is a known issue where pytest tries to introspect Click's __call__ method.
+# Note: There is a cosmetic Click warning during pytest collection that cannot be suppressed.
+# This is a known pytest limitation where collection warnings occur before configuration loads.
 # The warning is harmless and does not affect test functionality.
+# See: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
 
 # Import test dependencies conditionally to avoid hard dependency
 try:
