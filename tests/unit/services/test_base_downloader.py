@@ -832,3 +832,167 @@ class TestBaseDownloader:
         assert len(jobs) == 1
         # Verify that tick_date was used instead of original start
         mock_gen.assert_called_with(tick_date, end, timedelta(days=365))
+
+    def test_download_with_json_loading(self, mock_data_storage, mock_data_provider):
+        """Test download method with JSON file loading."""
+        downloader = ConcreteDownloader(mock_data_storage, mock_data_provider)
+        
+        # Mock JSON loading
+        mock_config_data = {
+            "TEST": InstrumentConfig(
+                name="TEST",
+                code="TEST",
+                asset_class=InstrumentType.Stock,
+                periods="1d",
+                start_date=datetime(2020, 1, 1, tzinfo=timezone.utc)
+            )
+        }
+        
+        with patch('vortex.core.instruments.config.InstrumentConfig.load_from_json', return_value=mock_config_data):
+            with patch.object(downloader, '_create_jobs', return_value=[]) as mock_create:
+                downloader.download("test.json", 2024, 2025)
+                mock_create.assert_called_once_with(mock_config_data, 2024, 2025)
+
+    def test_download_with_allowance_limit_exceeded_error_logging(self, mock_data_storage, mock_data_provider, caplog):
+        """Test that AllowanceLimitExceededError is logged properly."""
+        downloader = ConcreteDownloader(mock_data_storage, mock_data_provider)
+        
+        # Mock to raise AllowanceLimitExceededError
+        with patch.object(downloader, '_create_jobs', side_effect=AllowanceLimitExceededError("test", 100, 150)):
+            with caplog.at_level(logging.ERROR):
+                downloader.download({}, 2024, 2024)
+                
+        # Verify error was logged
+        assert "Allowance limit exceeded: 100/150" in caplog.text
+
+    def test_create_instrument_jobs_debug_logging(self, downloader, caplog):
+        """Test debug logging in _create_instrument_jobs method."""
+        config = InstrumentConfig(
+            name="TEST",
+            code="TEST",
+            asset_class=InstrumentType.Stock,
+            periods="1d",
+            start_date=datetime(2020, 1, 1, tzinfo=timezone.utc)
+        )
+        
+        with caplog.at_level(logging.DEBUG):
+            jobs = downloader._create_instrument_jobs("TEST_SYMBOL", config, datetime(2024, 1, 1, tzinfo=timezone.utc), datetime(2024, 1, 31, tzinfo=timezone.utc))
+            
+        # Verify debug messages were logged
+        assert "Creating jobs for TEST_SYMBOL" in caplog.text
+        assert f"Created {len(jobs)} jobs for TEST_SYMBOL" in caplog.text
+
+    def test_create_instrument_jobs_with_start_date_constraint(self, downloader):
+        """Test _create_instrument_jobs with config start_date constraint."""
+        early_start = datetime(2019, 1, 1, tzinfo=timezone.utc)
+        config_start = datetime(2020, 6, 1, tzinfo=timezone.utc)
+        end_date = datetime(2024, 1, 31, tzinfo=timezone.utc)
+        
+        config = InstrumentConfig(
+            name="TEST",
+            code="TEST",
+            asset_class=InstrumentType.Stock,
+            periods="1d",
+            start_date=config_start  # Later than requested start
+        )
+        
+        with patch.object(downloader, 'create_jobs_for_undated_instrument') as mock_create:
+            downloader._create_instrument_jobs("TEST_SYMBOL", config, early_start, end_date)
+            
+            # Verify that config.start_date was used instead of early_start
+            mock_create.assert_called_once()
+            call_args = mock_create.call_args[0]
+            actual_start = call_args[1]  # start parameter
+            actual_end = call_args[2]    # end parameter
+            
+            assert actual_start == config_start  # Should use config start date
+            assert actual_end <= datetime.now(timezone.utc)  # Should be capped to now
+
+    def test_create_instrument_jobs_with_future_end_date_capping(self, downloader):
+        """Test that future end dates are capped to current time."""
+        start_date = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        future_end = datetime(2030, 1, 1, tzinfo=timezone.utc)  # Far future
+        
+        config = InstrumentConfig(
+            name="TEST",
+            code="TEST",
+            asset_class=InstrumentType.Stock,
+            periods="1d",
+            start_date=None
+        )
+        
+        with patch.object(downloader, 'create_jobs_for_undated_instrument') as mock_create:
+            downloader._create_instrument_jobs("TEST_SYMBOL", config, start_date, future_end)
+            
+            # Verify that end date was capped
+            call_args = mock_create.call_args[0]
+            actual_end = call_args[2]    # end parameter
+            
+            # Should be capped to approximately now (within 1 day tolerance)
+            now = datetime.now(timezone.utc)
+            assert actual_end <= now
+            assert actual_end > now - timedelta(days=1)
+
+    def test_create_future_jobs_detailed_flow(self, downloader):
+        """Test detailed flow of _create_future_jobs method."""
+        futures_code = "GC"
+        instr = "GOLD"
+        start = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        end = datetime(2024, 3, 31, tzinfo=timezone.utc)
+        periods = [Period.Daily, Period.Hourly]
+        tick_date = datetime(2020, 1, 1)
+        roll_cycle = "GJMQVZ"  # Standard gold cycle
+        days_count = 90
+        tz = timezone.utc
+        
+        # Mock dependencies
+        with patch('vortex.services.base_downloader.generate_year_month_tuples') as mock_gen:
+            with patch.object(Future, 'get_code_for_month') as mock_month_code:
+                with patch.object(downloader, 'filter_periods', return_value=periods) as mock_filter:
+                    with patch.object(downloader, 'create_jobs_for_dated_instrument', return_value=[Mock()]) as mock_create:
+                        
+                        # Setup mocks
+                        mock_gen.return_value = [(2024, 1), (2024, 2), (2024, 3)]
+                        mock_month_code.side_effect = lambda m: {1: 'F', 2: 'G', 3: 'H'}[m]
+                        
+                        jobs = downloader._create_future_jobs(
+                            futures_code, instr, start, end, periods, tick_date, roll_cycle, days_count, tz
+                        )
+                        
+                        # Verify future_end_date calculation (end + days_count)
+                        expected_future_end = end + timedelta(days=days_count)
+                        mock_gen.assert_called_once_with(start, expected_future_end)
+                        
+                        # Verify only valid roll cycle months are processed (G is in GJMQVZ)
+                        assert mock_create.call_count == 1  # Only February (G) matches roll cycle
+                        
+                        # Verify filter_periods was called
+                        assert mock_filter.call_count == 1
+
+    def test_create_future_jobs_with_multiple_valid_months(self, downloader):
+        """Test _create_future_jobs with multiple valid months in roll cycle."""
+        futures_code = "CL"
+        instr = "CRUDE_OIL"
+        start = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        end = datetime(2024, 12, 31, tzinfo=timezone.utc)
+        periods = [Period.Daily]
+        tick_date = datetime(2020, 1, 1)
+        roll_cycle = "FGHJKMNQUVXZ"  # All months
+        days_count = 30
+        tz = timezone.utc
+        
+        with patch('vortex.services.base_downloader.generate_year_month_tuples') as mock_gen:
+            with patch.object(Future, 'get_code_for_month') as mock_month_code:
+                with patch.object(downloader, 'filter_periods', return_value=periods):
+                    with patch.object(downloader, 'create_jobs_for_dated_instrument', return_value=[Mock()]):
+                        
+                        # Setup for 3 months
+                        mock_gen.return_value = [(2024, 1), (2024, 2), (2024, 3)]
+                        mock_month_code.side_effect = lambda m: {1: 'F', 2: 'G', 3: 'H'}[m]
+                        
+                        jobs = downloader._create_future_jobs(
+                            futures_code, instr, start, end, periods, tick_date, roll_cycle, days_count, tz
+                        )
+                        
+                        # All 3 months should match the roll cycle
+                        assert len(jobs) == 3
