@@ -98,7 +98,11 @@ def show_providers_list(config_manager: ConfigManager) -> None:
         for provider_name in registry.list_plugins():
             try:
                 plugin_info = registry.get_plugin_info(provider_name)
-                provider_config = config.get("providers", {}).get(provider_name, {})
+                # Access provider config from Pydantic model
+                provider_config = getattr(config.providers, provider_name, {})
+                if not isinstance(provider_config, dict):
+                    # Convert Pydantic model to dict for compatibility
+                    provider_config = provider_config.model_dump() if hasattr(provider_config, 'model_dump') else {}
                 
                 # Check if configured using dynamic plugin-based validation
                 config_status = check_provider_configuration(provider_name, provider_config)
@@ -216,7 +220,11 @@ def _show_fallback_providers_list(config_manager: ConfigManager) -> None:
     }
     
     for provider in available_providers:
-        provider_config = config.get("providers", {}).get(provider, {})
+        # Access provider config from Pydantic model
+        provider_config = getattr(config.providers, provider, {})
+        if not isinstance(provider_config, dict):
+            # Convert Pydantic model to dict for compatibility
+            provider_config = provider_config.model_dump() if hasattr(provider_config, 'model_dump') else {}
         info = fallback_info.get(provider, {
             "data_types": "Unknown",
             "auth": "Unknown",
@@ -298,7 +306,10 @@ def test_single_provider_via_plugin(config_manager: ConfigManager, provider: str
     try:
         # Get provider configuration
         config = config_manager.load_config()
-        provider_config = config.get("providers", {}).get(provider, {})
+        provider_config = getattr(config.providers, provider, {})
+        if not isinstance(provider_config, dict):
+            # Convert Pydantic model to dict for compatibility
+            provider_config = provider_config.model_dump() if hasattr(provider_config, 'model_dump') else {}
         
         # Get plugin info to check requirements
         plugin_info = registry.get_plugin_info(provider)

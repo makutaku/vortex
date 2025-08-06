@@ -48,7 +48,8 @@
       "Bash(pytest:*)",
       "Bash(pip install:*)",
       "Bash(uv:*)",
-      "Bash(true)"
+      "Bash(true)",
+      "Bash(PYTHONPATH=/home/rosantos/workspace/projects/vortex/main/src python3 -m pytest tests/unit/cli/commands/test_providers.py -v --tb=short)"
     ],
     "deny": []
   }

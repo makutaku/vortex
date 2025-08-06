@@ -281,9 +281,14 @@ class TestWithErrorRecoveryDecorator:
         def failing_function():
             raise ConnectionError("Network error")
         
-        # Should raise the final exception after recovery attempts
-        with pytest.raises(ConnectionError):
-            failing_function()
+        # Mock the correlation manager logger to handle structured logging kwargs
+        with patch('vortex.core.correlation.manager.logger') as mock_corr_logger:
+            mock_corr_logger.info = Mock()
+            mock_corr_logger.error = Mock()
+            
+            # Should raise the final exception after recovery attempts
+            with pytest.raises(ConnectionError):
+                failing_function()
     
     def test_decorator_with_context(self):
         """Test decorator with additional context."""
