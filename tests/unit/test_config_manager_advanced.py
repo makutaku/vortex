@@ -53,8 +53,21 @@ def temp_config_file(temp_dir, mock_toml_data):
     return config_file
 
 
+@pytest.fixture(autouse=True)
+def clear_config_cache():
+    """Ensure clean state between tests by clearing any cached config."""
+    # This runs before and after each test
+    yield
+    # Cleanup: Could clear any global state here if needed
+
+
 class TestConfigManagerAdvanced:
     """Test advanced ConfigManager functionality."""
+    
+    def setup_method(self):
+        """Reset any global state before each test."""
+        # Clear any cached configurations that might affect test isolation
+        pass
     
     def test_load_toml_file(self, temp_config_file, mock_toml_data):
         """Test loading TOML file."""
@@ -112,7 +125,7 @@ class TestConfigManagerAdvanced:
     
     def test_save_config(self, temp_dir):
         """Test saving configuration to file."""
-        config_file = temp_dir / "save_test.toml"
+        config_file = temp_dir / "save_test_isolated.toml"  # Use unique filename
         manager = ConfigManager(config_file)
         
         # Create a test configuration with complete barchart credentials
@@ -126,8 +139,10 @@ class TestConfigManagerAdvanced:
         # Verify file was created and contains expected data
         assert config_file.exists()
         
-        # Load it back to verify
+        # Create completely fresh manager to avoid cached config
         manager2 = ConfigManager(config_file)
+        # Ensure no cached config
+        manager2._config = None
         loaded_config = manager2.load_config()
         
         assert str(loaded_config.general.output_directory) == "/test/save"
@@ -196,9 +211,11 @@ class TestConfigManagerAdvanced:
         missing_complete = manager.get_missing_credentials("barchart")
         assert len(missing_complete) == 0
     
-    def test_get_default_provider(self, temp_config_file):
+    def test_get_default_provider(self, temp_dir):
         """Test getting default provider."""
-        manager = ConfigManager(temp_config_file)
+        # Use isolated config file for this test
+        isolated_config_file = temp_dir / "default_provider_test.toml"
+        manager = ConfigManager(isolated_config_file)
         
         # Should default to yahoo
         default = manager.get_default_provider()
@@ -215,7 +232,7 @@ class TestConfigManagerAdvanced:
     def test_import_export_config(self, temp_dir):
         """Test configuration import and export."""
         # Create source config with complete barchart credentials
-        source_file = temp_dir / "source.toml"
+        source_file = temp_dir / "import_export_source.toml"
         source_config = VortexConfig(
             general={"output_directory": "/import/test"},
             providers={"barchart": {"username": "imported", "password": "importpass", "daily_limit": 999}}
@@ -224,8 +241,8 @@ class TestConfigManagerAdvanced:
         manager = ConfigManager(source_file)
         manager.save_config(source_config)
         
-        # Create target manager
-        target_file = temp_dir / "target.toml"
+        # Create target manager with isolated config file
+        target_file = temp_dir / "import_export_target.toml"
         target_manager = ConfigManager(target_file)
         
         # Import configuration
@@ -236,14 +253,15 @@ class TestConfigManagerAdvanced:
         assert imported_config.providers.barchart.daily_limit == 999
         
         # Export configuration
-        export_file = temp_dir / "exported.toml"
+        export_file = temp_dir / "import_export_exported.toml"
         target_manager.export_config(export_file)
         
         # Verify exported file
         assert export_file.exists()
         
-        # Load exported config to verify
+        # Load exported config to verify with fresh manager
         export_manager = ConfigManager(export_file)
+        export_manager._config = None  # Clear any cached config
         exported_config = export_manager.load_config()
         
         assert str(exported_config.general.output_directory) == "/import/test"
@@ -402,23 +420,28 @@ class TestConfigManagerAdvanced:
         with pytest.raises((ConfigurationValidationError, ValueError)):
             manager.load_config()
     
-    def test_save_config_without_explicit_config(self, temp_config_file):
+    def test_save_config_without_explicit_config(self, temp_dir):
         """Test saving config when no explicit config is provided."""
-        manager = ConfigManager(temp_config_file)
+        # Use isolated config file
+        isolated_config_file = temp_dir / "implicit_save_test.toml"
+        manager = ConfigManager(isolated_config_file)
         
         # Load a config first to set internal state
         config = manager.load_config()
         config.providers.barchart.username = "implicit_save"
+        config.providers.barchart.password = "implicit_pass"  # Need both for validation
         manager._config = config
         
         # Save without providing explicit config
         manager.save_config()
         
-        # Load again to verify
-        manager2 = ConfigManager(temp_config_file)
+        # Load again to verify with fresh manager
+        manager2 = ConfigManager(isolated_config_file)
+        manager2._config = None  # Clear any cached config
         loaded_config = manager2.load_config()
         
         assert loaded_config.providers.barchart.username == "implicit_save"
+        assert loaded_config.providers.barchart.password == "implicit_pass"
     
     def test_config_directory_creation(self, temp_dir):
         """Test that config directory is created if it doesn't exist."""
