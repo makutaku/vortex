@@ -19,7 +19,7 @@ vortex --help 2>&1 | head -5
 "
 
 echo -e "\n=== Testing simple Dockerfile ==="
-docker build -f build/docker/Dockerfile.simple -t vortex-simple-debug .
+docker build -f docker/Dockerfile.simple -t vortex-simple-debug .
 docker run --rm vortex-simple-debug bash -c "
 echo 'Simple build test:'
 which vortex

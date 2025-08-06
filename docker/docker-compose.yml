@@ -1,0 +1,119 @@
+# Vortex Financial Data Automation - Docker Compose Configuration
+#
+# This docker-compose.yml provides a complete containerized setup for Vortex
+# with modern configuration using environment variables.
+#
+# Quick Start (Free Data with Yahoo Finance):
+#   docker-compose up -d
+#   
+# The container will automatically:
+#   - Use Yahoo Finance (free, no setup required)
+#   - Download data to ./data directory
+#   - Run on schedule (8 AM daily by default)
+#
+# Premium Data Setup:
+#   1. Create .env file with your credentials:
+#      VORTEX_DEFAULT_PROVIDER=barchart
+#      VORTEX_BARCHART_USERNAME=your_email@example.com
+#      VORTEX_BARCHART_PASSWORD=your_password
+#   
+#   2. Run: docker-compose up -d
+#
+# Custom Assets:
+#   1. Create config/assets.json with your instruments
+#   2. Mount it: uncomment the custom assets volume below
+#
+# Monitoring:
+#   - Logs: docker-compose logs -f vortex
+#   - Health: docker-compose ps
+#   - Data: check ./data directory
+#
+version: '3.8'
+
+services:
+  vortex:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile  # Use main Dockerfile for reliability
+    container_name: vortex
+    restart: unless-stopped
+    
+    environment:
+      # Modern Vortex Configuration
+      # Default provider (yahoo is free and requires no credentials)
+      VORTEX_DEFAULT_PROVIDER: ${VORTEX_DEFAULT_PROVIDER:-yahoo}
+      
+      # Output directory
+      VORTEX_OUTPUT_DIR: /data
+      
+      # Logging configuration
+      VORTEX_LOG_LEVEL: ${VORTEX_LOG_LEVEL:-INFO}
+      VORTEX_LOGGING_FORMAT: ${VORTEX_LOGGING_FORMAT:-console}
+      VORTEX_LOGGING_OUTPUT: ${VORTEX_LOGGING_OUTPUT:-console}
+      
+      # Backup settings
+      VORTEX_BACKUP_ENABLED: ${VORTEX_BACKUP_ENABLED:-false}
+      
+      # Schedule (cron format) - default: 8 AM daily
+      VORTEX_SCHEDULE: ${VORTEX_SCHEDULE:-0 8 * * *}
+      
+      # Run download on container startup
+      VORTEX_RUN_ON_STARTUP: ${VORTEX_RUN_ON_STARTUP:-true}
+      
+      # Download command arguments for container startup
+      VORTEX_DOWNLOAD_ARGS: ${VORTEX_DOWNLOAD_ARGS:---yes}
+      
+      # Provider-specific configuration (only set if needed)
+      # Barchart credentials (premium data)
+      VORTEX_BARCHART_USERNAME: ${VORTEX_BARCHART_USERNAME:-}
+      VORTEX_BARCHART_PASSWORD: ${VORTEX_BARCHART_PASSWORD:-}
+      VORTEX_BARCHART_DAILY_LIMIT: ${VORTEX_BARCHART_DAILY_LIMIT:-150}
+      
+      # Interactive Brokers configuration
+      VORTEX_IBKR_HOST: ${VORTEX_IBKR_HOST:-localhost}
+      VORTEX_IBKR_PORT: ${VORTEX_IBKR_PORT:-7497}
+      VORTEX_IBKR_CLIENT_ID: ${VORTEX_IBKR_CLIENT_ID:-1}
+    
+    volumes:
+      # Data output directory - where downloaded CSV/Parquet files are stored
+      - ${DATA_DIR:-./data}:/data
+      
+      # Configuration directory - contains config.toml and optional custom assets.json
+      - ${CONFIG_DIR:-./config}:/root/.config/vortex
+      
+      # Optional: Mount custom assets file directly
+      # - ./my-assets.json:/app/assets/custom.json:ro
+      
+      # Optional: Mount logs directory
+      # - ${LOGS_DIR:-./logs}:/logs
+    
+    # Health check using modern CLI
+    healthcheck:
+      test: ["CMD-SHELL", "vortex config --show > /dev/null || exit 1"]
+      interval: 1h
+      timeout: 30s
+      retries: 3
+      start_period: 30s
+    
+    # Resource limits (optional)
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  # Optional: Add database for storing metadata
+  # postgres:
+  #   image: postgres:15-alpine
+  #   environment:
+  #     POSTGRES_DB: vortex
+  #     POSTGRES_USER: vortex
+  #     POSTGRES_PASSWORD: ${DB_PASSWORD}
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+
+# volumes:
+#   postgres_data:

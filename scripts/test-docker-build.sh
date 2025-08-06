@@ -351,7 +351,7 @@ test_docker_build() {
     
     if [[ "$VERBOSE" == true ]]; then
         # Show build output in verbose mode
-        if timeout "$BUILD_TIMEOUT" docker build -f build/docker/Dockerfile -t "$TEST_IMAGE" .; then
+        if timeout "$BUILD_TIMEOUT" docker build -f docker/Dockerfile -t "$TEST_IMAGE" .; then
             log_success "Docker build completed successfully"
             return 0
         else
@@ -360,7 +360,7 @@ test_docker_build() {
         fi
     else
         # Hide build output in normal mode
-        if timeout "$BUILD_TIMEOUT" docker build -f build/docker/Dockerfile -t "$TEST_IMAGE" . >/dev/null 2>&1; then
+        if timeout "$BUILD_TIMEOUT" docker build -f docker/Dockerfile -t "$TEST_IMAGE" . >/dev/null 2>&1; then
             log_success "Docker build completed successfully"
             return 0
         else
@@ -531,7 +531,7 @@ test_entrypoint_dry_run() {
 test_docker_compose_config() {
     log_test "Test 9: Docker Compose Configuration"
     
-    cd "$PROJECT_ROOT/build/docker"
+    cd "$PROJECT_ROOT/docker"
     
     if docker compose config >/dev/null 2>&1; then
         log_success "Docker Compose configuration is valid"

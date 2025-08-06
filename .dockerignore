@@ -57,7 +57,6 @@ test_*.py
 
 # Build artifacts
 build/
-!build/docker/scripts/
 *.tar.gz
 
 # Development and CI/CD files
