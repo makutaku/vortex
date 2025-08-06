@@ -482,7 +482,7 @@ class TestBaseDownloader:
         config.periods = [Period.Daily]
         config.tick_date = None
         config.start_date = None
-        config.tz = None
+        config.tz = timezone.utc
         config.days_count = None
         
         start = datetime(2024, 1, 1, tzinfo=timezone.utc)

@@ -7,6 +7,7 @@ from unittest.mock import Mock, patch, MagicMock, call
 from click.testing import CliRunner
 import tempfile
 import os
+import click
 
 from vortex.cli.commands.download import (
     load_config_instruments, get_default_assets_file, download
@@ -41,7 +42,7 @@ class TestLoadConfigInstruments:
         with patch.object(InstrumentConfig, 'load_from_json') as mock_load:
             mock_load.side_effect = Exception("File not found")
             
-            with pytest.raises(SystemExit):  # click.Abort() causes SystemExit
+            with pytest.raises(click.Abort):
                 load_config_instruments(Path('nonexistent.json'))
 
 
@@ -70,12 +71,14 @@ class TestGetDefaultAssetsFile:
         assert 'assets' in str(result)
     
     def test_get_default_assets_file_no_files_exist(self):
-        """Test when no assets files exist."""
+        """Test when no assets files exist - returns provider file path anyway."""
         with patch('vortex.cli.commands.download.Path.exists') as mock_exists:
             mock_exists.return_value = False
             
-            with pytest.raises(SystemExit):  # click.Abort() causes SystemExit
-                get_default_assets_file('nonexistent')
+            result = get_default_assets_file('nonexistent')
+            
+            assert result.name == 'nonexistent.json'
+            assert 'assets' in str(result)
 
 
 class TestDownloadMain:

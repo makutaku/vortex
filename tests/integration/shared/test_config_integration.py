@@ -34,7 +34,7 @@ class TestConfigManagerIntegration:
         new_manager = ConfigManager(config_manager.config_file)
         loaded_config = new_manager.load_config()
         
-        assert loaded_config.general.log_level == LogLevel.DEBUG
+        assert loaded_config.general.logging.level == LogLevel.DEBUG
         assert loaded_config.providers.barchart.username == "test@example.com"
         assert loaded_config.providers.barchart.daily_limit == 100
 
@@ -101,7 +101,7 @@ class TestConfigManagerIntegration:
         
         # Should be back to defaults
         default_config = config_manager.load_config()
-        assert default_config.general.log_level == LogLevel.INFO
+        assert default_config.general.logging.level == LogLevel.INFO
         assert default_config.providers.barchart.username is None
 
 
@@ -112,14 +112,14 @@ class TestEnvironmentVariablesIntegration:
     def test_modern_environment_variables(self, config_manager, clean_environment):
         """Test modern environment variable configuration."""
         os.environ["VORTEX_OUTPUT_DIR"] = "/custom/path"
-        os.environ["VORTEX_LOG_LEVEL"] = "DEBUG"
+        os.environ["VORTEX_LOGGING_LEVEL"] = "DEBUG"
         os.environ["VORTEX_BARCHART_USERNAME"] = "env_user@example.com"
         os.environ["VORTEX_BARCHART_PASSWORD"] = "env_password"
         
         config = config_manager.load_config()
         
         assert str(config.general.output_directory).endswith("custom/path")
-        assert config.general.log_level == LogLevel.DEBUG
+        assert config.general.logging.level == LogLevel.DEBUG
         assert config.providers.barchart.username == "env_user@example.com"
         assert config.providers.barchart.password == "env_password"
 
