@@ -4,7 +4,12 @@ __pycache__/
 *$py.class
 *.so
 .Python
-build/
+# Python build artifacts (but allow Docker builds)
+build/bdist*/
+build/lib*/
+build/temp*/
+build/scripts*/
+build/exe*/
 develop-eggs/
 dist/
 downloads/
@@ -67,7 +72,5 @@ test-*/
 test-config-*/
 test-data-*/
 
-# Build artifacts (setuptools)
-*.egg-info/
+# Additional build artifacts (setuptools/Python)
 build/dist/
-build/lib/
