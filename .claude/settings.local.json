@@ -51,7 +51,12 @@
       "Bash(true)",
       "Bash(PYTHONPATH=/home/rosantos/workspace/projects/vortex/main/src python3 -m pytest tests/unit/cli/commands/test_providers.py -v --tb=short)",
       "Bash(scripts/test-docker-build.sh:*)",
-      "Bash(awk:*)"
+      "Bash(awk:*)",
+      "Bash(cron_schedule=\"*/2 * * * *\")",
+      "Bash(docker exec:*)",
+      "Bash(docker kill:*)",
+      "Bash(git check-ignore:*)",
+      "Bash(sudo rm:*)"
     ],
     "deny": []
   }

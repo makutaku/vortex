@@ -243,3 +243,197 @@ class TestCLIErrorHandling:
             config_available=False
         )
         assert result == mock_handler
+
+
+class TestCLICoreActual:
+    """Test actual CLI core functionality with real execution paths."""
+    
+    def test_commands_available_flag_behavior_actual(self):
+        """Test COMMANDS_AVAILABLE flag behavior."""
+        from vortex.cli.core import COMMANDS_AVAILABLE
+        
+        # Should be a boolean
+        assert isinstance(COMMANDS_AVAILABLE, bool)
+
+    def test_resilience_imports_flag_behavior_actual(self):
+        """Test RESILIENCE_IMPORTS_AVAILABLE flag behavior.""" 
+        from vortex.cli.core import RESILIENCE_IMPORTS_AVAILABLE
+        
+        # Should be a boolean
+        assert isinstance(RESILIENCE_IMPORTS_AVAILABLE, bool)
+        
+        if RESILIENCE_IMPORTS_AVAILABLE:
+            from vortex.cli.core import CorrelationIdManager, with_correlation
+            # Should have the real implementations
+            assert hasattr(CorrelationIdManager, 'get_current_id')
+            assert callable(with_correlation)
+        else:
+            from vortex.cli.core import CorrelationIdManager, with_correlation
+            # Should have dummy implementations
+            result = CorrelationIdManager.get_current_id()
+            assert result is None
+            
+            # Test dummy decorator
+            @with_correlation()
+            def test_func():
+                return "test"
+            assert test_func() == "test"
+
+    def test_cli_group_definition(self):
+        """Test CLI group definition and options."""
+        from vortex.cli.core import cli
+        import click
+        
+        # Test that cli is a Click group
+        assert isinstance(cli, click.Group)
+        
+        # Test that it has the expected options
+        params = {param.name for param in cli.params}
+        assert 'config' in params
+        assert 'verbose' in params  
+        assert 'dry_run' in params
+
+    def test_wizard_command_registration(self):
+        """Test wizard command registration."""
+        from vortex.cli.core import cli, wizard
+        
+        # Wizard should be registered as a command
+        assert 'wizard' in cli.commands
+        assert cli.commands['wizard'] == wizard
+
+    def test_cli_version_option(self):
+        """Test CLI version option."""
+        from vortex.cli.core import cli
+        from click.testing import CliRunner
+        
+        runner = CliRunner()
+        result = runner.invoke(cli, ['--version'])
+        
+        assert result.exit_code == 0
+        assert 'vortex' in result.output.lower() or 'unknown' in result.output
+
+    @patch('vortex.cli.core.setup_logging')
+    @patch('vortex.cli.core.get_ux')
+    @patch('vortex.cli.core.show_welcome')
+    def test_cli_main_function_no_subcommand(self, mock_show_welcome, mock_get_ux, mock_setup_logging):
+        """Test CLI main function when no subcommand is provided."""
+        from vortex.cli.core import cli
+        from click.testing import CliRunner
+        
+        mock_ux = Mock()
+        mock_get_ux.return_value = mock_ux
+        
+        runner = CliRunner()
+        # Run without subcommand to trigger welcome
+        result = runner.invoke(cli, ['--verbose'])
+        
+        # Should call setup_logging
+        mock_setup_logging.assert_called()
+        
+        # Should configure UX
+        mock_get_ux.assert_called()
+        mock_ux.set_quiet.assert_called()
+        mock_ux.set_force_yes.assert_called()
+        
+        # Should show welcome
+        mock_show_welcome.assert_called_once_with(mock_ux)
+
+    def test_main_entry_point_creation(self):
+        """Test main entry point error handler creation."""
+        from unittest.mock import patch
+        
+        with patch('vortex.cli.core.create_error_handler') as mock_create:
+            with patch('vortex.cli.core.handle_cli_exceptions') as mock_handle:
+                mock_handler = Mock()
+                mock_create.return_value = mock_handler
+                
+                from vortex.cli.core import main
+                
+                # This should create error handler and call handle_cli_exceptions
+                main()
+                
+                # Should create error handler with appropriate flags
+                mock_create.assert_called_once()
+                call_args = mock_create.call_args[1]  # keyword args
+                assert 'rich_available' in call_args
+                assert 'console' in call_args
+                assert 'config_available' in call_args
+                
+                # Should call handle_cli_exceptions with handler and cli
+                mock_handle.assert_called_once()
+
+    @patch('vortex.cli.core.wizard_command')
+    def test_wizard_command_execution(self, mock_wizard_command):
+        """Test wizard command execution."""
+        from vortex.cli.core import wizard
+        from click.testing import CliRunner
+        
+        mock_wizard_command.return_value = None
+        
+        runner = CliRunner()
+        result = runner.invoke(wizard)
+        
+        # Should call wizard_command with context
+        mock_wizard_command.assert_called_once()
+        # The argument should be a click Context
+        args = mock_wizard_command.call_args[0]
+        assert len(args) == 1  # Should have context argument
+
+    @patch('vortex.cli.core.setup_logging')
+    @patch('vortex.cli.core.get_ux')  
+    def test_cli_context_setup(self, mock_get_ux, mock_setup_logging):
+        """Test CLI context object setup."""
+        from vortex.cli.core import cli
+        from click.testing import CliRunner
+        from pathlib import Path
+        import click
+        
+        mock_ux = Mock()
+        mock_get_ux.return_value = mock_ux
+        
+        runner = CliRunner()
+        with runner.isolated_filesystem():
+            # Create a config file 
+            config_file = Path("test_config.toml")
+            config_file.touch()
+            
+            @click.command()
+            @click.pass_context
+            def test_cmd(ctx):
+                # Test that context is properly set up
+                assert 'config_file' in ctx.obj
+                assert 'verbose' in ctx.obj
+                assert 'dry_run' in ctx.obj
+                click.echo("success")
+            
+            # Add temporary test command
+            cli.add_command(test_cmd, name='test-cmd')
+            
+            try:
+                result = runner.invoke(cli, ['-c', str(config_file), '-vv', '--dry-run', 'test-cmd'])
+                
+                # Should have set up context properly
+                mock_setup_logging.assert_called()
+                mock_get_ux.assert_called()
+                mock_ux.set_quiet.assert_called()
+                mock_ux.set_force_yes.assert_called()
+                
+                assert result.exit_code == 0
+                assert "success" in result.output
+            finally:
+                # Clean up
+                cli.commands.pop('test-cmd', None)
+
+    def test_command_registration_structure(self):
+        """Test command registration structure."""
+        from vortex.cli.core import cli, COMMANDS_AVAILABLE
+        
+        # Should have wizard command at minimum
+        assert 'wizard' in cli.commands
+        
+        # Should have expected commands based on availability
+        if COMMANDS_AVAILABLE:
+            # Should have some core commands
+            command_names = set(cli.commands.keys())
+            # At least wizard should be there
+            assert 'wizard' in command_names
