@@ -56,9 +56,19 @@ def temp_config_file(temp_dir, mock_toml_data):
 @pytest.fixture(autouse=True)
 def clear_config_cache():
     """Ensure clean state between tests by clearing any cached config."""
+    # Clear any VORTEX environment variables that might affect tests
+    vortex_env_vars = [k for k in os.environ.keys() if k.startswith("VORTEX_")]
+    original_values = {}
+    for var in vortex_env_vars:
+        original_values[var] = os.environ[var]
+        del os.environ[var]
+    
     # This runs before and after each test
     yield
-    # Cleanup: Could clear any global state here if needed
+    
+    # Restore original environment variables
+    for var, value in original_values.items():
+        os.environ[var] = value
 
 
 class TestConfigManagerAdvanced:
