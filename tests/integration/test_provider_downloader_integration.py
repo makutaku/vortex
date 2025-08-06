@@ -81,7 +81,7 @@ class TestProviderDownloaderIntegration:
             
             # Verify download was successful
             from vortex.infrastructure.providers.base import HistoricalDataResult
-            assert result in [HistoricalDataResult.OK, HistoricalDataResult.PARTIAL]
+            assert result in [HistoricalDataResult.OK, HistoricalDataResult.EXISTS]
             
             # Verify data was actually saved
             expected_path = temp_storage_dir / "stocks" / "1d" / f"{sample_stock.symbol}.csv"
@@ -97,7 +97,7 @@ class TestProviderDownloaderIntegration:
                 assert not df.empty, "Downloaded CSV is empty"
                 
                 # Check expected columns are present
-                expected_columns = ['Date', 'Open', 'High', 'Low', 'Close', 'Volume']
+                expected_columns = ['DATETIME', 'Open', 'High', 'Low', 'Close', 'Volume']
                 for col in expected_columns:
                     assert col in df.columns, f"Missing expected column: {col}"
                 
@@ -113,7 +113,7 @@ class TestProviderDownloaderIntegration:
                 )
                 
                 result2 = downloader._process_job(job2)
-                assert result2 in [HistoricalDataResult.OK, HistoricalDataResult.PARTIAL, HistoricalDataResult.NO_NEW_DATA]
+                assert result2 in [HistoricalDataResult.OK, HistoricalDataResult.EXISTS]
             
         except Exception as e:
             # If network issues or API limits, skip with informative message

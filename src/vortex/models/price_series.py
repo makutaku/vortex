@@ -2,9 +2,10 @@ import logging
 import os
 from abc import ABC
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 import pandas as pd
+import pytz
 from pandas import DataFrame
 
 from .metadata import Metadata
@@ -14,6 +15,30 @@ EXPIRATION_THRESHOLD = timedelta(days=7)
 LOW_DATA_THRESHOLD = timedelta(days=3)
 FUTURES_SOURCE_TIME_ZONE = 'US/Central'
 STOCK_SOURCE_TIME_ZONE = 'America/New_York'
+
+
+def _normalize_datetime_for_comparison(dt):
+    """
+    Normalize datetime for timezone-aware comparison.
+    
+    If the datetime is timezone-naive, assume it's in UTC.
+    If it's timezone-aware, convert to UTC for consistent comparison.
+    
+    Args:
+        dt: datetime object (timezone-aware or timezone-naive)
+        
+    Returns:
+        timezone-aware datetime in UTC
+    """
+    if dt is None:
+        return None
+        
+    if dt.tzinfo is None:
+        # Timezone-naive datetime - assume UTC
+        return pytz.UTC.localize(dt)
+    else:
+        # Timezone-aware datetime - convert to UTC
+        return dt.astimezone(pytz.UTC)
 
 
 @dataclass
@@ -32,7 +57,14 @@ class PriceSeries(ABC):
             logging.debug(
                 f"Desired range: {start_date.strftime('%Y-%m-%d')} - {end_date.strftime('%Y-%m-%d')}")
 
-            if self.metadata.end_date - self.metadata.last_row_date > EXPIRATION_THRESHOLD:
+            # Normalize all datetimes for timezone-aware comparison
+            normalized_start_date = _normalize_datetime_for_comparison(start_date)
+            normalized_end_date = _normalize_datetime_for_comparison(end_date)
+            normalized_metadata_start = _normalize_datetime_for_comparison(self.metadata.start_date)
+            normalized_metadata_end = _normalize_datetime_for_comparison(self.metadata.end_date)
+            normalized_last_row_date = _normalize_datetime_for_comparison(self.metadata.last_row_date)
+
+            if normalized_metadata_end - normalized_last_row_date > EXPIRATION_THRESHOLD:
                 logging.debug(f"Coverage is acceptable. Last search indicates no more data is available, "
                               f"since last bar is {EXPIRATION_THRESHOLD} behind the end of the "
                               f"previous download request.")
@@ -40,8 +72,8 @@ class PriceSeries(ABC):
 
             # We pretend existing data is larger in order avoid too frequent updates.
             trigger_threshold = self.metadata.period.get_bar_time_delta()
-            start_date_diff = (self.metadata.start_date - trigger_threshold) - start_date
-            end_date_diff = end_date - (self.metadata.end_date + trigger_threshold)
+            start_date_diff = (normalized_metadata_start - trigger_threshold) - normalized_start_date
+            end_date_diff = normalized_end_date - (normalized_metadata_end + trigger_threshold)
             # If either diff is positive then existing data is missing enough bars to cover requested range.
             if end_date_diff.days < 0 and start_date_diff.days < 0:
                 logging.debug(f"Coverage is acceptable since range of existing data "
