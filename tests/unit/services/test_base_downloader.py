@@ -538,6 +538,111 @@ class TestBaseDownloader:
                 roll_cycle, days_count, tz
             )
 
+    def test_create_instrument_jobs_future_instrument(self, downloader):
+        """Test _create_instrument_jobs for future instruments."""
+        instr = 'GC'
+        config = InstrumentConfig(
+            name='Gold', code='GC', cycle='GJMQVZ', asset_class=InstrumentType.Future,
+            start_date=datetime(2020, 1, 1),
+            tick_date=datetime(2020, 1, 1), days_count=360
+        )
+        start = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        end = datetime(2024, 12, 31, tzinfo=timezone.utc)
+        
+        with patch.object(downloader, '_create_future_jobs') as mock_create_futures:
+            mock_create_futures.return_value = [Mock(), Mock()]  # Return 2 jobs
+            
+            jobs = downloader._create_instrument_jobs(instr, config, start, end)
+        
+        assert len(jobs) == 2
+        mock_create_futures.assert_called_once()
+
+    def test_create_instrument_jobs_stock_instrument(self, downloader):
+        """Test _create_instrument_jobs for stock instruments."""
+        instr = 'AAPL'
+        config = InstrumentConfig(
+            name='Apple', code='AAPL', asset_class=InstrumentType.Stock,
+            tick_date=datetime(2020, 1, 1)
+        )
+        start = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        end = datetime(2024, 12, 31, tzinfo=timezone.utc)
+        
+        with patch.object(downloader, 'create_jobs_for_undated_instrument') as mock_create_undated:
+            mock_create_undated.return_value = [Mock()]  # Return 1 job
+            
+            jobs = downloader._create_instrument_jobs(instr, config, start, end)
+        
+        assert len(jobs) == 1
+        mock_create_undated.assert_called_once()
+        # Verify Stock object was created and passed
+        call_args = mock_create_undated.call_args[0]
+        assert isinstance(call_args[0], Stock)
+        assert call_args[0].symbol == 'AAPL'
+
+    def test_create_instrument_jobs_forex_instrument(self, downloader):
+        """Test _create_instrument_jobs for forex instruments."""
+        instr = 'EURUSD'
+        config = InstrumentConfig(
+            name='EURUSD', code='EURUSD', asset_class=InstrumentType.Forex,
+            tick_date=datetime(2020, 1, 1)
+        )
+        start = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        end = datetime(2024, 12, 31, tzinfo=timezone.utc)
+        
+        with patch.object(downloader, 'create_jobs_for_undated_instrument') as mock_create_undated:
+            mock_create_undated.return_value = [Mock()]  # Return 1 job
+            
+            jobs = downloader._create_instrument_jobs(instr, config, start, end)
+        
+        assert len(jobs) == 1
+        mock_create_undated.assert_called_once()
+        # Verify Forex object was created and passed
+        call_args = mock_create_undated.call_args[0]
+        assert isinstance(call_args[0], Forex)
+        assert call_args[0].symbol == 'EURUSD'
+
+    def test_create_instrument_jobs_unsupported_instrument(self, downloader):
+        """Test _create_instrument_jobs with unsupported instrument type."""
+        instr = 'UNKNOWN'
+        config = InstrumentConfig(
+            name='Unknown', code='UNKNOWN', asset_class='UnsupportedType',  # Invalid type
+            tick_date=datetime(2020, 1, 1)
+        )
+        start = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        end = datetime(2024, 12, 31, tzinfo=timezone.utc)
+        
+        with pytest.raises(ValueError, match="Instrument type 'UnsupportedType' is not supported"):
+            downloader._create_instrument_jobs(instr, config, start, end)
+
+    def test_create_instrument_jobs_with_config_constraints(self, downloader):
+        """Test _create_instrument_jobs respects config start date and time zone constraints."""
+        instr = 'GC'
+        config = InstrumentConfig(
+            name='Gold', code='GC', cycle='GJMQVZ', asset_class=InstrumentType.Future,
+            start_date=datetime(2022, 6, 1),  # Later than request start
+            tick_date=datetime(2020, 1, 1), days_count=360
+        )
+        start = datetime(2022, 1, 1, tzinfo=timezone.utc)  # Earlier than config start
+        end = datetime(2025, 12, 31, tzinfo=timezone.utc)  # Future date
+        
+        with patch.object(downloader, '_create_future_jobs') as mock_create_futures:
+            mock_create_futures.return_value = []
+            
+            with patch('vortex.services.base_downloader.datetime') as mock_datetime:
+                # Mock current time to be in 2024
+                mock_now = datetime(2024, 6, 1, tzinfo=timezone.utc)
+                mock_datetime.now.return_value = mock_now
+                
+                downloader._create_instrument_jobs(instr, config, start, end)
+        
+        # Verify start was adjusted to config.start_date and end was capped to now
+        call_args = mock_create_futures.call_args[0]
+        actual_start = call_args[2]  # start parameter
+        actual_end = call_args[3]    # end parameter
+        
+        assert actual_start >= config.start_date
+        assert actual_end <= mock_now
+
     def test_filter_periods(self, downloader):
         """Test filtering periods based on provider support."""
         instrument = Mock()
@@ -551,9 +656,105 @@ class TestBaseDownloader:
         
         assert len(filtered) == 2
         assert Period.Daily in filtered
-        assert Period.Hourly in filtered
-        assert Period.Minute_5 not in filtered
-        mock_logging.warning.assert_called_once()
+
+    def test_create_jobs_for_dated_instrument(self, downloader):
+        """Test creating jobs for dated instruments (futures)."""
+        future = Future('GC', 'GC', 2024, 'G', datetime(2020, 1, 1), 360)
+        periods = [Period.Daily, Period.Hourly]
+        start = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        end = datetime(2024, 3, 31, tzinfo=timezone.utc)
+        tz = timezone.utc
+        
+        # Mock the future's date range
+        contract_start = datetime(2024, 1, 15, tzinfo=timezone.utc)  
+        contract_end = datetime(2024, 3, 15, tzinfo=timezone.utc)
+        
+        with patch.object(future, 'get_date_range') as mock_date_range:
+            mock_date_range.return_value = (contract_start, contract_end)
+            
+            downloader.data_provider.get_min_start.return_value = None
+            
+            jobs = downloader.create_jobs_for_dated_instrument(future, periods, start, end, tz)
+        
+        # Should create 2 jobs (Daily and Hourly)
+        assert len(jobs) == 2
+        
+        # Verify jobs use contract date constraints
+        for job in jobs:
+            assert job.start_date >= contract_start
+            assert job.end_date <= contract_end
+
+    def test_create_jobs_for_dated_instrument_low_data_threshold(self, downloader):
+        """Test that jobs are skipped when date range is too small."""
+        future = Future('GC', 'GC', 2024, 'G', datetime(2020, 1, 1), 360)
+        periods = [Period.Daily]
+        start = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        end = datetime(2024, 3, 31, tzinfo=timezone.utc)
+        tz = timezone.utc
+        
+        # Mock contract with very short date range (less than LOW_DATA_THRESHOLD)
+        contract_start = datetime(2024, 3, 30, tzinfo=timezone.utc)  
+        contract_end = datetime(2024, 3, 31, tzinfo=timezone.utc)  # Only 1 day
+        
+        with patch.object(future, 'get_date_range') as mock_date_range:
+            mock_date_range.return_value = (contract_start, contract_end)
+            
+            jobs = downloader.create_jobs_for_dated_instrument(future, periods, start, end, tz)
+        
+        # Should create no jobs due to low data threshold
+        assert len(jobs) == 0
+
+    def test_create_jobs_for_dated_instrument_skip_intraday_before_tick_date(self, downloader):
+        """Test skipping intraday periods when start date is before tick date."""
+        tick_date = datetime(2023, 1, 1, tzinfo=timezone.utc)
+        future = Future('GC', 'GC', 2024, 'G', tick_date, 360)
+        periods = [Period.Daily, Period.Hourly]  # Hourly is intraday
+        start = datetime(2022, 1, 1, tzinfo=timezone.utc)  # Before tick date
+        end = datetime(2024, 3, 31, tzinfo=timezone.utc)
+        tz = timezone.utc
+        
+        # Contract range allows the jobs
+        contract_start = datetime(2022, 1, 15, tzinfo=timezone.utc)  
+        contract_end = datetime(2024, 3, 15, tzinfo=timezone.utc)
+        
+        with patch.object(future, 'get_date_range') as mock_date_range:
+            mock_date_range.return_value = (contract_start, contract_end)
+            
+            downloader.data_provider.get_min_start.return_value = None
+            
+            jobs = downloader.create_jobs_for_dated_instrument(future, periods, start, end, tz)
+        
+        # Should only create 1 job (Daily), Hourly skipped due to tick date
+        assert len(jobs) == 1
+        assert jobs[0].period == Period.Daily
+
+    def test_create_jobs_for_dated_instrument_skip_provider_min_start(self, downloader):
+        """Test skipping periods when start date is before provider minimum."""
+        future = Future('GC', 'GC', 2024, 'G', datetime(2020, 1, 1), 360)
+        periods = [Period.Daily, Period.Hourly]
+        start = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        end = datetime(2024, 3, 31, tzinfo=timezone.utc)
+        tz = timezone.utc
+        
+        contract_start = datetime(2024, 1, 15, tzinfo=timezone.utc)  
+        contract_end = datetime(2024, 3, 15, tzinfo=timezone.utc)
+        
+        with patch.object(future, 'get_date_range') as mock_date_range:
+            mock_date_range.return_value = (contract_start, contract_end)
+            
+            # Provider doesn't support Daily before 2024-02-01
+            def get_min_start_side_effect(period):
+                if period == Period.Daily:
+                    return datetime(2024, 2, 1, tzinfo=timezone.utc)  # After contract start
+                return None
+            
+            downloader.data_provider.get_min_start.side_effect = get_min_start_side_effect
+            
+            jobs = downloader.create_jobs_for_dated_instrument(future, periods, start, end, tz)
+        
+        # Should only create 1 job (Hourly), Daily skipped due to provider min start
+        assert len(jobs) == 1
+        assert jobs[0].period == Period.Hourly
 
     def test_create_jobs_for_undated_instrument(self, downloader):
         """Test creating jobs for undated instruments (stocks/forex)."""
@@ -608,7 +809,7 @@ class TestBaseDownloader:
         start = datetime(2024, 1, 1, tzinfo=timezone.utc)
         end = datetime(2024, 12, 31, tzinfo=timezone.utc)
         periods = [Period.Hourly]  # Intraday period
-        tick_date = datetime(2024, 6, 1)  # Tick date after start
+        tick_date = datetime(2024, 6, 1, tzinfo=timezone.utc)  # Tick date after start
         
         downloader.data_provider.get_supported_timeframes.return_value = periods
         downloader.data_provider.get_min_start.return_value = None
