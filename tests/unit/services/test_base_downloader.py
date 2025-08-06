@@ -8,7 +8,7 @@ from vortex.services.base_downloader import BaseDownloader
 from vortex.services.download_job import DownloadJob
 from vortex.infrastructure.providers.base import HistoricalDataResult
 from vortex.infrastructure.storage.data_storage import DataStorage
-from vortex.exceptions import LowDataError, AllowanceLimitExceededError, DataNotFoundError
+from vortex.exceptions import AllowanceLimitExceededError, DataNotFoundError
 from vortex.core.instruments import InstrumentConfig, InstrumentType
 from vortex.models.forex import Forex
 from vortex.models.future import Future
@@ -29,7 +29,10 @@ class ConcreteDownloader(BaseDownloader):
         self.processed_jobs.append(job)
         if hasattr(self, 'raise_exception') and self.raise_exception:
             if self.raise_exception == 'low_data':
-                raise LowDataError("Low data")
+                raise DataNotFoundError(
+                    provider="test", symbol="TEST", period=Period.Daily,
+                    start_date=datetime(2024, 1, 1), end_date=datetime(2024, 1, 31)
+                )
             elif self.raise_exception == 'not_found':
                 raise DataNotFoundError(
                     provider="test", symbol="TEST", period=Period.Daily,
@@ -151,7 +154,7 @@ class TestBaseDownloader:
         mock_logging.info.assert_called()
 
     def test_process_jobs_with_low_data_error(self, downloader, sample_job):
-        """Test job processing with LowDataError."""
+        """Test job processing with DataNotFoundError (formerly LowDataError)."""
         downloader.raise_exception = 'low_data'
         jobs = [sample_job]
         
@@ -326,7 +329,7 @@ class TestBaseDownloader:
         downloader.raise_exception = 'low_data'
         downloader.processed_jobs.clear()
         
-        with pytest.raises(LowDataError):
+        with pytest.raises(DataNotFoundError):
             downloader._process_job(job)
 
     def test_abstract_method_requirement(self):
@@ -361,7 +364,10 @@ class TestBaseDownloader:
             call_count += 1
             downloader.processed_jobs.append(job)
             if call_count == 2:
-                raise LowDataError("Test error")
+                raise DataNotFoundError(
+                    provider="test", symbol="TEST", period=Period.Daily,
+                    start_date=datetime(2024, 1, 1), end_date=datetime(2024, 1, 31)
+                )
             return HistoricalDataResult.OK
         
         with patch.object(downloader, '_process_job', side_effect=side_effect):
