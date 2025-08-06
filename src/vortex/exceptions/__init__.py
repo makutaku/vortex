@@ -29,14 +29,13 @@ Exception Hierarchy:
         ├── MissingArgumentError
         └── UserAbortError
 
-This package replaces the monolithic exceptions.py module with focused components:
+This package provides focused exception components:
 - base: Core VortexError base class
 - config: Configuration-related exceptions
 - providers: Data provider exceptions (auth, connection, data)
 - storage: File and disk storage exceptions
 - instruments: Financial instrument validation exceptions
 - cli: Command-line interface exceptions
-- legacy: Backward compatibility for deprecated exceptions
 """
 
 # Import all exceptions for backward compatibility
@@ -98,13 +97,7 @@ from .plugins import (
     PluginLoadError,
 )
 
-# Legacy compatibility
-from .legacy import (
-    DownloadError,
-    LowDataError,
-    NotFoundError,
-    AllowanceLimitExceeded,
-)
+# Legacy compatibility removed - no customers to break
 
 __all__ = [
     # Base
@@ -150,9 +143,4 @@ __all__ = [
     'PluginConfigurationError',
     'PluginLoadError',
     
-    # Legacy compatibility
-    'DownloadError',
-    'LowDataError',
-    'NotFoundError',
-    'AllowanceLimitExceeded',
 ]
