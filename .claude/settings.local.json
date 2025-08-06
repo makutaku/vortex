@@ -56,7 +56,8 @@
       "Bash(docker exec:*)",
       "Bash(docker kill:*)",
       "Bash(git check-ignore:*)",
-      "Bash(sudo rm:*)"
+      "Bash(sudo rm:*)",
+      "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/cli/test_core.py -v)"
     ],
     "deny": []
   }
