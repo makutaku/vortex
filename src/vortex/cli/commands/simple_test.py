@@ -3,7 +3,7 @@
 import click
 
 @click.command()
-def test():
+def simple_test():
     """Test command to verify CLI structure."""
     print("✓ CLI is working correctly!")
     print("Install full dependencies to use all features:")

@@ -339,12 +339,12 @@ class TestRecoveryIntegration:
         try:
             from vortex.core.correlation import CorrelationIdManager, with_correlation
             
-            correlation_manager = CorrelationIdManager()
-            correlation_manager.set_id("test-recovery-correlation-123")
+            # Set correlation ID using the current API
+            CorrelationIdManager.set_correlation_id("test-recovery-correlation-123")
             
             @with_error_recovery()
             def operation_with_correlation():
-                current_id = correlation_manager.get_id()
+                current_id = CorrelationIdManager.get_current_id()
                 return f"correlation: {current_id}"
             
             result = operation_with_correlation()
