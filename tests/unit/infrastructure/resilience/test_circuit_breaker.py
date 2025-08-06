@@ -12,7 +12,7 @@ from vortex.infrastructure.resilience.circuit_breaker import (
 )
 from vortex.exceptions import (
     VortexError, DataProviderError, AuthenticationError, 
-    RateLimitError, ConnectionError, DataNotFoundError,
+    RateLimitError, VortexConnectionError, DataNotFoundError,
     AllowanceLimitExceededError
 )
 
@@ -92,7 +92,7 @@ class TestCallResult:
     def test_call_result_failure(self):
         """Test CallResult for failed calls."""
         timestamp = datetime.now()
-        exception = ConnectionError("Failed")
+        exception = VortexConnectionError("Failed")
         result = CallResult(
             timestamp=timestamp,
             success=False,
@@ -180,9 +180,9 @@ class TestCircuitBreaker:
     def test_execute_failure_in_closed_state(self, circuit_breaker):
         """Test failed execution in CLOSED state."""
         def failing_function():
-            raise ConnectionError("Network error")
+            raise VortexConnectionError("Network error")
         
-        with pytest.raises(ConnectionError):
+        with pytest.raises(VortexConnectionError):
             circuit_breaker.call(failing_function)
         
         # Circuit should still be closed after single failure
@@ -191,11 +191,11 @@ class TestCircuitBreaker:
     def test_state_transitions_with_failures(self, circuit_breaker):
         """Test circuit breaker state transitions with multiple failures."""
         def failing_function():
-            raise ConnectionError("Network error")
+            raise VortexConnectionError("Network error")
         
         # Generate failures up to threshold
         for i in range(circuit_breaker.config.failure_threshold):
-            with pytest.raises(ConnectionError):
+            with pytest.raises(VortexConnectionError):
                 circuit_breaker.call(failing_function)
         
         # Circuit should be open after threshold failures
@@ -205,10 +205,10 @@ class TestCircuitBreaker:
         """Test execution in OPEN state fails fast."""
         # Force circuit to OPEN state by exceeding failure threshold
         def failing_function():
-            raise ConnectionError("Network error")
+            raise VortexConnectionError("Network error")
         
         for _ in range(circuit_breaker.config.failure_threshold):
-            with pytest.raises(ConnectionError):
+            with pytest.raises(VortexConnectionError):
                 circuit_breaker.call(failing_function)
         
         # Circuit should be open
@@ -237,14 +237,14 @@ class TestCircuitBreaker:
             return "success"
         
         def failing_function():
-            raise ConnectionError("Network error")
+            raise VortexConnectionError("Network error")
         
         # Execute some successful calls
         circuit_breaker.call(successful_function)
         circuit_breaker.call(successful_function)
         
         # Execute a failing call
-        with pytest.raises(ConnectionError):
+        with pytest.raises(VortexConnectionError):
             circuit_breaker.call(failing_function)
         
         # Get stats
@@ -258,10 +258,10 @@ class TestCircuitBreaker:
         """Test resetting circuit breaker."""
         # Force to OPEN state
         def failing_function():
-            raise ConnectionError("Network error")
+            raise VortexConnectionError("Network error")
         
         for _ in range(circuit_breaker.config.failure_threshold):
-            with pytest.raises(ConnectionError):
+            with pytest.raises(VortexConnectionError):
                 circuit_breaker.call(failing_function)
         
         assert circuit_breaker.state == CircuitState.OPEN
@@ -275,10 +275,10 @@ class TestCircuitBreaker:
         """Test recovery through HALF_OPEN state."""
         # Force to OPEN state
         def failing_function():
-            raise ConnectionError("Network error")
+            raise VortexConnectionError("Network error")
         
         for _ in range(circuit_breaker.config.failure_threshold):
-            with pytest.raises(ConnectionError):
+            with pytest.raises(VortexConnectionError):
                 circuit_breaker.call(failing_function)
         
         assert circuit_breaker.state == CircuitState.OPEN
@@ -416,11 +416,11 @@ class TestModuleFunctions:
         
         # Force them to OPEN state
         def failing_function():
-            raise ConnectionError("Error")
+            raise VortexConnectionError("Error")
         
         for breaker in [breaker1, breaker2]:
             for _ in range(breaker.config.failure_threshold):
-                with pytest.raises(ConnectionError):
+                with pytest.raises(VortexConnectionError):
                     breaker.call(failing_function)
             assert breaker.state == CircuitState.OPEN
         
@@ -447,12 +447,12 @@ class TestIntegration:
             nonlocal call_count
             call_count += 1
             if call_count <= 2:
-                raise ConnectionError(f"Failure {call_count}")
+                raise VortexConnectionError(f"Failure {call_count}")
             return f"Success on call {call_count}"
         
         # First two calls should fail and open circuit
         for _ in range(2):
-            with pytest.raises(ConnectionError):
+            with pytest.raises(VortexConnectionError):
                 breaker.call(unstable_service)
         
         # Circuit should be open
@@ -475,7 +475,7 @@ class TestIntegration:
         
         # Test various exceptions
         exceptions = [
-            ConnectionError("Network"),
+            VortexConnectionError("Network"),
             RateLimitError("test", wait_time=30),
             DataProviderError("test", "Provider error")
         ]
@@ -494,10 +494,10 @@ class TestIntegration:
         
         # Fail one circuit breaker
         def failing_function():
-            raise ConnectionError("Error")
+            raise VortexConnectionError("Error")
         
         for _ in range(breaker1.config.failure_threshold):
-            with pytest.raises(ConnectionError):
+            with pytest.raises(VortexConnectionError):
                 breaker1.call(failing_function)
         
         # breaker1 should be open, breaker2 should still be closed
@@ -518,7 +518,7 @@ class TestIntegration:
         # Test with various error conditions
         def different_errors(error_type):
             if error_type == "connection":
-                raise ConnectionError("Network error")
+                raise VortexConnectionError("Network error")
             elif error_type == "rate_limit": 
                 raise RateLimitError("test", wait_time=60)
             elif error_type == "data_provider":
@@ -528,7 +528,7 @@ class TestIntegration:
         
         # Test monitored exceptions
         for error_type in ["connection", "rate_limit"]:
-            with pytest.raises((ConnectionError, RateLimitError)):
+            with pytest.raises((VortexConnectionError, RateLimitError)):
                 breaker.call(different_errors, error_type)
         
         # Circuit should be open after monitored failures

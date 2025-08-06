@@ -16,7 +16,7 @@ from vortex.infrastructure.providers.resilient_provider import ResilientDataProv
 from vortex.models.instrument import Instrument
 from vortex.models.period import Period, FrequencyAttributes
 from vortex.exceptions import (
-    DataProviderError, AuthenticationError, ConnectionError,
+    DataProviderError, AuthenticationError, VortexConnectionError,
     RateLimitError, DataNotFoundError
 )
 from vortex.infrastructure.resilience.circuit_breaker import CircuitState, CircuitOpenException
@@ -143,7 +143,7 @@ class TestProviderDataFetching:
         
         # Mock first call fails, second succeeds (retry mechanism has max_attempts=4)
         with patch.object(provider, '_perform_data_fetch', side_effect=[
-            ConnectionError("data_provider", "Temporary network error"),
+            VortexConnectionError("data_provider", "Temporary network error"),
             expected_data
         ] + [expected_data] * 3) as mock_fetch:  # Add extra responses for potential additional calls
             with patch('time.sleep'):  # Mock sleep to speed up test
@@ -163,13 +163,13 @@ class TestProviderDataFetching:
     def test_data_fetch_max_retries_exceeded(self, provider, test_instrument):
         """Test data fetching when max retries are exceeded."""
         # Mock persistent failure
-        with patch.object(provider, '_perform_data_fetch', side_effect=ConnectionError("data_provider", "Persistent error")):
+        with patch.object(provider, '_perform_data_fetch', side_effect=VortexConnectionError("data_provider", "Persistent error")):
             with patch('time.sleep'):  # Mock sleep to speed up test
                 with patch_correlation_manager:
                     with patch_recovery_logger:
                         with patch('vortex.infrastructure.providers.resilient_provider.logger'):
                             # Circuit breaker will open after failure_threshold (3) failures
-                            with pytest.raises((ConnectionError, CircuitOpenException)):
+                            with pytest.raises((VortexConnectionError, CircuitOpenException)):
                                 provider._fetch_historical_data(
                                     instrument=test_instrument,
                                     frequency_attributes=FrequencyAttributes(frequency=Period.Daily),
@@ -364,14 +364,14 @@ class TestProviderCircuitBreakerIntegration:
         assert provider.circuit_breaker.state == CircuitState.CLOSED
         
         # Mock failures to trigger circuit opening
-        with patch.object(provider, '_perform_login', side_effect=ConnectionError("cb_test_provider", "Network error")):
+        with patch.object(provider, '_perform_login', side_effect=VortexConnectionError("cb_test_provider", "Network error")):
             with patch_correlation_manager:
                 with patch('vortex.infrastructure.providers.resilient_provider.logger'):
                     # Cause multiple failures to open circuit
                     for _ in range(3):
                         try:
                             provider.login()
-                        except (ConnectionError, CircuitOpenException):
+                        except (VortexConnectionError, CircuitOpenException):
                             pass  # Expected failures
                     
                     # Circuit should now be open or transitioning
@@ -416,7 +416,7 @@ class TestProviderIntegrationScenarios:
             nonlocal call_count
             call_count += 1
             if call_count <= 2:
-                raise ConnectionError("integration_provider", f"Temporary failure {call_count}")
+                raise VortexConnectionError("integration_provider", f"Temporary failure {call_count}")
             return expected_data
         
         with patch.object(provider, '_perform_data_fetch', side_effect=flaky_fetch):

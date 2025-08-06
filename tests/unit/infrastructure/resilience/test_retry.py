@@ -12,7 +12,7 @@ from vortex.infrastructure.resilience.retry import (
 )
 from vortex.exceptions import (
     VortexError, DataProviderError, AuthenticationError, 
-    RateLimitError, ConnectionError, DataNotFoundError,
+    RateLimitError, VortexConnectionError, DataNotFoundError,
     AllowanceLimitExceededError
 )
 
@@ -68,7 +68,7 @@ class TestRetryPolicy:
         """Test RetryPolicy retryable exception configuration."""
         policy = RetryPolicy()
         
-        assert ConnectionError in policy.retryable_exceptions
+        assert VortexConnectionError in policy.retryable_exceptions
         assert RateLimitError in policy.retryable_exceptions
         assert DataProviderError in policy.retryable_exceptions
 
@@ -85,7 +85,7 @@ class TestRetryAttempt:
     def test_retry_attempt_creation(self):
         """Test RetryAttempt creation and attributes."""
         timestamp = datetime.now()
-        exception = ConnectionError("Network error")
+        exception = VortexConnectionError("Network error")
         
         attempt = RetryAttempt(
             attempt_number=2,
@@ -218,7 +218,7 @@ class TestRetryManager:
     def test_should_retry_retryable_exceptions(self, retry_manager):
         """Test _should_retry with retryable exceptions."""
         retryable_exceptions = [
-            ConnectionError("Network error"),
+            VortexConnectionError("Network error"),
             RateLimitError("test", wait_time=60),
             DataProviderError("test", "Temporary error")
         ]
@@ -242,7 +242,7 @@ class TestRetryManager:
 
     def test_should_retry_max_attempts_exceeded(self, retry_manager):
         """Test _should_retry when max attempts exceeded."""
-        exception = ConnectionError("Network error")
+        exception = VortexConnectionError("Network error")
         
         assert retry_manager._should_retry(exception, attempt=3) is False  # At max
         assert retry_manager._should_retry(exception, attempt=4) is False  # Over max
@@ -289,7 +289,7 @@ class TestRetryManager:
             nonlocal call_count
             call_count += 1
             if call_count < 2:
-                raise ConnectionError("Temporary error")
+                raise VortexConnectionError("Temporary error")
             return "success"
         
         result = retry_manager.execute_with_retry(flaky_function)
@@ -301,9 +301,9 @@ class TestRetryManager:
     def test_execute_with_retry_failure_max_attempts(self, mock_sleep, retry_manager):
         """Test execute_with_retry fails after max attempts."""
         def always_fails():
-            raise ConnectionError("Persistent error")
+            raise VortexConnectionError("Persistent error")
         
-        with pytest.raises(ConnectionError) as exc_info:
+        with pytest.raises(VortexConnectionError) as exc_info:
             retry_manager.execute_with_retry(always_fails)
         
         assert "Persistent error" in str(exc_info.value)
@@ -350,7 +350,7 @@ class TestRetryManager:
             nonlocal call_count
             call_count += 1
             if call_count < 2:
-                raise ConnectionError("Error")
+                raise VortexConnectionError("Error")
             return "success"
         
         result = flaky_decorated()
@@ -458,7 +458,7 @@ class TestRetryDecorators:
             nonlocal call_count
             call_count += 1
             if call_count < 2:
-                raise ConnectionError("Error")
+                raise VortexConnectionError("Error")
             return "eventual_success"
         
         result = flaky_function()
@@ -482,7 +482,7 @@ class TestIntegration:
             nonlocal call_count
             call_count += 1
             if call_count < 3:
-                raise ConnectionError(f"Attempt {call_count} failed")
+                raise VortexConnectionError(f"Attempt {call_count} failed")
             return f"Success after {call_count} attempts"
         
         result = manager.execute_with_retry(unstable_operation)
@@ -498,9 +498,9 @@ class TestIntegration:
         @patch('time.sleep')
         def test_retryable(mock_sleep):
             def connection_error():
-                raise ConnectionError("Network issue")
+                raise VortexConnectionError("Network issue")
             
-            with pytest.raises(ConnectionError):
+            with pytest.raises(VortexConnectionError):
                 manager.execute_with_retry(connection_error)
             
             assert mock_sleep.call_count == 2  # Should retry

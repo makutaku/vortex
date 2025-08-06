@@ -19,7 +19,7 @@ from vortex.infrastructure.resilience.recovery import (
 )
 from vortex.exceptions import (
     VortexError, DataProviderError, AuthenticationError, 
-    RateLimitError, ConnectionError, DataNotFoundError,
+    RateLimitError, VortexConnectionError, DataNotFoundError,
     AllowanceLimitExceededError
 )
 
@@ -102,7 +102,7 @@ class TestRecoveryResult:
 
     def test_recovery_result_failure(self):
         """Test failed recovery result."""
-        exception = ConnectionError("Network timeout")
+        exception = VortexConnectionError("Network timeout")
         result = RecoveryResult(
             success=False,
             strategy_used=RecoveryStrategy.EXPONENTIAL_BACKOFF,
@@ -168,7 +168,7 @@ class TestDataProviderRecoveryPolicy:
 
     def test_analyze_connection_error(self, policy):
         """Test analysis of connection errors."""
-        exception = ConnectionError("Network timeout")
+        exception = VortexConnectionError("Network timeout")
         context = {"provider": "barchart", "attempt": 1}
         
         actions = policy.analyze_error(exception, context)
@@ -206,9 +206,9 @@ class TestDataProviderRecoveryPolicy:
     def test_should_attempt_recovery(self, policy):
         """Test recovery attempt decision logic."""
         # Should retry connection errors
-        assert policy.should_attempt_recovery(ConnectionError("timeout"), attempt_count=1)
-        assert policy.should_attempt_recovery(ConnectionError("timeout"), attempt_count=2)
-        assert not policy.should_attempt_recovery(ConnectionError("timeout"), attempt_count=4)
+        assert policy.should_attempt_recovery(VortexConnectionError("timeout"), attempt_count=1)
+        assert policy.should_attempt_recovery(VortexConnectionError("timeout"), attempt_count=2)
+        assert not policy.should_attempt_recovery(VortexConnectionError("timeout"), attempt_count=4)
         
         # Should not retry authentication errors
         assert not policy.should_attempt_recovery(AuthenticationError("invalid"), attempt_count=1)
@@ -279,7 +279,7 @@ class TestWithErrorRecoveryDecorator:
         
         @with_error_recovery(recovery_policy=custom_policy)
         def failing_function():
-            raise ConnectionError("Network error")
+            raise VortexConnectionError("Network error")
         
         # Mock the correlation manager logger to handle structured logging kwargs
         with patch('vortex.core.correlation.manager.logger') as mock_corr_logger:
@@ -287,7 +287,7 @@ class TestWithErrorRecoveryDecorator:
             mock_corr_logger.error = Mock()
             
             # Should raise the final exception after recovery attempts
-            with pytest.raises(ConnectionError):
+            with pytest.raises(VortexConnectionError):
                 failing_function()
     
     def test_decorator_with_context(self):
