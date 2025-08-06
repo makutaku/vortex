@@ -146,9 +146,19 @@ def validate_single_file(path: Path, provider: Optional[str], fix: bool) -> dict
         
         # Format-specific validation
         if path.suffix.lower() == '.csv':
-            result.update(validate_csv_file(path, provider))
+            csv_result = validate_csv_file(path, provider)
+            result["errors"].extend(csv_result.get("errors", []))
+            result["warnings"].extend(csv_result.get("warnings", []))
+            result["metrics"].update(csv_result.get("metrics", {}))
+            if csv_result.get("errors"):
+                result["valid"] = False
         elif path.suffix.lower() == '.parquet':
-            result.update(validate_parquet_file(path, provider))
+            parquet_result = validate_parquet_file(path, provider)
+            result["errors"].extend(parquet_result.get("errors", []))
+            result["warnings"].extend(parquet_result.get("warnings", []))
+            result["metrics"].update(parquet_result.get("metrics", {}))
+            if parquet_result.get("errors"):
+                result["valid"] = False
         
         # Provider-specific validation
         if provider:
@@ -177,16 +187,64 @@ def validate_csv_file(path: Path, provider: Optional[str]) -> dict:
     result = {"errors": [], "warnings": [], "metrics": {}}
     
     try:
-        # TODO: Implement CSV validation
-        # - Check for required columns
-        # - Validate data types
-        # - Check for missing values
-        # - Validate date formats
-        # - Check OHLC relationships
+        import pandas as pd
         
-        result["metrics"]["rows"] = 1000  # Placeholder
-        result["metrics"]["columns"] = 8   # Placeholder
+        # Read CSV file
+        df = pd.read_csv(path)
+        result["metrics"]["rows"] = len(df)
+        result["metrics"]["columns"] = len(df.columns)
         
+        # Basic validation checks
+        if df.empty:
+            result["errors"].append("CSV file contains no data")
+            return result
+        
+        # Check for common financial data columns
+        expected_columns = ['date', 'open', 'high', 'low', 'close']
+        df_columns_lower = [col.lower() for col in df.columns]
+        
+        missing_columns = []
+        for col in expected_columns:
+            if col not in df_columns_lower and col.capitalize() not in df.columns:
+                missing_columns.append(col.upper())
+        
+        if missing_columns:
+            result["warnings"].append(f"Missing common columns: {', '.join(missing_columns)}")
+        
+        # Check for empty rows
+        empty_rows = df.isnull().all(axis=1).sum()
+        if empty_rows > 0:
+            result["warnings"].append(f"Found {empty_rows} completely empty rows")
+        
+        # Validate OHLC relationships if columns exist
+        if all(col.lower() in df_columns_lower or col.capitalize() in df.columns for col in ['open', 'high', 'low', 'close']):
+            # Find actual column names (case insensitive)
+            ohlc_cols = {}
+            for target in ['open', 'high', 'low', 'close']:
+                for actual_col in df.columns:
+                    if actual_col.lower() == target:
+                        ohlc_cols[target] = actual_col
+                        break
+            
+            if len(ohlc_cols) == 4:
+                # Validate OHLC relationships
+                invalid_ohlc = 0
+                for idx, row in df.iterrows():
+                    try:
+                        o, h, l, c = float(row[ohlc_cols['open']]), float(row[ohlc_cols['high']]), float(row[ohlc_cols['low']]), float(row[ohlc_cols['close']])
+                        if not (l <= o <= h and l <= c <= h):
+                            invalid_ohlc += 1
+                    except (ValueError, TypeError):
+                        # Skip non-numeric values
+                        continue
+                
+                if invalid_ohlc > 0:
+                    result["errors"].append(f"Found {invalid_ohlc} rows with invalid OHLC relationships")
+        
+    except FileNotFoundError:
+        result["errors"].append("File not found")
+    except pd.errors.EmptyDataError:
+        result["errors"].append("CSV file is empty or invalid")
     except Exception as e:
         result["errors"].append(f"CSV validation error: {e}")
     
@@ -197,10 +255,39 @@ def validate_parquet_file(path: Path, provider: Optional[str]) -> dict:
     result = {"errors": [], "warnings": [], "metrics": {}}
     
     try:
-        # TODO: Implement Parquet validation
-        result["metrics"]["rows"] = 1000  # Placeholder
-        result["metrics"]["columns"] = 8   # Placeholder
+        import pandas as pd
         
+        # Read Parquet file
+        df = pd.read_parquet(path)
+        result["metrics"]["rows"] = len(df)
+        result["metrics"]["columns"] = len(df.columns)
+        
+        # Basic validation checks
+        if df.empty:
+            result["errors"].append("Parquet file contains no data")
+            return result
+        
+        # Check for common financial data columns
+        expected_columns = ['date', 'open', 'high', 'low', 'close']
+        df_columns_lower = [col.lower() for col in df.columns]
+        
+        missing_columns = []
+        for col in expected_columns:
+            if col not in df_columns_lower and col.capitalize() not in df.columns:
+                missing_columns.append(col.upper())
+        
+        if missing_columns:
+            result["warnings"].append(f"Missing common columns: {', '.join(missing_columns)}")
+        
+        # Check data types
+        numeric_columns = ['open', 'high', 'low', 'close', 'volume']
+        for col in df.columns:
+            if col.lower() in numeric_columns:
+                if not pd.api.types.is_numeric_dtype(df[col]):
+                    result["warnings"].append(f"Column {col} should be numeric")
+        
+    except FileNotFoundError:
+        result["errors"].append("File not found")
     except Exception as e:
         result["errors"].append(f"Parquet validation error: {e}")
     
@@ -210,16 +297,51 @@ def validate_provider_format(path: Path, provider: str) -> dict:
     """Validate provider-specific format requirements."""
     result = {"errors": [], "warnings": []}
     
-    # TODO: Implement provider-specific validation
-    if provider == "barchart":
-        # Check for Barchart-specific column names and formats
-        pass
-    elif provider == "yahoo":
-        # Check for Yahoo Finance format
-        pass
-    elif provider == "ibkr":
-        # Check for IBKR format
-        pass
+    try:
+        import pandas as pd
+        
+        if path.suffix.lower() == '.csv':
+            df = pd.read_csv(path)
+        elif path.suffix.lower() == '.parquet':
+            df = pd.read_parquet(path)
+        else:
+            result["errors"].append(f"Unsupported file format for provider validation: {path.suffix}")
+            return result
+        
+        if provider == "barchart":
+            # Barchart expected columns and formats
+            expected_cols = ['date', 'time', 'open', 'high', 'low', 'close', 'volume', 'openinterest']
+            df_columns_lower = [col.lower() for col in df.columns]
+            
+            missing_cols = [col for col in expected_cols if col not in df_columns_lower]
+            if missing_cols:
+                result["warnings"].append(f"Barchart format missing columns: {', '.join(missing_cols)}")
+                
+        elif provider == "yahoo":
+            # Yahoo Finance expected columns
+            expected_cols = ['date', 'open', 'high', 'low', 'close', 'adj close', 'volume']
+            df_columns_lower = [col.lower() for col in df.columns]
+            
+            # Check for Yahoo's specific "Adj Close" column
+            if 'adj close' not in df_columns_lower and 'adj_close' not in df_columns_lower:
+                result["warnings"].append("Yahoo format typically includes 'Adj Close' column")
+                
+        elif provider == "ibkr":
+            # IBKR expected columns
+            expected_cols = ['date', 'open', 'high', 'low', 'close', 'volume', 'wap', 'count']
+            df_columns_lower = [col.lower() for col in df.columns]
+            
+            # Check for IBKR specific columns
+            if 'wap' not in df_columns_lower:  # Weighted Average Price
+                result["warnings"].append("IBKR format typically includes 'WAP' (Weighted Average Price) column")
+            if 'count' not in df_columns_lower:  # Trade count
+                result["warnings"].append("IBKR format typically includes 'Count' (trade count) column")
+        
+        else:
+            result["warnings"].append(f"Unknown provider '{provider}' - skipping provider-specific validation")
+            
+    except Exception as e:
+        result["errors"].append(f"Provider format validation error: {e}")
     
     return result
 
@@ -227,11 +349,26 @@ def attempt_fixes(path: Path, errors: List[str]) -> bool:
     """Attempt to fix common validation issues."""
     fixed = False
     
-    # TODO: Implement common fixes
-    # - Fix column names
-    # - Convert data types
-    # - Fill missing values
-    # - Correct date formats
+    try:
+        # Simple fix attempts for common issues
+        for error in errors:
+            if "File is empty" in error:
+                # Cannot fix empty files
+                continue
+            elif "invalid OHLC relationships" in error:
+                # Could attempt to fix OHLC data, but complex
+                logger.info(f"Cannot auto-fix OHLC relationships in {path}")
+                continue
+            else:
+                # For now, we don't implement automatic fixes
+                # This is a placeholder for future enhancement
+                logger.info(f"No automatic fix available for: {error}")
+        
+        # Return False as no actual fixes are implemented yet
+        # In a real implementation, this would attempt actual file modifications
+        
+    except Exception as e:
+        logger.exception(f"Error attempting fixes for {path}: {e}")
     
     return fixed
 
