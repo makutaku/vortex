@@ -13,6 +13,7 @@
 #   --skip-build        Skip Docker image build (use existing image)
 #   --keep-containers   Keep containers after test completion
 #   --keep-data         Keep test data directories after completion
+#   --comprehensive     Include comprehensive/long-running tests (like cron execution)
 #
 # Examples:
 #   ./scripts/test-docker-build.sh              # Run all tests
@@ -51,6 +52,7 @@ QUIET=false
 SKIP_BUILD=false
 KEEP_CONTAINERS=false
 KEEP_DATA=false
+COMPREHENSIVE=false
 SPECIFIC_TESTS=()
 
 # Test registry - maps test numbers to function names and descriptions
@@ -68,6 +70,7 @@ declare -A TEST_REGISTRY=(
     [11]="test_entrypoint_no_startup:Entrypoint Without Startup Download"
     [12]="test_yahoo_download:Yahoo Download with Market Data Validation"
     [13]="test_cron_job_setup:Cron Job Setup and Validation"
+    [14]="test_cron_job_execution:Comprehensive Cron Job Execution Test"
 )
 
 # ============================================================================
@@ -123,6 +126,7 @@ OPTIONS:
     --skip-build        Skip Docker image build (use existing image)
     --keep-containers   Keep containers after test completion for debugging
     --keep-data         Keep test data directories after completion
+    --comprehensive     Include comprehensive/long-running tests (e.g., Test 14)
 
 EXAMPLES:
     # Run all tests
@@ -142,6 +146,12 @@ EXAMPLES:
 
     # Debug failing test (keep containers and data)
     ./scripts/test-docker-build.sh --keep-containers --keep-data -v 12
+
+    # Run comprehensive tests including long-running cron execution
+    ./scripts/test-docker-build.sh --comprehensive
+
+    # Run only the comprehensive cron execution test
+    ./scripts/test-docker-build.sh --comprehensive 14
 EOF
 }
 
@@ -854,6 +864,152 @@ test_cron_job_setup() {
     fi
 }
 
+test_cron_job_execution() {
+    log_test "Test 14: Comprehensive Cron Job Execution Test"
+    log_info "⚠️  This test takes 4+ minutes to complete - it waits for actual cron execution"
+    
+    local test_data_dir test_config_dir
+    local container_id output_file
+    local cron_schedule="*/2 * * * *"  # Every 2 minutes
+    local wait_timeout=300  # 5 minutes maximum wait
+    local check_interval=30  # Check every 30 seconds
+    
+    test_data_dir=$(create_test_directory "test-data-cron-exec")
+    test_config_dir=$(create_test_directory "test-config-cron-exec")
+    output_file="$test_data_dir/container.log"
+    
+    log_info "Starting container with cron schedule: $cron_schedule"
+    
+    # Start container with cron job enabled
+    container_id=$(run_container "test-cron-execution" \
+        --user "1000:1000" \
+        -v "$PWD/$test_data_dir:/data" \
+        -v "$PWD/$test_config_dir:/config" \
+        -e VORTEX_DEFAULT_PROVIDER=yahoo \
+        -e VORTEX_RUN_ON_STARTUP=false \
+        -e VORTEX_SCHEDULE="$cron_schedule" \
+        -e VORTEX_DOWNLOAD_ARGS="--yes --symbol AAPL --output-dir /data" \
+        "$TEST_IMAGE")
+    
+    log_info "Container started (ID: ${container_id:0:12}...), waiting for cron setup..."
+    
+    # Wait for initial setup (30 seconds)
+    sleep 30
+    
+    # Check if cron setup was successful
+    docker logs "$container_id" > "$output_file" 2>&1
+    if ! grep -q "Starting cron daemon" "$output_file"; then
+        docker kill "$container_id" >/dev/null 2>&1 || true
+        log_error "Cron daemon failed to start"
+        return 1
+    fi
+    
+    log_info "✓ Cron daemon started, waiting for first execution..."
+    
+    # Wait for cron job to actually execute and download data
+    local elapsed_time=0
+    local cron_executed=false
+    local data_downloaded=false
+    
+    while [[ $elapsed_time -lt $wait_timeout ]]; do
+        # Update logs
+        docker logs "$container_id" > "$output_file" 2>&1
+        
+        # Check if cron job has executed
+        if ! $cron_executed && grep -q "Starting scheduled download" "$output_file"; then
+            log_info "✓ Cron job executed! (after ${elapsed_time}s)"
+            cron_executed=true
+        fi
+        
+        # Check if data was actually downloaded
+        if ! $data_downloaded; then
+            # Look for successful download indicators
+            if grep -q "Download completed successfully" "$output_file"; then
+                log_info "✓ Data download completed successfully!"
+                data_downloaded=true
+                break
+            elif grep -q "Fetched remote data" "$output_file"; then
+                log_info "✓ Data fetching in progress..."
+            fi
+        fi
+        
+        # Check for CSV files in the data directory
+        if find "$test_data_dir" -name "*.csv" -type f | grep -q .; then
+            log_info "✓ CSV data files found in output directory!"
+            data_downloaded=true
+            break
+        fi
+        
+        log_verbose "Waiting for cron execution... (${elapsed_time}/${wait_timeout}s)"
+        sleep $check_interval
+        elapsed_time=$((elapsed_time + check_interval))
+    done
+    
+    # Kill container
+    docker kill "$container_id" >/dev/null 2>&1 || true
+    
+    # Final validation
+    local success_indicators=0
+    local total_indicators=4
+    
+    # 1. Check if cron executed
+    if $cron_executed; then
+        log_info "✓ Cron job executed successfully"
+        ((success_indicators++))
+    else
+        log_warning "✗ No cron execution detected in logs"
+    fi
+    
+    # 2. Check if download was attempted
+    if grep -q "vortex download" "$output_file"; then
+        log_info "✓ Download command was executed"
+        ((success_indicators++))
+    else
+        log_warning "✗ Download command not found in logs"
+    fi
+    
+    # 3. Check if data was downloaded
+    if $data_downloaded; then
+        log_info "✓ Data download completed"
+        ((success_indicators++))
+    else
+        log_warning "✗ Data download not confirmed"
+    fi
+    
+    # 4. Check for actual CSV files
+    local csv_count=$(find "$test_data_dir" -name "*.csv" -type f | wc -l)
+    if [[ $csv_count -gt 0 ]]; then
+        log_info "✓ Found $csv_count CSV file(s) in output directory"
+        ((success_indicators++))
+        
+        # Show file details
+        log_info "Downloaded files:"
+        find "$test_data_dir" -name "*.csv" -exec ls -lh {} \; | while read line; do
+            log_info "  $line"
+        done
+    else
+        log_warning "✗ No CSV files found in output directory"
+    fi
+    
+    # Log final status
+    log_info "Comprehensive test results: $success_indicators/$total_indicators indicators passed"
+    
+    if [[ $elapsed_time -ge $wait_timeout ]]; then
+        log_warning "Test timed out after ${wait_timeout}s"
+    fi
+    
+    # Test passes if at least 3 out of 4 indicators are successful
+    if [[ $success_indicators -ge 3 ]]; then
+        log_success "Comprehensive cron execution test successful ($success_indicators/$total_indicators indicators passed)"
+        log_info "Test completed in ${elapsed_time}s"
+        return 0
+    else
+        log_error "Comprehensive cron execution test failed ($success_indicators/$total_indicators indicators passed)"
+        log_info "Check logs at: $output_file"
+        return 1
+    fi
+}
+
 # ============================================================================
 # MAIN EXECUTION
 # ============================================================================
@@ -881,6 +1037,12 @@ run_specific_tests() {
     # Run specified tests
     for test_num in "${tests_to_run[@]}"; do
         if [[ -n "${TEST_REGISTRY[$test_num]:-}" ]]; then
+            # Skip comprehensive tests unless flag is set
+            if [[ "$test_num" == "14" ]] && [[ "$COMPREHENSIVE" != true ]]; then
+                log_info "Skipping comprehensive test $test_num (use --comprehensive to include)"
+                continue
+            fi
+            
             IFS=':' read -r func_name description <<< "${TEST_REGISTRY[$test_num]}"
             log_verbose "Executing test $test_num: $func_name"
             
@@ -959,6 +1121,10 @@ parse_arguments() {
                 KEEP_DATA=true
                 shift
                 ;;
+            --comprehensive)
+                COMPREHENSIVE=true
+                shift
+                ;;
             -*)
                 echo "Error: Unknown option $1" >&2
                 echo "Run with --help for usage information" >&2
@@ -1004,6 +1170,7 @@ main() {
         log_verbose "  Skip Build: $SKIP_BUILD"
         log_verbose "  Keep Containers: $KEEP_CONTAINERS"
         log_verbose "  Keep Data: $KEEP_DATA"
+        log_verbose "  Comprehensive: $COMPREHENSIVE"
         log_verbose "  Test Image: $TEST_IMAGE"
         if [[ ${#SPECIFIC_TESTS[@]} -gt 0 ]]; then
             log_verbose "  Specific Tests: ${SPECIFIC_TESTS[*]}"
