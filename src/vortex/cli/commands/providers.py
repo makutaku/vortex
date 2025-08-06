@@ -55,7 +55,7 @@ def providers(
         # Configure provider
         vortex config --provider barchart --set-credentials
     """
-    config_manager = ConfigManager(ctx.obj.get('config_file'))
+    config_manager = ConfigManager(ctx.obj.get('config_file') if ctx.obj else None)
     
     if list_providers or not any([test, info]):
         show_providers_list(config_manager)

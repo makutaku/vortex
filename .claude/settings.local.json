@@ -47,7 +47,8 @@
       "Bash(docker system prune:*)",
       "Bash(pytest:*)",
       "Bash(pip install:*)",
-      "Bash(uv:*)"
+      "Bash(uv:*)",
+      "Bash(true)"
     ],
     "deny": []
   }
