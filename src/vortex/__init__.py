@@ -15,32 +15,24 @@ Architecture Overview:
 
 __version__ = "0.1.3"
 
-# Public API exports for backward compatibility
-# These imports are optional to allow CLI usage without full dependencies
-def _import_with_fallback(module_path, name, fallback=None):
-    """Import with fallback to avoid dependency issues."""
-    try:
-        module = __import__(module_path, fromlist=[name])
-        return getattr(module, name)
-    except ImportError:
-        return fallback
-
-# Core imports with fallbacks
-Instrument = _import_with_fallback('vortex.models', 'Instrument')
-Future = _import_with_fallback('vortex.models', 'Future')
-Stock = _import_with_fallback('vortex.models', 'Stock')
-Forex = _import_with_fallback('vortex.models', 'Forex')
-PriceSeries = _import_with_fallback('vortex.models', 'PriceSeries')
-
-UpdatingDownloader = _import_with_fallback('vortex.services', 'UpdatingDownloader')
-BackfillDownloader = _import_with_fallback('vortex.services', 'BackfillDownloader')
-DownloadJob = _import_with_fallback('vortex.services', 'DownloadJob')
-
-DataProvider = _import_with_fallback('vortex.providers', 'DataProvider')
-DataStorage = _import_with_fallback('vortex.storage', 'DataStorage')
-
-VortexError = _import_with_fallback('vortex.shared.exceptions', 'VortexError')
-VortexConfig = _import_with_fallback('vortex.config', 'VortexConfig')
+# Public API exports
+try:
+    # Core domain models
+    from .models import Instrument, Future, Stock, Forex, PriceSeries
+    
+    # Services 
+    from .services import UpdatingDownloader, BackfillDownloader, DownloadJob
+    
+    # Infrastructure interfaces
+    from .infrastructure.providers.base import DataProvider
+    from .infrastructure.storage.data_storage import DataStorage
+    
+    # Configuration and exceptions
+    from .exceptions import VortexError
+    from .core.config import VortexConfig
+except ImportError:
+    # Gracefully handle missing dependencies for CLI-only usage
+    pass
 
 __all__ = [
     "Instrument",

@@ -122,7 +122,6 @@ class GeneralConfig(BaseModel):
         Path("./data"), 
         description="Directory for downloaded data files"
     )
-    log_level: LogLevel = Field(LogLevel.INFO, description="Logging level (deprecated, use logging.level)")
     logging: LoggingConfig = Field(default_factory=LoggingConfig, description="Logging configuration")
     backup_enabled: bool = Field(False, description="Enable Parquet backup files")
     force_backup: bool = Field(False, description="Force backup even if files exist")
@@ -138,19 +137,6 @@ class GeneralConfig(BaseModel):
         description="Default data provider (yahoo is free and requires no setup)"
     )
     
-    @model_validator(mode='after')
-    def sync_log_levels(self) -> 'GeneralConfig':
-        """Sync deprecated log_level with new logging.level."""
-        # If logging.level is default but log_level is set, use log_level
-        if (self.logging.level == LogLevel.INFO and 
-            self.log_level != LogLevel.INFO):
-            self.logging.level = self.log_level
-        # If both are set and different, prefer logging.level
-        elif (self.logging.level != LogLevel.INFO and 
-              self.log_level != LogLevel.INFO and 
-              self.logging.level != self.log_level):
-            self.log_level = self.logging.level
-        return self
     
     @field_validator('output_directory')
     @classmethod

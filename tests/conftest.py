@@ -48,7 +48,9 @@ def sample_config_data():
     return {
         "general": {
             "output_directory": "./test_data",
-            "log_level": "DEBUG", 
+            "logging": {
+                "level": "DEBUG"
+            },
             "backup_enabled": True,
             "dry_run": False,
             "random_sleep_max": 5

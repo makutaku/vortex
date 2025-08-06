@@ -31,7 +31,7 @@ class TestVortexConfig:
         config = VortexConfig()
         
         assert config.general.output_directory == Path("./data")
-        assert config.general.log_level == LogLevel.INFO
+        assert config.general.logging.level == LogLevel.INFO
         assert config.general.backup_enabled is False
         assert config.providers.barchart.daily_limit == 150
         assert config.providers.yahoo.enabled is True
@@ -43,7 +43,7 @@ class TestVortexConfig:
         config = VortexConfig(**sample_config_data)
         
         assert str(config.general.output_directory).endswith("test_data")
-        assert config.general.log_level == LogLevel.DEBUG
+        assert config.general.logging.level == LogLevel.DEBUG
         assert config.providers.barchart.username == "test@example.com"
         assert config.providers.barchart.daily_limit == 100
         assert config.providers.ibkr.timeout == 30
@@ -52,7 +52,7 @@ class TestVortexConfig:
         """Test configuration validation catches errors."""
         # Invalid log level
         with pytest.raises(ValueError):
-            VortexConfig(general={"log_level": "INVALID"})
+            VortexConfig(general={"logging": {"level": "INVALID"}})
         
         # Invalid daily limit
         with pytest.raises(ValueError):
@@ -177,7 +177,7 @@ class TestGeneralConfig:
         """Test default general configuration."""
         config = GeneralConfig()
         assert config.output_directory == Path("./data") 
-        assert config.log_level == LogLevel.INFO
+        assert config.logging.level == LogLevel.INFO
         assert config.backup_enabled is False
         assert config.dry_run is False
     
@@ -213,7 +213,7 @@ class TestConfigManager:
         assert isinstance(config, VortexConfig)
         # Note: log_level might be INFO or DEBUG depending on test order due to fixture pollution
         # The important thing is it's a valid LogLevel and the config loads correctly
-        assert config.general.log_level in [LogLevel.INFO, LogLevel.DEBUG]
+        assert config.general.logging.level in [LogLevel.INFO, LogLevel.DEBUG]
         assert config.providers.barchart.daily_limit == 150
     
     def test_provider_config_methods(self, config_manager, vortex_config):

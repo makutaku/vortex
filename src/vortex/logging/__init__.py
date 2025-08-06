@@ -12,16 +12,13 @@ This package replaces the monolithic logging.py module with focused components:
 - manager: Centralized logging setup and management
 """
 
-# Import main interfaces for backward compatibility
+# Core logging interfaces
 from .config import LoggingConfig
 from .manager import LoggingManager, configure_logging, logging_manager
 from .loggers import VortexLogger, get_logger
 from .performance import PerformanceLogger, get_performance_logger, timed, TimedOperation
 from .context import LoggingContext, logged
 from .formatters import StructuredFormatter
-
-# Legacy compatibility - these functions were in the original logging.py
-from .legacy import init_logging
 
 # Also make logging manager available directly
 get_logger = logging_manager.get_logger
@@ -47,7 +44,4 @@ __all__ = [
     
     # Formatters
     'StructuredFormatter',
-    
-    # Legacy compatibility
-    'init_logging',
 ]

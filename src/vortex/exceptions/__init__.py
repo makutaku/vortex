@@ -38,7 +38,7 @@ This package provides focused exception components:
 - cli: Command-line interface exceptions
 """
 
-# Import all exceptions for backward compatibility
+# Import all exceptions
 from .base import VortexError
 
 # Configuration exceptions
@@ -59,8 +59,6 @@ from .providers import (
     AllowanceLimitExceededError,
 )
 
-# For backward compatibility
-ConnectionError = VortexConnectionError
 
 # Storage exceptions
 from .storage import (
@@ -70,8 +68,6 @@ from .storage import (
     DiskSpaceError,
 )
 
-# For backward compatibility
-PermissionError = VortexPermissionError
 
 # Instrument exceptions
 from .instruments import (
@@ -97,7 +93,6 @@ from .plugins import (
     PluginLoadError,
 )
 
-# Legacy compatibility removed - no customers to break
 
 __all__ = [
     # Base
@@ -114,7 +109,6 @@ __all__ = [
     'AuthenticationError',
     'RateLimitError',
     'VortexConnectionError',
-    'ConnectionError',  # Backward compatibility alias
     'DataNotFoundError',
     'AllowanceLimitExceededError',
     
@@ -122,7 +116,6 @@ __all__ = [
     'DataStorageError',
     'FileStorageError',
     'VortexPermissionError',
-    'PermissionError',  # Backward compatibility alias
     'DiskSpaceError',
     
     # Instruments
