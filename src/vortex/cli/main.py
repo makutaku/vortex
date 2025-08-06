@@ -17,7 +17,7 @@ import click
 from vortex.exceptions import (
     VortexError, CLIError, ConfigurationError, DataProviderError,
     DataStorageError, InstrumentError, AuthenticationError,
-    ConnectionError as VortexConnectionError, PermissionError as VortexPermissionError
+    VortexConnectionError, VortexPermissionError
 )
 
 from . import __version__

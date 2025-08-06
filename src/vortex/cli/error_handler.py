@@ -14,7 +14,7 @@ from vortex.utils.logging_utils import get_structured_logger
 from vortex.exceptions import (
     VortexError, CLIError, ConfigurationError, DataProviderError,
     DataStorageError, InstrumentError, AuthenticationError,
-    ConnectionError as VortexConnectionError, PermissionError as VortexPermissionError
+    VortexConnectionError, VortexPermissionError
 )
 
 
