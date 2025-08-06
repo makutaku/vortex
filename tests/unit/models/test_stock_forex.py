@@ -1,26 +1,8 @@
 import pytest
 
 from vortex.models.stock import Stock
+from vortex.models.forex import Forex
 from vortex.models.instrument import Instrument
-
-# Create simple Forex class for testing since it doesn't exist
-from dataclasses import dataclass
-
-@dataclass 
-class Forex(Instrument):
-    symbol: str
-
-    def __str__(self) -> str:
-        return f"F|{self.id}|{self.symbol}"
-
-    def is_dated(self):
-        return False
-
-    def get_code(self):
-        return self.symbol
-
-    def get_symbol(self):
-        return self.symbol
 
 
 class TestStock:
@@ -147,14 +129,14 @@ class TestForex:
         forex = Forex(id='GBPUSD', symbol='GBPUSD')
         
         result = str(forex)
-        assert result == 'F|GBPUSD|GBPUSD'
+        assert result == 'C|GBPUSD|GBPUSD'
 
     def test_forex_str_with_different_id_symbol(self):
         """Test Forex string representation with different id and symbol."""
         forex = Forex(id='pound_dollar', symbol='GBPUSD')
         
         result = str(forex)
-        assert result == 'F|pound_dollar|GBPUSD'
+        assert result == 'C|pound_dollar|GBPUSD'
 
     def test_forex_is_dated(self):
         """Test that forex pairs are not dated instruments."""
@@ -188,14 +170,14 @@ class TestForex:
         assert forex.symbol == 'USDTRY'
         assert forex.get_code() == 'USDTRY'
         assert forex.get_symbol() == 'USDTRY'
-        assert str(forex) == 'F|exotic|USDTRY'
+        assert str(forex) == 'C|exotic|USDTRY'
 
     def test_forex_with_crypto_pairs(self):
         """Test Forex with cryptocurrency pairs."""
         forex = Forex(id='crypto', symbol='BTCUSD')
         
         assert forex.symbol == 'BTCUSD'
-        assert str(forex) == 'F|crypto|BTCUSD'
+        assert str(forex) == 'C|crypto|BTCUSD'
 
     def test_multiple_forex_independence(self):
         """Test that multiple Forex instances are independent."""
@@ -241,7 +223,7 @@ class TestStockForexComparison:
         forex_str = str(forex)
         
         assert stock_str.startswith('S|')
-        assert forex_str.startswith('F|')
+        assert forex_str.startswith('C|')
         assert stock_str != forex_str
 
     def test_stock_and_forex_both_not_dated(self):

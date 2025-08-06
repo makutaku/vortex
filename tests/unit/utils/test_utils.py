@@ -252,6 +252,26 @@ class TestConvertDateStringsToDatetime:
         assert result['period'] is None
         assert result['other_field'] == 'value'
 
+    def test_convert_date_strings_invalid_period(self):
+        """Test conversion with invalid period string."""
+        input_dict = {
+            'start_date': '2024-01-01T00:00:00Z',
+            'period': 'invalid_period'
+        }
+        
+        with patch('vortex.utils.utils.logging.warning') as mock_warning:
+            result = convert_date_strings_to_datetime(input_dict)
+            
+            # Should have logged a warning about invalid period
+            mock_warning.assert_called()
+            warning_call = mock_warning.call_args[0][0]
+            assert 'invalid_period' in warning_call
+            assert 'Period' in warning_call
+            
+            # Should preserve original value since conversion failed
+            assert result['period'] == 'invalid_period'
+            assert isinstance(result['start_date'], datetime)
+
 
 class TestIsListOfStrings:
     def test_is_list_of_strings_true(self):
