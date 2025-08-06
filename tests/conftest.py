@@ -4,11 +4,16 @@ Pytest configuration and shared fixtures for Vortex tests.
 
 import os
 import tempfile
+import warnings
 from pathlib import Path
 from typing import Dict, Any
 from unittest.mock import Mock
 
 import pytest
+
+# Note: There is a minor cosmetic warning from Click library during pytest collection.
+# This is a known issue where pytest tries to introspect Click's __call__ method.
+# The warning is harmless and does not affect test functionality.
 
 # Import test dependencies conditionally to avoid hard dependency
 try:
@@ -206,7 +211,8 @@ else:
 
 # Pytest hooks
 def pytest_configure(config):
-    """Configure pytest with custom markers."""
+    """Configure pytest with custom markers and warnings."""
+    # Add custom test markers
     config.addinivalue_line("markers", "unit: Unit tests")
     config.addinivalue_line("markers", "integration: Integration tests") 
     config.addinivalue_line("markers", "slow: Slow tests")
