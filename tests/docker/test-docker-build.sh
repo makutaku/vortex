@@ -1575,57 +1575,157 @@ services:
 
 test_multi_period_asset_download() {
     local session_dir="$1"
-    log_test "Test 15: Multi-Period Asset Download (Daily + Hourly)"
+    log_test "Test 15: Multi-Period Asset Download with Market Data Validation"
     
     local test_data_dir test_config_dir
     
     # Create test-specific directories using fixture pattern
     create_test_directories "$session_dir" "multiperiod" "test_data_dir" "test_config_dir"
     
-    # Copy the pre-created multi-period asset file
-    cp "$PROJECT_ROOT/tests/docker/assets/yahoo-multiperiod.json" "$test_data_dir/multiperiod-assets.json"
+    # Validate directory creation
+    if [[ -z "$test_data_dir" ]] || [[ -z "$test_config_dir" ]]; then
+        log_error "Test directories not properly set: data_dir='$test_data_dir', config_dir='$test_config_dir'"
+        return 1
+    fi
     
-    # Run vortex with asset file for limited date range
-    cd "$PROJECT_ROOT"
+    output_file="$test_data_dir/container.log"
     
-    timeout 180 docker run --rm --user "1000:1000" \
+    # Copy multi-period asset file to container directory
+    cp "$SCRIPT_DIR/assets/yahoo-multiperiod.json" "$test_data_dir/assets.json"
+    
+    # Start container with proper configuration (runs as built-in vortex user UID 1000)
+    container_id=$(run_container "test-multiperiod-download" \
         -v "$PWD/$test_data_dir:/data" \
         -v "$PWD/$test_config_dir:/home/vortex/.config/vortex" \
-        --entrypoint="" vortex-test:latest \
-        vortex download --yes --assets /data/multiperiod-assets.json \
-        --provider yahoo --start-date 2024-12-01 --end-date 2024-12-07 \
-        --output-dir /data 2>&1 | tee "$test_data_dir/test15_output.log"
+        -e VORTEX_DEFAULT_PROVIDER=yahoo \
+        -e VORTEX_RUN_ON_STARTUP=true \
+        -e VORTEX_DOWNLOAD_ARGS="--yes --assets /data/assets.json --start-date 2024-12-01 --end-date 2024-12-07" \
+        "$TEST_IMAGE")
     
-    local exit_code=$?
+    # Wait for download to complete (containers run indefinitely due to tail -f)
+    # Need extra time for multi-period downloads and bot detection delay
+    sleep 35
     
-    if [[ $exit_code -eq 0 ]]; then
-        # Check that all expected period data files were created (daily, weekly, hourly)
-        local daily_file=$(find "$test_data_dir" -name "*.csv" -path "*/1d/*" | head -1)
-        local weekly_file=$(find "$test_data_dir" -name "*.csv" -path "*/1W/*" | head -1)
-        local hourly_file=$(find "$test_data_dir" -name "*.csv" -path "*/1h/*" | head -1)
+    # Capture logs and kill container
+    docker logs "$container_id" > "$output_file" 2>&1
+    docker kill "$container_id" >/dev/null 2>&1 || true
+    
+    # Check for success indicators in logs
+    data_validation_passed=false
+    if [[ -f "$output_file" ]]; then
+        success_indicators=$(grep -c "Fetched remote data\|Download completed successfully\|✓ Completed" "$output_file" 2>/dev/null || echo "0")
+        # Ensure it's a single number
+        success_indicators=$(echo "$success_indicators" | head -1)
         
-        if [[ -n "$daily_file" && -n "$weekly_file" && -n "$hourly_file" ]]; then
-            log_success "Multi-period download successful - found daily, weekly, and hourly files"
+        if [[ "$success_indicators" -gt 0 ]]; then
+            log_info "✓ Download process completed successfully"
+            log_info "Success indicators found: $success_indicators"
             
-            # Show file structure for validation
-            if [[ "$VERBOSE" == "true" ]]; then
-                echo "Files created:"
-                find "$test_data_dir" -name "*.csv" | sed 's/^/  /'
+            # Show key indicators
+            grep -E "(Fetched remote data|Download completed successfully|✓ Completed)" "$output_file" | head -3
+            
+            # ENHANCED: Validate actual market data was fetched for multiple periods
+            local csv_files=0 data_rows_total=0 market_data_validated=false
+            csv_files=$(find "$test_data_dir" -name "*.csv" -type f 2>/dev/null | wc -l)
+            csv_files=$(echo "$csv_files" | tr -d ' ')  # Remove any whitespace
+            
+            if [[ "$csv_files" -gt 0 ]]; then
+                log_info "✓ Downloaded files: $csv_files CSV files"
+                
+                # Check that all expected period data files were created (daily, weekly, hourly)
+                local daily_files=$(find "$test_data_dir" -name "*.csv" -path "*/1d/*" | wc -l)
+                local weekly_files=$(find "$test_data_dir" -name "*.csv" -path "*/1W/*" | wc -l)
+                local hourly_files=$(find "$test_data_dir" -name "*.csv" -path "*/1h/*" | wc -l)
+                
+                # Validate CSV file contents contain actual market data
+                market_data_validated=false
+                data_rows_total=0
+                
+                for csv_file in $(find "$test_data_dir" -name "*.csv" -type f | head -6); do
+                    log_verbose "Validating CSV file: $csv_file"
+                    
+                    if [[ -s "$csv_file" ]]; then  # File exists and is not empty
+                        # Count data rows (excluding header)
+                        local data_rows
+                        data_rows=$(tail -n +2 "$csv_file" 2>/dev/null | wc -l | tr -d ' ')
+                        data_rows_total=$((data_rows_total + data_rows))
+                        
+                        # Check for required OHLCV columns in header
+                        local header
+                        header=$(head -1 "$csv_file" 2>/dev/null)
+                        
+                        if ([[ "$header" == *"Date"* ]] || [[ "$header" == *"DATETIME"* ]]) && [[ "$header" == *"Open"* ]] && \
+                           [[ "$header" == *"High"* ]] && [[ "$header" == *"Low"* ]] && \
+                           [[ "$header" == *"Close"* ]] && [[ "$header" == *"Volume"* ]]; then
+                            
+                            # Validate we have actual price data (sample a few rows)
+                            local sample_rows
+                            sample_rows=$(tail -n +2 "$csv_file" | head -3 2>/dev/null)
+                            
+                            if [[ -n "$sample_rows" ]]; then
+                                # Check if data contains reasonable numeric values (simplified validation)
+                                local has_numeric_data=false
+                                # Simple check: if the sample contains decimal numbers, it's probably valid market data
+                                if echo "$sample_rows" | grep -q "[0-9]\+\.[0-9]\+"; then
+                                    has_numeric_data=true
+                                fi
+                                
+                                if [[ "$has_numeric_data" == true ]]; then
+                                    market_data_validated=true
+                                    log_info "✓ Market data validation passed for $(basename "$csv_file")"
+                                    log_info "  - Data rows: $data_rows"
+                                    log_info "  - Sample data: $(echo "$sample_rows" | head -1 | cut -d',' -f1,2,5)"
+                                else
+                                    log_warning "✗ Market data validation failed: no valid numeric price data in $(basename "$csv_file")"
+                                fi
+                            else
+                                log_warning "✗ Market data validation failed: no data rows in $(basename "$csv_file")"
+                            fi
+                        else
+                            log_warning "✗ Market data validation failed: missing required OHLCV columns in $(basename "$csv_file")"
+                            log_verbose "Header: $header"
+                        fi
+                    else
+                        log_warning "✗ Market data validation failed: empty or missing file $(basename "$csv_file")"
+                    fi
+                done
+                
+                # Validate period distribution
+                log_info "Period distribution: Daily=$daily_files, Weekly=$weekly_files, Hourly=$hourly_files"
+                
+                # Set validation status and show summary
+                if [[ "$market_data_validated" == true ]] && [[ "$daily_files" -gt 0 ]] && [[ "$weekly_files" -gt 0 ]] && [[ "$hourly_files" -gt 0 ]]; then
+                    log_info "✓ Multi-period market data validation passed (total rows: $data_rows_total)"
+                    data_validation_passed=true
+                else
+                    log_warning "✗ Multi-period validation failed - missing periods or no valid market data found"
+                fi
+            else
+                log_warning "✗ No CSV files found in output directory"
             fi
         else
-            log_error "Multi-period download failed - missing expected files"
-            echo "Daily file: $daily_file"
-            echo "Weekly file: $weekly_file"
-            echo "Hourly file: $hourly_file" 
-            find "$test_data_dir" -name "*.csv" | sed 's/^/Found: /'
-            return 1
+            log_warning "✗ No download success indicators found in logs"
         fi
     else
-        log_error "Multi-period asset download failed with exit code $exit_code"
-        if [[ -f "$test_data_dir/test15_output.log" ]]; then
-            echo "Output:"
-            cat "$test_data_dir/test15_output.log"
-        fi
+        log_error "✗ No log file found"
+    fi
+    
+    # Show file structure for validation
+    if [[ "$VERBOSE" == "true" ]] && [[ "$data_validation_passed" == true ]]; then
+        echo "Files created:"
+        find "$test_data_dir" -name "*.csv" | sed 's/^/  /'
+    fi
+    
+    if [[ "$data_validation_passed" == true ]]; then
+        log_success "Multi-period download test successful - real market data verified across multiple timeframes"
+        log_info "Total data rows across all files: $data_rows_total"
+        for file in $(find "$test_data_dir" -name "*.csv" -type f | head -6); do
+            log_info "File: $(basename "$file") ($(stat -c%s "$file" 2>/dev/null || echo "unknown") bytes)"
+        done
+        return 0
+    else
+        log_error "Multi-period download test failed - market data validation unsuccessful"
+        log_info "Check logs: $output_file"
         return 1
     fi
 }
