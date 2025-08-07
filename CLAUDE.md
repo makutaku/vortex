@@ -315,15 +315,17 @@ Each assets file defines futures, forex, and stock instruments with metadata lik
 Tests use pytest with fixture-based setup organized into distinct categories:
 - **Unit Tests** (`tests/unit/`): Isolated component testing with mocks (1038 tests)
 - **Integration Tests** (`tests/integration/`): Multi-component interaction testing (24 tests)  
-- **End-to-End Tests** (`tests/e2e/`): Complete workflow validation (6 tests)
-  - Includes real Yahoo Finance download test with actual market data
+- **End-to-End Tests** (`tests/e2e/`): Complete workflow validation (7 tests)
+  - Includes real Yahoo Finance download tests with actual market data
   - Tests complete CLI user workflows from command to file output
+  - Validates JSON assets file processing with multiple symbols
 - Test markers for network-dependent and credential-dependent tests
 - Comprehensive test coverage across all architectural layers
 
 **E2E Test Categories:**
 - **CLI Workflow Tests**: Help, providers, config, download commands
-- **Real Data Download**: Full Yahoo Finance integration with network calls
+- **Real Data Download**: Single-symbol Yahoo Finance integration with network calls
+- **Assets File Processing**: Multi-symbol batch downloads using JSON asset files
 - **Error Handling**: Invalid command and edge case scenarios
 
 **Running E2E Tests:**
