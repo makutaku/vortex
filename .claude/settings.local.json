@@ -60,7 +60,16 @@
       "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/cli/test_core.py -v)",
       "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/cli/test_core.py)",
       "Bash(export PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\")",
-      "WebFetch(domain:docs.pytest.org)"
+      "WebFetch(domain:docs.pytest.org)",
+      "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest --tb=short -q)",
+      "Bash(PYTHONPATH=/home/rosantos/workspace/projects/vortex/main/src python3 -c \"from vortex.core.correlation import CorrelationIdManager, with_correlation; print(''Import successful'')\")",
+      "Bash(docker system:*)",
+      "Bash(docker image prune:*)",
+      "Bash(docker stop:*)",
+      "Bash(docker rm:*)",
+      "Bash(docker network prune:*)",
+      "Bash(# Run a test and immediately check what directories exist\necho \"\"=== Before test ===\"\" \nfind test-output/ -type d 2>/dev/null | wc -l || echo \"\"0\"\"\n\n./scripts/test-docker-build.sh 11 -q\n\necho \"\"=== After test ===\"\" \nfind test-output/ -type d 2>/dev/null | wc -l || echo \"\"0\"\")",
+      "Bash(# Count directories before and after a test run\necho \"\"Directories before test:\"\"\nfind test-output/ -type d 2>/dev/null | wc -l || echo \"\"0\"\"\n\n./scripts/test-docker-build.sh 11 -q >/dev/null 2>&1\n\necho \"\"Directories after test:\"\"\nfind test-output/ -type d 2>/dev/null | wc -l || echo \"\"0\"\")"
     ],
     "deny": []
   }

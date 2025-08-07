@@ -1,82 +1,53 @@
-# Docker Security Options
+# Docker Security Architecture
 
-This directory contains multiple Dockerfile options with different security profiles. **We recommend using the root-less versions for production deployments.**
+This directory contains secure Docker configurations that follow container security best practices. **All Docker files now use root-less architecture by default.**
 
-## 🔒 **Recommended: Root-less Architectures**
+## 🔒 **Secure Container Options**
 
-### `Dockerfile.rootless` (Recommended)
+### `Dockerfile` (Production Recommended)
 - ✅ **Full-featured with supervisord process management**
 - ✅ **Runs as vortex user (UID 1000) throughout entire lifecycle** 
 - ✅ **No root privileges during execution**
 - ✅ **Built-in scheduling with supervisord**
 - ✅ **Comprehensive process monitoring**
 - ✅ **Uses uv for fast dependency installation**
+- ✅ **Multi-stage build for optimized image size**
 
 **Use case**: Production deployments requiring robust scheduling and process management
 
-### `Dockerfile.simple.rootless` (Recommended for simple use cases)
+### `Dockerfile.simple` (Simple Deployments)
 - ✅ **Minimal complexity with security best practices**
 - ✅ **Runs as vortex user (UID 1000) throughout entire lifecycle**
 - ✅ **No root privileges during execution**
 - ✅ **Uses traditional pip (no uv dependency)**
 - ✅ **Simple health monitoring loop**
 - ⚠️ **No built-in scheduling** (relies on external schedulers)
+- ✅ **Single-stage build for simplicity**
 
 **Use case**: Simple deployments, one-time runs, or when using external scheduling
 
-## ⚠️ **Legacy: Root-privileged Architectures**
+## 🚀 **Quick Start**
 
-### `Dockerfile` (Legacy - Security Issues)
-- ❌ **Runs as root for cron daemon setup**
-- ❌ **Complex root/non-root user switching**
-- ❌ **Privilege escalation vulnerabilities**
-- ❌ **Configuration path inconsistencies**
-- ✅ Uses uv for fast dependency installation
-- ✅ Full cron scheduling support
-
-**Status**: Legacy - maintained for backward compatibility only
-
-### `Dockerfile.simple` (Legacy - Security Issues)  
-- ❌ **Runs as root for cron daemon setup**
-- ❌ **Complex root/non-root user switching** 
-- ❌ **Privilege escalation vulnerabilities**
-- ❌ **Configuration path inconsistencies**
-- ✅ Uses traditional pip (no uv dependency)
-- ✅ Full cron scheduling support
-
-**Status**: Legacy - maintained for backward compatibility only
-
-## 🚀 **Migration Guide**
-
-### From `Dockerfile` → `Dockerfile.rootless`
+### Production Deployment
 ```bash
-# Old (insecure)
+# Full-featured container with supervisord scheduling
 docker build -f docker/Dockerfile -t vortex:latest .
 docker-compose -f docker/docker-compose.yml up -d
-
-# New (secure) 
-docker build -f docker/Dockerfile.rootless -t vortex:latest .
-docker-compose -f docker/docker-compose-rootless.yml up -d
 ```
 
-### From `Dockerfile.simple` → `Dockerfile.simple.rootless`
+### Simple Deployment
 ```bash
-# Old (insecure)
-docker build -f docker/Dockerfile.simple -t vortex:latest .
-
-# New (secure)
-docker build -f docker/Dockerfile.simple.rootless -t vortex:latest .
+# Minimal container for one-time runs or external scheduling
+docker build -f docker/Dockerfile.simple -t vortex:simple .
+docker run --rm -v $(pwd)/data:/data vortex:simple
 ```
 
-### Volume Mount Changes
+### Configuration
+All containers now use secure user paths by default:
 ```yaml
-# Old (root paths)
 volumes:
-  - ./config:/root/.config/vortex
-
-# New (user paths)  
-volumes:
-  - ./config:/home/vortex/.config/vortex
+  - ./config:/home/vortex/.config/vortex  # User configuration
+  - ./data:/data                          # Output data
 ```
 
 ## 🛡️ **Security Benefits of Root-less Architecture**
@@ -90,19 +61,21 @@ volumes:
 
 ## 📋 **Comparison Matrix**
 
-| Feature | `Dockerfile.rootless` | `Dockerfile.simple.rootless` | `Dockerfile` (Legacy) | `Dockerfile.simple` (Legacy) |
-|---------|:---------------------:|:----------------------------:|:---------------------:|:----------------------------:|
-| **Security** | ✅ Root-less | ✅ Root-less | ❌ Root-privileged | ❌ Root-privileged |
-| **Process Management** | ✅ Supervisord | ⚠️ Basic | ✅ System Cron | ✅ System Cron |
-| **Build Speed** | ✅ Fast (uv) | ⚠️ Slower (pip) | ✅ Fast (uv) | ⚠️ Slower (pip) |
-| **Complexity** | ⚠️ Moderate | ✅ Simple | ❌ Complex | ⚠️ Moderate |
-| **Production Ready** | ✅ Yes | ✅ Yes | ❌ Security Issues | ❌ Security Issues |
+| Feature | `Dockerfile` | `Dockerfile.simple` |
+|---------|:------------:|:-------------------:|
+| **Security** | ✅ Root-less | ✅ Root-less |
+| **Process Management** | ✅ Supervisord | ⚠️ Basic Loop |
+| **Build Speed** | ✅ Fast (uv) | ⚠️ Slower (pip) |
+| **Build Complexity** | ⚠️ Multi-stage | ✅ Single-stage |
+| **Runtime Complexity** | ⚠️ Moderate | ✅ Simple |
+| **Scheduling** | ✅ Built-in | ⚠️ External |
+| **Production Ready** | ✅ Yes | ✅ Yes |
 
 ## 🎯 **Recommendations**
 
-- **Production**: Use `Dockerfile.rootless` + `docker-compose-rootless.yml`
-- **Development**: Use `Dockerfile.simple.rootless` for quick testing
-- **CI/CD**: Use `Dockerfile.simple.rootless` for one-time data downloads
-- **Legacy Systems**: Only use root-privileged versions if absolutely necessary
+- **Production**: Use `Dockerfile` + `docker-compose.yml` for full-featured deployments
+- **Development**: Use `Dockerfile.simple` for quick testing and prototyping  
+- **CI/CD**: Use `Dockerfile.simple` for one-time data downloads
+- **Container Orchestration**: Both options work well with Kubernetes, Docker Swarm, etc.
 
-Remember: **Security should be the default, not an afterthought!**
+**All options are secure by default - choose based on your feature requirements!**

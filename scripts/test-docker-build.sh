@@ -69,8 +69,8 @@ declare -A TEST_REGISTRY=(
     [10]="test_download_dry_run:Download Command (Dry Run)"
     [11]="test_entrypoint_no_startup:Entrypoint Without Startup Download"
     [12]="test_yahoo_download:Yahoo Download with Market Data Validation"
-    [13]="test_cron_job_setup:Cron Job Setup and Validation"
-    [14]="test_cron_job_execution:Comprehensive Cron Job Execution Test"
+    [13]="test_supervisord_scheduler_setup:Supervisord Scheduler Setup and Validation"
+    [14]="test_supervisord_scheduler_execution:Comprehensive Supervisord Scheduler Execution Test"
     [15]="test_docker_compose_download:Docker Compose Yahoo Download with Market Data Validation"
 )
 
@@ -941,49 +941,49 @@ test_yahoo_download() {
     fi
 }
 
-test_cron_job_setup() {
-    log_test "Test 13: Cron Job Setup and Validation"
+test_supervisord_scheduler_setup() {
+    log_test "Test 13: Supervisord Scheduler Setup and Validation"
     
     local test_data_dir test_config_dir
     local container_id output_file
-    local cron_schedule="*/2 * * * *"  # Every 2 minutes for testing
+    local schedule="*/2 * * * *"  # Every 2 minutes for testing
     
-    create_test_directories "test_data_dir" "test_config_dir" "cron"
+    create_test_directories "test_data_dir" "test_config_dir" "supervisord"
     output_file="$test_data_dir/container.log"
     
     # Ensure test directories are writable by container user (UID 1000)
     chmod 777 "$test_data_dir" "$test_config_dir" 2>/dev/null || true
     
-    # Start container with cron job enabled and short schedule (uses new secure cron setup)
-    container_id=$(run_container "test-cron-setup" \
+    # Start container with supervisord scheduling enabled (root-less architecture)
+    container_id=$(run_container "test-supervisord-setup" \
         -v "$PWD/$test_data_dir:/data" \
-        -v "$PWD/$test_config_dir:/config" \
+        -v "$PWD/$test_config_dir:/home/vortex/.config/vortex" \
         -e VORTEX_DEFAULT_PROVIDER=yahoo \
         -e VORTEX_RUN_ON_STARTUP=false \
-        -e VORTEX_SCHEDULE="$cron_schedule" \
+        -e VORTEX_SCHEDULE="$schedule" \
         -e VORTEX_DOWNLOAD_ARGS="--yes --symbol AAPL --symbol MSFT --start-date 2024-12-01 --end-date 2024-12-07" \
         "$TEST_IMAGE")
     
-    # Wait for container to start and cron to be configured
+    # Wait for container to start and supervisord to be configured
     sleep 10
     
-    # Capture logs to check cron setup
+    # Capture logs to check supervisord setup
     docker logs "$container_id" > "$output_file" 2>&1
     
-    # Check if cron was configured properly
-    local cron_setup_success=false
-    local cron_daemon_started=false
+    # Check if supervisord scheduler was configured properly
+    local scheduler_setup_success=false
+    local supervisord_started=false
     local health_check_created=false
     
     if [[ -f "$output_file" ]]; then
-        # Check for new vortex user cron setup indicators
-        if grep -F "Setting up crontab for vortex user with schedule: $cron_schedule" "$output_file"; then
-            cron_setup_success=true
+        # Check for supervisord scheduler setup indicators
+        if grep -F "Setting up scheduled vortex download service with cron schedule: $schedule" "$output_file"; then
+            scheduler_setup_success=true
         fi
         
-        # Check if cron daemon started
-        if grep -F "Starting cron daemon" "$output_file"; then
-            cron_daemon_started=true
+        # Check if supervisord started
+        if grep -F "Starting supervisord process manager" "$output_file"; then
+            supervisord_started=true
         fi
         
         # Check if health check file was created
@@ -991,13 +991,13 @@ test_cron_job_setup() {
             health_check_created=true
         fi
         
-        # Verify crontab was installed for vortex user (check inside container)
-        local crontab_output
-        crontab_output=$(docker exec "$container_id" su vortex -c "crontab -l" 2>/dev/null || echo "no crontab")
+        # Verify supervisord scheduler service was configured (check inside container)
+        local supervisord_output
+        supervisord_output=$(docker exec "$container_id" ls -la /home/vortex/.config/supervisor/conf.d/ 2>/dev/null || echo "no config")
         
-        local crontab_configured=false
-        if [[ "$crontab_output" == *"$cron_schedule"* ]] && [[ "$crontab_output" == *"vortex download"* ]]; then
-            crontab_configured=true
+        local scheduler_configured=false
+        if [[ "$supervisord_output" == *"vortex-scheduler.conf"* ]]; then
+            scheduler_configured=true
         fi
         
         # Kill container
@@ -1007,18 +1007,18 @@ test_cron_job_setup() {
         local passed_checks=0
         local total_checks=4
         
-        if [[ "$cron_setup_success" == true ]]; then
-            log_info "✓ Vortex user cron schedule configured correctly"
+        if [[ "$scheduler_setup_success" == true ]]; then
+            log_info "✓ Supervisord scheduler configured correctly"
             ((passed_checks++))
         else
-            log_warning "✗ Vortex user cron schedule setup not found in logs"
+            log_warning "✗ Supervisord scheduler setup not found in logs"
         fi
         
-        if [[ "$cron_daemon_started" == true ]]; then
-            log_info "✓ Cron daemon started"
+        if [[ "$supervisord_started" == true ]]; then
+            log_info "✓ Supervisord process manager started"
             ((passed_checks++))
         else
-            log_warning "✗ Cron daemon start not confirmed"
+            log_warning "✗ Supervisord start not confirmed"
         fi
         
         if [[ "$health_check_created" == true ]]; then
@@ -1028,107 +1028,107 @@ test_cron_job_setup() {
             log_warning "✗ Health check file not found"
         fi
         
-        if [[ "$crontab_configured" == true ]]; then
-            log_info "✓ Vortex user crontab contains proper download command"
+        if [[ "$scheduler_configured" == true ]]; then
+            log_info "✓ Supervisord scheduler service configured properly"
             ((passed_checks++))
         else
-            log_warning "✗ Vortex user crontab not properly configured"
-            echo "Crontab content: $crontab_output"
+            log_warning "✗ Supervisord scheduler service not properly configured"
+            echo "Supervisor config directory: $supervisord_output"
         fi
         
         # Test passes if at least 3 out of 4 checks pass
         if [[ $passed_checks -ge 3 ]]; then
-            log_success "Cron job setup test successful ($passed_checks/$total_checks checks passed)"
-            log_info "Cron schedule: $cron_schedule"
-            log_info "Download command scheduled for periodic execution"
+            log_success "Supervisord scheduler setup test successful ($passed_checks/$total_checks checks passed)"
+            log_info "Schedule: $schedule"
+            log_info "Download command scheduled for periodic execution via supervisord"
             return 0
         else
-            log_error "Cron job setup test failed ($passed_checks/$total_checks checks passed)"
+            log_error "Supervisord scheduler setup test failed ($passed_checks/$total_checks checks passed)"
             echo "Last 10 lines of container output:"
             tail -10 "$output_file" 2>/dev/null || echo "No output captured"
             return 1
         fi
     else
         docker kill "$container_id" >/dev/null 2>&1 || true
-        log_error "Cron job setup test failed - no output captured"
+        log_error "Supervisord scheduler setup test failed - no output captured"
         return 1
     fi
 }
 
-test_cron_job_execution() {
-    log_test "Test 14: Comprehensive Cron Job Execution Test"
-    log_info "⚠️  This test may take up to 60 seconds - it waits for actual cron execution"
+test_supervisord_scheduler_execution() {
+    log_test "Test 14: Comprehensive Supervisord Scheduler Execution Test"
+    log_info "⚠️  This test may take up to 60 seconds - it waits for actual scheduled execution"
     
     local test_data_dir test_config_dir
     local container_id output_file
-    local cron_schedule="*/1 * * * *"  # Every minute
+    local schedule="*/1 * * * *"  # Every minute (converted to 60 second interval by supervisord)
     local wait_timeout=180  # 3 minutes maximum wait
     local check_interval=30  # Check every 30 seconds
     
-    create_test_directories "test_data_dir" "test_config_dir" "cron-exec" 
+    create_test_directories "test_data_dir" "test_config_dir" "supervisord-exec" 
     output_file="$test_data_dir/container.log"
     
     # Ensure test directories are writable by container user (UID 1000)
     chmod 777 "$test_data_dir" "$test_config_dir" 2>/dev/null || true
     
-    log_info "Starting container with cron schedule: $cron_schedule"
+    log_info "Starting container with schedule: $schedule"
     
-    # Start container with cron job enabled (starts as root, sets up cron, then switches to vortex user)
-    container_id=$(run_container "test-cron-execution" \
+    # Start container with supervisord scheduling enabled (runs as vortex user throughout)
+    container_id=$(run_container "test-supervisord-execution" \
         -v "$PWD/$test_data_dir:/data" \
-        -v "$PWD/$test_config_dir:/config" \
+        -v "$PWD/$test_config_dir:/home/vortex/.config/vortex" \
         -e VORTEX_DEFAULT_PROVIDER=yahoo \
         -e VORTEX_RUN_ON_STARTUP=false \
-        -e VORTEX_SCHEDULE="$cron_schedule" \
+        -e VORTEX_SCHEDULE="$schedule" \
         -e VORTEX_DOWNLOAD_ARGS="--yes --symbol AAPL --symbol MSFT --start-date 2024-12-01 --end-date 2024-12-07 --output-dir /data" \
         "$TEST_IMAGE")
     
-    log_info "Container started (ID: ${container_id:0:12}...), waiting for cron setup..."
+    log_info "Container started (ID: ${container_id:0:12}...), waiting for supervisord setup..."
     
     # Wait for initial setup (30 seconds)
     sleep 30
     
-    # Check if cron setup was successful
+    # Check if supervisord setup was successful
     docker logs "$container_id" > "$output_file" 2>&1
-    if ! grep -F "Starting cron daemon" "$output_file"; then
+    if ! grep -F "Starting supervisord process manager" "$output_file"; then
         docker kill "$container_id" >/dev/null 2>&1 || true
-        log_error "Cron daemon failed to start"
+        log_error "Supervisord process manager failed to start"
         return 1
     fi
     
-    # Verify cron schedule was actually configured for vortex user
-    if ! grep -F "Setting up crontab for vortex user with schedule: $cron_schedule" "$output_file"; then
+    # Verify supervisord scheduler was actually configured
+    if ! grep -F "Setting up scheduled vortex download service with cron schedule: $schedule" "$output_file"; then
         docker kill "$container_id" >/dev/null 2>&1 || true
-        log_error "Vortex user cron schedule setup not found in logs"
-        log_verbose "Looking for pattern: 'Setting up crontab for vortex user with schedule: $cron_schedule'"
+        log_error "Supervisord scheduler setup not found in logs"
+        log_verbose "Looking for pattern: 'Setting up scheduled vortex download service with cron schedule: $schedule'"
         log_verbose "Available logs preview:"
-        grep "cron schedule\|Starting cron" "$output_file" | head -3 | sed 's/^/  /'
+        grep "schedule\|supervisord" "$output_file" | head -3 | sed 's/^/  /'
         return 1
     fi
     
-    log_info "✓ Cron daemon started and vortex user crontab configured, waiting for first execution..."
+    log_info "✓ Supervisord started and scheduler configured, waiting for first execution..."
     
-    # Wait for cron job to actually execute and download data
+    # Wait for supervisord scheduler to actually execute and download data
     local elapsed_time=0
-    local cron_executed=false
+    local scheduler_executed=false
     local data_downloaded=false
     
     while [[ $elapsed_time -lt $wait_timeout ]]; do
         # Update logs
         docker logs "$container_id" > "$output_file" 2>&1
         
-        # Check if cron job has executed by looking for vortex command output
-        # Also check the vortex.log file directly (cron output goes there)
-        if ! $cron_executed; then
+        # Check if supervisord scheduler has executed by looking for vortex command output
+        # Also check the supervisord logs and vortex.log file directly
+        if ! $scheduler_executed; then
             # Check docker logs output
-            if grep -q "Starting download\|vortex download\|Download completed successfully" "$output_file"; then
-                log_info "✓ Cron job executed! (after ${elapsed_time}s)"
-                cron_executed=true
-            # Also check vortex.log file inside container
-            elif docker exec "$container_id" test -f "/data/vortex.log" 2>/dev/null && \
-                 docker exec "$container_id" grep -q "Download completed successfully\|Fetched remote data\|Starting download" "/data/vortex.log" 2>/dev/null; then
-                log_info "✓ Cron job executed (found in vortex.log)! (after ${elapsed_time}s)"
-                cron_executed=true
+            if grep -q "Running scheduled vortex download\|Download completed successfully" "$output_file"; then
+                log_info "✓ Supervisord scheduler executed! (after ${elapsed_time}s)"
+                scheduler_executed=true
+            # Also check supervisord logs
+            elif docker exec "$container_id" test -f "/var/log/supervisor/vortex-scheduler.out.log" 2>/dev/null && \
+                 docker exec "$container_id" grep -q "Running scheduled vortex download\|Scheduled download completed successfully" "/var/log/supervisor/vortex-scheduler.out.log" 2>/dev/null; then
+                log_info "✓ Supervisord scheduler executed (found in scheduler log)! (after ${elapsed_time}s)"
+                scheduler_executed=true
             fi
         fi
         
@@ -1163,12 +1163,12 @@ test_cron_job_execution() {
     local success_indicators=0
     local total_indicators=3
     
-    # 1. Check if cron executed
-    if $cron_executed; then
-        log_info "✓ Cron job executed successfully"
+    # 1. Check if supervisord scheduler executed
+    if $scheduler_executed; then
+        log_info "✓ Supervisord scheduler executed successfully"
         ((success_indicators++))
     else
-        log_warning "✗ No cron execution detected in logs"
+        log_warning "✗ No supervisord scheduler execution detected in logs"
     fi
     
     # 2. Check if data was downloaded
@@ -1201,13 +1201,13 @@ test_cron_job_execution() {
         log_warning "Test timed out after ${wait_timeout}s"
     fi
     
-    # Test passes if all 3 indicators are successful (cron execution is different from direct execution)
+    # Test passes if all 3 indicators are successful (scheduler execution is different from direct execution)
     if [[ $success_indicators -eq 3 ]]; then
-        log_success "Comprehensive cron execution test successful ($success_indicators/$total_indicators indicators passed)"
+        log_success "Comprehensive supervisord scheduler execution test successful ($success_indicators/$total_indicators indicators passed)"
         log_info "Test completed in ${elapsed_time}s"
         return 0
     else
-        log_error "Comprehensive cron execution test failed ($success_indicators/$total_indicators indicators passed)"
+        log_error "Comprehensive supervisord scheduler execution test failed ($success_indicators/$total_indicators indicators passed)"
         log_info "Check logs at: $output_file"
         return 1
     fi
@@ -1245,9 +1245,8 @@ services:
       VORTEX_LOG_LEVEL: DEBUG
     volumes:
       - $PWD/$test_data_dir:/data
-      # TODO: Container architecture should be simplified to run as vortex user consistently
-      # Currently runs as root for cron setup, so config needs to be in /root/.config/vortex
-      - $PWD/$test_config_dir:/root/.config/vortex
+      # Container runs as vortex user consistently (UID 1000)
+      - $PWD/$test_config_dir:/home/vortex/.config/vortex
 EOF
     
     local compose_project="vortex-test-$(date +%s)"

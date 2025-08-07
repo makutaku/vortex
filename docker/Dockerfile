@@ -1,4 +1,4 @@
-# Multi-stage build for efficient vortex image
+# Multi-stage build for secure root-less vortex image
 FROM python:3.11-slim AS builder
 
 # Install build dependencies in single layer
@@ -22,37 +22,42 @@ COPY src/ ./src/
 # Install dependencies and application in single layer for better optimization
 RUN uv pip install --system --no-cache-dir -e .
 
-# Runtime stage - use minimal base image
+# Runtime stage - use minimal base image with supervisord
 FROM python:3.11-slim
 
-# Install runtime dependencies and clean up in single layer
+# Install runtime dependencies (supervisord instead of cron)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    cron \
+    supervisor \
     tini \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
-# Copy installed packages from builder (more selective copying)
+# Create vortex user and directories early (before copying files)
+RUN groupadd -g 1000 vortex \
+    && useradd -u 1000 -g 1000 -m -r vortex \
+    && mkdir -p /data /config /home/vortex/.config/vortex /var/log/supervisor \
+    && chown -R vortex:vortex /data /config /home/vortex /var/log/supervisor
+
+# Copy installed packages from builder
 COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
 COPY --from=builder /usr/local/bin/vortex /usr/local/bin/
 
-# Set working directory early
+# Set working directory and switch to vortex user
 WORKDIR /app
+USER vortex
 
-# Copy application source code from builder
-COPY --from=builder /app/src /app/src
-COPY --from=builder /app/pyproject.toml /app/setup.py /app/
+# Copy application source code from builder (as vortex user)
+COPY --from=builder --chown=vortex:vortex /app/src /app/src
+COPY --from=builder --chown=vortex:vortex /app/pyproject.toml /app/setup.py /app/
 
-# Copy static assets and scripts
-COPY docker/entrypoint.sh docker/ping.sh /app/
-COPY config/assets/ /app/config/assets/
+# Copy static assets and scripts (as vortex user)
+COPY --chown=vortex:vortex docker/entrypoint.sh docker/ping.sh /app/
+COPY --chown=vortex:vortex config/assets/ /app/config/assets/
 
-# Create directories, user, and set permissions in single layer
-RUN mkdir -p /data /config /home/vortex/.config/vortex \
-    && groupadd -g 1000 vortex \
-    && useradd -u 1000 -g 1000 -m -r vortex \
-    && chown -R vortex:vortex /app /data /config /home/vortex \
-    && chmod +x /app/entrypoint.sh /app/ping.sh
+# Make scripts executable
+USER root
+RUN chmod +x /app/entrypoint.sh /app/ping.sh
+USER vortex
 
 # Default environment variables (modern Vortex configuration)
 ENV VORTEX_DEFAULT_PROVIDER=yahoo \
@@ -60,13 +65,14 @@ ENV VORTEX_DEFAULT_PROVIDER=yahoo \
     VORTEX_SCHEDULE="0 8 * * *" \
     VORTEX_RUN_ON_STARTUP=true \
     VORTEX_DOWNLOAD_ARGS="--yes" \
-    VORTEX_LOG_LEVEL=INFO
+    VORTEX_LOG_LEVEL=INFO \
+    HOME=/home/vortex
 
 # Volume mounts
 VOLUME ["/data", "/config"]
 
-# Container will start as root to setup cron, then switch to vortex user
-# This allows proper cron daemon initialization while maintaining security
+# Container runs as vortex user consistently
+# Uses supervisord for process management instead of system cron
 
 # Use tini as init system with custom entrypoint
 ENTRYPOINT ["/usr/bin/tini", "--", "/app/entrypoint.sh"]

@@ -1,34 +1,40 @@
-# Simple Dockerfile using traditional pip (no uv dependency)
-# WARNING: This Dockerfile has security issues - runs as root for cron
-# Use Dockerfile.simple.rootless for secure non-root execution
+# Simple root-less Dockerfile using traditional pip (no uv dependency)
+# Follows security best practices by running as non-root user throughout
 FROM python:3.11-slim
 
-# Install system dependencies and clean up in single layer
+# Install system dependencies (supervisord instead of cron for security)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    cron \
+    supervisor \
     tini \
     build-essential \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
-# Set working directory early
+# Create vortex user and directories early
+RUN groupadd -g 1000 vortex \
+    && useradd -u 1000 -g 1000 -m -r vortex \
+    && mkdir -p /data /config /home/vortex/.config/vortex /var/log/supervisor \
+    && chown -R vortex:vortex /data /config /home/vortex /var/log/supervisor
+
+# Set working directory
 WORKDIR /app
 
-# Copy project files for dependency resolution
+# Copy project files for dependency resolution (as root, then change ownership)
 COPY pyproject.toml setup.py README.md ./
 COPY src/ ./src/
-
-# Copy static assets
-COPY docker/entrypoint.sh docker/ping.sh /app/
 COPY config/assets/ /app/config/assets/
 
-# Install Python dependencies and create user in combined layer
+# Install Python dependencies and fix permissions in combined layer
 RUN pip install --no-cache-dir -e . \
-    && useradd -m -r vortex \
-    && mkdir -p /data /config /root/.config \
-    && chown -R vortex:vortex /app /data /config \
-    && chmod +x /app/entrypoint.sh /app/ping.sh \
-    && chmod 755 /root /root/.config
+    && chown -R vortex:vortex /app
+
+# Copy entrypoint scripts and set permissions
+COPY docker/entrypoint-simple.sh docker/ping.sh /app/
+RUN chmod +x /app/entrypoint-simple.sh /app/ping.sh \
+    && chown vortex:vortex /app/entrypoint-simple.sh /app/ping.sh
+
+# Switch to vortex user for security
+USER vortex
 
 # Default environment variables (modern Vortex configuration)
 ENV VORTEX_DEFAULT_PROVIDER=yahoo \
@@ -36,13 +42,14 @@ ENV VORTEX_DEFAULT_PROVIDER=yahoo \
     VORTEX_SCHEDULE="0 8 * * *" \
     VORTEX_RUN_ON_STARTUP=true \
     VORTEX_DOWNLOAD_ARGS="--yes" \
-    VORTEX_LOG_LEVEL=INFO
+    VORTEX_LOG_LEVEL=INFO \
+    HOME=/home/vortex
 
 # Volume mounts
 VOLUME ["/data", "/config"]
 
-# Stay as root for cron, but set permissions
-RUN chown -R vortex:vortex /app /data /config
+# Container runs as vortex user consistently
+# Uses supervisord for process management instead of system cron
 
-# Use tini as init system
-ENTRYPOINT ["/usr/bin/tini", "--", "/app/entrypoint.sh"]
+# Use tini as init system with root-less entrypoint
+ENTRYPOINT ["/usr/bin/tini", "--", "/app/entrypoint-simple.sh"]
