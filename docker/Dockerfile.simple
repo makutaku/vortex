@@ -1,4 +1,6 @@
 # Simple Dockerfile using traditional pip (no uv dependency)
+# WARNING: This Dockerfile has security issues - runs as root for cron
+# Use Dockerfile.simple.rootless for secure non-root execution
 FROM python:3.11-slim
 
 # Install system dependencies and clean up in single layer
