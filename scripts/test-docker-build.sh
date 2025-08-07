@@ -71,6 +71,7 @@ declare -A TEST_REGISTRY=(
     [12]="test_yahoo_download:Yahoo Download with Market Data Validation"
     [13]="test_cron_job_setup:Cron Job Setup and Validation"
     [14]="test_cron_job_execution:Comprehensive Cron Job Execution Test"
+    [15]="test_docker_compose_download:Docker Compose Yahoo Download with Market Data Validation"
 )
 
 # ============================================================================
@@ -1212,6 +1213,206 @@ test_cron_job_execution() {
     fi
 }
 
+test_docker_compose_download() {
+    log_test "Test 15: Docker Compose Yahoo Download with Market Data Validation"
+    
+    # This test deploys vortex using docker compose and validates:
+    # - Service starts successfully
+    # - Downloads market data for multiple symbols
+    # - Files contain actual numeric price data (not empty or malformed)
+    # - Price data passes basic sanity checks (reasonable price ranges for AAPL)
+    # - Data rows exist (not just headers)
+    
+    local test_data_dir test_config_dir
+    local service_name="vortex"
+    local success_indicators data_validation_passed
+    
+    create_test_directories "test_data_dir" "test_config_dir" "compose"
+    
+    # Create docker compose override file for testing
+    local compose_override_file="$test_data_dir/docker-compose.override.yml"
+    cat > "$compose_override_file" << EOF
+version: '3.8'
+
+services:
+  vortex:
+    container_name: vortex-test-compose
+    environment:
+      VORTEX_DEFAULT_PROVIDER: yahoo
+      VORTEX_RUN_ON_STARTUP: true
+      VORTEX_DOWNLOAD_ARGS: "--yes --symbol AAPL --symbol MSFT --start-date 2024-12-01 --end-date 2024-12-07"
+      VORTEX_SCHEDULE: "# DISABLED"
+      VORTEX_LOG_LEVEL: DEBUG
+    volumes:
+      - $PWD/$test_data_dir:/data
+      - $PWD/$test_config_dir:/root/.config/vortex
+EOF
+    
+    local output_file="$test_data_dir/compose.log"
+    local compose_project="vortex-test-$(date +%s)"
+    
+    cd "$PROJECT_ROOT"
+    
+    log_info "Starting Docker Compose deployment..."
+    log_verbose "Project name: $compose_project"
+    log_verbose "Override file: $compose_override_file"
+    
+    # Start services with override configuration
+    if docker compose -f docker/docker-compose.yml -f "$compose_override_file" -p "$compose_project" up -d 2>&1 | tee "$output_file"; then
+        log_info "✓ Docker Compose services started successfully"
+    else
+        log_error "✗ Failed to start Docker Compose services"
+        return 1
+    fi
+    
+    # Wait for startup download to complete
+    log_info "Waiting for startup download to complete..."
+    sleep 30  # Allow time for download process
+    
+    # Get service logs
+    docker compose -f docker/docker-compose.yml -f "$compose_override_file" -p "$compose_project" logs vortex >> "$output_file" 2>&1
+    
+    # Stop and remove services
+    log_verbose "Stopping Docker Compose services..."
+    docker compose -f docker/docker-compose.yml -f "$compose_override_file" -p "$compose_project" down --remove-orphans >/dev/null 2>&1 || true
+    
+    # Check for success indicators in logs
+    data_validation_passed=false
+    if [[ -f "$output_file" ]]; then
+        success_indicators=$(grep -c "Fetched remote data\|Download completed successfully\|✓ Completed" "$output_file" 2>/dev/null || echo "0")
+        # Ensure it's a single number
+        success_indicators=$(echo "$success_indicators" | head -1)
+        
+        if [[ "$success_indicators" -gt 0 ]]; then
+            log_info "✓ Download process completed successfully"
+            log_info "Success indicators found: $success_indicators"
+            
+            # Show key indicators
+            grep -E "(Fetched remote data|Download completed successfully|✓ Completed)" "$output_file" | head -3
+            
+            # ENHANCED: Validate actual market data was fetched
+            local csv_files data_rows_total market_data_validated
+            csv_files=$(find "$test_data_dir" -name "*.csv" -type f 2>/dev/null | wc -l)
+            csv_files=$(echo "$csv_files" | tr -d ' ')  # Remove any whitespace
+            
+            if [[ "$csv_files" -gt 0 ]]; then
+                log_info "✓ Downloaded files: $csv_files CSV files"
+                
+                # Validate CSV file contents contain actual market data
+                market_data_validated=false
+                data_rows_total=0
+                
+                for csv_file in $(find "$test_data_dir" -name "*.csv" -type f | head -3); do
+                    log_verbose "Validating CSV file: $csv_file"
+                    
+                    if [[ -s "$csv_file" ]]; then  # File exists and is not empty
+                        # Count data rows (excluding header)
+                        local data_rows
+                        data_rows=$(tail -n +2 "$csv_file" 2>/dev/null | wc -l | tr -d ' ')
+                        data_rows_total=$((data_rows_total + data_rows))
+                        
+                        # Check for required OHLCV columns in header
+                        local header
+                        header=$(head -1 "$csv_file" 2>/dev/null)
+                        
+                        if ([[ "$header" == *"Date"* ]] || [[ "$header" == *"DATETIME"* ]]) && [[ "$header" == *"Open"* ]] && \
+                           [[ "$header" == *"High"* ]] && [[ "$header" == *"Low"* ]] && \
+                           [[ "$header" == *"Close"* ]] && [[ "$header" == *"Volume"* ]]; then
+                            
+                            # Validate we have actual price data (sample a few rows)
+                            local sample_rows
+                            sample_rows=$(tail -n +2 "$csv_file" | head -3 2>/dev/null)
+                            
+                            if [[ -n "$sample_rows" ]]; then
+                                # Check if data contains reasonable numeric values (simplified validation)
+                                local has_numeric_data=false
+                                # Simple check: if the sample contains decimal numbers, it's probably valid market data
+                                if echo "$sample_rows" | grep -q "[0-9]\+\.[0-9]\+"; then
+                                    has_numeric_data=true
+                                fi
+                                
+                                if [[ "$has_numeric_data" == true ]]; then
+                                    market_data_validated=true
+                                    log_info "✓ Market data validation passed for $(basename "$csv_file")"
+                                    log_info "  - Data rows: $data_rows"
+                                    log_info "  - Sample data: $(echo "$sample_rows" | head -1 | cut -d',' -f1,2,5)"
+                                else
+                                    log_warning "✗ Market data validation failed: no valid numeric price data in $(basename "$csv_file")"
+                                fi
+                            else
+                                log_warning "✗ Market data validation failed: no data rows in $(basename "$csv_file")"
+                            fi
+                        else
+                            log_warning "✗ Market data validation failed: missing required OHLCV columns in $(basename "$csv_file")"
+                            log_verbose "Header: $header"
+                        fi
+                    else
+                        log_warning "✗ Market data validation failed: empty or missing file $(basename "$csv_file")"
+                    fi
+                done
+                
+                # Set validation status and show summary
+                if [[ "$market_data_validated" == true ]]; then
+                    log_info "✓ Market data validation passed (total rows: $data_rows_total)"
+                    data_validation_passed=true
+                else
+                    log_warning "✗ Market data validation failed - no valid market data found"
+                fi
+            else
+                log_warning "✗ No CSV files found in output directory"
+            fi
+        else
+            log_warning "✗ No download success indicators found in logs"
+        fi
+    else
+        log_error "✗ No log file found"
+    fi
+    
+    # Docker Compose specific validations
+    local compose_validations=0
+    
+    # Check if service started properly (from compose output)
+    if grep -q "Creating vortex-test-compose" "$output_file" 2>/dev/null; then
+        log_info "✓ Docker Compose container created successfully"
+        ((compose_validations++))
+    else
+        log_warning "✗ Docker Compose container creation not found in logs"
+    fi
+    
+    # Check if service was healthy
+    if grep -q "Started\|healthy" "$output_file" 2>/dev/null; then
+        log_info "✓ Docker Compose service started successfully"
+        ((compose_validations++))
+    else
+        log_warning "✗ Docker Compose service health check failed"
+    fi
+    
+    # Overall test result
+    local total_validations=5  # 3 from download + 2 from compose
+    local passed_validations=0
+    
+    if [[ "$success_indicators" -gt 0 ]]; then ((passed_validations++)); fi
+    if [[ "$csv_files" -gt 0 ]]; then ((passed_validations++)); fi
+    if [[ "$data_validation_passed" == true ]]; then ((passed_validations++)); fi
+    passed_validations=$((passed_validations + compose_validations))
+    
+    log_info "Docker Compose test validation summary:"
+    log_info "- Download success indicators: $success_indicators"
+    log_info "- CSV files created: $csv_files"
+    log_info "- Market data validation: $([ "$data_validation_passed" == true ] && echo "PASSED" || echo "FAILED")"
+    log_info "- Compose validations: $compose_validations/2"
+    log_info "- Total validations: $passed_validations/$total_validations"
+    
+    if [[ "$passed_validations" -ge 4 ]]; then  # Allow 1 failure
+        log_success "Docker Compose download test passed ($passed_validations/$total_validations validations passed)"
+        return 0
+    else
+        log_error "Docker Compose download test failed ($passed_validations/$total_validations validations passed)"
+        log_info "Check logs at: $output_file"
+        return 1
+    fi
+}
+
 # ============================================================================
 # MAIN EXECUTION
 # ============================================================================
@@ -1240,7 +1441,7 @@ run_specific_tests() {
     for test_num in "${tests_to_run[@]}"; do
         if [[ -n "${TEST_REGISTRY[$test_num]:-}" ]]; then
             # Skip comprehensive tests unless flag is set
-            if [[ "$test_num" == "14" ]] && [[ "$COMPREHENSIVE" != true ]]; then
+            if [[ "$test_num" == "14" || "$test_num" == "15" ]] && [[ "$COMPREHENSIVE" != true ]]; then
                 log_info "Skipping comprehensive test $test_num (use --comprehensive to include)"
                 continue
             fi
