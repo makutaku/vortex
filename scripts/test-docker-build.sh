@@ -311,23 +311,9 @@ cleanup_test() {
     if [[ "$KEEP_DATA" != true ]]; then
         log_verbose "cleanup_test called for $test_name"
         
-        # If array is empty but session directory exists, find directories to clean
-        if [[ ${#DIRECTORIES_TO_CLEANUP[@]} -eq 0 ]] && [[ -n "$TEST_SESSION_DIR" ]] && [[ -d "$TEST_SESSION_DIR" ]]; then
-            log_verbose "Array empty, scanning session directory for cleanup"
-            local found_dirs=()
-            while IFS= read -r -d '' dir; do
-                found_dirs+=("$dir")
-            done < <(find "$TEST_SESSION_DIR" -mindepth 1 -maxdepth 1 -type d -print0 2>/dev/null)
-            
-            log_verbose "Found ${#found_dirs[@]} directories in session dir to clean up"
-            
-            # Clean up the found directories
-            for dir in "${found_dirs[@]}"; do
-                if [[ -d "$dir" ]]; then
-                    log_verbose "Removing found directory: $dir"
-                    rm -rf "$dir" 2>/dev/null && log_verbose "Successfully removed $dir"
-                fi
-            done
+        # If array is empty, skip directory scanning to prevent cleaning up other tests' directories
+        if [[ ${#DIRECTORIES_TO_CLEANUP[@]} -eq 0 ]]; then
+            log_verbose "No test-specific directories to clean up for: $test_name"
         fi
         
         log_verbose "Cleaning up test directories for: $test_name"
@@ -368,8 +354,8 @@ cleanup_test() {
         # Reset the cleanup array for next test (but keep TEST_SESSION_DIR)
         DIRECTORIES_TO_CLEANUP=()
         
-        # Clean up empty session directory if no more tests will run
-        cleanup_session_directory_if_empty
+        # Note: Session directory cleanup is handled separately at the end of all tests
+        # Don't clean up session directory here as other tests may still need it
     fi
 }
 
@@ -454,58 +440,134 @@ setup_test_environment() {
     return 0
 }
 
-# Test session directory - created once per script run
+# Test session directory - managed by fixture functions
 TEST_SESSION_DIR=""
 
+# ============================================================================
+# FIXTURE FUNCTIONS
+# ============================================================================
+
+# Initialize test session - creates session-level resources
+init_test_session() {
+    log_verbose "Initializing test session..."
+    
+    # Create unique session directory
+    TEST_SESSION_DIR="test-output/session-$(date +%Y%m%d-%H%M%S)"
+    mkdir -p "$TEST_SESSION_DIR"
+    
+    log_verbose "Test session initialized: $TEST_SESSION_DIR"
+    
+    # Ensure session directory is writable
+    chmod 755 "$TEST_SESSION_DIR" 2>/dev/null || true
+    
+    return 0
+}
+
+# Cleanup test session - removes session-level resources
+cleanup_test_session() {
+    if [[ "$KEEP_DATA" == true ]]; then
+        log_info "Keeping test session directory for debugging: $TEST_SESSION_DIR"
+        return 0
+    fi
+    
+    if [[ -n "$TEST_SESSION_DIR" ]] && [[ -d "$TEST_SESSION_DIR" ]]; then
+        log_verbose "Cleaning up test session: $TEST_SESSION_DIR"
+        
+        # Remove all contents
+        rm -rf "$TEST_SESSION_DIR" 2>/dev/null || true
+        
+        # Try to remove parent test-output directory if empty
+        rmdir "$(dirname "$TEST_SESSION_DIR")" 2>/dev/null || true
+        
+        log_verbose "Test session cleanup complete"
+    fi
+    
+    return 0
+}
+
+# Create test-specific directories within session
+# Usage: create_test_directories <session_dir> <test_name> <data_dir_var> <config_dir_var>
+create_test_directories() {
+    local session_dir="$1"
+    local test_name="$2"
+    local data_var_name="$3"
+    local config_var_name="$4"
+    
+    if [[ -z "$session_dir" ]]; then
+        log_error "Session directory parameter is empty - test function may not be updated to use fixture pattern"
+        return 1
+    fi
+    if [[ ! -d "$session_dir" ]]; then
+        log_error "Session directory does not exist: $session_dir"
+        log_verbose "Available directories: $(ls -la "$(dirname "$session_dir")" 2>/dev/null || echo "parent directory not found")"
+        return 1
+    fi
+    
+    local timestamp=$(date +%s)
+    local data_dir="${session_dir}/test-data-${test_name}-${timestamp}"
+    local config_dir="${session_dir}/test-config-${test_name}-${timestamp}"
+    
+    # Create directories
+    mkdir -p "$data_dir" "$config_dir"
+    
+    # Make directories writable for containers
+    chmod 777 "$data_dir" "$config_dir" 2>/dev/null || true
+    
+    # Track for cleanup
+    DIRECTORIES_TO_CLEANUP+=("$data_dir" "$config_dir")
+    
+    # Return directory paths via variable names
+    if [[ -n "$data_var_name" ]]; then
+        printf -v "$data_var_name" "%s" "$data_dir"
+    fi
+    if [[ -n "$config_var_name" ]]; then
+        printf -v "$config_var_name" "%s" "$config_dir"
+    fi
+    
+    log_verbose "Created test directories for $test_name: $data_dir, $config_dir"
+    
+    return 0
+}
+
+# Legacy function - use create_test_directories instead
 create_test_directory() {
     local base_name="$1"
     local timestamp=$(date +%s)
     
-    # Create test session directory if not already created
-    if [[ -z "$TEST_SESSION_DIR" ]]; then
-        TEST_SESSION_DIR="test-output/session-$(date +%Y%m%d-%H%M%S)"
-        mkdir -p "$TEST_SESSION_DIR"
+    if [[ -z "$TEST_SESSION_DIR" ]] || [[ ! -d "$TEST_SESSION_DIR" ]]; then
+        log_error "Session directory not initialized. Call init_test_session() first."
+        return 1
     fi
     
     local dir_name="${TEST_SESSION_DIR}/${base_name}-${timestamp}"
     
     mkdir -p "$dir_name"
+    chmod 777 "$dir_name" 2>/dev/null || true
     DIRECTORIES_TO_CLEANUP+=("$dir_name")
     
     # Store result for non-subshell access
     CREATED_DIRECTORY="$dir_name"
     
-    # Debug: Show that directory was created and tracked
+    log_verbose "Created test directory: $dir_name"
     
     echo "$dir_name"
 }
 
-# Helper function to create directories and assign to variables without subshells
-create_test_directories() {
+# Legacy helper function - use new create_test_directories instead
+create_test_directories_legacy() {
     local data_var_name="$1"
     local config_var_name="$2"
     local base_name="$3"
     
-    local timestamp=$(date +%s)
-    
-    # Create test session directory if not already created
-    if [[ -z "$TEST_SESSION_DIR" ]]; then
-        TEST_SESSION_DIR="test-output/session-$(date +%Y%m%d-%H%M%S)"
-        mkdir -p "$TEST_SESSION_DIR"
+    if [[ -z "$TEST_SESSION_DIR" ]] || [[ ! -d "$TEST_SESSION_DIR" ]]; then
+        log_error "Session directory not initialized. Call init_test_session() first."
+        return 1
     fi
     
-    local data_dir="${TEST_SESSION_DIR}/test-data-${base_name}-${timestamp}"
-    local config_dir="${TEST_SESSION_DIR}/test-config-${base_name}-${timestamp}"
+    # Call new fixture-based function
+    create_test_directories "$TEST_SESSION_DIR" "$base_name" "$data_var_name" "$config_var_name"
     
-    mkdir -p "$data_dir" "$config_dir"
-    
-    DIRECTORIES_TO_CLEANUP+=("$data_dir" "$config_dir")
-    
-    # Debug: Show that directories were created and tracked
-    
-    # Assign to the variable names provided
-    printf -v "$data_var_name" "%s" "$data_dir"
-    printf -v "$config_var_name" "%s" "$config_dir"
+    return $?
 }
 
 # ============================================================================
@@ -513,6 +575,7 @@ create_test_directories() {
 # ============================================================================
 
 test_docker_build() {
+    local session_dir="$1"
     log_test "Test 1: Docker Image Build"
     
     if [[ "$SKIP_BUILD" == true ]]; then
@@ -526,32 +589,39 @@ test_docker_build() {
         fi
     fi
     
+    local original_dir=$(pwd)
     cd "$PROJECT_ROOT"
     
     log_verbose "Building Docker image with timeout ${BUILD_TIMEOUT}s..."
     
+    local result=0
     if [[ "$VERBOSE" == true ]]; then
         # Show build output in verbose mode
         if timeout "$BUILD_TIMEOUT" docker build -f docker/Dockerfile -t "$TEST_IMAGE" .; then
             log_success "Docker build completed successfully"
-            return 0
+            result=0
         else
             log_error "Docker build failed"
-            return 1
+            result=1
         fi
     else
         # Hide build output in normal mode
         if timeout "$BUILD_TIMEOUT" docker build -f docker/Dockerfile -t "$TEST_IMAGE" . >/dev/null 2>&1; then
             log_success "Docker build completed successfully"
-            return 0
+            result=0
         else
             log_error "Docker build failed"
-            return 1
+            result=1
         fi
     fi
+    
+    # Restore original working directory
+    cd "$original_dir"
+    return $result
 }
 
 test_image_details() {
+    local session_dir="$1"
     log_test "Test 2: Image Details"
     
     local image_info
@@ -566,6 +636,7 @@ test_image_details() {
 }
 
 test_basic_container_startup() {
+    local session_dir="$1"
     log_test "Test 3: Basic Container Startup"
     
     local output
@@ -584,6 +655,7 @@ test_basic_container_startup() {
 }
 
 test_cli_help() {
+    local session_dir="$1"
     log_test "Test 4: CLI Help Command"
     
     local output
@@ -609,14 +681,14 @@ test_cli_help() {
 }
 
 test_providers_command() {
+    local session_dir="$1"
     log_test "Test 5: Providers Command"
     
     local output
     local test_config_dir
     
-    # Create directory and explicitly track for cleanup
-    create_test_directory "test-config-providers"
-    test_config_dir="$CREATED_DIRECTORY"
+    # Create test-specific directory using fixture pattern
+    create_test_directories "$session_dir" "providers" "" "test_config_dir"
     
     if output=$(exec_container 30 "test-providers" \
         --user "$(id -u):$(id -g)" \
@@ -635,6 +707,7 @@ test_providers_command() {
 }
 
 test_environment_variables() {
+    local session_dir="$1"
     log_test "Test 6: Environment Variables"
     
     local output
@@ -656,12 +729,14 @@ test_environment_variables() {
 }
 
 test_volume_mounts() {
+    local session_dir="$1"
     log_test "Test 7: Volume Mounts"
     
     local test_data_dir test_config_dir
     local output
     
-    create_test_directories "test_data_dir" "test_config_dir" "volumes"
+    # Create test-specific directories using fixture pattern
+    create_test_directories "$session_dir" "volumes" "test_data_dir" "test_config_dir"
     
     if output=$(exec_container 20 "test-volumes" \
         --user "$(id -u):$(id -g)" \
@@ -683,6 +758,7 @@ test_volume_mounts() {
 }
 
 test_entrypoint_dry_run() {
+    local session_dir="$1"
     log_test "Test 8: Entrypoint (Dry Run)"
     
     local container_id output
@@ -711,20 +787,29 @@ test_entrypoint_dry_run() {
 }
 
 test_docker_compose_config() {
+    local session_dir="$1"
     log_test "Test 9: Docker Compose Configuration"
     
+    local original_dir=$(pwd)
     cd "$PROJECT_ROOT/docker"
     
+    local result=0
     if docker compose config >/dev/null 2>&1; then
         log_success "Docker Compose configuration is valid"
-        return 0
+        result=0
     else
         log_error "Docker Compose configuration is invalid"
-        return 1
+        result=1
     fi
+    
+    # Restore original working directory
+    cd "$original_dir"
+    
+    return $result
 }
 
 test_download_dry_run() {
+    local session_dir="$1"
     log_test "Test 10: Download Command (Dry Run)"
     
     local output
@@ -748,6 +833,7 @@ test_download_dry_run() {
 
 
 test_yahoo_download() {
+    local session_dir="$1"
     log_test "Test 11: Yahoo Download with Market Data Validation"
     
     # This test not only verifies that the download command completes successfully,
@@ -763,11 +849,19 @@ test_yahoo_download() {
     local container_id output_file
     local success_indicators data_validation_passed
     
-    create_test_directories "test_data_dir" "test_config_dir" "yahoo"
-    output_file="$test_data_dir/container.log"
+    # Create test-specific directories using fixture pattern
+    if ! create_test_directories "$session_dir" "yahoo" "test_data_dir" "test_config_dir"; then
+        log_error "Failed to create test directories for yahoo download test"
+        return 1
+    fi
     
-    # Ensure test directories are writable by container user (UID 1000)
-    chmod 777 "$test_data_dir" "$test_config_dir" 2>/dev/null || true
+    # Ensure variables are set before using them
+    if [[ -z "$test_data_dir" ]] || [[ -z "$test_config_dir" ]]; then
+        log_error "Test directories not properly set: data_dir='$test_data_dir', config_dir='$test_config_dir'"
+        return 1
+    fi
+    
+    output_file="$test_data_dir/container.log"
     
     # Start container with proper configuration (runs as built-in vortex user UID 1000)
     container_id=$(run_container "test-yahoo-download" \
@@ -901,17 +995,16 @@ test_yahoo_download() {
 }
 
 test_supervisord_scheduler_setup() {
+    local session_dir="$1"
     log_test "Test 12: Supervisord Scheduler Setup and Validation"
     
     local test_data_dir test_config_dir
     local container_id output_file
     local schedule="*/2 * * * *"  # Every 2 minutes for testing
     
-    create_test_directories "test_data_dir" "test_config_dir" "supervisord"
+    # Create test-specific directories using fixture pattern
+    create_test_directories "$session_dir" "supervisord" "test_data_dir" "test_config_dir"
     output_file="$test_data_dir/container.log"
-    
-    # Ensure test directories are writable by container user (UID 1000)
-    chmod 777 "$test_data_dir" "$test_config_dir" 2>/dev/null || true
     
     # Start container with supervisord scheduling enabled (root-less architecture)
     container_id=$(run_container "test-supervisord-setup" \
@@ -1015,6 +1108,7 @@ test_supervisord_scheduler_setup() {
 }
 
 test_supervisord_scheduler_execution() {
+    local session_dir="$1"
     log_test "Test 13: Comprehensive Supervisord Scheduler Execution Test"
     log_info "⚠️  This test may take up to 60 seconds - it waits for actual scheduled execution"
     
@@ -1024,11 +1118,9 @@ test_supervisord_scheduler_execution() {
     local wait_timeout=180  # 3 minutes maximum wait
     local check_interval=30  # Check every 30 seconds
     
-    create_test_directories "test_data_dir" "test_config_dir" "supervisord-exec" 
+    # Create test-specific directories using fixture pattern
+    create_test_directories "$session_dir" "supervisord-exec" "test_data_dir" "test_config_dir"
     output_file="$test_data_dir/container.log"
-    
-    # Ensure test directories are writable by container user (UID 1000)
-    chmod 777 "$test_data_dir" "$test_config_dir" 2>/dev/null || true
     
     log_info "Starting container with schedule: $schedule"
     
@@ -1173,6 +1265,7 @@ test_supervisord_scheduler_execution() {
 }
 
 test_docker_compose_download() {
+    local session_dir="$1"
     log_test "Test 14: Docker Compose Yahoo Download with Market Data Validation"
     
     # This test deploys vortex using docker compose and validates:
@@ -1186,22 +1279,48 @@ test_docker_compose_download() {
     local service_name="vortex"
     local success_indicators=0 data_validation_passed=false
     
-    create_test_directories "test_data_dir" "test_config_dir" "compose"
+    # Create test-specific directories using robust fixture pattern
+    create_test_directories "$session_dir" "compose" "test_data_dir" "test_config_dir"
+    
+    # Generate unique project name early for container naming
+    local compose_project="vortex-test-$(date +%s)"
     
     # Create docker compose override file for testing in a more robust way
     local compose_override_file="$test_data_dir/docker-compose.override.yml"
+    
+    # Debug: Check if directory exists and is accessible
+    if [[ ! -d "$test_data_dir" ]]; then
+        log_error "Test data directory was not created: $test_data_dir"
+        log_verbose "Session directory status: $(ls -la "$(dirname "$test_data_dir")" 2>/dev/null || echo "parent directory does not exist")"
+        return 1
+    fi
     
     # Ensure the directory exists and is writable
     mkdir -p "$test_data_dir" 2>/dev/null || true
     chmod 755 "$test_data_dir" 2>/dev/null || true
     
     # Use absolute path to avoid any PWD issues
-    cat > "$compose_override_file" << EOF
-version: '3.8'
+    log_verbose "About to create override file at: $compose_override_file"
+    log_verbose "Parent directory exists: $(test -d "$(dirname "$compose_override_file")" && echo "YES" || echo "NO")"
+    log_verbose "Parent directory contents: $(ls -la "$(dirname "$compose_override_file")" 2>/dev/null | wc -l || echo "0") items"
+    log_verbose "Session directory exists: $(test -d "$TEST_SESSION_DIR" && echo "YES" || echo "NO")"
+    log_verbose "Session directory permissions: $(ls -ld "$TEST_SESSION_DIR" 2>/dev/null || echo "NOT FOUND")"
+    
+    # Robust file creation with retry logic to handle race conditions
+    local retry_count=0
+    local max_retries=3
+    while [[ $retry_count -lt $max_retries ]]; do
+        # Ensure directory exists immediately before write (defensive programming)
+        mkdir -p "$(dirname "$compose_override_file")" 2>/dev/null || true
+        
+        # Create the file with explicit printf to avoid heredoc shell race conditions
+        compose_write_error=""
+        local container_name="vortex-test-compose-${compose_project##*-}"
+        if compose_write_error=$(printf 'version: '\''3.8'\''
 
 services:
   vortex:
-    container_name: vortex-test-compose
+    container_name: %s
     environment:
       VORTEX_DEFAULT_PROVIDER: yahoo
       VORTEX_RUN_ON_STARTUP: true
@@ -1209,10 +1328,29 @@ services:
       VORTEX_SCHEDULE: "# DISABLED"
       VORTEX_LOG_LEVEL: DEBUG
     volumes:
-      - $(pwd)/$test_data_dir:/data
+      - %s/%s:/data
       # Container runs as vortex user consistently (UID 1000)  
-      - $(pwd)/$test_config_dir:/home/vortex/.config/vortex
-EOF
+      - %s/%s:/home/vortex/.config/vortex
+' "$container_name" "$(pwd)" "$test_data_dir" "$(pwd)" "$test_config_dir" > "$compose_override_file" 2>&1)
+        then
+            log_verbose "Successfully created override file on attempt $((retry_count + 1))"
+            break
+        else
+            retry_count=$((retry_count + 1))
+            log_verbose "Failed to write file on attempt $retry_count: $compose_write_error"
+            log_verbose "Directory status after failure: $(ls -la "$(dirname "$compose_override_file")" 2>/dev/null || echo "directory no longer exists")"
+            
+            if [[ $retry_count -ge $max_retries ]]; then
+                log_error "Failed to write docker-compose override file after $max_retries attempts: $compose_override_file"
+                log_verbose "Final error: $compose_write_error"
+                log_verbose "Session directory status after all failures: $(ls -la "$TEST_SESSION_DIR" 2>/dev/null || echo "session directory no longer exists")"
+                return 1
+            else
+                log_verbose "Retrying in 0.5 seconds..."
+                sleep 0.5
+            fi
+        fi
+    done
 
     # Verify the override file was created successfully
     if [[ ! -f "$compose_override_file" ]]; then
@@ -1220,12 +1358,12 @@ EOF
         return 1
     fi
     
-    local compose_project="vortex-test-$(date +%s)"
     local output_file="/tmp/compose-${compose_project}.log"
     
     # Ensure test directories are writable by container user (UID 1000)
     chmod 777 "$test_data_dir" "$test_config_dir" 2>/dev/null || true
     
+    local original_dir=$(pwd)
     cd "$PROJECT_ROOT"
     
     log_info "Starting Docker Compose deployment..."
@@ -1242,6 +1380,8 @@ EOF
             log_verbose "Compose startup errors:"
             tail -10 "$output_file" | sed 's/^/  /'
         fi
+        # Restore original working directory before returning
+        cd "$original_dir"
         return 1
     fi
     
@@ -1403,12 +1543,18 @@ EOF
     log_info "- Compose validations: ${compose_validations:-0}/2"
     log_info "- Total validations: ${passed_validations:-0}/$total_validations"
     
+    # Clean up temporary log file to prevent side effects
+    rm -f "$output_file" 2>/dev/null || true
+    
+    # Restore original working directory before returning
+    cd "$original_dir"
+    
     if [[ "$passed_validations" -ge 4 ]]; then  # Allow 1 failure
         log_success "Docker Compose download test passed ($passed_validations/$total_validations validations passed)"
         return 0
     else
         log_error "Docker Compose download test failed ($passed_validations/$total_validations validations passed)"
-        log_info "Check logs at: $output_file"
+        log_info "Check logs (may have been cleaned up): /tmp/compose-*.log"
         return 1
     fi
 }
@@ -1437,14 +1583,38 @@ run_specific_tests() {
     # Setup test environment
     setup_test_environment || return 1
     
+    # Initialize test session fixture
+    if ! init_test_session; then
+        log_error "Failed to initialize test session"
+        return 1
+    fi
+    
+    # Verify session directory exists and is accessible
+    if [[ ! -d "$TEST_SESSION_DIR" ]]; then
+        log_error "Session directory was not created or is inaccessible: $TEST_SESSION_DIR"
+        return 1
+    fi
+    
+    log_verbose "Session directory verified: $TEST_SESSION_DIR"
+    
     # Run specified tests
     for test_num in "${tests_to_run[@]}"; do
         if [[ -n "${TEST_REGISTRY[$test_num]:-}" ]]; then
             IFS=':' read -r func_name description <<< "${TEST_REGISTRY[$test_num]}"
             log_verbose "Executing test $test_num: $func_name"
             
-            # Run the test function
-            if ! "$func_name"; then
+            # Verify session directory still exists before running test
+            if [[ ! -d "$TEST_SESSION_DIR" ]]; then
+                log_error "Session directory disappeared before test $test_num: $TEST_SESSION_DIR"
+                log_verbose "Available sessions: $(ls -la test-output/ 2>/dev/null | grep session || echo 'no sessions found')"
+                log_verbose "Current working directory: $(pwd)"
+                log_verbose "TEST_SESSION_DIR value: '$TEST_SESSION_DIR'"
+                test_failed=true
+                break
+            fi
+            
+            # Run the test function with session directory parameter
+            if ! "$func_name" "$TEST_SESSION_DIR"; then
                 # Clean up test directories even on failure
                 cleanup_test "Test $test_num ($func_name)"
                 
@@ -1463,6 +1633,9 @@ run_specific_tests() {
             test_failed=true
         fi
     done
+    
+    # Cleanup test session fixture
+    cleanup_test_session
     
     if [[ "$test_failed" == true ]]; then
         return 1
@@ -1487,15 +1660,9 @@ show_results() {
         log_info "To clean up test image:"
         echo "    docker rmi $TEST_IMAGE"
         
-        # Clean up session directory now that all tests are complete
-        cleanup_session_directory_if_empty
-        
         return 0
     else
         log_error "Some tests failed: $TESTS_FAILED failed, $TESTS_PASSED passed"
-        
-        # Clean up session directory even if some tests failed
-        cleanup_session_directory_if_empty
         
         return 1
     fi
@@ -1598,11 +1765,7 @@ main() {
     # Show results
     show_results
     
-    # Final cleanup of session directory if needed
-    if [[ "$KEEP_DATA" != true ]]; then
-        cleanup_session_directory_if_empty
-        log_verbose "Final cleanup completed"
-    fi
+    # Session cleanup is now handled by the fixture pattern in run_specific_tests
     
     return $exit_code
 }
