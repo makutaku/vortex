@@ -506,3 +506,282 @@ class TestConfigManagerAdvanced:
         assert result["general"]["new_field"] == "added"  # Added
         assert result["general"]["deep"]["inner"]["value"] == 1  # Preserved
         assert result["general"]["deep"]["inner"]["new_value"] == 2  # Added
+
+
+class TestConfigurationPrecedenceRules:
+    """Test configuration precedence rules: Environment Variables > TOML > Defaults."""
+    
+    def test_environment_variables_override_toml_config(self, temp_dir):
+        """Test that environment variables take precedence over TOML configuration."""
+        # Create TOML config file with specific values
+        config_file = temp_dir / "precedence_test.toml"
+        toml_data = {
+            "general": {
+                "output_directory": "/toml/data",
+                "logging": {"level": "WARNING"}, 
+                "backup_enabled": False,
+                "default_provider": "barchart"
+            },
+            "providers": {
+                "barchart": {
+                    "username": "toml_user",
+                    "password": "toml_pass",
+                    "daily_limit": 100
+                },
+                "ibkr": {
+                    "host": "toml.host.com",
+                    "port": 7496
+                }
+            }
+        }
+        
+        import tomli_w
+        with open(config_file, 'wb') as f:
+            tomli_w.dump(toml_data, f)
+        
+        manager = ConfigManager(config_file)
+        
+        # Set environment variables that should override TOML values
+        with patch.dict(os.environ, {
+            "VORTEX_OUTPUT_DIR": "/env/override/data",
+            "VORTEX_LOGGING_LEVEL": "DEBUG", 
+            "VORTEX_BACKUP_ENABLED": "true",
+            "VORTEX_DEFAULT_PROVIDER": "yahoo",
+            "VORTEX_BARCHART_USERNAME": "env_user",
+            "VORTEX_BARCHART_PASSWORD": "env_pass",
+            "VORTEX_BARCHART_DAILY_LIMIT": "999",
+            "VORTEX_IBKR_HOST": "env.host.com",
+            "VORTEX_IBKR_PORT": "7497"
+        }):
+            config = manager.load_config()
+        
+        # Environment variables should override TOML values
+        assert str(config.general.output_directory) == "/env/override/data"
+        assert config.general.logging.level.value == "DEBUG"
+        assert config.general.backup_enabled is True
+        assert config.general.default_provider.value == "yahoo"
+        assert config.providers.barchart.username == "env_user" 
+        assert config.providers.barchart.password == "env_pass"
+        assert config.providers.barchart.daily_limit == 999
+        assert config.providers.ibkr.host == "env.host.com"
+        assert config.providers.ibkr.port == 7497
+    
+    def test_toml_config_overrides_defaults(self, temp_dir):
+        """Test that TOML configuration overrides application defaults."""
+        # Create TOML config file with specific values
+        config_file = temp_dir / "toml_defaults_test.toml"
+        toml_data = {
+            "general": {
+                "output_directory": "/custom/toml/data",
+                "logging": {"level": "ERROR"},
+                "backup_enabled": True,
+                "default_provider": "barchart"
+            },
+            "providers": {
+                "barchart": {
+                    "daily_limit": 300
+                },
+                "ibkr": {
+                    "host": "custom.host.com",
+                    "port": 7498
+                }
+            }
+        }
+        
+        import tomli_w
+        with open(config_file, 'wb') as f:
+            tomli_w.dump(toml_data, f)
+        
+        manager = ConfigManager(config_file)
+        
+        # Load config without environment variables
+        with patch.dict(os.environ, {}, clear=True):
+            config = manager.load_config()
+        
+        # TOML values should override defaults
+        assert str(config.general.output_directory) == "/custom/toml/data"
+        assert config.general.logging.level.value == "ERROR"
+        assert config.general.backup_enabled is True
+        assert config.general.default_provider.value == "barchart"
+        assert config.providers.barchart.daily_limit == 300
+        assert config.providers.ibkr.host == "custom.host.com"
+        assert config.providers.ibkr.port == 7498
+    
+    def test_application_defaults_when_no_overrides(self, temp_dir):
+        """Test that application defaults are used when no TOML or env variables are set."""
+        # Create empty TOML file 
+        config_file = temp_dir / "empty_config_test.toml"
+        config_file.touch()
+        
+        manager = ConfigManager(config_file)
+        
+        # Load config without environment variables or TOML content
+        with patch.dict(os.environ, {}, clear=True):
+            config = manager.load_config()
+        
+        # Should use application defaults
+        assert str(config.general.output_directory).endswith("data")  # Default: ./data (relative path)
+        assert config.general.logging.level.value == "INFO"  # Default
+        assert config.general.backup_enabled is False  # Default
+        assert config.general.default_provider.value == "yahoo"  # Default
+        assert config.providers.barchart.daily_limit == 150  # Default
+        assert config.providers.ibkr.host == "localhost"  # Default
+        assert config.providers.ibkr.port == 7497  # Default
+    
+    def test_partial_environment_override(self, temp_dir):
+        """Test that only specified environment variables override, others use TOML/defaults."""
+        # Create TOML config with some values
+        config_file = temp_dir / "partial_override_test.toml"
+        toml_data = {
+            "general": {
+                "output_directory": "/toml/data",
+                "logging": {"level": "WARNING"},
+                "backup_enabled": False
+            },
+            "providers": {
+                "barchart": {
+                    "username": "toml_user",
+                    "password": "toml_pass",
+                    "daily_limit": 200
+                }
+            }
+        }
+        
+        import tomli_w
+        with open(config_file, 'wb') as f:
+            tomli_w.dump(toml_data, f)
+        
+        manager = ConfigManager(config_file)
+        
+        # Set only some environment variables
+        with patch.dict(os.environ, {
+            "VORTEX_OUTPUT_DIR": "/env/override",
+            "VORTEX_BARCHART_DAILY_LIMIT": "999"
+            # Note: Not setting VORTEX_LOG_LEVEL or VORTEX_BARCHART_USERNAME
+        }):
+            config = manager.load_config()
+        
+        # Environment overrides should apply where set
+        assert str(config.general.output_directory) == "/env/override"
+        assert config.providers.barchart.daily_limit == 999
+        
+        # TOML values should be used where env vars not set
+        assert config.general.logging.level.value == "WARNING"
+        assert config.general.backup_enabled is False
+        assert config.providers.barchart.username == "toml_user"
+        assert config.providers.barchart.password == "toml_pass"
+    
+    def test_precedence_with_boolean_conversions(self, temp_dir):
+        """Test precedence rules with proper boolean type conversions."""
+        # Create TOML config
+        config_file = temp_dir / "boolean_precedence_test.toml" 
+        toml_data = {
+            "general": {
+                "backup_enabled": False,
+                "dry_run": True
+            }
+        }
+        
+        import tomli_w
+        with open(config_file, 'wb') as f:
+            tomli_w.dump(toml_data, f)
+        
+        manager = ConfigManager(config_file)
+        
+        # Test various boolean string representations
+        with patch.dict(os.environ, {
+            "VORTEX_BACKUP_ENABLED": "true",
+            "VORTEX_DRY_RUN": "false"
+        }):
+            config = manager.load_config()
+        
+        # Environment variables should override and be properly converted
+        assert config.general.backup_enabled is True  # env: "true" overrides TOML: false
+        assert config.general.dry_run is False  # env: "false" overrides TOML: true
+    
+    def test_precedence_with_numeric_conversions(self, temp_dir):
+        """Test precedence rules with proper numeric type conversions."""
+        # Create TOML config
+        config_file = temp_dir / "numeric_precedence_test.toml"
+        toml_data = {
+            "providers": {
+                "barchart": {
+                    "username": "toml_user", 
+                    "password": "toml_pass",
+                    "daily_limit": 100
+                },
+                "ibkr": {"port": 7496, "client_id": 1}
+            }
+        }
+        
+        import tomli_w
+        with open(config_file, 'wb') as f:
+            tomli_w.dump(toml_data, f)
+        
+        manager = ConfigManager(config_file)
+        
+        # Set environment variables as strings (how they come from env)
+        with patch.dict(os.environ, {
+            "VORTEX_BARCHART_DAILY_LIMIT": "999",
+            "VORTEX_IBKR_PORT": "7498",
+            "VORTEX_IBKR_CLIENT_ID": "42"
+        }):
+            config = manager.load_config()
+        
+        # Environment variables should override and be properly converted to int
+        assert config.providers.barchart.daily_limit == 999  # env: "999" overrides TOML: 100
+        assert config.providers.ibkr.port == 7498  # env: "7498" overrides TOML: 7496  
+        assert config.providers.ibkr.client_id == 42  # env: "42" overrides TOML: 1
+    
+    def test_full_precedence_chain(self, temp_dir):
+        """Test complete precedence chain: defaults -> TOML -> env vars."""
+        # Create TOML config that overrides some defaults
+        config_file = temp_dir / "full_chain_test.toml" 
+        toml_data = {
+            "general": {
+                "output_directory": "/toml/override",
+                "logging": {"level": "WARNING"}
+                # backup_enabled not set, should use default (false)
+            },
+            "providers": {
+                "barchart": {
+                    "daily_limit": 200
+                    # username/password not set, should use default (None/None)
+                },
+                "ibkr": {
+                    "host": "toml.host.com"
+                    # port not set, should use default (7497)
+                }
+            }
+        }
+        
+        import tomli_w
+        with open(config_file, 'wb') as f:
+            tomli_w.dump(toml_data, f)
+        
+        manager = ConfigManager(config_file)
+        
+        # Set some environment variables 
+        with patch.dict(os.environ, {
+            "VORTEX_LOGGING_LEVEL": "DEBUG",  # Should override TOML
+            "VORTEX_BACKUP_ENABLED": "true",  # Should override default
+            "VORTEX_IBKR_HOST": "env.host.com"  # Should override TOML
+            # VORTEX_OUTPUT_DIR not set, should use TOML
+            # VORTEX_BARCHART_DAILY_LIMIT not set, should use TOML
+            # VORTEX_IBKR_PORT not set, should use default
+        }):
+            config = manager.load_config()
+        
+        # Verify complete precedence chain
+        # Env > TOML > Default
+        assert config.general.logging.level.value == "DEBUG"  # ENV override
+        assert config.general.backup_enabled is True  # ENV override  
+        assert config.providers.ibkr.host == "env.host.com"  # ENV override
+        
+        # TOML > Default  
+        assert str(config.general.output_directory) == "/toml/override"  # TOML override
+        assert config.providers.barchart.daily_limit == 200  # TOML override
+        
+        # Default values (no TOML or ENV override)
+        assert config.providers.barchart.username is None  # Default
+        assert config.providers.ibkr.port == 7497  # Default
