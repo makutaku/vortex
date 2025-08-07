@@ -274,6 +274,8 @@ cleanup_directories() {
     fi
     
     log_info "Cleaning up test directories..."
+    log_verbose "Directories to cleanup: ${#DIRECTORIES_TO_CLEANUP[@]} items: ${DIRECTORIES_TO_CLEANUP[*]}"
+    log_verbose "Test session directory: $TEST_SESSION_DIR"
     
     for dir in "${DIRECTORIES_TO_CLEANUP[@]}"; do
         if [[ -d "$dir" ]]; then
@@ -281,36 +283,111 @@ cleanup_directories() {
             # Fix permissions first
             find "$dir" -type d -exec chmod 755 {} \; 2>/dev/null || true
             find "$dir" -type f -exec chmod 644 {} \; 2>/dev/null || true
-            rm -rf "$dir" 2>/dev/null || {
+            if rm -rf "$dir" 2>/dev/null; then
+                log_verbose "Successfully removed: $dir"
+            else
                 log_warning "Could not remove $dir (permission issue)"
                 # Move to temp location if can't delete
                 mv "$dir" "/tmp/vortex-test-cleanup-$(date +%s)" 2>/dev/null || true
-            }
+            fi
         fi
     done
     
     # Clean up empty session directory if it exists
     if [[ -n "$TEST_SESSION_DIR" ]] && [[ -d "$TEST_SESSION_DIR" ]]; then
-        # Remove session directory if it's empty
-        if [[ -z "$(ls -A "$TEST_SESSION_DIR" 2>/dev/null)" ]]; then
+        # Check if session directory is empty after individual cleanup
+        local remaining_items=$(find "$TEST_SESSION_DIR" -mindepth 1 -maxdepth 1 | wc -l)
+        if [[ "$remaining_items" -eq 0 ]]; then
             log_verbose "Removing empty session directory: $TEST_SESSION_DIR"
             rmdir "$TEST_SESSION_DIR" 2>/dev/null || true
             # Also try to remove parent directories if empty
             rmdir "$(dirname "$TEST_SESSION_DIR")" 2>/dev/null || true
-            rmdir "$(dirname "$(dirname "$TEST_SESSION_DIR")")" 2>/dev/null || true
+        else
+            log_verbose "Session directory not empty ($remaining_items items remaining): $TEST_SESSION_DIR"
         fi
     fi
     
     DIRECTORIES_TO_CLEANUP=()
 }
 
-cleanup_all() {
-    cleanup_containers
-    cleanup_directories
+cleanup_test() {
+    # Clean up directories created by the current test
+    local test_name="${1:-unknown}"
+    if [[ "$KEEP_DATA" != true ]]; then
+        log_verbose "DEBUG: cleanup_test called for $test_name"
+        log_verbose "DEBUG: DIRECTORIES_TO_CLEANUP array has ${#DIRECTORIES_TO_CLEANUP[@]} items: ${DIRECTORIES_TO_CLEANUP[*]}"
+        log_verbose "DEBUG: TEST_SESSION_DIR = '$TEST_SESSION_DIR'"
+        
+        # If array is empty but session directory exists, find directories to clean
+        if [[ ${#DIRECTORIES_TO_CLEANUP[@]} -eq 0 ]] && [[ -n "$TEST_SESSION_DIR" ]] && [[ -d "$TEST_SESSION_DIR" ]]; then
+            log_verbose "DEBUG: Array empty, scanning session directory for cleanup"
+            local found_dirs=()
+            while IFS= read -r -d '' dir; do
+                found_dirs+=("$dir")
+            done < <(find "$TEST_SESSION_DIR" -mindepth 1 -maxdepth 1 -type d -print0 2>/dev/null)
+            
+            log_verbose "DEBUG: Found ${#found_dirs[@]} directories in session dir to clean up"
+            
+            # Clean up the found directories
+            for dir in "${found_dirs[@]}"; do
+                if [[ -d "$dir" ]]; then
+                    log_verbose "DEBUG: Removing found directory: $dir"
+                    rm -rf "$dir" 2>/dev/null && log_verbose "DEBUG: Successfully removed $dir"
+                fi
+            done
+        fi
+        
+        log_verbose "Cleaning up test directories for: $test_name"
+        log_verbose "Directories to cleanup: ${#DIRECTORIES_TO_CLEANUP[@]} items: ${DIRECTORIES_TO_CLEANUP[*]}"
+        
+        for dir in "${DIRECTORIES_TO_CLEANUP[@]}"; do
+            if [[ -d "$dir" ]]; then
+                log_verbose "Removing directory: $dir"
+                # Fix permissions first
+                find "$dir" -type d -exec chmod 755 {} \; 2>/dev/null || true
+                find "$dir" -type f -exec chmod 644 {} \; 2>/dev/null || true
+                if rm -rf "$dir" 2>/dev/null; then
+                    log_verbose "Successfully removed: $dir"
+                else
+                    log_warning "Could not remove $dir (permission issue)"
+                    # Move to temp location if can't delete
+                    mv "$dir" "/tmp/vortex-test-cleanup-$(date +%s)" 2>/dev/null || true
+                fi
+            fi
+        done
+        
+        # Reset the cleanup array for next test (but keep TEST_SESSION_DIR)
+        DIRECTORIES_TO_CLEANUP=()
+        
+        # Clean up empty session directory if no more tests will run
+        cleanup_session_directory_if_empty
+    fi
 }
 
-# Trap for cleanup on exit
-trap cleanup_all EXIT INT TERM
+cleanup_session_directory_if_empty() {
+    if [[ -n "$TEST_SESSION_DIR" ]] && [[ -d "$TEST_SESSION_DIR" ]]; then
+        # Check if session directory is empty
+        local remaining_items=$(find "$TEST_SESSION_DIR" -mindepth 1 -maxdepth 1 | wc -l)
+        if [[ "$remaining_items" -eq 0 ]]; then
+            log_verbose "Removing empty session directory: $TEST_SESSION_DIR"
+            rmdir "$TEST_SESSION_DIR" 2>/dev/null || true
+            # Also try to remove parent directories if empty
+            rmdir "$(dirname "$TEST_SESSION_DIR")" 2>/dev/null || true
+        fi
+    fi
+}
+
+cleanup_all() {
+    log_verbose "Executing cleanup_all trap..."
+    log_verbose "Before cleanup - DIRECTORIES_TO_CLEANUP has ${#DIRECTORIES_TO_CLEANUP[@]} items"
+    log_verbose "Before cleanup - TEST_SESSION_DIR = '$TEST_SESSION_DIR'"
+    cleanup_containers
+    cleanup_directories
+    log_verbose "Cleanup_all completed"
+}
+
+# Trap for emergency container cleanup only (directories cleaned per-test)
+trap cleanup_containers EXIT INT TERM
 
 # ============================================================================
 # SETUP FUNCTIONS
@@ -343,13 +420,51 @@ create_test_directory() {
     if [[ -z "$TEST_SESSION_DIR" ]]; then
         TEST_SESSION_DIR="test-output/session-$(date +%Y%m%d-%H%M%S)"
         mkdir -p "$TEST_SESSION_DIR"
+        log_verbose "DEBUG: Created session directory: $TEST_SESSION_DIR (tracked: ${#DIRECTORIES_TO_CLEANUP[@]})"
     fi
     
     local dir_name="${TEST_SESSION_DIR}/${base_name}-${timestamp}"
     
     mkdir -p "$dir_name"
     DIRECTORIES_TO_CLEANUP+=("$dir_name")
+    
+    # Store result for non-subshell access
+    CREATED_DIRECTORY="$dir_name"
+    
+    # Debug: Show that directory was created and tracked
+    log_verbose "DEBUG: Created directory: $dir_name (total tracked: ${#DIRECTORIES_TO_CLEANUP[@]})"
+    
     echo "$dir_name"
+}
+
+# Helper function to create directories and assign to variables without subshells
+create_test_directories() {
+    local data_var_name="$1"
+    local config_var_name="$2"
+    local base_name="$3"
+    
+    local timestamp=$(date +%s)
+    
+    # Create test session directory if not already created
+    if [[ -z "$TEST_SESSION_DIR" ]]; then
+        TEST_SESSION_DIR="test-output/session-$(date +%Y%m%d-%H%M%S)"
+        mkdir -p "$TEST_SESSION_DIR"
+        log_verbose "DEBUG: Created session directory: $TEST_SESSION_DIR"
+    fi
+    
+    local data_dir="${TEST_SESSION_DIR}/test-data-${base_name}-${timestamp}"
+    local config_dir="${TEST_SESSION_DIR}/test-config-${base_name}-${timestamp}"
+    
+    mkdir -p "$data_dir" "$config_dir"
+    
+    DIRECTORIES_TO_CLEANUP+=("$data_dir" "$config_dir")
+    
+    # Debug: Show that directories were created and tracked
+    log_verbose "DEBUG: Created directories: $data_dir, $config_dir (total tracked: ${#DIRECTORIES_TO_CLEANUP[@]})"
+    
+    # Assign to the variable names provided
+    printf -v "$data_var_name" "%s" "$data_dir"
+    printf -v "$config_var_name" "%s" "$config_dir"
 }
 
 # ============================================================================
@@ -458,7 +573,9 @@ test_providers_command() {
     local output
     local test_config_dir
     
-    test_config_dir=$(create_test_directory "test-config-providers")
+    # Create directory and explicitly track for cleanup
+    create_test_directory "test-config-providers"
+    test_config_dir="$CREATED_DIRECTORY"
     
     if output=$(exec_container 30 "test-providers" \
         --user "$(id -u):$(id -g)" \
@@ -503,8 +620,7 @@ test_volume_mounts() {
     local test_data_dir test_config_dir
     local output
     
-    test_data_dir=$(create_test_directory "test-data")
-    test_config_dir=$(create_test_directory "test-config")
+    create_test_directories "test_data_dir" "test_config_dir" "volumes"
     
     if output=$(exec_container 20 "test-volumes" \
         --user "$(id -u):$(id -g)" \
@@ -595,8 +711,7 @@ test_entrypoint_no_startup() {
     local test_data_dir test_config_dir
     local container_id output
     
-    test_data_dir=$(create_test_directory "test-data-entrypoint")
-    test_config_dir=$(create_test_directory "test-config-entrypoint")
+    create_test_directories "test_data_dir" "test_config_dir" "entrypoint"
     
     # Start container (it won't exit due to tail -f)
     container_id=$(run_container "test-entrypoint-no-startup" \
@@ -690,8 +805,7 @@ test_yahoo_download() {
     local container_id output_file
     local success_indicators data_validation_passed
     
-    test_data_dir=$(create_test_directory "test-data-yahoo")
-    test_config_dir=$(create_test_directory "test-config-yahoo")
+    create_test_directories "test_data_dir" "test_config_dir" "yahoo"
     output_file="$test_data_dir/container.log"
     
     # Start container with proper configuration
@@ -833,8 +947,7 @@ test_cron_job_setup() {
     local container_id output_file
     local cron_schedule="*/2 * * * *"  # Every 2 minutes for testing
     
-    test_data_dir=$(create_test_directory "test-data-cron")
-    test_config_dir=$(create_test_directory "test-config-cron")
+    create_test_directories "test_data_dir" "test_config_dir" "cron"
     output_file="$test_data_dir/container.log"
     
     # Ensure test directories are writable by container user (UID 1000)
@@ -951,8 +1064,7 @@ test_cron_job_execution() {
     local wait_timeout=180  # 3 minutes maximum wait
     local check_interval=30  # Check every 30 seconds
     
-    test_data_dir=$(create_test_directory "test-data-cron-exec")
-    test_config_dir=$(create_test_directory "test-config-cron-exec") 
+    create_test_directories "test_data_dir" "test_config_dir" "cron-exec" 
     output_file="$test_data_dir/container.log"
     
     # Ensure test directories are writable by container user (UID 1000)
@@ -1138,12 +1250,18 @@ run_specific_tests() {
             
             # Run the test function
             if ! "$func_name"; then
+                # Clean up test directories even on failure
+                cleanup_test "Test $test_num ($func_name)"
+                
                 # Special handling for critical tests
                 if [[ "$test_num" == "1" ]] || [[ "$test_num" == "3" ]]; then
                     log_error "Critical test $test_num failed, stopping execution"
                     return 1
                 fi
                 test_failed=true
+            else
+                # Clean up test directories on success
+                cleanup_test "Test $test_num ($func_name)"
             fi
         else
             log_error "Unknown test number: $test_num"
@@ -1287,6 +1405,12 @@ main() {
     
     # Show results
     show_results
+    
+    # Final cleanup of session directory if needed
+    if [[ "$KEEP_DATA" != true ]]; then
+        cleanup_session_directory_if_empty
+        log_verbose "Final cleanup completed"
+    fi
     
     return $exit_code
 }
