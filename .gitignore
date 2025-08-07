@@ -71,6 +71,7 @@ Thumbs.db
 test-*/
 test-config-*/
 test-data-*/
+test-output/
 
 # Additional build artifacts (setuptools/Python)
 build/dist/

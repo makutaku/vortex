@@ -266,6 +266,9 @@ cleanup_containers() {
 cleanup_directories() {
     if [[ "$KEEP_DATA" == true ]]; then
         log_info "Keeping test data directories for debugging (--keep-data specified)"
+        if [[ -n "$TEST_SESSION_DIR" ]] && [[ -d "$TEST_SESSION_DIR" ]]; then
+            log_info "Test session directory: $TEST_SESSION_DIR"
+        fi
         log_info "Data directories: ${DIRECTORIES_TO_CLEANUP[*]}"
         return 0
     fi
@@ -285,6 +288,18 @@ cleanup_directories() {
             }
         fi
     done
+    
+    # Clean up empty session directory if it exists
+    if [[ -n "$TEST_SESSION_DIR" ]] && [[ -d "$TEST_SESSION_DIR" ]]; then
+        # Remove session directory if it's empty
+        if [[ -z "$(ls -A "$TEST_SESSION_DIR" 2>/dev/null)" ]]; then
+            log_verbose "Removing empty session directory: $TEST_SESSION_DIR"
+            rmdir "$TEST_SESSION_DIR" 2>/dev/null || true
+            # Also try to remove parent directories if empty
+            rmdir "$(dirname "$TEST_SESSION_DIR")" 2>/dev/null || true
+            rmdir "$(dirname "$(dirname "$TEST_SESSION_DIR")")" 2>/dev/null || true
+        fi
+    fi
     
     DIRECTORIES_TO_CLEANUP=()
 }
@@ -317,10 +332,20 @@ setup_test_environment() {
     return 0
 }
 
+# Test session directory - created once per script run
+TEST_SESSION_DIR=""
+
 create_test_directory() {
     local base_name="$1"
     local timestamp=$(date +%s)
-    local dir_name="${base_name}-${timestamp}"
+    
+    # Create test session directory if not already created
+    if [[ -z "$TEST_SESSION_DIR" ]]; then
+        TEST_SESSION_DIR="test-output/session-$(date +%Y%m%d-%H%M%S)"
+        mkdir -p "$TEST_SESSION_DIR"
+    fi
+    
+    local dir_name="${TEST_SESSION_DIR}/${base_name}-${timestamp}"
     
     mkdir -p "$dir_name"
     DIRECTORIES_TO_CLEANUP+=("$dir_name")
@@ -1247,6 +1272,10 @@ main() {
         COMPREHENSIVE=true
         log_verbose "Auto-enabled comprehensive mode for specific tests"
     fi
+    
+    # Show test output directory info
+    log_info "Test outputs will be organized in: test-output/"
+    log_verbose "Test session directory will be created as: test-output/session-YYYYMMDD-HHMMSS/"
     
     # Run tests
     if [[ ${#SPECIFIC_TESTS[@]} -gt 0 ]]; then
