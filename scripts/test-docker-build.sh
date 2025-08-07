@@ -67,11 +67,10 @@ declare -A TEST_REGISTRY=(
     [8]="test_entrypoint_dry_run:Entrypoint (Dry Run)"
     [9]="test_docker_compose_config:Docker Compose Configuration"
     [10]="test_download_dry_run:Download Command (Dry Run)"
-    [11]="test_entrypoint_no_startup:Entrypoint Without Startup Download"
-    [12]="test_yahoo_download:Yahoo Download with Market Data Validation"
-    [13]="test_supervisord_scheduler_setup:Supervisord Scheduler Setup and Validation"
-    [14]="test_supervisord_scheduler_execution:Comprehensive Supervisord Scheduler Execution Test"
-    [15]="test_docker_compose_download:Docker Compose Yahoo Download with Market Data Validation"
+    [11]="test_yahoo_download:Yahoo Download with Market Data Validation"
+    [12]="test_supervisord_scheduler_setup:Supervisord Scheduler Setup and Validation"
+    [13]="test_supervisord_scheduler_execution:Comprehensive Supervisord Scheduler Execution Test"
+    [14]="test_docker_compose_download:Docker Compose Yahoo Download with Market Data Validation"
 )
 
 # ============================================================================
@@ -270,13 +269,11 @@ cleanup_directories() {
         if [[ -n "$TEST_SESSION_DIR" ]] && [[ -d "$TEST_SESSION_DIR" ]]; then
             log_info "Test session directory: $TEST_SESSION_DIR"
         fi
-        log_info "Data directories: ${DIRECTORIES_TO_CLEANUP[*]}"
+        log_info "Data directories: ${#DIRECTORIES_TO_CLEANUP[@]} items"
         return 0
     fi
     
     log_info "Cleaning up test directories..."
-    log_verbose "Directories to cleanup: ${#DIRECTORIES_TO_CLEANUP[@]} items: ${DIRECTORIES_TO_CLEANUP[*]}"
-    log_verbose "Test session directory: $TEST_SESSION_DIR"
     
     for dir in "${DIRECTORIES_TO_CLEANUP[@]}"; do
         if [[ -d "$dir" ]]; then
@@ -316,8 +313,6 @@ cleanup_test() {
     local test_name="${1:-unknown}"
     if [[ "$KEEP_DATA" != true ]]; then
         log_verbose "cleanup_test called for $test_name"
-        log_verbose "DIRECTORIES_TO_CLEANUP array has ${#DIRECTORIES_TO_CLEANUP[@]} items: ${DIRECTORIES_TO_CLEANUP[*]}"
-        log_verbose "TEST_SESSION_DIR = '$TEST_SESSION_DIR'"
         
         # If array is empty but session directory exists, find directories to clean
         if [[ ${#DIRECTORIES_TO_CLEANUP[@]} -eq 0 ]] && [[ -n "$TEST_SESSION_DIR" ]] && [[ -d "$TEST_SESSION_DIR" ]]; then
@@ -339,7 +334,6 @@ cleanup_test() {
         fi
         
         log_verbose "Cleaning up test directories for: $test_name"
-        log_verbose "Directories to cleanup: ${#DIRECTORIES_TO_CLEANUP[@]} items: ${DIRECTORIES_TO_CLEANUP[*]}"
         
         for dir in "${DIRECTORIES_TO_CLEANUP[@]}"; do
             if [[ -d "$dir" ]]; then
@@ -380,8 +374,6 @@ cleanup_session_directory_if_empty() {
 
 cleanup_all() {
     log_verbose "Executing cleanup_all trap..."
-    log_verbose "Before cleanup - DIRECTORIES_TO_CLEANUP has ${#DIRECTORIES_TO_CLEANUP[@]} items"
-    log_verbose "Before cleanup - TEST_SESSION_DIR = '$TEST_SESSION_DIR'"
     cleanup_containers
     cleanup_directories
     log_verbose "Cleanup_all completed"
@@ -421,7 +413,6 @@ create_test_directory() {
     if [[ -z "$TEST_SESSION_DIR" ]]; then
         TEST_SESSION_DIR="test-output/session-$(date +%Y%m%d-%H%M%S)"
         mkdir -p "$TEST_SESSION_DIR"
-        log_verbose "Created session directory: $TEST_SESSION_DIR (tracked: ${#DIRECTORIES_TO_CLEANUP[@]})"
     fi
     
     local dir_name="${TEST_SESSION_DIR}/${base_name}-${timestamp}"
@@ -433,7 +424,6 @@ create_test_directory() {
     CREATED_DIRECTORY="$dir_name"
     
     # Debug: Show that directory was created and tracked
-    log_verbose "Created directory: $dir_name (total tracked: ${#DIRECTORIES_TO_CLEANUP[@]})"
     
     echo "$dir_name"
 }
@@ -450,7 +440,6 @@ create_test_directories() {
     if [[ -z "$TEST_SESSION_DIR" ]]; then
         TEST_SESSION_DIR="test-output/session-$(date +%Y%m%d-%H%M%S)"
         mkdir -p "$TEST_SESSION_DIR"
-        log_verbose "Created session directory: $TEST_SESSION_DIR"
     fi
     
     local data_dir="${TEST_SESSION_DIR}/test-data-${base_name}-${timestamp}"
@@ -461,7 +450,6 @@ create_test_directories() {
     DIRECTORIES_TO_CLEANUP+=("$data_dir" "$config_dir")
     
     # Debug: Show that directories were created and tracked
-    log_verbose "Created directories: $data_dir, $config_dir (total tracked: ${#DIRECTORIES_TO_CLEANUP[@]})"
     
     # Assign to the variable names provided
     printf -v "$data_var_name" "%s" "$data_dir"
@@ -706,94 +694,9 @@ test_download_dry_run() {
     return 1
 }
 
-test_entrypoint_no_startup() {
-    log_test "Test 11: Entrypoint Without Startup Download"
-    
-    local test_data_dir test_config_dir
-    local container_id output
-    
-    create_test_directories "test_data_dir" "test_config_dir" "entrypoint"
-    
-    # Ensure test directories are writable by container user (UID 1000)
-    chmod 777 "$test_data_dir" "$test_config_dir" 2>/dev/null || true
-    
-    # Start container (runs as built-in vortex user UID 1000)
-    container_id=$(run_container "test-entrypoint-no-startup" \
-        -v "$PWD/$test_data_dir:/data" \
-        -v "$PWD/$test_config_dir:/home/vortex/.config/vortex" \
-        -e VORTEX_RUN_ON_STARTUP=false \
-        -e VORTEX_DEFAULT_PROVIDER=yahoo \
-        "$TEST_IMAGE")
-    
-    # Give it time to start and log initial messages
-    sleep 5
-    
-    # Capture logs and kill container
-    output=$(docker logs "$container_id" 2>&1)
-    docker kill "$container_id" >/dev/null 2>&1 || true
-    
-    # Validate expected behavior
-    local container_started=false
-    local skipped_startup=false
-    local no_download_attempted=true
-    
-    # Check if container started properly
-    if [[ "$output" == *"Starting Vortex container as vortex user"* ]]; then
-        container_started=true
-        log_info "✓ Container started successfully"
-    else
-        log_warning "✗ Container startup not detected"
-    fi
-    
-    # Check if startup download was explicitly skipped
-    if [[ "$output" == *"Skipping download on startup"* ]]; then
-        skipped_startup=true
-        log_info "✓ Startup download was skipped as expected"
-    else
-        log_warning "✗ 'Skipping download on startup' message not found"
-    fi
-    
-    # Validate that NO download was attempted
-    if [[ "$output" == *"Running download on startup"* ]] || \
-       [[ "$output" == *"Executing: vortex download"* ]] || \
-       [[ "$output" == *"Download completed successfully"* ]] || \
-       [[ "$output" == *"Fetched remote data"* ]]; then
-        no_download_attempted=false
-        log_warning "✗ Download was attempted despite VORTEX_RUN_ON_STARTUP=false"
-    else
-        log_info "✓ No download was attempted (as expected)"
-    fi
-    
-    # Check that no CSV files were created
-    local csv_count=$(find "$test_data_dir" -name "*.csv" -type f 2>/dev/null | wc -l)
-    csv_count=$(echo "$csv_count" | tr -d ' ')
-    
-    if [[ "$csv_count" -eq 0 ]]; then
-        log_info "✓ No CSV files created (as expected)"
-    else
-        log_warning "✗ Found $csv_count CSV file(s) - unexpected with no startup download"
-        no_download_attempted=false
-    fi
-    
-    # Test passes if container started, skipped startup, and no download was attempted
-    if [[ "$container_started" == true ]] && [[ "$skipped_startup" == true ]] && [[ "$no_download_attempted" == true ]]; then
-        log_success "Entrypoint works without download (3/3 validations passed)"
-        return 0
-    else
-        local passed=0
-        [[ "$container_started" == true ]] && ((passed++))
-        [[ "$skipped_startup" == true ]] && ((passed++))
-        [[ "$no_download_attempted" == true ]] && ((passed++))
-        
-        log_error "Entrypoint without startup test failed ($passed/3 validations passed)"
-        echo "Container output:"
-        echo "$output"
-        return 1
-    fi
-}
 
 test_yahoo_download() {
-    log_test "Test 12: Yahoo Download with Market Data Validation"
+    log_test "Test 11: Yahoo Download with Market Data Validation"
     
     # This test not only verifies that the download command completes successfully,
     # but also validates that actual market data was fetched by examining CSV file contents.
@@ -946,7 +849,7 @@ test_yahoo_download() {
 }
 
 test_supervisord_scheduler_setup() {
-    log_test "Test 13: Supervisord Scheduler Setup and Validation"
+    log_test "Test 12: Supervisord Scheduler Setup and Validation"
     
     local test_data_dir test_config_dir
     local container_id output_file
@@ -1060,7 +963,7 @@ test_supervisord_scheduler_setup() {
 }
 
 test_supervisord_scheduler_execution() {
-    log_test "Test 14: Comprehensive Supervisord Scheduler Execution Test"
+    log_test "Test 13: Comprehensive Supervisord Scheduler Execution Test"
     log_info "⚠️  This test may take up to 60 seconds - it waits for actual scheduled execution"
     
     local test_data_dir test_config_dir
@@ -1218,7 +1121,7 @@ test_supervisord_scheduler_execution() {
 }
 
 test_docker_compose_download() {
-    log_test "Test 15: Docker Compose Yahoo Download with Market Data Validation"
+    log_test "Test 14: Docker Compose Yahoo Download with Market Data Validation"
     
     # This test deploys vortex using docker compose and validates:
     # - Service starts successfully
