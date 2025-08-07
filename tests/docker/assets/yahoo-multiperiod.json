@@ -1,0 +1,16 @@
+{
+  "stock": {
+    "AAPL": {
+      "code": "AAPL",
+      "tick_date": "1980-12-12",
+      "start_date": "1980-12-12",
+      "periods": "1d,1W,1h"
+    },
+    "MSFT": {
+      "code": "MSFT",
+      "tick_date": "1986-03-13",
+      "start_date": "1986-03-13",
+      "periods": "1d,1W,1h"
+    }
+  }
+}

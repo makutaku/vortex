@@ -69,6 +69,7 @@ declare -A TEST_REGISTRY=(
     [12]="test_supervisord_scheduler_setup:Supervisord Scheduler Setup and Validation"
     [13]="test_supervisord_scheduler_execution:Comprehensive Supervisord Scheduler Execution Test"
     [14]="test_docker_compose_download:Docker Compose Yahoo Download with Market Data Validation"
+    [15]="test_multi_period_asset_download:Multi-Period Asset Download (Daily + Hourly)"
 )
 
 # ============================================================================
@@ -863,13 +864,16 @@ test_yahoo_download() {
     
     output_file="$test_data_dir/container.log"
     
+    # Copy asset file to container directory
+    cp "$SCRIPT_DIR/assets/yahoo-test.json" "$test_data_dir/assets.json"
+    
     # Start container with proper configuration (runs as built-in vortex user UID 1000)
     container_id=$(run_container "test-yahoo-download" \
         -v "$PWD/$test_data_dir:/data" \
         -v "$PWD/$test_config_dir:/home/vortex/.config/vortex" \
         -e VORTEX_DEFAULT_PROVIDER=yahoo \
         -e VORTEX_RUN_ON_STARTUP=true \
-        -e VORTEX_DOWNLOAD_ARGS="--yes --symbol AAPL --symbol MSFT --start-date 2024-12-01 --end-date 2024-12-07" \
+        -e VORTEX_DOWNLOAD_ARGS="--yes --assets /data/assets.json --start-date 2024-12-01 --end-date 2024-12-07" \
         "$TEST_IMAGE")
     
     # Wait for download to complete (containers run indefinitely due to tail -f)
@@ -1004,6 +1008,10 @@ test_supervisord_scheduler_setup() {
     
     # Create test-specific directories using fixture pattern
     create_test_directories "$session_dir" "supervisord" "test_data_dir" "test_config_dir"
+    
+    # Copy asset file to container directory
+    cp "$SCRIPT_DIR/assets/yahoo-test.json" "$test_data_dir/assets.json"
+    
     output_file="$test_data_dir/container.log"
     
     # Start container with supervisord scheduling enabled (root-less architecture)
@@ -1013,7 +1021,7 @@ test_supervisord_scheduler_setup() {
         -e VORTEX_DEFAULT_PROVIDER=yahoo \
         -e VORTEX_RUN_ON_STARTUP=false \
         -e VORTEX_SCHEDULE="$schedule" \
-        -e VORTEX_DOWNLOAD_ARGS="--yes --symbol AAPL --symbol MSFT --start-date 2024-12-01 --end-date 2024-12-07" \
+        -e VORTEX_DOWNLOAD_ARGS="--yes --assets /data/assets.json --start-date 2024-12-01 --end-date 2024-12-07" \
         "$TEST_IMAGE")
     
     # Wait for container to start and supervisord to be configured
@@ -1122,6 +1130,9 @@ test_supervisord_scheduler_execution() {
     create_test_directories "$session_dir" "supervisord-exec" "test_data_dir" "test_config_dir"
     output_file="$test_data_dir/container.log"
     
+    # Copy asset file to container directory
+    cp "$SCRIPT_DIR/assets/yahoo-test.json" "$test_data_dir/assets.json"
+    
     log_info "Starting container with schedule: $schedule"
     
     # Start container with supervisord scheduling enabled (runs as vortex user throughout)
@@ -1131,7 +1142,7 @@ test_supervisord_scheduler_execution() {
         -e VORTEX_DEFAULT_PROVIDER=yahoo \
         -e VORTEX_RUN_ON_STARTUP=false \
         -e VORTEX_SCHEDULE="$schedule" \
-        -e VORTEX_DOWNLOAD_ARGS="--yes --symbol AAPL --symbol MSFT --start-date 2024-12-01 --end-date 2024-12-07 --output-dir /data" \
+        -e VORTEX_DOWNLOAD_ARGS="--yes --assets /data/assets.json --start-date 2024-12-01 --end-date 2024-12-07 --output-dir /data" \
         "$TEST_IMAGE")
     
     log_info "Container started (ID: ${container_id:0:12}...), waiting for supervisord setup..."
@@ -1282,6 +1293,9 @@ test_docker_compose_download() {
     # Create test-specific directories using robust fixture pattern
     create_test_directories "$session_dir" "compose" "test_data_dir" "test_config_dir"
     
+    # Copy asset file to container directory
+    cp "$SCRIPT_DIR/assets/yahoo-test.json" "$test_data_dir/assets.json"
+    
     # Generate unique project name early for container naming
     local compose_project="vortex-test-$(date +%s)"
     
@@ -1324,7 +1338,7 @@ services:
     environment:
       VORTEX_DEFAULT_PROVIDER: yahoo
       VORTEX_RUN_ON_STARTUP: true
-      VORTEX_DOWNLOAD_ARGS: "--yes --symbol AAPL --symbol MSFT --start-date 2024-12-01 --end-date 2024-12-07"
+      VORTEX_DOWNLOAD_ARGS: "--yes --assets /data/assets.json --start-date 2024-12-01 --end-date 2024-12-07"
       VORTEX_SCHEDULE: "# DISABLED"
       VORTEX_LOG_LEVEL: DEBUG
     volumes:
@@ -1555,6 +1569,63 @@ services:
     else
         log_error "Docker Compose download test failed ($passed_validations/$total_validations validations passed)"
         log_info "Check logs (may have been cleaned up): /tmp/compose-*.log"
+        return 1
+    fi
+}
+
+test_multi_period_asset_download() {
+    local session_dir="$1"
+    log_test "Test 15: Multi-Period Asset Download (Daily + Hourly)"
+    
+    local test_data_dir test_config_dir
+    
+    # Create test-specific directories using fixture pattern
+    create_test_directories "$session_dir" "multiperiod" "test_data_dir" "test_config_dir"
+    
+    # Copy the pre-created multi-period asset file
+    cp "$PROJECT_ROOT/tests/docker/assets/yahoo-multiperiod.json" "$test_data_dir/multiperiod-assets.json"
+    
+    # Run vortex with asset file for limited date range
+    cd "$PROJECT_ROOT"
+    
+    timeout 180 docker run --rm --user "1000:1000" \
+        -v "$PWD/$test_data_dir:/data" \
+        -v "$PWD/$test_config_dir:/home/vortex/.config/vortex" \
+        --entrypoint="" vortex-test:latest \
+        vortex download --yes --assets /data/multiperiod-assets.json \
+        --provider yahoo --start-date 2024-12-01 --end-date 2024-12-07 \
+        --output-dir /data 2>&1 | tee "$test_data_dir/test15_output.log"
+    
+    local exit_code=$?
+    
+    if [[ $exit_code -eq 0 ]]; then
+        # Check that all expected period data files were created (daily, weekly, hourly)
+        local daily_file=$(find "$test_data_dir" -name "*.csv" -path "*/1d/*" | head -1)
+        local weekly_file=$(find "$test_data_dir" -name "*.csv" -path "*/1W/*" | head -1)
+        local hourly_file=$(find "$test_data_dir" -name "*.csv" -path "*/1h/*" | head -1)
+        
+        if [[ -n "$daily_file" && -n "$weekly_file" && -n "$hourly_file" ]]; then
+            log_success "Multi-period download successful - found daily, weekly, and hourly files"
+            
+            # Show file structure for validation
+            if [[ "$VERBOSE" == "true" ]]; then
+                echo "Files created:"
+                find "$test_data_dir" -name "*.csv" | sed 's/^/  /'
+            fi
+        else
+            log_error "Multi-period download failed - missing expected files"
+            echo "Daily file: $daily_file"
+            echo "Weekly file: $weekly_file"
+            echo "Hourly file: $hourly_file" 
+            find "$test_data_dir" -name "*.csv" | sed 's/^/Found: /'
+            return 1
+        fi
+    else
+        log_error "Multi-period asset download failed with exit code $exit_code"
+        if [[ -f "$test_data_dir/test15_output.log" ]]; then
+            echo "Output:"
+            cat "$test_data_dir/test15_output.log"
+        fi
         return 1
     fi
 }
