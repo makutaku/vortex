@@ -1299,7 +1299,7 @@ test_docker_compose_download() {
     # Generate unique project name early for container naming
     local compose_project="vortex-test-$(date +%s)"
     
-    # Create docker compose override file for testing in a more robust way
+    # Create docker compose override file for testing - only override necessary test values
     local compose_override_file="$test_data_dir/docker-compose.override.yml"
     
     # Debug: Check if directory exists and is accessible
@@ -1313,64 +1313,35 @@ test_docker_compose_download() {
     mkdir -p "$test_data_dir" 2>/dev/null || true
     chmod 755 "$test_data_dir" 2>/dev/null || true
     
-    # Use absolute path to avoid any PWD issues
-    log_verbose "About to create override file at: $compose_override_file"
-    log_verbose "Parent directory exists: $(test -d "$(dirname "$compose_override_file")" && echo "YES" || echo "NO")"
-    log_verbose "Parent directory contents: $(ls -la "$(dirname "$compose_override_file")" 2>/dev/null | wc -l || echo "0") items"
-    log_verbose "Session directory exists: $(test -d "$TEST_SESSION_DIR" && echo "YES" || echo "NO")"
-    log_verbose "Session directory permissions: $(ls -ld "$TEST_SESSION_DIR" 2>/dev/null || echo "NOT FOUND")"
+    log_verbose "Creating override file to customize actual docker-compose.yml for testing"
     
-    # Robust file creation with retry logic to handle race conditions
-    local retry_count=0
-    local max_retries=3
-    while [[ $retry_count -lt $max_retries ]]; do
-        # Ensure directory exists immediately before write (defensive programming)
-        mkdir -p "$(dirname "$compose_override_file")" 2>/dev/null || true
-        
-        # Create the file with explicit printf to avoid heredoc shell race conditions
-        compose_write_error=""
-        local container_name="vortex-test-compose-${compose_project##*-}"
-        if compose_write_error=$(printf 'version: '\''3.8'\''
+    # Create minimal override file that only changes test-specific values
+    # This ensures we're testing the real docker-compose.yml configuration
+    local container_name="vortex-test-compose-${compose_project##*-}"
+    cat > "$compose_override_file" << EOF
+version: '3.8'
 
 services:
   vortex:
-    container_name: %s
+    container_name: $container_name
     environment:
-      VORTEX_DEFAULT_PROVIDER: yahoo
-      VORTEX_RUN_ON_STARTUP: true
+      # Override only test-specific environment variables
       VORTEX_DOWNLOAD_ARGS: "--yes --assets /data/assets.json --start-date 2024-12-01 --end-date 2024-12-07"
       VORTEX_SCHEDULE: "# DISABLED"
       VORTEX_LOG_LEVEL: DEBUG
     volumes:
-      - %s/%s:/data
-      # Container runs as vortex user consistently (UID 1000)  
-      - %s/%s:/home/vortex/.config/vortex
-' "$container_name" "$(pwd)" "$test_data_dir" "$(pwd)" "$test_config_dir" > "$compose_override_file" 2>&1)
-        then
-            log_verbose "Successfully created override file on attempt $((retry_count + 1))"
-            break
-        else
-            retry_count=$((retry_count + 1))
-            log_verbose "Failed to write file on attempt $retry_count: $compose_write_error"
-            log_verbose "Directory status after failure: $(ls -la "$(dirname "$compose_override_file")" 2>/dev/null || echo "directory no longer exists")"
-            
-            if [[ $retry_count -ge $max_retries ]]; then
-                log_error "Failed to write docker-compose override file after $max_retries attempts: $compose_override_file"
-                log_verbose "Final error: $compose_write_error"
-                log_verbose "Session directory status after all failures: $(ls -la "$TEST_SESSION_DIR" 2>/dev/null || echo "session directory no longer exists")"
-                return 1
-            else
-                log_verbose "Retrying in 0.5 seconds..."
-                sleep 0.5
-            fi
-        fi
-    done
+      # Override volumes to use test directories
+      - $PWD/$test_data_dir:/data
+      - $PWD/$test_config_dir:/home/vortex/.config/vortex
+EOF
 
     # Verify the override file was created successfully
     if [[ ! -f "$compose_override_file" ]]; then
         log_error "Failed to create docker-compose override file: $compose_override_file"
         return 1
     fi
+    
+    log_verbose "Created override file with test-specific customizations only"
     
     local output_file="/tmp/compose-${compose_project}.log"
     
