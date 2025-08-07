@@ -13,7 +13,7 @@
 #   --skip-build        Skip Docker image build (use existing image)
 #   --keep-containers   Keep containers after test completion
 #   --keep-data         Keep test data directories after completion
-#   --comprehensive     Include comprehensive/long-running tests (like cron execution)
+#   --comprehensive     Include comprehensive/long-running tests (auto-enabled for specific tests)
 #
 # Examples:
 #   ./scripts/test-docker-build.sh              # Run all tests
@@ -126,7 +126,7 @@ OPTIONS:
     --skip-build        Skip Docker image build (use existing image)
     --keep-containers   Keep containers after test completion for debugging
     --keep-data         Keep test data directories after completion
-    --comprehensive     Include comprehensive/long-running tests (e.g., Test 14)
+    --comprehensive     Include comprehensive/long-running tests (auto-enabled for specific tests)
 
 EXAMPLES:
     # Run all tests
@@ -1240,6 +1240,12 @@ main() {
         if [[ ${#SPECIFIC_TESTS[@]} -gt 0 ]]; then
             log_verbose "  Specific Tests: ${SPECIFIC_TESTS[*]}"
         fi
+    fi
+    
+    # Auto-enable comprehensive flag when specific tests are provided
+    if [[ ${#SPECIFIC_TESTS[@]} -gt 0 ]] && [[ "$COMPREHENSIVE" != true ]]; then
+        COMPREHENSIVE=true
+        log_verbose "Auto-enabled comprehensive mode for specific tests"
     fi
     
     # Run tests
