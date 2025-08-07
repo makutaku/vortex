@@ -842,7 +842,7 @@ test_yahoo_download() {
             grep -E "(Fetched remote data|Download completed successfully|✓ Completed)" "$output_file" | head -3
             
             # ENHANCED: Validate actual market data was fetched
-            local csv_files data_rows_total market_data_validated
+            local csv_files=0 data_rows_total=0 market_data_validated=false
             csv_files=$(find "$test_data_dir" -name "*.csv" -type f 2>/dev/null | wc -l)
             csv_files=$(echo "$csv_files" | tr -d ' ')  # Remove any whitespace
             
@@ -1225,7 +1225,7 @@ test_docker_compose_download() {
     
     local test_data_dir test_config_dir
     local service_name="vortex"
-    local success_indicators data_validation_passed
+    local success_indicators=0 data_validation_passed=false
     
     create_test_directories "test_data_dir" "test_config_dir" "compose"
     
@@ -1248,8 +1248,11 @@ services:
       - $PWD/$test_config_dir:/root/.config/vortex
 EOF
     
-    local output_file="$test_data_dir/compose.log"
     local compose_project="vortex-test-$(date +%s)"
+    local output_file="/tmp/compose-${compose_project}.log"
+    
+    # Ensure test directories are writable by container user (UID 1000)
+    chmod 777 "$test_data_dir" "$test_config_dir" 2>/dev/null || true
     
     cd "$PROJECT_ROOT"
     
@@ -1258,10 +1261,15 @@ EOF
     log_verbose "Override file: $compose_override_file"
     
     # Start services with override configuration
-    if docker compose -f docker/docker-compose.yml -f "$compose_override_file" -p "$compose_project" up -d 2>&1 | tee "$output_file"; then
+    if docker compose -f docker/docker-compose.yml -f "$compose_override_file" -p "$compose_project" up -d > "$output_file" 2>&1; then
         log_info "✓ Docker Compose services started successfully"
     else
         log_error "✗ Failed to start Docker Compose services"
+        # Show error output if available
+        if [[ -f "$output_file" ]]; then
+            log_verbose "Compose startup errors:"
+            tail -10 "$output_file" | sed 's/^/  /'
+        fi
         return 1
     fi
     
@@ -1269,8 +1277,18 @@ EOF
     log_info "Waiting for startup download to complete..."
     sleep 30  # Allow time for download process
     
-    # Get service logs
-    docker compose -f docker/docker-compose.yml -f "$compose_override_file" -p "$compose_project" logs vortex >> "$output_file" 2>&1
+    # Get service logs and append to output file
+    log_verbose "Collecting service logs..."
+    local service_logs_file="$test_data_dir/service.log"
+    docker compose -f docker/docker-compose.yml -f "$compose_override_file" -p "$compose_project" logs vortex > "$service_logs_file" 2>&1 || true
+    
+    # Combine logs safely
+    if [[ -f "$service_logs_file" ]]; then
+        cat "$service_logs_file" >> "$output_file" 2>/dev/null || {
+            log_verbose "Could not append service logs, copying to separate file"
+            cp "$service_logs_file" "$output_file" 2>/dev/null || true
+        }
+    fi
     
     # Stop and remove services
     log_verbose "Stopping Docker Compose services..."
@@ -1291,7 +1309,7 @@ EOF
             grep -E "(Fetched remote data|Download completed successfully|✓ Completed)" "$output_file" | head -3
             
             # ENHANCED: Validate actual market data was fetched
-            local csv_files data_rows_total market_data_validated
+            local csv_files=0 data_rows_total=0 market_data_validated=false
             csv_files=$(find "$test_data_dir" -name "*.csv" -type f 2>/dev/null | wc -l)
             csv_files=$(echo "$csv_files" | tr -d ' ')  # Remove any whitespace
             
@@ -1391,17 +1409,17 @@ EOF
     local total_validations=5  # 3 from download + 2 from compose
     local passed_validations=0
     
-    if [[ "$success_indicators" -gt 0 ]]; then ((passed_validations++)); fi
-    if [[ "$csv_files" -gt 0 ]]; then ((passed_validations++)); fi
+    if [[ "${success_indicators:-0}" -gt 0 ]]; then ((passed_validations++)); fi
+    if [[ "${csv_files:-0}" -gt 0 ]]; then ((passed_validations++)); fi
     if [[ "$data_validation_passed" == true ]]; then ((passed_validations++)); fi
     passed_validations=$((passed_validations + compose_validations))
     
     log_info "Docker Compose test validation summary:"
-    log_info "- Download success indicators: $success_indicators"
-    log_info "- CSV files created: $csv_files"
-    log_info "- Market data validation: $([ "$data_validation_passed" == true ] && echo "PASSED" || echo "FAILED")"
-    log_info "- Compose validations: $compose_validations/2"
-    log_info "- Total validations: $passed_validations/$total_validations"
+    log_info "- Download success indicators: ${success_indicators:-0}"
+    log_info "- CSV files created: ${csv_files:-0}"
+    log_info "- Market data validation: $([ "${data_validation_passed:-false}" == true ] && echo "PASSED" || echo "FAILED")"
+    log_info "- Compose validations: ${compose_validations:-0}/2"
+    log_info "- Total validations: ${passed_validations:-0}/$total_validations"
     
     if [[ "$passed_validations" -ge 4 ]]; then  # Allow 1 failure
         log_success "Docker Compose download test passed ($passed_validations/$total_validations validations passed)"
