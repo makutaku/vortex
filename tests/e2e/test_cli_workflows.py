@@ -7,10 +7,21 @@ through data download and file output validation.
 
 import pytest
 import tempfile
+import socket
 from pathlib import Path
 from click.testing import CliRunner
+from datetime import datetime, timedelta
 
 from vortex.cli.main import cli
+
+
+def check_network_connectivity(host="finance.yahoo.com", port=443, timeout=5):
+    """Check if network connectivity to a host is available."""
+    try:
+        socket.create_connection((host, port), timeout)
+        return True
+    except (socket.timeout, socket.error, OSError):
+        return False
 
 
 class TestCLIWorkflows:
@@ -76,3 +87,88 @@ class TestCLIWorkflows:
         
         assert result.exit_code != 0
         assert "No such command" in result.output or "Usage:" in result.output
+
+    @pytest.mark.e2e
+    @pytest.mark.network
+    @pytest.mark.slow
+    @pytest.mark.skipif(
+        not check_network_connectivity("finance.yahoo.com"),
+        reason="No network connectivity to Yahoo Finance"
+    )
+    def test_yahoo_download_real_data_workflow(self, cli_runner, temp_output_dir):
+        """
+        Test complete Yahoo Finance download workflow with real market data.
+        
+        This is a true end-to-end test that:
+        1. Invokes the CLI command as a user would
+        2. Makes real network calls to Yahoo Finance API  
+        3. Downloads actual market data
+        4. Creates real files in the filesystem
+        5. Validates the complete user workflow
+        
+        Uses a short date range to minimize API load and execution time.
+        """
+        # Calculate a recent 5-day period to ensure data availability
+        # Avoid weekends by using a slightly longer range
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=10)  # 10 days to account for weekends
+        
+        # Format dates for CLI (YYYY-MM-DD)
+        start_date_str = start_date.strftime('%Y-%m-%d')
+        end_date_str = end_date.strftime('%Y-%m-%d')
+        
+        # Execute the complete CLI download workflow
+        result = cli_runner.invoke(cli, [
+            'download',
+            '--provider', 'yahoo',
+            '--symbol', 'AAPL',  # Highly liquid stock, always available
+            '--start-date', start_date_str,
+            '--end-date', end_date_str,
+            '--output-dir', str(temp_output_dir),
+            '--yes'  # Skip confirmation prompts for automation
+        ])
+        
+        # Validate command completed successfully
+        assert result.exit_code == 0, f"Download command failed: {result.output}"
+        
+        # Validate success messages in output
+        success_indicators = [
+            "Fetched remote data",  # Indicates data was downloaded
+            "Download completed successfully",  # Indicates workflow completed
+            "AAPL"  # Symbol was processed
+        ]
+        
+        output_text = result.output
+        found_indicators = [msg for msg in success_indicators if msg in output_text]
+        assert len(found_indicators) >= 2, f"Missing success indicators. Output: {output_text}"
+        
+        # Validate file structure creation
+        expected_csv_file = temp_output_dir / "stocks" / "1d" / "AAPL.csv"
+        assert expected_csv_file.exists(), f"Expected CSV file not created: {expected_csv_file}"
+        
+        # Validate CSV file content
+        with open(expected_csv_file, 'r') as f:
+            csv_content = f.read()
+            
+            # Check for proper CSV header
+            csv_lines = csv_content.strip().split('\n')
+            assert len(csv_lines) >= 2, f"CSV file should have header + data rows. Got: {len(csv_lines)} lines"
+            
+            # Validate CSV header format
+            header = csv_lines[0].lower()
+            required_columns = ['date', 'open', 'high', 'low', 'close', 'volume']
+            for column in required_columns:
+                assert column in header, f"Missing required column '{column}' in header: {header}"
+            
+            # Validate at least one data row exists
+            assert len(csv_lines) > 1, "CSV should contain at least one data row"
+            
+            # Validate data row format (basic sanity check)
+            if len(csv_lines) > 1:
+                sample_data_row = csv_lines[1]
+                data_fields = sample_data_row.split(',')
+                assert len(data_fields) >= 6, f"Data row should have at least 6 fields: {sample_data_row}"
+        
+        # Validate file size (ensure it's not empty)
+        file_size = expected_csv_file.stat().st_size
+        assert file_size > 100, f"CSV file seems too small: {file_size} bytes"

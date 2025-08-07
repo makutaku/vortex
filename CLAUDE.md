@@ -313,11 +313,30 @@ Each assets file defines futures, forex, and stock instruments with metadata lik
 ### Testing Strategy
 
 Tests use pytest with fixture-based setup organized into distinct categories:
-- **Unit Tests** (`tests/unit/`): Isolated component testing with mocks
-- **Integration Tests** (`tests/integration/`): Multi-component interaction testing
-- **End-to-End Tests** (`tests/e2e/`): Complete workflow validation
+- **Unit Tests** (`tests/unit/`): Isolated component testing with mocks (1038 tests)
+- **Integration Tests** (`tests/integration/`): Multi-component interaction testing (24 tests)  
+- **End-to-End Tests** (`tests/e2e/`): Complete workflow validation (6 tests)
+  - Includes real Yahoo Finance download test with actual market data
+  - Tests complete CLI user workflows from command to file output
 - Test markers for network-dependent and credential-dependent tests
 - Comprehensive test coverage across all architectural layers
+
+**E2E Test Categories:**
+- **CLI Workflow Tests**: Help, providers, config, download commands
+- **Real Data Download**: Full Yahoo Finance integration with network calls
+- **Error Handling**: Invalid command and edge case scenarios
+
+**Running E2E Tests:**
+```bash
+# Run all E2E tests (including network tests)
+uv run pytest tests/e2e/ -v
+
+# Skip network-dependent tests
+uv run pytest tests/e2e/ -v -m "not network"
+
+# Run only the real data download test
+uv run pytest tests/e2e/ -v -m "network and e2e"
+```
 
 ## 🚨 CRITICAL: Docker Test Protection
 
