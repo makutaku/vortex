@@ -1,0 +1,71 @@
+# Vortex Configuration Example
+# Copy this to config.toml and customize for your needs
+
+[general]
+# Default provider (yahoo is free and requires no credentials)
+default_provider = "yahoo"
+
+# Enable backup files in Parquet format
+backup_enabled = false
+
+# Dry run mode (don't actually download, just show what would be downloaded)
+dry_run = false
+
+# Logging configuration
+[general.logging]
+level = "INFO"        # DEBUG, INFO, WARNING, ERROR
+format = "console"    # console, json, rich
+output = ["console"]  # console, file, or both
+
+# Optional: Log to file
+# file_path = "/var/log/vortex.log"
+
+
+# Provider Configurations
+# ----------------------
+
+# Barchart.com (Premium data - requires subscription)
+[providers.barchart]
+# username = "your_email@example.com"
+# password = "your_password"
+daily_limit = 150
+
+# Yahoo Finance (Free data - no credentials required)
+[providers.yahoo]
+enabled = true
+
+# Interactive Brokers (Requires TWS/Gateway running)
+[providers.ibkr]
+host = "localhost"
+port = 7497
+client_id = 1
+timeout = 30
+
+
+# Date Range Settings
+# ------------------
+[date_range]
+start_year = 2020
+end_year = 2025
+
+
+# Example configurations for different use cases:
+# 
+# For Barchart premium data:
+# [general]
+# default_provider = "barchart"
+# [providers.barchart]
+# username = "your_email@example.com"
+# password = "your_password"
+# daily_limit = 200
+#
+# For free Yahoo Finance data only:
+# [general]
+# default_provider = "yahoo"
+# backup_enabled = true
+#
+# For development/testing:
+# [general]
+# dry_run = true
+# [general.logging]
+# level = "DEBUG"

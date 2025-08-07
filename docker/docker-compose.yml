@@ -12,16 +12,31 @@
 #   - Download data to ./data directory
 #   - Run on schedule using supervisord (not system cron)
 #
-# Premium Data Setup:
-#   1. Create .env file with your credentials:
-#      VORTEX_DEFAULT_PROVIDER=barchart
-#      VORTEX_BARCHART_USERNAME=your_email@example.com
-#      VORTEX_BARCHART_PASSWORD=your_password
+# Configuration Options (Choose One):
+#
+# Option 1: TOML Configuration (RECOMMENDED - More Convenient)
+#   1. Create config/config.toml with your settings:
+#      [general]
+#      default_provider = "barchart"
+#      backup_enabled = true
+#      
+#      [providers.barchart]
+#      username = "your_email@example.com"
+#      password = "your_password"
+#      daily_limit = 200
 #   
 #   2. Run: docker-compose up -d
 #
+# Option 2: Environment Variables (.env file)
+#   1. Create .env file:
+#      VORTEX_DEFAULT_PROVIDER=barchart
+#      VORTEX_BARCHART_USERNAME=your_email@example.com
+#      VORTEX_BARCHART_PASSWORD=your_password
+#   2. Uncomment the environment variables in this file
+#   3. Run: docker-compose up -d
+#
 # Custom Assets:
-#   1. Create config/assets.json with your instruments
+#   1. Create config/assets.json with your instruments  
 #   2. Mount it: uncomment the custom assets volume below
 #
 # Monitoring:
@@ -29,8 +44,6 @@
 #   - Health: docker-compose ps
 #   - Data: check ./data directory
 #
-version: '3.8'
-
 services:
   vortex:
     build:
@@ -43,40 +56,31 @@ services:
     # No user override needed - Dockerfile already sets USER vortex
     
     environment:
-      # Modern Vortex Configuration
-      # Default provider (yahoo is free and requires no credentials)
-      VORTEX_DEFAULT_PROVIDER: ${VORTEX_DEFAULT_PROVIDER:-yahoo}
-      
-      # Output directory
+      # Container-specific settings (keep these as environment variables)
+      # Output directory (container path)
       VORTEX_OUTPUT_DIR: /data
       
-      # Logging configuration
-      VORTEX_LOG_LEVEL: ${VORTEX_LOG_LEVEL:-INFO}
-      VORTEX_LOGGING_FORMAT: ${VORTEX_LOGGING_FORMAT:-console}
-      VORTEX_LOGGING_OUTPUT: ${VORTEX_LOGGING_OUTPUT:-console}
-      
-      # Backup settings
-      VORTEX_BACKUP_ENABLED: ${VORTEX_BACKUP_ENABLED:-false}
-      
-      # Schedule (cron format) - default: 8 AM daily
-      VORTEX_SCHEDULE: ${VORTEX_SCHEDULE:-0 8 * * *}
-      
-      # Run download on container startup
+      # Container runtime settings
+      VORTEX_SCHEDULE: ${VORTEX_SCHEDULE:-0 8 * * *}  # Cron schedule
       VORTEX_RUN_ON_STARTUP: ${VORTEX_RUN_ON_STARTUP:-true}
-      
-      # Download command arguments for container startup
       VORTEX_DOWNLOAD_ARGS: ${VORTEX_DOWNLOAD_ARGS:---yes}
       
-      # Provider-specific configuration (only set if needed)
-      # Barchart credentials (premium data)
-      VORTEX_BARCHART_USERNAME: ${VORTEX_BARCHART_USERNAME:-}
-      VORTEX_BARCHART_PASSWORD: ${VORTEX_BARCHART_PASSWORD:-}
-      VORTEX_BARCHART_DAILY_LIMIT: ${VORTEX_BARCHART_DAILY_LIMIT:-150}
-      
-      # Interactive Brokers configuration
-      VORTEX_IBKR_HOST: ${VORTEX_IBKR_HOST:-localhost}
-      VORTEX_IBKR_PORT: ${VORTEX_IBKR_PORT:-7497}
-      VORTEX_IBKR_CLIENT_ID: ${VORTEX_IBKR_CLIENT_ID:-1}
+      # Application configuration (RECOMMENDED: Use config/config.toml instead)
+      # Uncomment these if you prefer environment variables over TOML config
+      # VORTEX_DEFAULT_PROVIDER: ${VORTEX_DEFAULT_PROVIDER:-yahoo}
+      # VORTEX_LOG_LEVEL: ${VORTEX_LOG_LEVEL:-INFO}
+      # VORTEX_LOGGING_FORMAT: ${VORTEX_LOGGING_FORMAT:-console}
+      # VORTEX_BACKUP_ENABLED: ${VORTEX_BACKUP_ENABLED:-false}
+      # 
+      # # Provider credentials (RECOMMENDED: Use config/config.toml instead)
+      # VORTEX_BARCHART_USERNAME: ${VORTEX_BARCHART_USERNAME:-}
+      # VORTEX_BARCHART_PASSWORD: ${VORTEX_BARCHART_PASSWORD:-}
+      # VORTEX_BARCHART_DAILY_LIMIT: ${VORTEX_BARCHART_DAILY_LIMIT:-150}
+      # 
+      # # Interactive Brokers configuration (RECOMMENDED: Use config/config.toml instead)  
+      # VORTEX_IBKR_HOST: ${VORTEX_IBKR_HOST:-localhost}
+      # VORTEX_IBKR_PORT: ${VORTEX_IBKR_PORT:-7497}
+      # VORTEX_IBKR_CLIENT_ID: ${VORTEX_IBKR_CLIENT_ID:-1}
     
     volumes:
       # Data output directory - where downloaded CSV/Parquet files are stored
