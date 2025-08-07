@@ -35,7 +35,7 @@ class TestLoadConfigInstruments:
             
             result = load_config_instruments(Path('test.json'))
         
-        assert result == ['AAPL', 'GOOGL', 'MSFT']
+        assert result == mock_configs  # Now returns full configs dict
         mock_load.assert_called_once_with('test.json')
     
     def test_load_config_instruments_file_error(self):
@@ -187,11 +187,13 @@ class TestDownloadMain:
         try:
             with patch('vortex.cli.commands.download.load_config_instruments') as mock_load, \
                  patch('vortex.cli.commands.download.validate_symbols') as mock_validate, \
-                 patch('vortex.cli.commands.download.parse_instruments') as mock_parse:
+                 patch('vortex.cli.commands.download.parse_instruments') as mock_parse, \
+                 patch('vortex.cli.commands.download.execute_download') as mock_execute:
                 
-                mock_load.return_value = ['GC', 'ES']
+                mock_load.return_value = {'GC': Mock(spec=InstrumentConfig), 'ES': Mock(spec=InstrumentConfig)}
                 mock_validate.return_value = ['GC', 'ES']  
                 mock_parse.return_value = [Mock(), Mock()]
+                mock_execute.return_value = 2  # Successful downloads
                 mock_dependencies['downloader'].return_value._process_job.return_value = None
                 
                 result = runner.invoke(download, ['--assets', assets_file, '--yes'], obj={'config_file': None})
@@ -207,12 +209,14 @@ class TestDownloadMain:
         with patch('vortex.cli.commands.download.get_default_assets_file') as mock_default, \
              patch('vortex.cli.commands.download.load_config_instruments') as mock_load, \
              patch('vortex.cli.commands.download.validate_symbols') as mock_validate, \
-             patch('vortex.cli.commands.download.parse_instruments') as mock_parse:
+             patch('vortex.cli.commands.download.parse_instruments') as mock_parse, \
+             patch('vortex.cli.commands.download.execute_download') as mock_execute:
             
             mock_default.return_value = Path('default.json')
-            mock_load.return_value = ['DEFAULT1', 'DEFAULT2']
+            mock_load.return_value = {'DEFAULT1': Mock(spec=InstrumentConfig), 'DEFAULT2': Mock(spec=InstrumentConfig)}
             mock_validate.return_value = ['DEFAULT1', 'DEFAULT2']
             mock_parse.return_value = []  # Empty list to trigger default assets loading
+            mock_execute.return_value = 2  # Successful downloads
             mock_dependencies['downloader'].return_value._process_job.return_value = None
             
             result = runner.invoke(download, ['--yes'], obj={'config_file': None})
@@ -408,7 +412,7 @@ class TestExecuteDownload:
         
         with patch('vortex.cli.commands.download.console') as mock_console:
             result = execute_download(
-                config_manager, "yahoo", symbols, start_date, end_date,
+                config_manager, "yahoo", symbols, None, start_date, end_date,
                 output_dir, False, False, 30, dry_run=True
             )
             
@@ -438,7 +442,7 @@ class TestExecuteDownload:
         output_dir = Path("/test/output")
         
         result = execute_download(
-            config_manager, "yahoo", symbols, start_date, end_date,
+            config_manager, "yahoo", symbols, None, start_date, end_date,
             output_dir, False, False, 30, dry_run=False
         )
         
@@ -472,7 +476,7 @@ class TestExecuteDownload:
         output_dir = Path("/test/output")
         
         result = execute_download(
-            config_manager, "yahoo", symbols, start_date, end_date,
+            config_manager, "yahoo", symbols, None, start_date, end_date,
             output_dir, False, False, 30, dry_run=False
         )
         

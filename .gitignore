@@ -75,3 +75,4 @@ test-output/
 
 # Additional build artifacts (setuptools/Python)
 build/dist/
+debug_periods/

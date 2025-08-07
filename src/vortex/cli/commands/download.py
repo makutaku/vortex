@@ -35,11 +35,11 @@ logger = get_module_logger()
 perf_logger = get_module_performance_logger()
 
 
-def load_config_instruments(assets_file_path: Path) -> List[str]:
-    """Load instrument symbols from assets JSON file."""
+def load_config_instruments(assets_file_path: Path) -> dict:
+    """Load instrument configurations from assets JSON file."""
     try:
         instrument_configs = InstrumentConfig.load_from_json(str(assets_file_path))
-        return list(instrument_configs.keys())
+        return instrument_configs
     except Exception as e:
         console.print(f"[red]Error loading assets file '{assets_file_path}': {e}[/red]")
         raise click.Abort()
@@ -199,10 +199,14 @@ def download(
     if not output_dir:
         output_dir = Path("./data")
     
-    # Parse and validate symbols
+    # Parse and validate instruments
+    instrument_configs = None
+    symbols = None
+    
     if assets:
         # Load instruments from user-specified assets file
-        symbols = load_config_instruments(assets)
+        instrument_configs = load_config_instruments(assets)
+        symbols = list(instrument_configs.keys())
         ux.print_success(f"Loaded {len(symbols)} instruments from {assets}")
     else:
         symbols = parse_instruments(symbol, symbols_file)
@@ -210,7 +214,8 @@ def download(
             # No symbols specified - try to load default assets for this provider
             try:
                 default_assets_file = get_default_assets_file(provider)
-                symbols = load_config_instruments(default_assets_file)
+                instrument_configs = load_config_instruments(default_assets_file)
+                symbols = list(instrument_configs.keys())
                 ux.print_success(f"Loaded {len(symbols)} instruments from default {default_assets_file}")
             except (FileNotFoundError, PermissionError, ValueError, KeyError) as e:
                 # Specific exceptions for common file/parsing errors
@@ -250,6 +255,7 @@ def download(
             config_manager=config_manager,
             provider=provider,
             symbols=symbols,
+            instrument_configs=instrument_configs,
             start_date=start_date,
             end_date=end_date,
             output_dir=output_dir,
@@ -303,6 +309,7 @@ def execute_download(
     config_manager: ConfigManager,
     provider: str,
     symbols: List[str],
+    instrument_configs: dict,
     start_date: datetime,
     end_date: datetime,
     output_dir: Path,
@@ -317,6 +324,18 @@ def execute_download(
         console.print("[yellow]DRY RUN: Would download data but no changes will be made[/yellow]")
         return len(symbols)
     
+    # If no instrument configs available, create simple stock configs with daily periods
+    if not instrument_configs:
+        instrument_configs = {}
+        for symbol in symbols:
+            # Create a simple stock config with daily period for direct symbol downloads
+            instrument_configs[symbol] = InstrumentConfig(
+                asset_class='stock',
+                name=symbol,
+                code=symbol,
+                periods='1d'
+            )
+    
     # Get download configuration
     download_config = get_download_config(
         config_manager=config_manager,
@@ -325,47 +344,85 @@ def execute_download(
         force=force
     )
     
-    success_count = 0
+    # Create downloader once
+    downloader = create_downloader(provider, download_config)
     
-    with ux.progress(f"Downloading {len(symbols)} symbols") as progress:
-        for i, symbol in enumerate(symbols, 1):
-            progress.update(i - 1, len(symbols), f"Downloading {symbol} ({i}/{len(symbols)})")
+    # Count total jobs to process 
+    total_jobs = 0
+    for symbol in symbols:
+        config = instrument_configs.get(symbol)
+        if config and config.periods:
+            total_jobs += len(config.periods)
+        else:
+            total_jobs += 1  # Default to one job (daily)
+    
+    success_count = 0
+    job_count = 0
+    
+    with ux.progress(f"Downloading {total_jobs} symbol-period combinations") as progress:
+        for symbol in symbols:
+            config = instrument_configs.get(symbol)
             
-            logger.info(f"Starting download for {symbol}", symbol=symbol, provider=provider)
+            # Determine periods to download
+            periods = []
+            if config and config.periods:
+                periods = config.periods
+            else:
+                # Fallback to daily for direct symbol input
+                periods = [Period.Daily]
             
-            try:
-                logger.info(f"Starting download for {symbol}", symbol=symbol, provider=provider)
-                
-                # Create downloader based on provider
-                downloader = create_downloader(provider, download_config)
-                
-                # Create a simple instrument (assume stock for now)
+            # Create appropriate instrument object
+            if config and hasattr(config, 'asset_class'):
+                if config.asset_class.value == 'stock':
+                    instrument = Stock(id=symbol, symbol=config.code)
+                elif config.asset_class.value == 'forex':
+                    from vortex.models.forex import Forex
+                    instrument = Forex(id=symbol, symbol=config.code)
+                else:
+                    # Default to stock if unknown type
+                    instrument = Stock(id=symbol, symbol=symbol)
+            else:
+                # Default to stock for direct symbol downloads
                 instrument = Stock(id=symbol, symbol=symbol)
+            
+            logger.info(f"Processing {symbol} with {len(periods)} period(s): {[p.value for p in periods]}", 
+                       symbol=symbol, provider=provider)
+            
+            # Process each period for this symbol
+            for period in periods:
+                job_count += 1
+                progress.update(job_count - 1, total_jobs, 
+                              f"Processing {symbol}|{period.value} ({job_count}/{total_jobs})")
                 
-                # Ensure dates are timezone-aware (use UTC if naive)
-                if start_date.tzinfo is None:
-                    start_date = start_date.replace(tzinfo=timezone.utc)
-                if end_date.tzinfo is None:
-                    end_date = end_date.replace(tzinfo=timezone.utc)
-                
-                job = DownloadJob(
-                    data_provider=downloader.data_provider,
-                    data_storage=downloader.data_storage,
-                    instrument=instrument,
-                    period=Period.Daily,
-                    start_date=start_date,
-                    end_date=end_date
-                )
-                
-                # Process the download job
-                downloader._process_job(job)
-                
-                progress.update(i, len(symbols), f"✓ {symbol} completed ({i}/{len(symbols)})")
-                success_count += 1
-                
-            except Exception as e:
-                progress.update(i, len(symbols), f"✗ {symbol} failed ({i}/{len(symbols)})")
-                logger.error(f"Failed to download {symbol}: {e}", symbol=symbol, error=str(e))
+                try:
+                    logger.info(f"Processing {str(instrument)}|{period.value}|{start_date.strftime('%Y-%m-%d')}|{end_date.strftime('%Y-%m-%d')}", 
+                               symbol=symbol, period=period.value, provider=provider)
+                    
+                    # Ensure dates are timezone-aware (use UTC if naive) 
+                    safe_start_date = start_date.replace(tzinfo=timezone.utc) if start_date.tzinfo is None else start_date
+                    safe_end_date = end_date.replace(tzinfo=timezone.utc) if end_date.tzinfo is None else end_date
+                    
+                    job = DownloadJob(
+                        data_provider=downloader.data_provider,
+                        data_storage=downloader.data_storage,
+                        instrument=instrument,
+                        period=period,  # Use the actual period from config
+                        start_date=safe_start_date,
+                        end_date=safe_end_date
+                    )
+                    
+                    # Process the download job
+                    downloader._process_job(job)
+                    
+                    progress.update(job_count, total_jobs, 
+                                  f"✓ {symbol}|{period.value} completed ({job_count}/{total_jobs})")
+                    success_count += 1
+                    
+                except Exception as e:
+                    progress.update(job_count, total_jobs, 
+                                  f"✗ {symbol}|{period.value} failed ({job_count}/{total_jobs})")
+                    logger.error(f"Failed to download {symbol}|{period.value}: {e}", 
+                               symbol=symbol, period=period.value, error=str(e))
     
     return success_count
 
