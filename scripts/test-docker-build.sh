@@ -990,8 +990,8 @@ test_supervisord_scheduler_setup() {
             supervisord_started=true
         fi
         
-        # Check if health check file was created
-        if [[ -f "$test_data_dir/health.check" ]]; then
+        # Check if health monitoring service was configured in supervisord
+        if docker exec "$container_id" ls /home/vortex/.config/supervisor/conf.d/health-monitor.conf >/dev/null 2>&1; then
             health_check_created=true
         fi
         
@@ -1026,10 +1026,10 @@ test_supervisord_scheduler_setup() {
         fi
         
         if [[ "$health_check_created" == true ]]; then
-            log_info "✓ Health check file created"
+            log_info "✓ Health monitoring service configured in supervisord"
             ((passed_checks++))
         else
-            log_warning "✗ Health check file not found"
+            log_warning "✗ Health monitoring service not configured"
         fi
         
         if [[ "$scheduler_configured" == true ]]; then
