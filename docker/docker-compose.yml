@@ -113,15 +113,3 @@ services:
           cpus: '0.5'
           memory: 512M
 
-  # Optional: Add database for storing metadata
-  # postgres:
-  #   image: postgres:15-alpine
-  #   environment:
-  #     POSTGRES_DB: vortex
-  #     POSTGRES_USER: vortex
-  #     POSTGRES_PASSWORD: ${DB_PASSWORD}
-  #   volumes:
-  #     - postgres_data:/var/lib/postgresql/data
-
-# volumes:
-#   postgres_data:
