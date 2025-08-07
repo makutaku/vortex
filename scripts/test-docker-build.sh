@@ -315,25 +315,25 @@ cleanup_test() {
     # Clean up directories created by the current test
     local test_name="${1:-unknown}"
     if [[ "$KEEP_DATA" != true ]]; then
-        log_verbose "DEBUG: cleanup_test called for $test_name"
-        log_verbose "DEBUG: DIRECTORIES_TO_CLEANUP array has ${#DIRECTORIES_TO_CLEANUP[@]} items: ${DIRECTORIES_TO_CLEANUP[*]}"
-        log_verbose "DEBUG: TEST_SESSION_DIR = '$TEST_SESSION_DIR'"
+        log_verbose "cleanup_test called for $test_name"
+        log_verbose "DIRECTORIES_TO_CLEANUP array has ${#DIRECTORIES_TO_CLEANUP[@]} items: ${DIRECTORIES_TO_CLEANUP[*]}"
+        log_verbose "TEST_SESSION_DIR = '$TEST_SESSION_DIR'"
         
         # If array is empty but session directory exists, find directories to clean
         if [[ ${#DIRECTORIES_TO_CLEANUP[@]} -eq 0 ]] && [[ -n "$TEST_SESSION_DIR" ]] && [[ -d "$TEST_SESSION_DIR" ]]; then
-            log_verbose "DEBUG: Array empty, scanning session directory for cleanup"
+            log_verbose "Array empty, scanning session directory for cleanup"
             local found_dirs=()
             while IFS= read -r -d '' dir; do
                 found_dirs+=("$dir")
             done < <(find "$TEST_SESSION_DIR" -mindepth 1 -maxdepth 1 -type d -print0 2>/dev/null)
             
-            log_verbose "DEBUG: Found ${#found_dirs[@]} directories in session dir to clean up"
+            log_verbose "Found ${#found_dirs[@]} directories in session dir to clean up"
             
             # Clean up the found directories
             for dir in "${found_dirs[@]}"; do
                 if [[ -d "$dir" ]]; then
-                    log_verbose "DEBUG: Removing found directory: $dir"
-                    rm -rf "$dir" 2>/dev/null && log_verbose "DEBUG: Successfully removed $dir"
+                    log_verbose "Removing found directory: $dir"
+                    rm -rf "$dir" 2>/dev/null && log_verbose "Successfully removed $dir"
                 fi
             done
         fi
@@ -421,7 +421,7 @@ create_test_directory() {
     if [[ -z "$TEST_SESSION_DIR" ]]; then
         TEST_SESSION_DIR="test-output/session-$(date +%Y%m%d-%H%M%S)"
         mkdir -p "$TEST_SESSION_DIR"
-        log_verbose "DEBUG: Created session directory: $TEST_SESSION_DIR (tracked: ${#DIRECTORIES_TO_CLEANUP[@]})"
+        log_verbose "Created session directory: $TEST_SESSION_DIR (tracked: ${#DIRECTORIES_TO_CLEANUP[@]})"
     fi
     
     local dir_name="${TEST_SESSION_DIR}/${base_name}-${timestamp}"
@@ -433,7 +433,7 @@ create_test_directory() {
     CREATED_DIRECTORY="$dir_name"
     
     # Debug: Show that directory was created and tracked
-    log_verbose "DEBUG: Created directory: $dir_name (total tracked: ${#DIRECTORIES_TO_CLEANUP[@]})"
+    log_verbose "Created directory: $dir_name (total tracked: ${#DIRECTORIES_TO_CLEANUP[@]})"
     
     echo "$dir_name"
 }
@@ -450,7 +450,7 @@ create_test_directories() {
     if [[ -z "$TEST_SESSION_DIR" ]]; then
         TEST_SESSION_DIR="test-output/session-$(date +%Y%m%d-%H%M%S)"
         mkdir -p "$TEST_SESSION_DIR"
-        log_verbose "DEBUG: Created session directory: $TEST_SESSION_DIR"
+        log_verbose "Created session directory: $TEST_SESSION_DIR"
     fi
     
     local data_dir="${TEST_SESSION_DIR}/test-data-${base_name}-${timestamp}"
@@ -461,7 +461,7 @@ create_test_directories() {
     DIRECTORIES_TO_CLEANUP+=("$data_dir" "$config_dir")
     
     # Debug: Show that directories were created and tracked
-    log_verbose "DEBUG: Created directories: $data_dir, $config_dir (total tracked: ${#DIRECTORIES_TO_CLEANUP[@]})"
+    log_verbose "Created directories: $data_dir, $config_dir (total tracked: ${#DIRECTORIES_TO_CLEANUP[@]})"
     
     # Assign to the variable names provided
     printf -v "$data_var_name" "%s" "$data_dir"
