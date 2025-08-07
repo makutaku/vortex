@@ -676,7 +676,7 @@ test_yahoo_download() {
         -v "$PWD/$test_config_dir:/config" \
         -e VORTEX_DEFAULT_PROVIDER=yahoo \
         -e VORTEX_RUN_ON_STARTUP=true \
-        -e VORTEX_DOWNLOAD_ARGS="--yes --symbol AAPL --symbol MSFT" \
+        -e VORTEX_DOWNLOAD_ARGS="--yes --symbol AAPL --symbol MSFT --start-date 2024-12-01 --end-date 2024-12-07" \
         "$TEST_IMAGE")
     
     # Wait for download to complete (containers run indefinitely due to tail -f)
@@ -822,7 +822,7 @@ test_cron_job_setup() {
         -e VORTEX_DEFAULT_PROVIDER=yahoo \
         -e VORTEX_RUN_ON_STARTUP=false \
         -e VORTEX_SCHEDULE="$cron_schedule" \
-        -e VORTEX_DOWNLOAD_ARGS="--yes --symbol AAPL --symbol MSFT" \
+        -e VORTEX_DOWNLOAD_ARGS="--yes --symbol AAPL --symbol MSFT --start-date 2024-12-01 --end-date 2024-12-07" \
         "$TEST_IMAGE")
     
     # Wait for container to start and cron to be configured
@@ -942,7 +942,7 @@ test_cron_job_execution() {
         -e VORTEX_DEFAULT_PROVIDER=yahoo \
         -e VORTEX_RUN_ON_STARTUP=false \
         -e VORTEX_SCHEDULE="$cron_schedule" \
-        -e VORTEX_DOWNLOAD_ARGS="--yes --symbol AAPL --symbol MSFT --output-dir /data" \
+        -e VORTEX_DOWNLOAD_ARGS="--yes --symbol AAPL --symbol MSFT --start-date 2024-12-01 --end-date 2024-12-07 --output-dir /data" \
         "$TEST_IMAGE")
     
     log_info "Container started (ID: ${container_id:0:12}...), waiting for cron setup..."
