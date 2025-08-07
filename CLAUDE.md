@@ -224,19 +224,24 @@ Vortex follows **Clean Architecture** principles with distinct separation of con
 
 ### Configuration Management
 
-The modern CLI supports multiple configuration methods:
+The modern CLI supports multiple configuration methods with precedence: **Environment Variables > TOML Configuration > Application Defaults**
 
-**Interactive Configuration (Recommended):**
+**TOML Configuration (Recommended):**
 ```bash
-vortex config --provider barchart --set-credentials
-vortex config --provider ibkr --set-credentials
+# Copy example and customize
+cp config/config.toml.example config/config.toml
 ```
 
-
-**Configuration File (~/.config/vortex/config.toml):**
 ```toml
+[general]
+default_provider = "yahoo"    # yahoo (free), barchart (premium), ibkr (professional)
 output_directory = "./data"
 backup_enabled = true
+
+[general.logging]
+level = "INFO"
+format = "console"
+output = ["console"]
 
 [providers.barchart]
 username = "your_username"
@@ -247,6 +252,23 @@ daily_limit = 150
 host = "localhost"
 port = 7497
 client_id = 1
+
+[date_range]
+start_year = 2020
+end_year = 2025
+```
+
+**Interactive Configuration:**
+```bash
+vortex config --provider barchart --set-credentials
+vortex config --provider ibkr --set-credentials
+```
+
+**Environment Variables (Override TOML):**
+```bash
+export VORTEX_DEFAULT_PROVIDER=yahoo
+export VORTEX_BARCHART_USERNAME="your_username"
+export VORTEX_LOGGING_LEVEL=DEBUG
 ```
 
 ### Assets Configuration

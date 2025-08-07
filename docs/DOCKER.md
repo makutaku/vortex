@@ -22,7 +22,29 @@ That's it! The container will:
 
 ## Premium Data Setup (Barchart)
 
-1. **Configure environment for Barchart**
+**Option 1 (RECOMMENDED): TOML Configuration**
+1. **Create TOML configuration**
+   ```bash
+   cp config/config.toml.example config/config.toml
+   # Edit config/config.toml and set:
+   ```
+   ```toml
+   [general]
+   default_provider = "barchart"
+   
+   [providers.barchart]
+   username = "your_email@example.com"
+   password = "your_password"
+   daily_limit = 150
+   ```
+
+2. **Run with Barchart**
+   ```bash
+   docker compose up -d
+   ```
+
+**Option 2: Environment Variables**
+1. **Configure environment**
    ```bash
    cp .env.example .env
    # Edit .env and set:
@@ -31,38 +53,75 @@ That's it! The container will:
    # VORTEX_BARCHART_PASSWORD=your_password
    ```
 
-2. **Run with Barchart**
+2. **Uncomment environment variables in docker-compose.yml**
+   ```bash
+   # Edit docker/docker-compose.yml and uncomment the Barchart environment variables
+   ```
+
+3. **Run with Barchart**
    ```bash
    docker compose up -d
    ```
 
 ## Configuration
 
-### Environment Variables
+Vortex supports two configuration methods with the following precedence: **Environment Variables > TOML Configuration > Application Defaults**
 
-The following environment variables control the container behavior:
+### Option 1: TOML Configuration (RECOMMENDED)
 
+Create `config/config.toml` with your settings:
+
+```toml
+[general]
+default_provider = "yahoo"    # yahoo, barchart, or ibkr
+backup_enabled = false
+dry_run = false
+
+[general.logging]
+level = "INFO"               # DEBUG, INFO, WARNING, ERROR
+format = "console"           # console, json, rich
+output = ["console"]         # console, file, or both
+
+[providers.barchart]
+username = "your_email@example.com"
+password = "your_password"
+daily_limit = 150
+
+[providers.ibkr]
+host = "localhost"
+port = 7497
+client_id = 1
+```
+
+See `config/config.toml.example` for complete configuration options.
+
+### Option 2: Environment Variables
+
+If you prefer environment variables, uncomment the relevant sections in `docker/docker-compose.yml`:
+
+**Container-specific variables (always set):**
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `VORTEX_DEFAULT_PROVIDER` | `yahoo` | Default data provider: `yahoo` (free), `barchart` (premium), or `ibkr` (professional) |
+| `VORTEX_OUTPUT_DIR` | `/data` | Container data directory |
 | `VORTEX_SCHEDULE` | `0 8 * * *` | Cron schedule for downloads |
 | `VORTEX_RUN_ON_STARTUP` | `true` | Run download when container starts |
 | `VORTEX_DOWNLOAD_ARGS` | `--yes` | Additional arguments for download command |
-| `VORTEX_LOG_LEVEL` | `INFO` | Logging level (DEBUG, INFO, WARNING, ERROR) |
-| `VORTEX_LOGGING_FORMAT` | `console` | Log format: console, json, rich |
-| `VORTEX_BACKUP_ENABLED` | `false` | Enable Parquet backup files |
-| `DATA_DIR` | `./data` | Host directory for downloaded data (maps to `/data` in container) |
-| `CONFIG_DIR` | `./config` | Host directory for configuration (maps to `/root/.config/vortex` in container) |
+| `DATA_DIR` | `./data` | Host directory for downloaded data |
+| `CONFIG_DIR` | `./config` | Host directory for configuration |
 
-**Provider-specific variables:**
-| Variable | Description |
-|----------|-------------|
-| `VORTEX_BARCHART_USERNAME` | Barchart.com username (email) |
-| `VORTEX_BARCHART_PASSWORD` | Barchart.com password |
-| `VORTEX_BARCHART_DAILY_LIMIT` | Daily download limit (default: 150) |
-| `VORTEX_IBKR_HOST` | Interactive Brokers TWS/Gateway host (default: localhost) |
-| `VORTEX_IBKR_PORT` | Interactive Brokers port (default: 7497) |
-| `VORTEX_IBKR_CLIENT_ID` | Interactive Brokers client ID (default: 1) |
+**Application variables (optional - use TOML instead):**
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `VORTEX_DEFAULT_PROVIDER` | `yahoo` | Default data provider |
+| `VORTEX_LOGGING_LEVEL` | `INFO` | Logging level |
+| `VORTEX_LOGGING_FORMAT` | `console` | Log format |
+| `VORTEX_BACKUP_ENABLED` | `false` | Enable Parquet backup files |
+| `VORTEX_BARCHART_USERNAME` | - | Barchart.com username (email) |
+| `VORTEX_BARCHART_PASSWORD` | - | Barchart.com password |
+| `VORTEX_BARCHART_DAILY_LIMIT` | `150` | Daily download limit |
+| `VORTEX_IBKR_HOST` | `localhost` | Interactive Brokers TWS/Gateway host |
+| `VORTEX_IBKR_PORT` | `7497` | Interactive Brokers port |
+| `VORTEX_IBKR_CLIENT_ID` | `1` | Interactive Brokers client ID |
 
 ### Provider-Specific Setup
 
@@ -118,9 +177,9 @@ client_id = 1
 The container uses two main volumes:
 
 - `/data` - Downloaded data files (CSV/Parquet)
-- `/root/.config/vortex` - Vortex configuration directory (config.toml)
+- `/home/vortex/.config/vortex` - Vortex configuration directory (config.toml)
 
-The `CONFIG_DIR` environment variable maps your local `./config` directory to `/root/.config/vortex` in the container, following standard Linux configuration conventions.
+The `CONFIG_DIR` environment variable maps your local `./config` directory to `/home/vortex/.config/vortex` in the container. The container runs as the `vortex` user (UID 1000) for security, following best practices for non-root containers.
 
 ## Custom Assets
 

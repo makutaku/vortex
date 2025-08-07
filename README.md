@@ -31,9 +31,14 @@ vortex download --provider barchart --symbol GC --start-date 2024-01-01
 git clone https://github.com/makutaku/vortex.git
 cd vortex
 
-# Configure
+# Configuration Option 1 (RECOMMENDED): TOML Configuration
+cp config/config.toml.example config/config.toml
+# Edit config/config.toml with your settings
+
+# Configuration Option 2: Environment Variables
 cp .env.example .env
 # Edit .env with your provider and schedule
+# Then uncomment environment variables in docker/docker-compose.yml
 
 # Run with Docker Compose
 docker-compose up -d

@@ -1,5 +1,20 @@
 # Environment Variables
 
+Vortex supports multiple configuration methods with the following precedence:
+**Environment Variables > TOML Configuration > Application Defaults**
+
+## Configuration Recommendation
+
+**RECOMMENDED**: Use TOML configuration files instead of environment variables for better readability and maintainability:
+
+1. Copy the example configuration: `cp config/config.toml.example config/config.toml`
+2. Edit `config/config.toml` with your settings
+3. Run vortex normally - it will automatically use the TOML configuration
+
+Environment variables are still supported and will override TOML settings when needed.
+
+## Environment Variables Reference
+
 Set these environment variables before running vortex:
 
 ## Modern Configuration (VORTEX_* variables)
