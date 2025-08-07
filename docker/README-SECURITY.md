@@ -1,8 +1,8 @@
 # Docker Security Architecture
 
-This directory contains secure Docker configurations that follow container security best practices. **All Docker files now use root-less architecture by default.**
+This directory contains secure Docker configurations that follow container security best practices. **All Docker files use root-less architecture - there are no root-privileged options.**
 
-## 🔒 **Secure Container Options**
+## 🔒 **Available Container Configurations**
 
 ### `Dockerfile` (Production Recommended)
 - ✅ **Full-featured with supervisord process management**

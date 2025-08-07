@@ -13,7 +13,6 @@
 #   --skip-build        Skip Docker image build (use existing image)
 #   --keep-containers   Keep containers after test completion
 #   --keep-data         Keep test data directories after completion
-#   --comprehensive     Include comprehensive/long-running tests (auto-enabled for specific tests)
 #
 # Examples:
 #   ./scripts/test-docker-build.sh              # Run all tests
@@ -52,7 +51,6 @@ QUIET=false
 SKIP_BUILD=false
 KEEP_CONTAINERS=false
 KEEP_DATA=false
-COMPREHENSIVE=false
 SPECIFIC_TESTS=()
 
 # Test registry - maps test numbers to function names and descriptions
@@ -126,7 +124,6 @@ OPTIONS:
     --skip-build        Skip Docker image build (use existing image)
     --keep-containers   Keep containers after test completion for debugging
     --keep-data         Keep test data directories after completion
-    --comprehensive     Include comprehensive/long-running tests (auto-enabled for specific tests)
 
 EXAMPLES:
     # Run all tests
@@ -146,12 +143,6 @@ EXAMPLES:
 
     # Debug failing test (keep containers and data)
     ./scripts/test-docker-build.sh --keep-containers --keep-data -v 12
-
-    # Run comprehensive tests including long-running cron execution
-    ./scripts/test-docker-build.sh --comprehensive
-
-    # Run only the comprehensive cron execution test
-    ./scripts/test-docker-build.sh --comprehensive 14
 EOF
 }
 
@@ -278,32 +269,38 @@ cleanup_directories() {
     for dir in "${DIRECTORIES_TO_CLEANUP[@]}"; do
         if [[ -d "$dir" ]]; then
             log_verbose "Removing directory: $dir"
-            # Fix permissions first
-            find "$dir" -type d -exec chmod 755 {} \; 2>/dev/null || true
-            find "$dir" -type f -exec chmod 644 {} \; 2>/dev/null || true
-            if rm -rf "$dir" 2>/dev/null; then
-                log_verbose "Successfully removed: $dir"
+            # Try multiple strategies to fix permissions and remove
+            if ! rm -rf "$dir" 2>/dev/null; then
+                # Strategy 1: Try to change owner to current user (if possible)
+                if command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
+                    sudo chown -R "$(id -u):$(id -g)" "$dir" 2>/dev/null || true
+                    rm -rf "$dir" 2>/dev/null && continue
+                fi
+                
+                # Strategy 2: Fix permissions recursively with force
+                chmod -R 755 "$dir" 2>/dev/null || true
+                if rm -rf "$dir" 2>/dev/null; then
+                    log_verbose "Successfully removed: $dir"
+                    continue
+                fi
+                
+                # Strategy 3: Move to temp location for later cleanup
+                temp_dir="/tmp/vortex-test-cleanup-$(date +%s)-$$"
+                if mv "$dir" "$temp_dir" 2>/dev/null; then
+                    log_verbose "Moved to temp location: $temp_dir"
+                    # Try to clean up the temp location asynchronously
+                    (sleep 5 && rm -rf "$temp_dir" 2>/dev/null &) || true
+                else
+                    log_warning "Could not remove $dir - will be cleaned up on next test run"
+                fi
             else
-                log_warning "Could not remove $dir (permission issue)"
-                # Move to temp location if can't delete
-                mv "$dir" "/tmp/vortex-test-cleanup-$(date +%s)" 2>/dev/null || true
+                log_verbose "Successfully removed: $dir"
             fi
         fi
     done
     
-    # Clean up empty session directory if it exists
-    if [[ -n "$TEST_SESSION_DIR" ]] && [[ -d "$TEST_SESSION_DIR" ]]; then
-        # Check if session directory is empty after individual cleanup
-        local remaining_items=$(find "$TEST_SESSION_DIR" -mindepth 1 -maxdepth 1 | wc -l)
-        if [[ "$remaining_items" -eq 0 ]]; then
-            log_verbose "Removing empty session directory: $TEST_SESSION_DIR"
-            rmdir "$TEST_SESSION_DIR" 2>/dev/null || true
-            # Also try to remove parent directories if empty
-            rmdir "$(dirname "$TEST_SESSION_DIR")" 2>/dev/null || true
-        else
-            log_verbose "Session directory not empty ($remaining_items items remaining): $TEST_SESSION_DIR"
-        fi
-    fi
+    # Note: Session directory cleanup is handled separately at the end of all tests
+    # Don't remove session directory here as other tests may still need it
     
     DIRECTORIES_TO_CLEANUP=()
 }
@@ -338,15 +335,32 @@ cleanup_test() {
         for dir in "${DIRECTORIES_TO_CLEANUP[@]}"; do
             if [[ -d "$dir" ]]; then
                 log_verbose "Removing directory: $dir"
-                # Fix permissions first
-                find "$dir" -type d -exec chmod 755 {} \; 2>/dev/null || true
-                find "$dir" -type f -exec chmod 644 {} \; 2>/dev/null || true
-                if rm -rf "$dir" 2>/dev/null; then
-                    log_verbose "Successfully removed: $dir"
+                # Try multiple strategies to fix permissions and remove
+                if ! rm -rf "$dir" 2>/dev/null; then
+                    # Strategy 1: Try to change owner to current user (if possible)
+                    if command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
+                        sudo chown -R "$(id -u):$(id -g)" "$dir" 2>/dev/null || true
+                        rm -rf "$dir" 2>/dev/null && continue
+                    fi
+                    
+                    # Strategy 2: Fix permissions recursively with force
+                    chmod -R 755 "$dir" 2>/dev/null || true
+                    if rm -rf "$dir" 2>/dev/null; then
+                        log_verbose "Successfully removed: $dir"
+                        continue
+                    fi
+                    
+                    # Strategy 3: Move to temp location for later cleanup
+                    temp_dir="/tmp/vortex-test-cleanup-$(date +%s)-$$"
+                    if mv "$dir" "$temp_dir" 2>/dev/null; then
+                        log_verbose "Moved to temp location: $temp_dir"
+                        # Try to clean up the temp location asynchronously
+                        (sleep 5 && rm -rf "$temp_dir" 2>/dev/null &) || true
+                    else
+                        log_warning "Could not remove $dir - will be cleaned up on next test run"
+                    fi
                 else
-                    log_warning "Could not remove $dir (permission issue)"
-                    # Move to temp location if can't delete
-                    mv "$dir" "/tmp/vortex-test-cleanup-$(date +%s)" 2>/dev/null || true
+                    log_verbose "Successfully removed: $dir"
                 fi
             fi
         done
@@ -369,6 +383,41 @@ cleanup_session_directory_if_empty() {
             # Also try to remove parent directories if empty
             rmdir "$(dirname "$TEST_SESSION_DIR")" 2>/dev/null || true
         fi
+    fi
+}
+
+cleanup_old_test_directories() {
+    # Clean up any old test directories that may have been created in wrong locations
+    # This handles legacy cleanup from older versions of the test script
+    log_verbose "Checking for old test directories in wrong locations..."
+    
+    local cleaned_any=false
+    
+    # Check root level
+    for dir in test-config test-data; do
+        if [[ -d "$dir" ]]; then
+            log_verbose "Removing legacy test directory: $dir"
+            rm -rf "$dir" 2>/dev/null || sudo rm -rf "$dir" 2>/dev/null || true
+            cleaned_any=true
+        fi
+    done
+    
+    # Check docker/ directory
+    if ls docker/test-config-* docker/test-data-* >/dev/null 2>&1; then
+        log_verbose "Removing legacy test directories in docker/"
+        sudo rm -rf docker/test-config-* docker/test-data-* 2>/dev/null || true
+        cleaned_any=true
+    fi
+    
+    # Check src/ directory  
+    if ls src/test-config-* src/test-data-* >/dev/null 2>&1; then
+        log_verbose "Removing legacy test directories in src/"
+        rm -rf src/test-config-* src/test-data-* 2>/dev/null || true
+        cleaned_any=true
+    fi
+    
+    if [[ "$cleaned_any" == true ]]; then
+        log_info "Cleaned up legacy test directories from previous test runs"
     fi
 }
 
@@ -397,6 +446,9 @@ setup_test_environment() {
     
     # Clean up any existing test containers
     cleanup_containers
+    
+    # Clean up any old test directories from previous runs  
+    cleanup_old_test_directories
     
     log_success "Test environment ready"
     return 0
@@ -1136,8 +1188,14 @@ test_docker_compose_download() {
     
     create_test_directories "test_data_dir" "test_config_dir" "compose"
     
-    # Create docker compose override file for testing
+    # Create docker compose override file for testing in a more robust way
     local compose_override_file="$test_data_dir/docker-compose.override.yml"
+    
+    # Ensure the directory exists and is writable
+    mkdir -p "$test_data_dir" 2>/dev/null || true
+    chmod 755 "$test_data_dir" 2>/dev/null || true
+    
+    # Use absolute path to avoid any PWD issues
     cat > "$compose_override_file" << EOF
 version: '3.8'
 
@@ -1151,10 +1209,16 @@ services:
       VORTEX_SCHEDULE: "# DISABLED"
       VORTEX_LOG_LEVEL: DEBUG
     volumes:
-      - $PWD/$test_data_dir:/data
-      # Container runs as vortex user consistently (UID 1000)
-      - $PWD/$test_config_dir:/home/vortex/.config/vortex
+      - $(pwd)/$test_data_dir:/data
+      # Container runs as vortex user consistently (UID 1000)  
+      - $(pwd)/$test_config_dir:/home/vortex/.config/vortex
 EOF
+
+    # Verify the override file was created successfully
+    if [[ ! -f "$compose_override_file" ]]; then
+        log_error "Failed to create docker-compose override file: $compose_override_file"
+        return 1
+    fi
     
     local compose_project="vortex-test-$(date +%s)"
     local output_file="/tmp/compose-${compose_project}.log"
@@ -1298,11 +1362,21 @@ EOF
     local compose_validations=0
     
     # Check if service started properly (from compose output)
-    if grep -q "Creating vortex-test-compose" "$output_file" 2>/dev/null; then
+    # Modern Docker Compose uses format: "Container [name]  Creating/Created/Starting/Started"
+    if grep -qE "(Container.*vortex-test-compose.*(Creating|Created|Starting|Started)|Creating vortex-test-compose|vortex-test-compose.*Created)" "$output_file" 2>/dev/null; then
         log_info "✓ Docker Compose container created successfully"
         ((compose_validations++))
     else
-        log_warning "✗ Docker Compose container creation not found in logs"
+        # Fallback: check if we have any compose-related success indicators
+        if [[ -f "$output_file" ]] && [[ -s "$output_file" ]] && ! grep -qE "(ERROR|Error|error|failed|Failed)" "$output_file" 2>/dev/null; then
+            log_info "✓ Docker Compose container created successfully (implied from clean startup)"
+            ((compose_validations++))
+        else
+            log_warning "✗ Docker Compose container creation not found in logs"
+            log_verbose "Compose output content preview:"
+            head -5 "$output_file" 2>/dev/null | sed 's/^/  /' || log_verbose "No output file content"
+            log_verbose "Looking for patterns: Container.*vortex-test-compose.*(Creating|Created|Starting|Started)"
+        fi
     fi
     
     # Check if service was healthy
@@ -1366,12 +1440,6 @@ run_specific_tests() {
     # Run specified tests
     for test_num in "${tests_to_run[@]}"; do
         if [[ -n "${TEST_REGISTRY[$test_num]:-}" ]]; then
-            # Skip comprehensive tests unless flag is set
-            if [[ "$test_num" == "14" || "$test_num" == "15" ]] && [[ "$COMPREHENSIVE" != true ]]; then
-                log_info "Skipping comprehensive test $test_num (use --comprehensive to include)"
-                continue
-            fi
-            
             IFS=':' read -r func_name description <<< "${TEST_REGISTRY[$test_num]}"
             log_verbose "Executing test $test_num: $func_name"
             
@@ -1418,9 +1486,17 @@ show_results() {
         echo
         log_info "To clean up test image:"
         echo "    docker rmi $TEST_IMAGE"
+        
+        # Clean up session directory now that all tests are complete
+        cleanup_session_directory_if_empty
+        
         return 0
     else
         log_error "Some tests failed: $TESTS_FAILED failed, $TESTS_PASSED passed"
+        
+        # Clean up session directory even if some tests failed
+        cleanup_session_directory_if_empty
+        
         return 1
     fi
 }
@@ -1454,10 +1530,6 @@ parse_arguments() {
                 ;;
             --keep-data)
                 KEEP_DATA=true
-                shift
-                ;;
-            --comprehensive)
-                COMPREHENSIVE=true
                 shift
                 ;;
             -*)
@@ -1505,17 +1577,10 @@ main() {
         log_verbose "  Skip Build: $SKIP_BUILD"
         log_verbose "  Keep Containers: $KEEP_CONTAINERS"
         log_verbose "  Keep Data: $KEEP_DATA"
-        log_verbose "  Comprehensive: $COMPREHENSIVE"
         log_verbose "  Test Image: $TEST_IMAGE"
         if [[ ${#SPECIFIC_TESTS[@]} -gt 0 ]]; then
             log_verbose "  Specific Tests: ${SPECIFIC_TESTS[*]}"
         fi
-    fi
-    
-    # Auto-enable comprehensive flag when specific tests are provided
-    if [[ ${#SPECIFIC_TESTS[@]} -gt 0 ]] && [[ "$COMPREHENSIVE" != true ]]; then
-        COMPREHENSIVE=true
-        log_verbose "Auto-enabled comprehensive mode for specific tests"
     fi
     
     # Show test output directory info

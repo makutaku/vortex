@@ -1,15 +1,16 @@
-# Vortex Financial Data Automation - Docker Compose Configuration
+# Vortex Financial Data Automation - Root-less Docker Compose Configuration
 #
-# This docker-compose.yml provides a complete containerized setup for Vortex
-# with modern configuration using environment variables.
+# This docker-compose.yml provides a secure containerized setup for Vortex
+# using security best practices with non-root execution throughout.
 #
 # Quick Start (Free Data with Yahoo Finance):
 #   docker-compose up -d
 #   
 # The container will automatically:
+#   - Run entirely as vortex user (UID 1000) - NO ROOT PRIVILEGES
 #   - Use Yahoo Finance (free, no setup required)
 #   - Download data to ./data directory
-#   - Run on schedule (8 AM daily by default)
+#   - Run on schedule using supervisord (not system cron)
 #
 # Premium Data Setup:
 #   1. Create .env file with your credentials:
@@ -34,9 +35,12 @@ services:
   vortex:
     build:
       context: ..
-      dockerfile: docker/Dockerfile  # Use main Dockerfile for reliability
+      dockerfile: docker/Dockerfile  # Use main Dockerfile (now root-less by default)
     container_name: vortex
     restart: unless-stopped
+    
+    # Security: Container runs as vortex user (UID 1000) by default from Dockerfile
+    # No user override needed - Dockerfile already sets USER vortex
     
     environment:
       # Modern Vortex Configuration
@@ -78,16 +82,16 @@ services:
       # Data output directory - where downloaded CSV/Parquet files are stored
       - ${DATA_DIR:-./data}:/data
       
-      # Configuration directory - contains config.toml and optional custom assets.json
-      - ${CONFIG_DIR:-./config}:/root/.config/vortex
+      # Configuration directory - vortex user's config location
+      - ${CONFIG_DIR:-./config}:/home/vortex/.config/vortex
       
       # Optional: Mount custom assets file directly
-      # - ./my-assets.json:/app/assets/custom.json:ro
+      # - ./my-assets.json:/app/config/assets/custom.json:ro
       
       # Optional: Mount logs directory
-      # - ${LOGS_DIR:-./logs}:/logs
+      # - ${LOGS_DIR:-./logs}:/var/log/supervisor
     
-    # Health check using modern CLI
+    # Health check using modern CLI (runs as vortex user)
     healthcheck:
       test: ["CMD-SHELL", "vortex config --show > /dev/null || exit 1"]
       interval: 1h
