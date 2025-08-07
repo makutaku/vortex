@@ -175,6 +175,8 @@ if [[ "$VORTEX_RUN_ON_STARTUP" == "true" ]]; then
     else
         log_warning "Startup download failed with exit code $?, continuing anyway..."
     fi
+else
+    log_info "Skipping download on startup (VORTEX_RUN_ON_STARTUP=false)"
 fi
 
 # Health check setup

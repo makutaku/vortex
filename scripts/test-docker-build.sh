@@ -660,8 +660,8 @@ test_entrypoint_dry_run() {
     output=$(docker logs "$container_id" 2>&1)
     docker kill "$container_id" >/dev/null 2>&1 || true
     
-    if [[ "$output" == *"Starting Vortex container"* ]] && [[ "$output" == *"Skipping download on startup"* ]]; then
-        log_success "Entrypoint script works (no startup download)"
+    if [[ "$output" == *"Starting Vortex container as vortex user"* ]] && [[ "$output" == *"Starting supervisord process manager"* ]]; then
+        log_success "Entrypoint script works (supervisord started successfully)"
         return 0
     fi
     
@@ -714,11 +714,13 @@ test_entrypoint_no_startup() {
     
     create_test_directories "test_data_dir" "test_config_dir" "entrypoint"
     
-    # Start container (it won't exit due to tail -f)
+    # Ensure test directories are writable by container user (UID 1000)
+    chmod 777 "$test_data_dir" "$test_config_dir" 2>/dev/null || true
+    
+    # Start container (runs as built-in vortex user UID 1000)
     container_id=$(run_container "test-entrypoint-no-startup" \
-        --user "$(id -u):$(id -g)" \
         -v "$PWD/$test_data_dir:/data" \
-        -v "$PWD/$test_config_dir:/config" \
+        -v "$PWD/$test_config_dir:/home/vortex/.config/vortex" \
         -e VORTEX_RUN_ON_STARTUP=false \
         -e VORTEX_DEFAULT_PROVIDER=yahoo \
         "$TEST_IMAGE")
@@ -736,7 +738,7 @@ test_entrypoint_no_startup() {
     local no_download_attempted=true
     
     # Check if container started properly
-    if [[ "$output" == *"Starting Vortex container"* ]]; then
+    if [[ "$output" == *"Starting Vortex container as vortex user"* ]]; then
         container_started=true
         log_info "✓ Container started successfully"
     else
@@ -809,11 +811,13 @@ test_yahoo_download() {
     create_test_directories "test_data_dir" "test_config_dir" "yahoo"
     output_file="$test_data_dir/container.log"
     
-    # Start container with proper configuration
+    # Ensure test directories are writable by container user (UID 1000)
+    chmod 777 "$test_data_dir" "$test_config_dir" 2>/dev/null || true
+    
+    # Start container with proper configuration (runs as built-in vortex user UID 1000)
     container_id=$(run_container "test-yahoo-download" \
-        --user "$(id -u):$(id -g)" \
         -v "$PWD/$test_data_dir:/data" \
-        -v "$PWD/$test_config_dir:/config" \
+        -v "$PWD/$test_config_dir:/home/vortex/.config/vortex" \
         -e VORTEX_DEFAULT_PROVIDER=yahoo \
         -e VORTEX_RUN_ON_STARTUP=true \
         -e VORTEX_DOWNLOAD_ARGS="--yes --symbol AAPL --symbol MSFT --start-date 2024-12-01 --end-date 2024-12-07" \
