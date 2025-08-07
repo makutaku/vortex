@@ -27,7 +27,7 @@ set -euo pipefail  # Fail fast with proper error handling
 # ============================================================================
 
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-readonly PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+readonly PROJECT_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
 readonly TEST_IMAGE="vortex-test:latest"
 readonly TEST_TIMEOUT=30
 readonly BUILD_TIMEOUT=300

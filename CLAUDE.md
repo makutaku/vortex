@@ -49,35 +49,47 @@ uv pip install vortex
 
 ### Testing
 
-**🚀 Local Testing (Recommended):**
+**🎯 Comprehensive Testing (Recommended):**
+```bash
+# Run all tests (Python + Docker) - complete validation
+./run-all-tests.sh
+
+# Run all tests with verbose output
+./run-all-tests.sh -v
+
+# Development workflow - skip slow Docker tests
+./run-all-tests.sh --python-only
+
+# Deployment validation - Docker tests only
+./run-all-tests.sh --docker-only
+```
+
+**🚀 Individual Test Suites:**
 ```bash
 # First, ensure virtual environment is set up and activated
 source .venv/bin/activate
+
+# Run specific test categories
+uv run pytest tests/unit/        # Unit tests (fast, isolated)
+uv run pytest tests/integration/ # Integration tests (multi-component)
+uv run pytest tests/e2e/         # End-to-end workflow tests
+
+# With coverage
+uv run pytest --cov=vortex tests/
 
 # Test CLI functionality locally
 vortex --help
 vortex providers --list
 vortex config --show
-
-# Run unit tests with uv
-uv run pytest src/vortex/tests/
-uv run pytest src/vortex/tests/test_downloader.py
-
-# With coverage
-uv run pytest --cov=vortex src/vortex/tests/
-
-# Install test dependencies and run
-uv pip install -e ".[test]"
-uv run pytest
 ```
 
 **🐳 Docker Testing (For Deployment Validation):**
 ```bash
-# Only use Docker for final deployment testing
-./scripts/test-docker-build.sh
+# Full Docker test suite (deployment validation)
+./tests/docker/test-docker-build.sh
 
-# Traditional method (slower, use only if uv unavailable)
-pytest src/vortex/tests/
+# Quick Docker validation (specific tests)
+./tests/docker/test-docker-build.sh 5 12 --quiet
 ```
 
 ### Code Quality
@@ -328,7 +340,7 @@ Tests use pytest with fixture-based setup organized into distinct categories:
 **BEFORE any major refactoring:**
 ```bash
 # 1. Run full Docker test to establish baseline
-./scripts/test-docker-build.sh
+./tests/docker/test-docker-build.sh
 
 # 2. Note which tests pass
 # 3. After refactoring, run again and compare
@@ -337,7 +349,7 @@ Tests use pytest with fixture-based setup organized into distinct categories:
 **AFTER refactoring (MANDATORY):**
 ```bash
 # 1. Quick validation script (recommended)
-./scripts/test-docker-build.sh 5 12 --quiet
+./tests/docker/test-docker-build.sh 5 12 --quiet
 
 # 2. Manual validation (if needed)
 docker run --rm vortex-test:latest vortex providers | grep "Total providers available"
@@ -345,7 +357,7 @@ docker run --rm vortex-test:latest vortex --help | grep "Commands:"
 
 # 3. If either fails, fix IMMEDIATELY before committing
 # 4. Run full test suite to confirm
-./scripts/test-docker-build.sh
+./tests/docker/test-docker-build.sh
 ```
 
 ### 🔧 Quick Debug Commands
@@ -425,11 +437,11 @@ docker run --rm --user "1000:1000" -v "$(pwd)/debug:/data" vortex-test:latest \
 ### 🔄 Refactoring Safety Pattern
 
 **The Safe Refactoring Workflow:**
-1. **Baseline:** `./scripts/test-docker-build.sh` (establish what works)
+1. **Baseline:** `./tests/docker/test-docker-build.sh` (establish what works)
 2. **Refactor:** Make your changes
-3. **Quick Check:** `./scripts/test-docker-build.sh 5 12 --quiet` (catch obvious breaks)
+3. **Quick Check:** `./tests/docker/test-docker-build.sh 5 12 --quiet` (catch obvious breaks)
 4. **Fix Immediately:** Don't proceed until Tests 5 & 12 pass
-5. **Full Validation:** `./scripts/test-docker-build.sh` (ensure nothing else broke)
+5. **Full Validation:** `./tests/docker/test-docker-build.sh` (ensure nothing else broke)
 6. **Commit:** Only after all tests pass
 
 **This pattern prevents the cascade failures where one broken test leads to debugging rabbit holes.**
