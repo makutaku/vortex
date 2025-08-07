@@ -589,14 +589,64 @@ test_entrypoint_no_startup() {
     output=$(docker logs "$container_id" 2>&1)
     docker kill "$container_id" >/dev/null 2>&1 || true
     
-    if [[ "$output" == *"Starting Vortex container"* ]] && [[ "$output" == *"Skipping download on startup"* ]]; then
-        log_success "Entrypoint works without download"
-        return 0
+    # Validate expected behavior
+    local container_started=false
+    local skipped_startup=false
+    local no_download_attempted=true
+    
+    # Check if container started properly
+    if [[ "$output" == *"Starting Vortex container"* ]]; then
+        container_started=true
+        log_info "✓ Container started successfully"
+    else
+        log_warning "✗ Container startup not detected"
     fi
     
-    log_error "Entrypoint without startup test failed"
-    echo "Output: $output"
-    return 1
+    # Check if startup download was explicitly skipped
+    if [[ "$output" == *"Skipping download on startup"* ]]; then
+        skipped_startup=true
+        log_info "✓ Startup download was skipped as expected"
+    else
+        log_warning "✗ 'Skipping download on startup' message not found"
+    fi
+    
+    # Validate that NO download was attempted
+    if [[ "$output" == *"Running download on startup"* ]] || \
+       [[ "$output" == *"Executing: vortex download"* ]] || \
+       [[ "$output" == *"Download completed successfully"* ]] || \
+       [[ "$output" == *"Fetched remote data"* ]]; then
+        no_download_attempted=false
+        log_warning "✗ Download was attempted despite VORTEX_RUN_ON_STARTUP=false"
+    else
+        log_info "✓ No download was attempted (as expected)"
+    fi
+    
+    # Check that no CSV files were created
+    local csv_count=$(find "$test_data_dir" -name "*.csv" -type f 2>/dev/null | wc -l)
+    csv_count=$(echo "$csv_count" | tr -d ' ')
+    
+    if [[ "$csv_count" -eq 0 ]]; then
+        log_info "✓ No CSV files created (as expected)"
+    else
+        log_warning "✗ Found $csv_count CSV file(s) - unexpected with no startup download"
+        no_download_attempted=false
+    fi
+    
+    # Test passes if container started, skipped startup, and no download was attempted
+    if [[ "$container_started" == true ]] && [[ "$skipped_startup" == true ]] && [[ "$no_download_attempted" == true ]]; then
+        log_success "Entrypoint works without download (3/3 validations passed)"
+        return 0
+    else
+        local passed=0
+        [[ "$container_started" == true ]] && ((passed++))
+        [[ "$skipped_startup" == true ]] && ((passed++))
+        [[ "$no_download_attempted" == true ]] && ((passed++))
+        
+        log_error "Entrypoint without startup test failed ($passed/3 validations passed)"
+        echo "Container output:"
+        echo "$output"
+        return 1
+    fi
 }
 
 test_yahoo_download() {
@@ -626,7 +676,7 @@ test_yahoo_download() {
         -v "$PWD/$test_config_dir:/config" \
         -e VORTEX_DEFAULT_PROVIDER=yahoo \
         -e VORTEX_RUN_ON_STARTUP=true \
-        -e VORTEX_DOWNLOAD_ARGS="--yes --symbol AAPL" \
+        -e VORTEX_DOWNLOAD_ARGS="--yes --symbol AAPL --symbol MSFT" \
         "$TEST_IMAGE")
     
     # Wait for download to complete (containers run indefinitely due to tail -f)
@@ -772,7 +822,7 @@ test_cron_job_setup() {
         -e VORTEX_DEFAULT_PROVIDER=yahoo \
         -e VORTEX_RUN_ON_STARTUP=false \
         -e VORTEX_SCHEDULE="$cron_schedule" \
-        -e VORTEX_DOWNLOAD_ARGS="--yes --symbol AAPL" \
+        -e VORTEX_DOWNLOAD_ARGS="--yes --symbol AAPL --symbol MSFT" \
         "$TEST_IMAGE")
     
     # Wait for container to start and cron to be configured
@@ -868,12 +918,12 @@ test_cron_job_setup() {
 
 test_cron_job_execution() {
     log_test "Test 14: Comprehensive Cron Job Execution Test"
-    log_info "⚠️  This test takes 4+ minutes to complete - it waits for actual cron execution"
+    log_info "⚠️  This test may take up to 60 seconds - it waits for actual cron execution"
     
     local test_data_dir test_config_dir
     local container_id output_file
-    local cron_schedule="*/2 * * * *"  # Every 2 minutes
-    local wait_timeout=300  # 5 minutes maximum wait
+    local cron_schedule="*/1 * * * *"  # Every minute
+    local wait_timeout=180  # 3 minutes maximum wait
     local check_interval=30  # Check every 30 seconds
     
     test_data_dir=$(create_test_directory "test-data-cron-exec")
@@ -892,7 +942,7 @@ test_cron_job_execution() {
         -e VORTEX_DEFAULT_PROVIDER=yahoo \
         -e VORTEX_RUN_ON_STARTUP=false \
         -e VORTEX_SCHEDULE="$cron_schedule" \
-        -e VORTEX_DOWNLOAD_ARGS="--yes --symbol AAPL --output-dir /data" \
+        -e VORTEX_DOWNLOAD_ARGS="--yes --symbol AAPL --symbol MSFT --output-dir /data" \
         "$TEST_IMAGE")
     
     log_info "Container started (ID: ${container_id:0:12}...), waiting for cron setup..."
@@ -973,7 +1023,7 @@ test_cron_job_execution() {
     
     # Final validation
     local success_indicators=0
-    local total_indicators=4
+    local total_indicators=3
     
     # 1. Check if cron executed
     if $cron_executed; then
@@ -983,15 +1033,7 @@ test_cron_job_execution() {
         log_warning "✗ No cron execution detected in logs"
     fi
     
-    # 2. Check if download was attempted
-    if grep -q "vortex download" "$output_file"; then
-        log_info "✓ Download command was executed"
-        ((success_indicators++))
-    else
-        log_warning "✗ Download command not found in logs"
-    fi
-    
-    # 3. Check if data was downloaded
+    # 2. Check if data was downloaded
     if $data_downloaded; then
         log_info "✓ Data download completed"
         ((success_indicators++))
@@ -999,7 +1041,7 @@ test_cron_job_execution() {
         log_warning "✗ Data download not confirmed"
     fi
     
-    # 4. Check for actual CSV files
+    # 3. Check for actual CSV files
     local csv_count=$(find "$test_data_dir" -name "*.csv" -type f | wc -l)
     if [[ $csv_count -gt 0 ]]; then
         log_info "✓ Found $csv_count CSV file(s) in output directory"
@@ -1021,8 +1063,8 @@ test_cron_job_execution() {
         log_warning "Test timed out after ${wait_timeout}s"
     fi
     
-    # Test passes if at least 3 out of 4 indicators are successful
-    if [[ $success_indicators -ge 3 ]]; then
+    # Test passes if all 3 indicators are successful (cron execution is different from direct execution)
+    if [[ $success_indicators -eq 3 ]]; then
         log_success "Comprehensive cron execution test successful ($success_indicators/$total_indicators indicators passed)"
         log_info "Test completed in ${elapsed_time}s"
         return 0
