@@ -1245,6 +1245,8 @@ services:
       VORTEX_LOG_LEVEL: DEBUG
     volumes:
       - $PWD/$test_data_dir:/data
+      # TODO: Container architecture should be simplified to run as vortex user consistently
+      # Currently runs as root for cron setup, so config needs to be in /root/.config/vortex
       - $PWD/$test_config_dir:/root/.config/vortex
 EOF
     
