@@ -78,7 +78,11 @@
       "Bash(# Let me create a minimal test to debug the argument parsing\ncd /home/rosantos/workspace/projects/vortex/main\n\n# Create a simple test script to debug argument parsing\ncat > /tmp/debug_args.sh << ''EOF''\n#!/bin/bash\nSPECIFIC_TESTS=()\nCOMPREHENSIVE=false\nVERBOSE=false\n\nwhile [[ $# -gt 0 ]]; do\n    case $1 in\n        -v|--verbose)\n            VERBOSE=true\n            shift\n            ;;\n        --comprehensive)\n            COMPREHENSIVE=true\n            shift\n            ;;\n        *)\n            # Assume it''s a test number\n            if [[ \"\"$1\"\" =~ ^[0-9]+$ ]]; then\n                SPECIFIC_TESTS+=(\"\"$1\"\")\n                echo \"\"Added test number: $1\"\"\n            else\n                echo \"\"Error: Invalid test number ''$1''\"\" >&2\n                exit 1\n            fi\n            shift\n            ;;\n    esac\ndone\n\necho \"\"Final SPECIFIC_TESTS: ${SPECIFIC_TESTS[*]}\"\"\necho \"\"COMPREHENSIVE: $COMPREHENSIVE\"\"\necho \"\"VERBOSE: $VERBOSE\"\"\nEOF\n\nchmod +x /tmp/debug_args.sh\n\necho \"\"=== Test 1: 14 --comprehensive -v ===\"\"\n/tmp/debug_args.sh 14 --comprehensive -v\n\necho \"\"\"\"\necho \"\"=== Test 2: -v --comprehensive 14 ===\"\"\n/tmp/debug_args.sh -v --comprehensive 14)",
       "Bash(# Clean up the conflicting container\ndocker rm -f vortex-test-compose 2>/dev/null || true\n\n# Also clean up any other test containers\ndocker ps -a --filter \"\"name=vortex-test-compose\"\" --format \"\"{{.ID}}\"\" | xargs -r docker rm -f\n\necho \"\"Cleaned up containers. Now test should work:\"\")",
       "Bash(# Check what directories are still there and their permissions\nfind /home/rosantos/workspace/projects/vortex/main -maxdepth 2 -name \"\"test-config-*\"\" -o -name \"\"test-data-*\"\" | grep -v test-output | head -5 | while read dir; do\n    echo \"\"Directory: $dir\"\"\n    ls -la \"\"$dir\"\" 2>/dev/null || echo \"\"Cannot access directory\"\"\n    echo \"\"---\"\"\ndone)",
-      "Bash(# Check what''s still there\nfind /home/rosantos/workspace/projects/vortex/main -maxdepth 2 -name \"\"test-*\"\" | grep -v test-output)"
+      "Bash(# Check what''s still there\nfind /home/rosantos/workspace/projects/vortex/main -maxdepth 2 -name \"\"test-*\"\" | grep -v test-output)",
+      "Bash(./tests/docker/test-docker-build.sh:*)",
+      "Bash(./run-all-tests.sh --python-only)",
+      "Bash(git rm:*)",
+      "Bash(./scripts/debug-container.sh:*)"
     ],
     "deny": []
   }

@@ -110,6 +110,29 @@ black src/vortex/
 isort src/vortex/
 ```
 
+### Building and Packaging
+
+**🚀 Modern Python Packaging (Recommended):**
+```bash
+# Build distribution packages using modern Python standards
+python -m build              # Creates wheel and source distribution
+# or with uv (faster)
+uv build                     # Uses pyproject.toml configuration
+
+# Install from built wheel
+pip install dist/*.whl
+
+# Verify package contents
+unzip -l dist/*.whl
+```
+
+**📦 Development Installation:**
+```bash
+# Editable installation (recommended for development)
+uv pip install -e .          # Links to source code
+uv pip install -e ".[dev]"   # Include development dependencies
+```
+
 ### Modern CLI Usage
 ```bash
 # After installation, use the modern CLI interface:
@@ -198,7 +221,6 @@ Vortex follows **Clean Architecture** principles with distinct separation of con
 - `vortex/core/correlation/`: Unified correlation and request tracking system
 - `vortex/infrastructure/`: External integrations (providers, storage, resilience)
 - `config/assets/`: Default instrument definitions directory
-- `scripts/build.sh`: Build script for creating distribution artifacts
 
 ### Configuration Management
 
