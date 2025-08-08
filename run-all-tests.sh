@@ -225,7 +225,11 @@ main() {
         
         if [ "$coverage_check_condition" = true ]; then
             echo -e "${YELLOW}=== Running Overall Coverage Check ===${NC}"
-            if source .venv/bin/activate && uv run pytest tests/ --cov=src/vortex --cov-report=term-missing --cov-fail-under=80 --quiet; then
+            coverage_test_path="tests/"
+            if [ "$UNIT_ONLY" = true ]; then
+                coverage_test_path="tests/unit/"
+            fi
+            if source .venv/bin/activate && uv run pytest "$coverage_test_path" --cov=src/vortex --cov-report=term-missing --cov-fail-under=80 --quiet; then
                 echo -e "${GREEN}✅ Overall Coverage Check PASSED (80% threshold)${NC}"
             else
                 echo -e "${YELLOW}⚠️ Overall Coverage Check FAILED (below 80% threshold)${NC}"
