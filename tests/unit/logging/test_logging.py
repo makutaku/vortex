@@ -264,3 +264,123 @@ class TestLoggerFactories:
             logger = get_logger(name)
             assert logger.logger.name == name
             assert isinstance(logger.logger.name, str)
+
+
+@pytest.mark.unit
+class TestVortexLoggerCoverage:
+    """Additional tests for VortexLogger to increase coverage."""
+    
+    def test_log_with_extra_context_and_kwargs(self):
+        """Test _log method with both extra_context and kwargs."""
+        with patch('logging.Logger.log') as mock_log:
+            logger = VortexLogger("test")
+            logger.extra_context = {"existing": "value"}
+            
+            # This should hit line 26 (extra_context copy)
+            # and lines 30-32 (kwargs handling)
+            logger._log(logging.INFO, "test message", 
+                       extra={"provided": "extra"}, 
+                       user_id="123", action="test")
+            
+            # Verify the log call was made with correct extra data
+            mock_log.assert_called_once()
+            call_args = mock_log.call_args
+            assert call_args[0][0] == logging.INFO
+            assert call_args[0][1] == "test message"
+            
+            extra = call_args[1]['extra']
+            assert 'correlation_id' in extra
+            assert extra['extra_context']['existing'] == "value"
+            assert extra['extra_context']['user_id'] == "123"
+            assert extra['extra_context']['action'] == "test"
+    
+    def test_exception_method(self):
+        """Test exception method sets exc_info."""
+        with patch('logging.Logger.log') as mock_log:
+            logger = VortexLogger("test")
+            
+            # This should hit lines 54-55 (exception method)
+            logger.exception("test exception")
+            
+            mock_log.assert_called_once()
+            call_args = mock_log.call_args
+            assert call_args[0][0] == logging.ERROR
+            assert call_args[0][1] == "test exception"
+            
+            extra = call_args[1]['extra']
+            # exc_info should be in the extra_context since it's passed as kwargs
+            assert extra['extra_context']['exc_info'] is True
+    
+    def test_critical_method(self):
+        """Test critical method."""
+        with patch('logging.Logger.log') as mock_log:
+            logger = VortexLogger("test")
+            
+            # This should hit line 59 (critical method)
+            logger.critical("critical message")
+            
+            mock_log.assert_called_once()
+            call_args = mock_log.call_args
+            assert call_args[0][0] == logging.CRITICAL
+            assert call_args[0][1] == "critical message"
+    
+    def test_add_context(self):
+        """Test add_context method."""
+        logger = VortexLogger("test")
+        
+        # This should hit line 63 (add_context)
+        logger.add_context(user_id="123", session="abc")
+        
+        assert logger.extra_context["user_id"] == "123"
+        assert logger.extra_context["session"] == "abc"
+    
+    def test_with_context_method(self):
+        """Test with_context method."""
+        logger = VortexLogger("test")
+        logger.extra_context = {"existing": "value"}
+        
+        # This should hit lines 71-74 (with_context)
+        new_logger = logger.with_context(user_id="123", action="test")
+        
+        assert new_logger is not logger
+        assert new_logger.correlation_id == logger.correlation_id
+        assert new_logger.extra_context["existing"] == "value"
+        assert new_logger.extra_context["user_id"] == "123"
+        assert new_logger.extra_context["action"] == "test"
+        
+        # Original logger should be unchanged
+        assert "user_id" not in logger.extra_context
+    
+    def test_context_manager(self):
+        """Test context context manager."""
+        logger = VortexLogger("test")
+        logger.extra_context = {"existing": "value"}
+        original_context = logger.extra_context.copy()
+        
+        # This should hit lines 79-84 (context manager)
+        with logger.context({"temp": "data", "user": "test"}):
+            assert logger.extra_context["existing"] == "value"
+            assert logger.extra_context["temp"] == "data"
+            assert logger.extra_context["user"] == "test"
+        
+        # Context should be restored
+        assert logger.extra_context == original_context
+        assert "temp" not in logger.extra_context
+        assert "user" not in logger.extra_context
+    
+    def test_temp_context_manager(self):
+        """Test temp_context context manager."""
+        logger = VortexLogger("test")
+        logger.extra_context = {"existing": "value"}
+        original_context = logger.extra_context.copy()
+        
+        # This should hit lines 89-94 (temp_context manager)
+        with logger.temp_context(temp="data", user="test"):
+            assert logger.extra_context["existing"] == "value"
+            assert logger.extra_context["temp"] == "data"
+            assert logger.extra_context["user"] == "test"
+        
+        # Context should be restored
+        assert logger.extra_context == original_context
+        assert "temp" not in logger.extra_context
+        assert "user" not in logger.extra_context

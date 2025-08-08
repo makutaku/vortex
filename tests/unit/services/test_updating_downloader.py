@@ -207,6 +207,24 @@ class TestUpdatingDownloader:
 class TestUpdatingDownloaderEdgeCases:
     """Test edge cases for UpdatingDownloader."""
     
+    @pytest.fixture
+    def mock_storage(self):
+        """Create mock data storage."""
+        return Mock()
+    
+    @pytest.fixture
+    def mock_provider(self):
+        """Create mock data provider."""
+        return Mock()
+    
+    @pytest.fixture
+    def downloader(self, mock_storage, mock_provider):
+        """Create UpdatingDownloader instance."""
+        return UpdatingDownloader(
+            data_storage=mock_storage,
+            data_provider=mock_provider
+        )
+    
     def test_random_sleep_configuration_edge_cases(self):
         """Test various edge cases for random sleep configuration."""
         mock_storage = Mock()
@@ -223,3 +241,94 @@ class TestUpdatingDownloaderEdgeCases:
         # Test that zero becomes None
         downloader = UpdatingDownloader(mock_storage, mock_provider, random_sleep_in_sec=0)
         assert downloader.random_sleep_in_sec is None
+    
+    def test_process_job_existing_data_needs_more_coverage(self, downloader):
+        """Test processing job when existing data needs more coverage."""
+        # Create mock download job
+        mock_job = Mock(spec=DownloadJob)
+        mock_job.start_date = datetime(2023, 1, 1)
+        mock_job.end_date = datetime(2023, 12, 31)
+        mock_job.__str__ = Mock(return_value="Test Job")
+        
+        # Create mock existing download that needs more data
+        mock_existing = Mock()
+        mock_existing.is_data_coverage_acceptable.return_value = False
+        mock_existing.df.shape = (50, 5)
+        mock_existing.metadata.last_row_date = datetime(2023, 6, 1)
+        mock_existing.metadata.start_date = datetime(2023, 1, 15)
+        mock_job.load.return_value = mock_existing
+        
+        # Mock fetch to return new data
+        mock_new_data = Mock()
+        mock_merged_data = Mock()
+        mock_new_data.merge.return_value = mock_merged_data
+        mock_job.fetch.return_value = mock_new_data
+        mock_job.persist = Mock()
+        
+        # Mock pretend_not_a_bot
+        with patch.object(downloader, 'pretend_not_a_bot'):
+            result = downloader._process_job(mock_job)
+        
+        # Verify that job dates were adjusted (lines 43-55)
+        # Should adjust start date based on existing data
+        # And fetch new data to merge
+        mock_job.fetch.assert_called_once()
+        mock_new_data.merge.assert_called_once_with(mock_existing)
+        mock_job.persist.assert_called_once_with(mock_merged_data)
+        assert result == HistoricalDataResult.OK
+    
+    def test_process_job_existing_data_gap_before_start(self, downloader):
+        """Test processing job when there's a gap before existing data start."""
+        # Create mock download job
+        mock_job = Mock(spec=DownloadJob)
+        mock_job.start_date = datetime(2022, 1, 1)
+        mock_job.end_date = datetime(2022, 12, 31)
+        mock_job.__str__ = Mock(return_value="Test Job")
+        
+        # Create mock existing download with later start date
+        mock_existing = Mock()
+        mock_existing.is_data_coverage_acceptable.return_value = False
+        mock_existing.df.shape = (50, 5)
+        mock_existing.metadata.last_row_date = datetime(2023, 6, 1)
+        mock_existing.metadata.start_date = datetime(2023, 1, 15)  # Later than job.end_date
+        mock_job.load.return_value = mock_existing
+        
+        # Mock fetch to return new data
+        mock_new_data = Mock()
+        mock_merged_data = Mock()
+        mock_new_data.merge.return_value = mock_merged_data
+        mock_job.fetch.return_value = mock_new_data
+        mock_job.persist = Mock()
+        
+        # Mock pretend_not_a_bot
+        with patch.object(downloader, 'pretend_not_a_bot'):
+            result = downloader._process_job(mock_job)
+        
+        # Should adjust end date to avoid holes (line 54-55)
+        mock_job.fetch.assert_called_once()
+        mock_job.persist.assert_called_once_with(mock_merged_data)
+        assert result == HistoricalDataResult.OK
+    
+    def test_process_job_fetch_returns_none(self, downloader):
+        """Test processing job when fetch returns None."""
+        # Create mock download job
+        mock_job = Mock(spec=DownloadJob)
+        mock_job.start_date = datetime(2023, 1, 1) 
+        mock_job.end_date = datetime(2023, 12, 31)
+        mock_job.__str__ = Mock(return_value="Test Job")
+        
+        # Mock load to raise FileNotFoundError
+        mock_job.load.side_effect = FileNotFoundError("No existing data")
+        
+        # Mock fetch to return None (line 63-64)
+        mock_job.fetch.return_value = None
+        
+        # Mock pretend_not_a_bot
+        with patch.object(downloader, 'pretend_not_a_bot'):
+            result = downloader._process_job(mock_job)
+        
+        # Should return NONE when fetch returns None
+        assert result == HistoricalDataResult.NONE
+        mock_job.fetch.assert_called_once()
+        # Should not call persist when no data
+        mock_job.persist.assert_not_called() if hasattr(mock_job, 'persist') else None
