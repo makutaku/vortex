@@ -134,15 +134,29 @@ class TestDownloadJob:
         
         assert job.start_date == job.end_date
 
-    def test_str_representation(self, download_job):
+    def test_str_representation(self, mock_provider, mock_storage, sample_dates):
         """Test string representation of DownloadJob."""
-        # Create specific mocks that support __str__
-        with patch.object(download_job.instrument, '__str__', return_value="AAPL"), \
-             patch.object(download_job.period, '__str__', return_value="1d"):
-            
-            expected = "AAPL|1d|2024-01-01|2024-01-31"
-            result = str(download_job)
-            assert result == expected
+        start_date, end_date = sample_dates
+        
+        # Create non-spec mocks to allow __str__ override
+        mock_instrument = MagicMock()
+        mock_instrument.__str__ = MagicMock(return_value="AAPL")
+        
+        mock_period = MagicMock()
+        mock_period.__str__ = MagicMock(return_value="1d")
+        
+        job = DownloadJob(
+            data_provider=mock_provider,
+            data_storage=mock_storage,
+            instrument=mock_instrument,
+            period=mock_period,
+            start_date=start_date,
+            end_date=end_date
+        )
+        
+        expected = "AAPL|1d|2024-01-01|2024-01-31"
+        result = str(job)
+        assert result == expected
 
     def test_load_success(self, download_job, mock_storage):
         """Test successful data loading from primary storage."""
