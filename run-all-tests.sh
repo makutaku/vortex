@@ -15,6 +15,7 @@ readonly NC='\033[0m'
 VERBOSE=false
 SKIP_DOCKER=false
 DOCKER_ONLY=false
+UNIT_ONLY=false
 
 # Results tracking
 UNIT_RESULT=""
@@ -38,12 +39,14 @@ Options:
     --skip-docker       Skip Docker tests (faster for development)
     --docker-only       Run only Docker tests
     --python-only       Run only Python tests (unit, integration, e2e)
+    --unit-only         Run only unit tests (fastest for development)
 
 Examples:
     $0                  # Run all tests
     $0 -v               # Run all tests with verbose output
     $0 --skip-docker    # Skip Docker tests (development workflow)
     $0 --docker-only    # Run only Docker deployment tests
+    $0 --unit-only      # Run only unit tests (fastest for development)
 EOF
 }
 
@@ -95,8 +98,10 @@ print_summary() {
     
     if [ "$DOCKER_ONLY" != true ]; then
         echo -e "Unit Tests:        $UNIT_RESULT"
-        echo -e "Integration Tests: $INTEGRATION_RESULT" 
-        echo -e "E2E Tests:         $E2E_RESULT"
+        if [ "$UNIT_ONLY" != true ]; then
+            echo -e "Integration Tests: $INTEGRATION_RESULT" 
+            echo -e "E2E Tests:         $E2E_RESULT"
+        fi
     fi
     
     if [ "$SKIP_DOCKER" != true ]; then
@@ -110,8 +115,10 @@ print_summary() {
     
     if [ "$DOCKER_ONLY" != true ]; then
         [ "$UNIT_RESULT" = "${GREEN}✅ PASSED${NC}" ] || all_passed=false
-        [ "$INTEGRATION_RESULT" = "${GREEN}✅ PASSED${NC}" ] || all_passed=false
-        [ "$E2E_RESULT" = "${GREEN}✅ PASSED${NC}" ] || all_passed=false
+        if [ "$UNIT_ONLY" != true ]; then
+            [ "$INTEGRATION_RESULT" = "${GREEN}✅ PASSED${NC}" ] || all_passed=false
+            [ "$E2E_RESULT" = "${GREEN}✅ PASSED${NC}" ] || all_passed=false
+        fi
     fi
     
     if [ "$SKIP_DOCKER" != true ]; then
@@ -150,6 +157,11 @@ while [[ $# -gt 0 ]]; do
             SKIP_DOCKER=true
             shift
             ;;
+        --unit-only)
+            UNIT_ONLY=true
+            SKIP_DOCKER=true
+            shift
+            ;;
         *)
             echo -e "${RED}Unknown option: $1${NC}"
             print_usage
@@ -170,31 +182,48 @@ main() {
     
     # Run Python tests unless docker-only
     if [ "$DOCKER_ONLY" != true ]; then
-        echo -e "${BLUE}🐍 Running Python Test Suite...${NC}"
+        if [ "$UNIT_ONLY" = true ]; then
+            echo -e "${BLUE}🧪 Running Unit Tests Only...${NC}"
+        else
+            echo -e "${BLUE}🐍 Running Python Test Suite...${NC}"
+        fi
         
-        # Unit Tests
+        # Unit Tests (always run unless docker-only)
         if run_python_tests "unit" "tests/unit/" "Unit Tests"; then
             UNIT_RESULT="${GREEN}✅ PASSED${NC}"
         else
             UNIT_RESULT="${RED}❌ FAILED${NC}"
         fi
         
-        # Integration Tests  
-        if run_python_tests "integration" "tests/integration/" "Integration Tests"; then
-            INTEGRATION_RESULT="${GREEN}✅ PASSED${NC}"
-        else
-            INTEGRATION_RESULT="${RED}❌ FAILED${NC}"
+        # Integration Tests (skip if unit-only)
+        if [ "$UNIT_ONLY" != true ]; then
+            if run_python_tests "integration" "tests/integration/" "Integration Tests"; then
+                INTEGRATION_RESULT="${GREEN}✅ PASSED${NC}"
+            else
+                INTEGRATION_RESULT="${RED}❌ FAILED${NC}"
+            fi
         fi
         
-        # E2E Tests
-        if run_python_tests "e2e" "tests/e2e/" "E2E Tests"; then
-            E2E_RESULT="${GREEN}✅ PASSED${NC}"
-        else
-            E2E_RESULT="${RED}❌ FAILED${NC}"
+        # E2E Tests (skip if unit-only)
+        if [ "$UNIT_ONLY" != true ]; then
+            if run_python_tests "e2e" "tests/e2e/" "E2E Tests"; then
+                E2E_RESULT="${GREEN}✅ PASSED${NC}"
+            else
+                E2E_RESULT="${RED}❌ FAILED${NC}"
+            fi
         fi
         
-        # Overall Coverage Check (only if all Python tests passed)
-        if [ "$UNIT_RESULT" = "${GREEN}✅ PASSED${NC}" ] && [ "$INTEGRATION_RESULT" = "${GREEN}✅ PASSED${NC}" ] && [ "$E2E_RESULT" = "${GREEN}✅ PASSED${NC}" ]; then
+        # Overall Coverage Check (only if all enabled Python tests passed)
+        coverage_check_condition=false
+        if [ "$UNIT_ONLY" = true ]; then
+            # For unit-only, just check unit tests passed
+            [ "$UNIT_RESULT" = "${GREEN}✅ PASSED${NC}" ] && coverage_check_condition=true
+        else
+            # For full test suite, check all tests passed
+            [ "$UNIT_RESULT" = "${GREEN}✅ PASSED${NC}" ] && [ "$INTEGRATION_RESULT" = "${GREEN}✅ PASSED${NC}" ] && [ "$E2E_RESULT" = "${GREEN}✅ PASSED${NC}" ] && coverage_check_condition=true
+        fi
+        
+        if [ "$coverage_check_condition" = true ]; then
             echo -e "${YELLOW}=== Running Overall Coverage Check ===${NC}"
             if source .venv/bin/activate && uv run pytest tests/ --cov=src/vortex --cov-report=term-missing --cov-fail-under=80 --quiet; then
                 echo -e "${GREEN}✅ Overall Coverage Check PASSED (80% threshold)${NC}"
