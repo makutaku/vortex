@@ -1187,8 +1187,8 @@ test_supervisord_scheduler_execution() {
                 log_info "✓ Supervisord scheduler executed! (after ${elapsed_time}s)"
                 scheduler_executed=true
             # Also check supervisord logs
-            elif docker exec "$container_id" test -f "/var/log/supervisor/vortex-scheduler.out.log" 2>/dev/null && \
-                 docker exec "$container_id" grep -q "Running scheduled vortex download\|Scheduled download completed successfully" "/var/log/supervisor/vortex-scheduler.out.log" 2>/dev/null; then
+            elif docker exec "$container_id" test -f "/home/vortex/logs/vortex-scheduler.out.log" 2>/dev/null && \
+                 docker exec "$container_id" grep -q "Running scheduled vortex download\|Scheduled download completed successfully" "/home/vortex/logs/vortex-scheduler.out.log" 2>/dev/null; then
                 log_info "✓ Supervisord scheduler executed (found in scheduler log)! (after ${elapsed_time}s)"
                 scheduler_executed=true
             fi

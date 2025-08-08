@@ -35,8 +35,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Create vortex user and directories early (before copying files)
 RUN groupadd -g 1000 vortex \
     && useradd -u 1000 -g 1000 -m -r vortex \
-    && mkdir -p /data /config /home/vortex/.config/vortex /var/log/supervisor \
-    && chown -R vortex:vortex /data /config /home/vortex /var/log/supervisor
+    && mkdir -p /data /config /home/vortex/.config/vortex /home/vortex/logs \
+    && chown -R vortex:vortex /data /config /home/vortex
 
 # Copy installed packages from builder
 COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages

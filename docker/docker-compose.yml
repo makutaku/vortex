@@ -92,8 +92,8 @@ services:
       # Optional: Mount custom assets file directly
       # - ./my-assets.json:/app/config/assets/custom.json:ro
       
-      # Optional: Mount supervisor logs directory (vortex user owns this path)
-      # - ${LOGS_DIR:-./logs}:/var/log/supervisor
+      # Optional: Mount application logs directory  
+      # - ${LOGS_DIR:-./logs}:/home/vortex/logs
     
     # Health check using modern CLI (runs as vortex user)
     healthcheck:

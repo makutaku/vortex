@@ -86,15 +86,15 @@ EOF
 
 # Create supervisord configuration
 log_info "Setting up supervisord configuration..."
-mkdir -p /home/vortex/.config/supervisor/conf.d /var/log/supervisor
+mkdir -p /home/vortex/.config/supervisor/conf.d /home/vortex/logs
 
 cat > /home/vortex/.config/supervisor/supervisord.conf << EOF
 [supervisord]
 nodaemon=true
 user=vortex
-logfile=/var/log/supervisor/supervisord.log
+logfile=/home/vortex/logs/supervisord.log
 pidfile=/home/vortex/.config/supervisor/supervisord.pid
-childlogdir=/var/log/supervisor
+childlogdir=/home/vortex/logs
 
 [rpcinterface:supervisor]
 supervisor.rpcinterface_factory = supervisor.rpcinterface:make_main_rpcinterface
@@ -130,8 +130,8 @@ command=/home/vortex/vortex-scheduler.sh
 user=vortex
 autostart=true
 autorestart=true
-stderr_logfile=/var/log/supervisor/vortex-scheduler.err.log
-stdout_logfile=/var/log/supervisor/vortex-scheduler.out.log
+stderr_logfile=/home/vortex/logs/vortex-scheduler.err.log
+stdout_logfile=/home/vortex/logs/vortex-scheduler.out.log
 environment=HOME="/home/vortex",VORTEX_OUTPUT_DIR="$VORTEX_OUTPUT_DIR",VORTEX_DOWNLOAD_ARGS="$VORTEX_DOWNLOAD_ARGS",SLEEP_INTERVAL="$SLEEP_INTERVAL"
 EOF
 
@@ -187,8 +187,8 @@ command=/app/ping.sh
 user=vortex
 autostart=true
 autorestart=true
-stderr_logfile=/var/log/supervisor/health-monitor.err.log
-stdout_logfile=/var/log/supervisor/health-monitor.out.log
+stderr_logfile=/home/vortex/logs/health-monitor.err.log
+stdout_logfile=/home/vortex/logs/health-monitor.out.log
 environment=HOME="/home/vortex"
 EOF
 
