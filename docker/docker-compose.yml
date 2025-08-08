@@ -4,7 +4,7 @@
 # using security best practices with non-root execution throughout.
 #
 # Quick Start (Free Data with Yahoo Finance):
-#   docker-compose up -d
+#   docker compose up -d
 #   
 # The container will automatically:
 #   - Run entirely as vortex user (UID 1000) - NO ROOT PRIVILEGES
@@ -25,7 +25,7 @@
 #      password = "your_password"
 #      daily_limit = 200
 #   
-#   2. Run: docker-compose up -d
+#   2. Run: docker compose up -d
 #
 # Option 2: Environment Variables (.env file)
 #   1. Create .env file:
@@ -33,15 +33,15 @@
 #      VORTEX_BARCHART_USERNAME=your_email@example.com
 #      VORTEX_BARCHART_PASSWORD=your_password
 #   2. Uncomment the environment variables in this file
-#   3. Run: docker-compose up -d
+#   3. Run: docker compose up -d
 #
 # Custom Assets:
 #   1. Create config/assets.json with your instruments  
 #   2. Mount it: uncomment the custom assets volume below
 #
 # Monitoring:
-#   - Logs: docker-compose logs -f vortex
-#   - Health: docker-compose ps
+#   - Logs: docker compose logs -f vortex
+#   - Health: docker compose ps
 #   - Data: check ./data directory
 #
 services:

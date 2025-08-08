@@ -77,11 +77,11 @@ if [[ "$VORTEX_RUN_ON_STARTUP" == "true" ]]; then
 fi
 
 # Simple scheduling: if scheduling is enabled, run once and exit
-# For continuous scheduling, use docker-compose restart policies or external schedulers
+# For continuous scheduling, use docker compose restart policies or external schedulers
 if [[ "$VORTEX_SCHEDULE" != "# DISABLED" && "$VORTEX_SCHEDULE" != "" ]]; then
     log_info "Simple container - scheduling handled by external systems"
     log_info "Configured schedule: $VORTEX_SCHEDULE"
-    log_info "Use docker-compose restart policies or external schedulers for recurring runs"
+    log_info "Use docker compose restart policies or external schedulers for recurring runs"
 fi
 
 # Keep container running with a simple monitoring loop

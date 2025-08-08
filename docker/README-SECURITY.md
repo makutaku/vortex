@@ -32,7 +32,7 @@ This directory contains secure Docker configurations that follow container secur
 ```bash
 # Full-featured container with supervisord scheduling
 docker build -f docker/Dockerfile -t vortex:latest .
-docker-compose -f docker/docker-compose.yml up -d
+docker compose -f docker/docker-compose.yml up -d
 ```
 
 ### Simple Deployment
