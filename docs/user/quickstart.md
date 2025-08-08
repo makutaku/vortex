@@ -67,10 +67,10 @@ cp config/config.toml.example config/config.toml
 # Edit config/config.toml with your settings
 
 # Run with Docker Compose
-docker-compose up -d
+docker compose up -d
 
 # Check logs
-docker-compose logs -f
+docker compose logs -f
 ```
 
 ## Configuration Precedence

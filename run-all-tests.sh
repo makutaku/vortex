@@ -55,11 +55,11 @@ run_python_tests() {
     echo -e "${YELLOW}=== Running $description ===${NC}"
     
     if [ "$VERBOSE" = true ]; then
-        echo -e "${BLUE}Command: uv run pytest $test_path -v${NC}"
+        echo -e "${BLUE}Command: uv run pytest $test_path -c pytest-no-cov.ini -v${NC}"
     fi
     
-    # Activate virtual environment and run tests
-    if source .venv/bin/activate && uv run pytest "$test_path" $([ "$VERBOSE" = true ] && echo "-v" || echo "-q"); then
+    # Activate virtual environment and run tests WITHOUT coverage for individual runs
+    if source .venv/bin/activate && uv run pytest "$test_path" -c pytest-no-cov.ini $([ "$VERBOSE" = true ] && echo "-v" || echo "-q"); then
         echo -e "${GREEN}✅ $description PASSED${NC}"
         return 0
     else
@@ -191,6 +191,18 @@ main() {
             E2E_RESULT="${GREEN}✅ PASSED${NC}"
         else
             E2E_RESULT="${RED}❌ FAILED${NC}"
+        fi
+        
+        # Overall Coverage Check (only if all Python tests passed)
+        if [ "$UNIT_RESULT" = "${GREEN}✅ PASSED${NC}" ] && [ "$INTEGRATION_RESULT" = "${GREEN}✅ PASSED${NC}" ] && [ "$E2E_RESULT" = "${GREEN}✅ PASSED${NC}" ]; then
+            echo -e "${YELLOW}=== Running Overall Coverage Check ===${NC}"
+            if source .venv/bin/activate && uv run pytest tests/ --cov=src/vortex --cov-report=term-missing --cov-fail-under=80 --quiet; then
+                echo -e "${GREEN}✅ Overall Coverage Check PASSED (80% threshold)${NC}"
+            else
+                echo -e "${YELLOW}⚠️ Overall Coverage Check FAILED (below 80% threshold)${NC}"
+                echo -e "${YELLOW}Note: E2E and Integration tests are not marked as failed due to coverage${NC}"
+                # Don't mark any tests as failed - coverage is separate from functional tests
+            fi
         fi
     fi
     

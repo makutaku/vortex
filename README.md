@@ -41,10 +41,10 @@ cp .env.example .env
 # Then uncomment environment variables in docker/docker-compose.yml
 
 # Run with Docker Compose
-docker-compose up -d
+docker compose up -d
 
 # Check logs
-docker-compose logs -f
+docker compose logs -f
 ```
 
 See [Docker Guide](docs/DOCKER.md) for detailed setup.

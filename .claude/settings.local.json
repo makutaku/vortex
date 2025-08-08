@@ -82,7 +82,9 @@
       "Bash(./tests/docker/test-docker-build.sh:*)",
       "Bash(./run-all-tests.sh --python-only)",
       "Bash(git rm:*)",
-      "Bash(./scripts/debug-container.sh:*)"
+      "Bash(./scripts/debug-container.sh:*)",
+      "Bash(./run-all-tests.sh:*)",
+      "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/test_config_manager_advanced.py::TestConfigurationPrecedenceRules -v)"
     ],
     "deny": []
   }
