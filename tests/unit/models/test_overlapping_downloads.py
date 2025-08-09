@@ -15,7 +15,9 @@ import os
 
 from src.vortex.models.price_series import PriceSeries
 from src.vortex.models.metadata import Metadata
-from src.vortex.models.columns import DATE_TIME_COLUMN
+from src.vortex.models.columns import (
+    DATE_TIME_COLUMN, OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, CLOSE_COLUMN, VOLUME_COLUMN
+)
 from src.vortex.models.period import Period
 
 
@@ -38,11 +40,11 @@ class TestOverlappingDownloads:
         for i, date in enumerate(dates):
             price = base_price + i
             data.append({
-                'Open': price,
-                'High': price + 5,
-                'Low': price - 5,
-                'Close': price + 4,
-                'Volume': 1000 + (i * 100)
+                OPEN_COLUMN: price,
+                HIGH_COLUMN: price + 5,
+                LOW_COLUMN: price - 5,
+                CLOSE_COLUMN: price + 4,
+                VOLUME_COLUMN: 1000 + (i * 100)
             })
         
         df = pd.DataFrame(data, index=dates)

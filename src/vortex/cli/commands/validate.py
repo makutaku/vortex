@@ -9,6 +9,10 @@ from rich.console import Console
 from rich.table import Table
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn
 
+from vortex.models.columns import (
+    DATE_TIME_COLUMN, OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, CLOSE_COLUMN, VOLUME_COLUMN
+)
+
 console = Console()
 logger = logging.getLogger(__name__)
 
@@ -199,8 +203,9 @@ def validate_csv_file(path: Path, provider: Optional[str]) -> dict:
             result["errors"].append("CSV file contains no data")
             return result
         
-        # Check for common financial data columns
-        expected_columns = ['date', 'open', 'high', 'low', 'close']
+        # Check for common financial data columns (using constants for consistency)
+        expected_columns_constants = [DATE_TIME_COLUMN, OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, CLOSE_COLUMN]
+        expected_columns = [col.lower() for col in expected_columns_constants]
         df_columns_lower = [col.lower() for col in df.columns]
         
         missing_columns = []
@@ -267,8 +272,9 @@ def validate_parquet_file(path: Path, provider: Optional[str]) -> dict:
             result["errors"].append("Parquet file contains no data")
             return result
         
-        # Check for common financial data columns
-        expected_columns = ['date', 'open', 'high', 'low', 'close']
+        # Check for common financial data columns (using constants for consistency)
+        expected_columns_constants = [DATE_TIME_COLUMN, OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, CLOSE_COLUMN]
+        expected_columns = [col.lower() for col in expected_columns_constants]
         df_columns_lower = [col.lower() for col in df.columns]
         
         missing_columns = []
@@ -279,8 +285,9 @@ def validate_parquet_file(path: Path, provider: Optional[str]) -> dict:
         if missing_columns:
             result["warnings"].append(f"Missing common columns: {', '.join(missing_columns)}")
         
-        # Check data types
-        numeric_columns = ['open', 'high', 'low', 'close', 'volume']
+        # Check data types (using constants for consistency)
+        numeric_columns_constants = [OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, CLOSE_COLUMN, VOLUME_COLUMN]
+        numeric_columns = [col.lower() for col in numeric_columns_constants]
         for col in df.columns:
             if col.lower() in numeric_columns:
                 if not pd.api.types.is_numeric_dtype(df[col]):

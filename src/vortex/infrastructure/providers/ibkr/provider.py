@@ -10,7 +10,10 @@ from ib_insync import Stock as IB_Stock, Future as IB_Future, Forex as IB_Forex
 from pandas import DataFrame
 
 from ..base import DataProvider
-from vortex.models.columns import DATE_TIME_COLUMN, VOLUME_COLUMN
+from vortex.models.columns import (
+    DATE_TIME_COLUMN, OPEN_COLUMN, HIGH_COLUMN, 
+    LOW_COLUMN, CLOSE_COLUMN, VOLUME_COLUMN
+)
 from vortex.models.forex import Forex
 from vortex.models.future import Future
 from vortex.models.period import Period, FrequencyAttributes
@@ -125,10 +128,10 @@ class IbkrDataProvider(DataProvider):
         columns = {
             "date": DATE_TIME_COLUMN,
             "volume": VOLUME_COLUMN,
-            "high": "High",
-            "low": "Low",
-            "open": "Open",
-            "close": "Close"
+            "high": HIGH_COLUMN,
+            "low": LOW_COLUMN,
+            "open": OPEN_COLUMN,
+            "close": CLOSE_COLUMN
         }
         df = df.rename(columns=columns)
 

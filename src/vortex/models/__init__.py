@@ -12,7 +12,10 @@ from .forex import Forex
 from .price_series import PriceSeries
 from .period import Period
 from .metadata import Metadata
-from .columns import CLOSE_COLUMN, DATE_TIME_COLUMN, VOLUME_COLUMN
+from .columns import (
+    DATE_TIME_COLUMN, OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, 
+    CLOSE_COLUMN, VOLUME_COLUMN, STANDARD_OHLCV_COLUMNS, REQUIRED_PRICE_COLUMNS
+)
 
 __all__ = [
     'Instrument',
@@ -22,7 +25,12 @@ __all__ = [
     'PriceSeries',
     'Period',
     'Metadata',
-    'CLOSE_COLUMN',
-    'DATE_TIME_COLUMN', 
+    'DATE_TIME_COLUMN',
+    'OPEN_COLUMN',
+    'HIGH_COLUMN',
+    'LOW_COLUMN',
+    'CLOSE_COLUMN', 
     'VOLUME_COLUMN',
+    'STANDARD_OHLCV_COLUMNS',
+    'REQUIRED_PRICE_COLUMNS',
 ]

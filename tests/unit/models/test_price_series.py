@@ -12,7 +12,9 @@ from vortex.models.price_series import (
     LOW_DATA_THRESHOLD
 )
 from vortex.models.metadata import Metadata
-from vortex.models.columns import DATE_TIME_COLUMN
+from vortex.models.columns import (
+    DATE_TIME_COLUMN, OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, CLOSE_COLUMN, VOLUME_COLUMN
+)
 from vortex.models.period import Period
 
 
@@ -22,11 +24,11 @@ class TestPriceSeries:
         """Create sample DataFrame for testing."""
         dates = pd.date_range('2024-01-01', periods=5, freq='D', tz='UTC')
         return pd.DataFrame({
-            'Open': [100, 101, 102, 103, 104],
-            'High': [105, 106, 107, 108, 109],
-            'Low': [95, 96, 97, 98, 99],
-            'Close': [104, 105, 106, 107, 108],
-            'Volume': [1000, 1100, 1200, 1300, 1400]
+            OPEN_COLUMN: [100, 101, 102, 103, 104],
+            HIGH_COLUMN: [105, 106, 107, 108, 109],
+            LOW_COLUMN: [95, 96, 97, 98, 99],
+            CLOSE_COLUMN: [104, 105, 106, 107, 108],
+            VOLUME_COLUMN: [1000, 1100, 1200, 1300, 1400]
         }, index=dates)
 
     @pytest.fixture
@@ -116,11 +118,11 @@ class TestPriceSeries:
         # Create second price series with later dates
         later_dates = pd.date_range('2024-02-01', periods=3, freq='D', tz='UTC')
         later_df = pd.DataFrame({
-            'Open': [200, 201, 202],
-            'High': [205, 206, 207],
-            'Low': [195, 196, 197],
-            'Close': [204, 205, 206],
-            'Volume': [2000, 2100, 2200]
+            OPEN_COLUMN: [200, 201, 202],
+            HIGH_COLUMN: [205, 206, 207],
+            LOW_COLUMN: [195, 196, 197],
+            CLOSE_COLUMN: [204, 205, 206],
+            VOLUME_COLUMN: [2000, 2100, 2200]
         }, index=later_dates)
         
         later_metadata = Metadata(
@@ -160,8 +162,8 @@ class TestPriceSeries:
         
         later_dates = pd.date_range('2024-02-01', periods=3, freq='D', tz='UTC')
         later_df = pd.DataFrame({
-            'Open': [200, 201, 202],
-            'Close': [204, 205, 206]
+            OPEN_COLUMN: [200, 201, 202],
+            CLOSE_COLUMN: [204, 205, 206]
         }, index=later_dates)
         
         later_series = PriceSeries(df=later_df, metadata=later_metadata)
@@ -187,8 +189,8 @@ class TestUtilityFunctions:
         # Create DataFrame with two 1970-01-01 rows
         placeholder_df = pd.DataFrame({
             DATE_TIME_COLUMN: ['1970-01-01T00:00:00+00:00', '1970-01-01T00:00:00+00:00'],
-            'Open': [0, 0],
-            'Close': [0, 0]
+            OPEN_COLUMN: [0, 0],
+            CLOSE_COLUMN: [0, 0]
         })
         
         result = is_placeholder_for_no_data(placeholder_df)
@@ -199,8 +201,8 @@ class TestUtilityFunctions:
         # Create DataFrame with three rows
         df = pd.DataFrame({
             DATE_TIME_COLUMN: ['1970-01-01T00:00:00+00:00', '1970-01-01T00:00:00+00:00', '1970-01-01T00:00:00+00:00'],
-            'Open': [0, 0, 0],
-            'Close': [0, 0, 0]
+            OPEN_COLUMN: [0, 0, 0],
+            CLOSE_COLUMN: [0, 0, 0]
         })
         
         result = is_placeholder_for_no_data(df)
@@ -211,8 +213,8 @@ class TestUtilityFunctions:
         # Create DataFrame with two non-1970 rows
         df = pd.DataFrame({
             DATE_TIME_COLUMN: ['2024-01-01T00:00:00+00:00', '2024-01-02T00:00:00+00:00'],
-            'Open': [100, 101],
-            'Close': [104, 105]
+            OPEN_COLUMN: [100, 101],
+            CLOSE_COLUMN: [104, 105]
         })
         
         result = is_placeholder_for_no_data(df)
