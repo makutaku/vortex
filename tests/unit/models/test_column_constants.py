@@ -10,11 +10,11 @@ import pandas as pd
 from unittest.mock import Mock
 
 from vortex.models.columns import (
-    DATE_TIME_COLUMN, OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, 
+    DATETIME_INDEX_NAME, DATE_TIME_COLUMN, OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, 
     CLOSE_COLUMN, VOLUME_COLUMN,
     ADJ_CLOSE_COLUMN, DIVIDENDS_COLUMN, STOCK_SPLITS_COLUMN,
     OPEN_INTEREST_COLUMN, WAP_COLUMN, COUNT_COLUMN,
-    STANDARD_OHLCV_COLUMNS, REQUIRED_PRICE_COLUMNS,
+    STANDARD_OHLCV_COLUMNS, REQUIRED_DATA_COLUMNS, REQUIRED_PRICE_COLUMNS,
     YAHOO_SPECIFIC_COLUMNS, BARCHART_SPECIFIC_COLUMNS, IBKR_SPECIFIC_COLUMNS,
     validate_required_columns, get_provider_expected_columns,
     get_column_mapping, standardize_dataframe_columns, validate_column_data_types
@@ -48,6 +48,10 @@ class TestColumnConstants:
         expected_ohlcv = [OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, CLOSE_COLUMN, VOLUME_COLUMN]
         assert STANDARD_OHLCV_COLUMNS == expected_ohlcv
         
+        # Test new data columns constant (without index)
+        assert REQUIRED_DATA_COLUMNS == expected_ohlcv
+        
+        # Test legacy required price columns constant (with index for backward compatibility)
         expected_required = [DATE_TIME_COLUMN] + expected_ohlcv
         assert REQUIRED_PRICE_COLUMNS == expected_required
         
@@ -112,24 +116,24 @@ class TestColumnValidation:
     
     def test_get_provider_expected_columns(self):
         """Test getting provider-specific expected columns."""
-        # Test Yahoo Finance
+        # Test Yahoo Finance (should return only data columns, not index)
         required, optional = get_provider_expected_columns('yahoo')
-        assert required == REQUIRED_PRICE_COLUMNS
+        assert required == REQUIRED_DATA_COLUMNS  # Only data columns, not index
         assert optional == YAHOO_SPECIFIC_COLUMNS
         
         # Test Barchart
         required, optional = get_provider_expected_columns('barchart')
-        assert required == REQUIRED_PRICE_COLUMNS
+        assert required == REQUIRED_DATA_COLUMNS  # Only data columns, not index
         assert optional == BARCHART_SPECIFIC_COLUMNS
         
         # Test IBKR
         required, optional = get_provider_expected_columns('ibkr')
-        assert required == REQUIRED_PRICE_COLUMNS
+        assert required == REQUIRED_DATA_COLUMNS  # Only data columns, not index
         assert optional == IBKR_SPECIFIC_COLUMNS
         
         # Test unknown provider
         required, optional = get_provider_expected_columns('unknown')
-        assert required == REQUIRED_PRICE_COLUMNS
+        assert required == REQUIRED_DATA_COLUMNS  # Only data columns, not index
         assert optional == []
 
 
@@ -431,6 +435,9 @@ class TestColumnDataTypeValidation:
             CLOSE_COLUMN: [102.0, 103.0]
             # Missing HIGH_COLUMN, LOW_COLUMN, VOLUME_COLUMN
         })
+        # Set proper datetime index to match internal standard
+        df.index = pd.to_datetime(['2024-01-01', '2024-01-02'])
+        df.index.name = DATETIME_INDEX_NAME
         
         is_valid, issues = validate_column_data_types(df)
         assert is_valid  # Should pass since only validates present columns

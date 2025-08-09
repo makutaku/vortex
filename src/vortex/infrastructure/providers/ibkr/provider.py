@@ -11,7 +11,7 @@ from pandas import DataFrame
 
 from ..base import DataProvider
 from vortex.models.columns import (
-    DATE_TIME_COLUMN, OPEN_COLUMN, HIGH_COLUMN, 
+    DATETIME_INDEX_NAME, OPEN_COLUMN, HIGH_COLUMN, 
     LOW_COLUMN, CLOSE_COLUMN, VOLUME_COLUMN,
     validate_required_columns, get_provider_expected_columns,
     standardize_dataframe_columns
@@ -130,17 +130,27 @@ class IbkrDataProvider(DataProvider):
         # Standardize columns using the centralized mapping system
         df = standardize_dataframe_columns(df, 'ibkr')
 
-        if not freq_attrs.frequency.is_intraday():
-            df[DATE_TIME_COLUMN] = (pd.to_datetime(df[DATE_TIME_COLUMN], format='%Y-%m-%d', errors='coerce')
-                                    .dt.tz_localize(FUTURES_SOURCE_TIME_ZONE).dt.tz_convert('UTC'))
-
-        df.set_index(DATE_TIME_COLUMN, inplace=True)
+        # Handle datetime column - should be mapped to DATETIME_INDEX_NAME by standardize_dataframe_columns
+        datetime_col = None
+        if DATETIME_INDEX_NAME in df.columns:
+            datetime_col = DATETIME_INDEX_NAME
+        else:
+            # Fallback: try to find the datetime column that was mapped
+            datetime_candidates = [col for col in df.columns if 'date' in col.lower()]
+            if datetime_candidates:
+                datetime_col = datetime_candidates[0]
         
-        # Validate expected IBKR columns
+        if datetime_col and not freq_attrs.frequency.is_intraday():
+            df[datetime_col] = (pd.to_datetime(df[datetime_col], format='%Y-%m-%d', errors='coerce')
+                               .dt.tz_localize(FUTURES_SOURCE_TIME_ZONE).dt.tz_convert('UTC'))
+
+        if datetime_col:
+            df.set_index(datetime_col, inplace=True)
+            df.index.name = DATETIME_INDEX_NAME
+        
+        # Validate expected IBKR columns (only data columns, not index)
         required_cols, optional_cols = get_provider_expected_columns('ibkr')
-        # Don't validate the index column (DATE_TIME_COLUMN) since it's the index now
-        required_data_cols = [col for col in required_cols if col != DATE_TIME_COLUMN]
-        missing_cols, found_cols = validate_required_columns(df.columns, required_data_cols, case_insensitive=True)
+        missing_cols, found_cols = validate_required_columns(df.columns, required_cols, case_insensitive=True)
         if missing_cols:
             logging.warning(f"Missing expected IBKR columns: {missing_cols}. Found columns: {list(df.columns)}")
 

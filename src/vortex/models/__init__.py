@@ -13,13 +13,15 @@ from .price_series import PriceSeries
 from .period import Period
 from .metadata import Metadata
 from .columns import (
-    DATE_TIME_COLUMN, OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, 
-    CLOSE_COLUMN, VOLUME_COLUMN, STANDARD_OHLCV_COLUMNS, REQUIRED_PRICE_COLUMNS,
+    DATETIME_INDEX_NAME, DATE_TIME_COLUMN, OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, 
+    CLOSE_COLUMN, VOLUME_COLUMN, STANDARD_OHLCV_COLUMNS, REQUIRED_DATA_COLUMNS,
     ADJ_CLOSE_COLUMN, DIVIDENDS_COLUMN, STOCK_SPLITS_COLUMN,
     OPEN_INTEREST_COLUMN, WAP_COLUMN, COUNT_COLUMN,
     YAHOO_SPECIFIC_COLUMNS, BARCHART_SPECIFIC_COLUMNS, IBKR_SPECIFIC_COLUMNS,
     validate_required_columns, get_provider_expected_columns,
-    get_column_mapping, standardize_dataframe_columns, validate_column_data_types
+    get_column_mapping, standardize_dataframe_columns, validate_column_data_types,
+    # Legacy support
+    REQUIRED_PRICE_COLUMNS
 )
 
 __all__ = [
@@ -30,14 +32,16 @@ __all__ = [
     'PriceSeries',
     'Period',
     'Metadata',
-    'DATE_TIME_COLUMN',
+    'DATETIME_INDEX_NAME',
+    'DATE_TIME_COLUMN',  # Legacy support
     'OPEN_COLUMN',
     'HIGH_COLUMN',
     'LOW_COLUMN',
     'CLOSE_COLUMN', 
     'VOLUME_COLUMN',
     'STANDARD_OHLCV_COLUMNS',
-    'REQUIRED_PRICE_COLUMNS',
+    'REQUIRED_DATA_COLUMNS',
+    'REQUIRED_PRICE_COLUMNS',  # Legacy support
     'ADJ_CLOSE_COLUMN',
     'DIVIDENDS_COLUMN',
     'STOCK_SPLITS_COLUMN',

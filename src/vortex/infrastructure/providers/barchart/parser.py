@@ -9,7 +9,7 @@ import logging
 
 import pandas as pd
 
-from vortex.models.columns import CLOSE_COLUMN, DATE_TIME_COLUMN, validate_required_columns, standardize_dataframe_columns
+from vortex.models.columns import CLOSE_COLUMN, DATETIME_INDEX_NAME, validate_required_columns, standardize_dataframe_columns
 from vortex.models.period import Period
 
 
@@ -36,9 +36,19 @@ class BarchartParser:
         # Standardize columns using the centralized mapping system
         df = standardize_dataframe_columns(df, 'barchart')
         
-        # Parse and standardize datetime
-        df[DATE_TIME_COLUMN] = (pd.to_datetime(df[DATE_TIME_COLUMN], format=date_format, errors='coerce')
-                                .dt.tz_localize(tz).dt.tz_convert('UTC'))
-        df.set_index(DATE_TIME_COLUMN, inplace=True)
+        # Parse and standardize datetime - should be mapped to DATETIME_INDEX_NAME by standardize_dataframe_columns
+        if DATETIME_INDEX_NAME in df.columns:
+            df[DATETIME_INDEX_NAME] = (pd.to_datetime(df[DATETIME_INDEX_NAME], format=date_format, errors='coerce')
+                                      .dt.tz_localize(tz).dt.tz_convert('UTC'))
+            df.set_index(DATETIME_INDEX_NAME, inplace=True)
+        else:
+            # Fallback: try to find the datetime column that was mapped
+            datetime_candidates = [col for col in df.columns if 'time' in col.lower() or 'date' in col.lower()]
+            if datetime_candidates:
+                datetime_col = datetime_candidates[0]
+                df[datetime_col] = (pd.to_datetime(df[datetime_col], format=date_format, errors='coerce')
+                                   .dt.tz_localize(tz).dt.tz_convert('UTC'))
+                df.set_index(datetime_col, inplace=True)
+                df.index.name = DATETIME_INDEX_NAME
         
         return df

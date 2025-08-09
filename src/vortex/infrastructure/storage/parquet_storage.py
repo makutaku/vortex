@@ -5,7 +5,7 @@ from pandas import DataFrame
 from .file_storage import FileStorage
 from vortex.models.instrument import Instrument
 from vortex.models.period import Period
-from vortex.models.columns import validate_required_columns, REQUIRED_PRICE_COLUMNS
+from vortex.models.columns import validate_required_columns, REQUIRED_DATA_COLUMNS, DATETIME_INDEX_NAME
 
 
 class ParquetStorage(FileStorage):
@@ -20,8 +20,13 @@ class ParquetStorage(FileStorage):
     def _load(self, file_path) -> DataFrame:
         df = pd.read_parquet(file_path)
         
-        # Add column validation similar to CSV storage
-        missing_cols, found_cols = validate_required_columns(df.columns, REQUIRED_PRICE_COLUMNS, case_insensitive=True)
+        # Add column validation for data columns (not index)
+        # Check that index name is correct
+        if df.index.name != DATETIME_INDEX_NAME:
+            logging.warning(f"Parquet file {file_path} has incorrect index name: {df.index.name}, expected: {DATETIME_INDEX_NAME}")
+            
+        # Check data columns
+        missing_cols, found_cols = validate_required_columns(df.columns, REQUIRED_DATA_COLUMNS, case_insensitive=True)
         if missing_cols:
             logging.warning(f"Parquet file {file_path} missing expected columns: {missing_cols}")
         

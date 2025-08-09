@@ -1,5 +1,9 @@
-# Internal Vortex standard column names
-DATE_TIME_COLUMN = 'Datetime'
+# Internal Vortex standard index and column names
+
+# Index name (not a column - this is the pandas index name)
+DATETIME_INDEX_NAME = 'Datetime'
+
+# Standard OHLCV column names (these are actual DataFrame columns)
 OPEN_COLUMN = "Open"
 HIGH_COLUMN = "High"
 LOW_COLUMN = "Low"
@@ -14,9 +18,13 @@ OPEN_INTEREST_COLUMN = "Open Interest"  # Barchart/futures open interest
 WAP_COLUMN = "wap"                      # IBKR weighted average price
 COUNT_COLUMN = "count"                  # IBKR trade count
 
-# Standard OHLCV sets for validation
+# Standard OHLCV column sets for validation (NO index name included)
 STANDARD_OHLCV_COLUMNS = [OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, CLOSE_COLUMN, VOLUME_COLUMN]
-REQUIRED_PRICE_COLUMNS = [DATE_TIME_COLUMN] + STANDARD_OHLCV_COLUMNS
+REQUIRED_DATA_COLUMNS = STANDARD_OHLCV_COLUMNS  # Only actual data columns, not index
+
+# Legacy support (deprecated - use DATETIME_INDEX_NAME and REQUIRED_DATA_COLUMNS instead)
+DATE_TIME_COLUMN = DATETIME_INDEX_NAME  # For backward compatibility only
+REQUIRED_PRICE_COLUMNS = [DATE_TIME_COLUMN] + REQUIRED_DATA_COLUMNS  # For backward compatibility only
 
 # Provider-specific column sets
 YAHOO_SPECIFIC_COLUMNS = [ADJ_CLOSE_COLUMN, DIVIDENDS_COLUMN, STOCK_SPLITS_COLUMN]
@@ -57,9 +65,11 @@ def get_provider_expected_columns(provider_name):
         provider_name: Name of the provider ('yahoo', 'barchart', 'ibkr')
     
     Returns:
-        tuple: (required_columns, optional_columns)
+        tuple: (required_data_columns, optional_columns)
+        
+    Note: This returns ONLY DataFrame columns. The index name (Datetime) is handled separately.
     """
-    base_required = REQUIRED_PRICE_COLUMNS
+    base_required = REQUIRED_DATA_COLUMNS  # Only actual columns, not index name
     
     if provider_name.lower() == 'yahoo':
         optional = YAHOO_SPECIFIC_COLUMNS
@@ -89,10 +99,10 @@ def get_column_mapping(provider_name, df_columns):
     # Define provider-specific mappings with variations
     provider_mappings = {
         'barchart': {
-            # Date/time variations
-            'time': DATE_TIME_COLUMN,
-            'date': DATE_TIME_COLUMN,
-            'datetime': DATE_TIME_COLUMN,
+            # Date/time variations (these will become the index)
+            'time': DATETIME_INDEX_NAME,
+            'date': DATETIME_INDEX_NAME,
+            'datetime': DATETIME_INDEX_NAME,
             # Price variations
             'last': CLOSE_COLUMN,
             'close': CLOSE_COLUMN,
@@ -107,9 +117,9 @@ def get_column_mapping(provider_name, df_columns):
             'openinterest': OPEN_INTEREST_COLUMN,
         },
         'yahoo': {
-            # Date/time variations
-            'date': DATE_TIME_COLUMN,
-            'datetime': DATE_TIME_COLUMN,
+            # Date/time variations (these will become the index)
+            'date': DATETIME_INDEX_NAME,
+            'datetime': DATETIME_INDEX_NAME,
             # Price variations (Yahoo uses capitalized names)
             'open': OPEN_COLUMN,
             'high': HIGH_COLUMN,
@@ -124,9 +134,9 @@ def get_column_mapping(provider_name, df_columns):
             'stock splits': STOCK_SPLITS_COLUMN,
         },
         'ibkr': {
-            # Date/time variations (IBKR uses lowercase)
-            'date': DATE_TIME_COLUMN,
-            'datetime': DATE_TIME_COLUMN,
+            # Date/time variations (IBKR uses lowercase - these will become the index)
+            'date': DATETIME_INDEX_NAME,
+            'datetime': DATETIME_INDEX_NAME,
             # Price variations (IBKR uses lowercase)
             'open': OPEN_COLUMN,
             'high': HIGH_COLUMN,
@@ -237,10 +247,12 @@ def validate_column_data_types(df, strict=False):
     
     issues = []
     
-    # Check if index is datetime (for DATETIME column)
-    if hasattr(df.index, 'name') and df.index.name == DATE_TIME_COLUMN:
+    # Check if index is datetime (for DATETIME index)
+    if hasattr(df.index, 'name') and df.index.name == DATETIME_INDEX_NAME:
         if not pd.api.types.is_datetime64_any_dtype(df.index):
-            issues.append(f"Index column '{DATE_TIME_COLUMN}' should be datetime64, got {df.index.dtype}")
+            issues.append(f"Index '{DATETIME_INDEX_NAME}' should be datetime64, got {df.index.dtype}")
+    elif df.index.name != DATETIME_INDEX_NAME:
+        issues.append(f"DataFrame index name should be '{DATETIME_INDEX_NAME}', got '{df.index.name}'")
     
     # Check price columns should be numeric
     price_columns = [OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, CLOSE_COLUMN]

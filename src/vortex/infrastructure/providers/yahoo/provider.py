@@ -7,7 +7,7 @@ import yfinance as yf
 from pandas import DataFrame
 
 from ..base import DataProvider
-from vortex.models.columns import DATE_TIME_COLUMN, validate_required_columns, get_provider_expected_columns, standardize_dataframe_columns
+from vortex.models.columns import DATETIME_INDEX_NAME, validate_required_columns, get_provider_expected_columns, standardize_dataframe_columns
 from vortex.models.instrument import Instrument
 from vortex.models.period import Period, FrequencyAttributes
 
@@ -73,14 +73,12 @@ class YahooDataProvider(DataProvider):
         # Standardize columns using the centralized mapping system (for consistency)
         df = standardize_dataframe_columns(df, 'yahoo')
         
-        df.index.name = DATE_TIME_COLUMN
+        df.index.name = DATETIME_INDEX_NAME
         df.index = pd.to_datetime(df.index, utc=True)
         
-        # Validate expected Yahoo Finance columns
+        # Validate expected Yahoo Finance columns (only data columns, not index)
         required_cols, optional_cols = get_provider_expected_columns('yahoo')
-        # Don't validate the index column (DATE_TIME_COLUMN) since it's the index now
-        required_data_cols = [col for col in required_cols if col != DATE_TIME_COLUMN]
-        missing_cols, found_cols = validate_required_columns(df.columns, required_data_cols, case_insensitive=True)
+        missing_cols, found_cols = validate_required_columns(df.columns, required_cols, case_insensitive=True)
         if missing_cols:
             import logging
             logging.warning(f"Missing expected Yahoo Finance columns: {missing_cols}. Found columns: {list(df.columns)}")
