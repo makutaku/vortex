@@ -30,6 +30,7 @@ from ...exceptions.config import (
     MissingConfigurationError, 
     ConfigurationValidationError
 )
+from ...utils.error_handling import FileOperationHandler
 
 
 class ConfigManager:
@@ -103,22 +104,25 @@ class ConfigManager:
                 help_text="Install the 'tomli' package: pip install tomli"
             )
         
-        try:
-            with open(self.config_file, 'rb') as f:
+        def load_toml_content(f):
+            try:
                 return tomllib.load(f)
-        except FileNotFoundError:
-            return {}
-        except PermissionError as e:
-            raise ConfigurationError(
-                f"Cannot read configuration file: {e}",
-                help_text=f"Check file permissions for {self.config_file}"
-            )
-        except Exception as e:
-            raise InvalidConfigurationError(
-                str(self.config_file), 
-                str(e), 
-                "valid TOML format"
-            )
+            except Exception as e:
+                # Convert TOML parsing errors to InvalidConfigurationError
+                raise InvalidConfigurationError(
+                    str(self.config_file), 
+                    str(e), 
+                    "valid TOML format"
+                )
+        
+        return FileOperationHandler.safe_file_operation(
+            file_path=self.config_file,
+            operation=load_toml_content,
+            mode='rb',
+            file_type="configuration file",
+            operation_name="read",
+            default_on_missing={}
+        )
     
     def _apply_env_overrides(self, config_data: Dict[str, Any]) -> Dict[str, Any]:
         """Apply environment variable overrides to configuration."""
@@ -233,14 +237,16 @@ class ConfigManager:
         # Remove None values to avoid TOML serialization issues
         config_dict = self._remove_none_values(config_dict)
         
-        try:
-            with open(self.config_file, 'wb') as f:
-                tomli_w.dump(config_dict, f)
-        except PermissionError as e:
-            raise ConfigurationError(
-                f"Cannot write configuration file: {e}",
-                help_text=f"Check write permissions for {self.config_file.parent}"
-            )
+        def write_toml_content(f):
+            tomli_w.dump(config_dict, f)
+        
+        FileOperationHandler.safe_file_operation(
+            file_path=self.config_file,
+            operation=write_toml_content,
+            mode='wb',
+            file_type="configuration file",
+            operation_name="write"
+        )
     
     def get_provider_config(self, provider: str) -> Dict[str, Any]:
         """Get configuration for a specific provider."""
@@ -355,14 +361,16 @@ class ConfigManager:
         if 'general' in config_dict and 'output_directory' in config_dict['general']:
             config_dict['general']['output_directory'] = str(config_dict['general']['output_directory'])
         
-        try:
-            with open(file_path, 'wb') as f:
-                tomli_w.dump(config_dict, f)
-        except PermissionError as e:
-            raise ConfigurationError(
-                f"Cannot write to export file: {e}",
-                help_text=f"Check write permissions for {file_path.parent}"
-            )
+        def write_export_toml(f):
+            tomli_w.dump(config_dict, f)
+        
+        FileOperationHandler.safe_file_operation(
+            file_path=file_path,
+            operation=write_export_toml,
+            mode='wb',
+            file_type="export file",
+            operation_name="write"
+        )
     
     def _filter_none_values(self, data: Any) -> Any:
         """Recursively filter out None values from nested dictionaries."""

@@ -154,8 +154,7 @@ class FileOperationHandler:
             raise InvalidConfigurationError(
                 "file_operation", 
                 str(file_path), 
-                f"valid {file_type}",
-                help_text=f"Ensure {file_path} is a valid {file_type} and accessible"
+                f"valid {file_type}"
             )
 
 
