@@ -43,16 +43,17 @@ class IbkrColumnMapping(ProviderColumnMapping):
             'count': self.COUNT_COLUMN,
         }
         
-        # Create case-insensitive mapping for actual columns
-        df_cols_lower = {col.lower().replace('_', '').replace(' ', ''): col for col in df_columns}
+        # Create case-insensitive mapping for actual columns using shared utility
+        from vortex.models.columns import create_normalized_column_mapping, normalize_column_name
+        df_cols_normalized = create_normalized_column_mapping(df_columns)
         
         for ibkr_col, standard_col in ibkr_mappings.items():
-            # Normalize IBKR column name (lowercase, no spaces/underscores)
-            normalized_ibkr = ibkr_col.lower().replace('_', '').replace(' ', '')
+            # Normalize IBKR column name using shared utility
+            normalized_ibkr = normalize_column_name(ibkr_col)
             
             # Find matching actual column
-            if normalized_ibkr in df_cols_lower:
-                actual_col = df_cols_lower[normalized_ibkr]
+            if normalized_ibkr in df_cols_normalized:
+                actual_col = df_cols_normalized[normalized_ibkr]
                 mapping[actual_col] = standard_col
         
         return mapping

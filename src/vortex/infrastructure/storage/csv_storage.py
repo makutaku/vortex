@@ -2,7 +2,7 @@ import pandas as pd
 from pandas import DataFrame
 
 from .file_storage import FileStorage, DATE_TIME_FORMAT
-from vortex.models.columns import DATE_TIME_COLUMN
+from vortex.models.columns import DATETIME_COLUMN_NAME, DATETIME_INDEX_NAME
 from vortex.models.instrument import Instrument
 from vortex.models.period import Period
 
@@ -18,8 +18,11 @@ class CsvStorage(FileStorage):
 
     def _load(self, file_path) -> DataFrame:
         df = pd.read_csv(file_path)
-        df[DATE_TIME_COLUMN] = pd.to_datetime(df[DATE_TIME_COLUMN], format=DATE_TIME_FORMAT)
-        df = df.set_index(DATE_TIME_COLUMN).sort_index()
+        # Convert datetime column to proper datetime type
+        df[DATETIME_COLUMN_NAME] = pd.to_datetime(df[DATETIME_COLUMN_NAME], format=DATE_TIME_FORMAT)
+        # Set as index and ensure it has the correct name
+        df = df.set_index(DATETIME_COLUMN_NAME).sort_index()
+        df.index.name = DATETIME_INDEX_NAME
         return df
 
     def _persist(self, df: DataFrame, file_path: str) -> None:

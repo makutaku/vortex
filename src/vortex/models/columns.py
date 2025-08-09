@@ -1,7 +1,10 @@
 # Internal Vortex standard index and column names
 
-# Index name (not a column - this is the pandas index name)
+# Index name (for DataFrames in memory - this is the pandas index name)
 DATETIME_INDEX_NAME = 'Datetime'
+
+# Column name (for CSV files and raw data - this is a regular DataFrame column)  
+DATETIME_COLUMN_NAME = 'Datetime'
 
 # Standard OHLCV column names (these are actual DataFrame columns)
 OPEN_COLUMN = "Open"
@@ -14,9 +17,39 @@ VOLUME_COLUMN = "Volume"
 STANDARD_OHLCV_COLUMNS = [OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, CLOSE_COLUMN, VOLUME_COLUMN]
 REQUIRED_DATA_COLUMNS = STANDARD_OHLCV_COLUMNS  # Only actual data columns, not index
 
+# CSV file column sets (includes datetime column since it's stored as a column in CSV)
+CSV_REQUIRED_COLUMNS = [DATETIME_COLUMN_NAME] + REQUIRED_DATA_COLUMNS
+
 # Legacy support (for backward compatibility only)
-DATE_TIME_COLUMN = DATETIME_INDEX_NAME  # For backward compatibility only
-REQUIRED_PRICE_COLUMNS = [DATE_TIME_COLUMN] + REQUIRED_DATA_COLUMNS  # For backward compatibility only
+DATE_TIME_COLUMN = DATETIME_COLUMN_NAME  # For backward compatibility only
+REQUIRED_PRICE_COLUMNS = CSV_REQUIRED_COLUMNS  # For backward compatibility with CSV format
+
+# Column normalization utilities
+def normalize_column_name(column_name):
+    """
+    Normalize column name for case-insensitive matching.
+    
+    Converts to lowercase and removes spaces and underscores.
+    
+    Args:
+        column_name: Column name to normalize
+        
+    Returns:
+        str: Normalized column name
+    """
+    return column_name.lower().replace('_', '').replace(' ', '')
+
+def create_normalized_column_mapping(df_columns):
+    """
+    Create a mapping from normalized column names to actual column names.
+    
+    Args:
+        df_columns: List of actual DataFrame column names
+        
+    Returns:
+        dict: Mapping from normalized names to actual column names
+    """
+    return {normalize_column_name(col): col for col in df_columns}
 
 # Column validation utilities
 def validate_required_columns(df_columns, required_columns, case_insensitive=True):
@@ -32,12 +65,17 @@ def validate_required_columns(df_columns, required_columns, case_insensitive=Tru
         tuple: (missing_columns, found_columns)
     """
     if case_insensitive:
-        df_cols_lower = [col.lower() for col in df_columns]
-        required_lower = [col.lower() for col in required_columns]
-        missing = [req for req_lower, req in zip(required_lower, required_columns) 
-                  if req_lower not in df_cols_lower]
-        found = [req for req_lower, req in zip(required_lower, required_columns) 
-                if req_lower in df_cols_lower]
+        # Use the standardized normalization logic
+        df_cols_normalized = {normalize_column_name(col): col for col in df_columns}
+        missing = []
+        found = []
+        
+        for req_col in required_columns:
+            normalized_req = normalize_column_name(req_col)
+            if normalized_req in df_cols_normalized:
+                found.append(req_col)
+            else:
+                missing.append(req_col)
     else:
         missing = [col for col in required_columns if col not in df_columns]
         found = [col for col in required_columns if col in df_columns]
@@ -111,14 +149,27 @@ def standardize_dataframe_columns(df, provider_name, strict=False):
                 if strict:
                     raise ValueError(error_msg)
                 else:
-                    logging.warning(error_msg)
-                    # Use only the first mapping for each target column
+                    # Log detailed conflict information for better visibility
+                    logging.warning(f"Column mapping conflicts detected for provider '{provider_name}':")
+                    for conflict in conflicts:
+                        logging.warning(f"  - {conflict}")
+                    
+                    # Resolve conflicts by keeping the first mapping encountered
+                    # and warn about which columns are being ignored
                     cleaned_mapping = {}
                     seen_targets = set()
+                    ignored_mappings = []
+                    
                     for source_col, target_col in mapping.items():
                         if target_col not in seen_targets:
                             cleaned_mapping[source_col] = target_col
                             seen_targets.add(target_col)
+                        else:
+                            ignored_mappings.append(f"'{source_col}' -> '{target_col}' (target already mapped)")
+                    
+                    if ignored_mappings:
+                        logging.warning(f"Ignored conflicting mappings: {'; '.join(ignored_mappings)}")
+                    
                     mapping = cleaned_mapping
             
             # Check for missing columns after mapping
@@ -154,12 +205,13 @@ def validate_column_data_types(df, strict=False):
     
     issues = []
     
-    # Check if index is datetime (for DATETIME index)
-    if hasattr(df.index, 'name') and df.index.name == DATETIME_INDEX_NAME:
-        if not pd.api.types.is_datetime64_any_dtype(df.index):
-            issues.append(f"Index '{DATETIME_INDEX_NAME}' should be datetime64, got {df.index.dtype}")
-    elif df.index.name != DATETIME_INDEX_NAME:
-        issues.append(f"DataFrame index name should be '{DATETIME_INDEX_NAME}', got '{df.index.name}'")
+    # Check if index is datetime (be flexible about the name - it might be None for freshly loaded data)
+    if pd.api.types.is_datetime64_any_dtype(df.index):
+        # Index is datetime - good. Check if name needs to be set or is correct
+        if df.index.name is not None and df.index.name != DATETIME_INDEX_NAME:
+            issues.append(f"DataFrame datetime index name should be '{DATETIME_INDEX_NAME}', got '{df.index.name}'")
+    else:
+        issues.append(f"DataFrame index should be datetime64, got {df.index.dtype}")
     
     # Check price columns should be numeric
     price_columns = [OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, CLOSE_COLUMN]

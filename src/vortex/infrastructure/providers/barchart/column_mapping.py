@@ -45,16 +45,17 @@ class BarchartColumnMapping(ProviderColumnMapping):
             'openinterest': self.OPEN_INTEREST_COLUMN,
         }
         
-        # Create case-insensitive mapping for actual columns
-        df_cols_lower = {col.lower().replace('_', '').replace(' ', ''): col for col in df_columns}
+        # Create case-insensitive mapping for actual columns using shared utility
+        from vortex.models.columns import create_normalized_column_mapping, normalize_column_name
+        df_cols_normalized = create_normalized_column_mapping(df_columns)
         
         for barchart_col, standard_col in barchart_mappings.items():
-            # Normalize Barchart column name (lowercase, no spaces/underscores)
-            normalized_barchart = barchart_col.lower().replace('_', '').replace(' ', '')
+            # Normalize Barchart column name using shared utility
+            normalized_barchart = normalize_column_name(barchart_col)
             
             # Find matching actual column
-            if normalized_barchart in df_cols_lower:
-                actual_col = df_cols_lower[normalized_barchart]
+            if normalized_barchart in df_cols_normalized:
+                actual_col = df_cols_normalized[normalized_barchart]
                 mapping[actual_col] = standard_col
         
         return mapping

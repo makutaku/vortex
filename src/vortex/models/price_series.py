@@ -9,7 +9,7 @@ import pytz
 from pandas import DataFrame
 
 from .metadata import Metadata
-from .columns import DATE_TIME_COLUMN
+from .columns import DATETIME_COLUMN_NAME, DATETIME_INDEX_NAME
 
 EXPIRATION_THRESHOLD = timedelta(days=7)
 LOW_DATA_THRESHOLD = timedelta(days=3)
@@ -113,7 +113,7 @@ class PriceSeries(ABC):
         return merged_download
 
     @staticmethod
-    def df_merge(existing_df, new_df, keep='last', index=DATE_TIME_COLUMN):
+    def df_merge(existing_df, new_df, keep='last', index=DATETIME_COLUMN_NAME):
         merged_df = (pd.concat([existing_df, new_df]).
                      reset_index().
                      drop_duplicates(subset=index, keep=keep).
@@ -133,8 +133,8 @@ def file_is_placeholder_for_no_hourly_data(path):
 
 
 def is_placeholder_for_no_data(df):
-    df[DATE_TIME_COLUMN] = pd.to_datetime(df[DATE_TIME_COLUMN], format='%Y-%m-%dT%H:%M:%S%z')
-    df = df.set_index(DATE_TIME_COLUMN, inplace=False)
+    df[DATETIME_COLUMN_NAME] = pd.to_datetime(df[DATETIME_COLUMN_NAME], format='%Y-%m-%dT%H:%M:%S%z')
+    df = df.set_index(DATETIME_COLUMN_NAME, inplace=False)
     return len(df) == 2 and check_row_date(df.index[-1]) and check_row_date(df.index[-2])
 
 

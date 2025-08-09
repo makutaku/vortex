@@ -46,16 +46,17 @@ class YahooColumnMapping(ProviderColumnMapping):
             'stock splits': self.STOCK_SPLITS_COLUMN,
         }
         
-        # Create case-insensitive mapping for actual columns
-        df_cols_lower = {col.lower().replace('_', '').replace(' ', ''): col for col in df_columns}
+        # Create case-insensitive mapping for actual columns using shared utility
+        from vortex.models.columns import create_normalized_column_mapping, normalize_column_name
+        df_cols_normalized = create_normalized_column_mapping(df_columns)
         
         for yahoo_col, standard_col in yahoo_mappings.items():
-            # Normalize Yahoo column name (lowercase, no spaces/underscores)
-            normalized_yahoo = yahoo_col.lower().replace('_', '').replace(' ', '')
+            # Normalize Yahoo column name using shared utility
+            normalized_yahoo = normalize_column_name(yahoo_col)
             
             # Find matching actual column
-            if normalized_yahoo in df_cols_lower:
-                actual_col = df_cols_lower[normalized_yahoo]
+            if normalized_yahoo in df_cols_normalized:
+                actual_col = df_cols_normalized[normalized_yahoo]
                 mapping[actual_col] = standard_col
         
         return mapping
