@@ -1,5 +1,6 @@
 import pytest
 import pandas as pd
+import pytz
 from datetime import datetime, timedelta
 from unittest.mock import Mock
 
@@ -8,6 +9,7 @@ from vortex.models.price_series import (
     file_is_placeholder_for_no_hourly_data,
     is_placeholder_for_no_data,
     check_row_date,
+    _normalize_datetime_for_comparison,
     EXPIRATION_THRESHOLD,
     LOW_DATA_THRESHOLD
 )
@@ -260,3 +262,38 @@ class TestUtilityFunctions:
         
         result = file_is_placeholder_for_no_hourly_data(temp_csv_file)
         assert result is False
+
+
+class TestNormalizeDatetimeForComparison:
+    """Test the _normalize_datetime_for_comparison helper function."""
+    
+    def test_normalize_datetime_none(self):
+        """Test normalization with None input."""
+        result = _normalize_datetime_for_comparison(None)
+        assert result is None
+    
+    def test_normalize_datetime_timezone_aware(self):
+        """Test normalization with timezone-aware datetime."""
+        # Create timezone-aware datetime in EST
+        est = pytz.timezone('US/Eastern')
+        est_dt = est.localize(datetime(2024, 1, 1, 12, 0, 0))
+        
+        result = _normalize_datetime_for_comparison(est_dt)
+        
+        assert result.tzinfo == pytz.UTC
+        # EST is UTC-5 (or UTC-4 in summer), so 12:00 EST should be 17:00 UTC
+        expected_utc = est_dt.astimezone(pytz.UTC)
+        assert result == expected_utc
+    
+    def test_normalize_datetime_timezone_naive(self):
+        """Test normalization with timezone-naive datetime."""
+        naive_dt = datetime(2024, 1, 1, 12, 0, 0)
+        
+        result = _normalize_datetime_for_comparison(naive_dt)
+        
+        assert result.tzinfo == pytz.UTC
+        assert result.year == 2024
+        assert result.month == 1  
+        assert result.day == 1
+        assert result.hour == 12
+        assert result.minute == 0

@@ -1,5 +1,5 @@
 # Internal Vortex standard column names
-DATE_TIME_COLUMN = 'DATETIME'
+DATE_TIME_COLUMN = 'Datetime'
 OPEN_COLUMN = "Open"
 HIGH_COLUMN = "High"
 LOW_COLUMN = "Low"
@@ -271,9 +271,10 @@ def validate_column_data_types(df, strict=False):
         if nan_count > 0:
             issues.append(f"Critical column '{col}' contains {nan_count} NaN values")
     
-    # Validate OHLC relationships if all OHLC columns are present
+    # Validate OHLC relationships if all OHLC columns are present AND all are numeric
     ohlc_cols = [OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, CLOSE_COLUMN]
-    if all(col in df.columns for col in ohlc_cols):
+    if (all(col in df.columns for col in ohlc_cols) and 
+        all(pd.api.types.is_numeric_dtype(df[col]) for col in ohlc_cols)):
         # High should be >= Low, Open, Close
         invalid_high = ((df[HIGH_COLUMN] < df[LOW_COLUMN]) | 
                        (df[HIGH_COLUMN] < df[OPEN_COLUMN]) | 

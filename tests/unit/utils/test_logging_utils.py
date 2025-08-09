@@ -7,7 +7,8 @@ from unittest.mock import Mock, patch, MagicMock
 from datetime import datetime
 
 from vortex.utils.logging_utils import (
-    init_logging, LoggingContext, StructuredErrorLogger
+    init_logging, LoggingContext, StructuredErrorLogger,
+    get_structured_logger, log_error_with_context
 )
 
 
@@ -236,6 +237,305 @@ class TestStructuredErrorLogger:
         
         mock_get_logger.assert_called_once_with("vortex.error")
         assert error_logger.logger == mock_logger
+    
+    def test_log_error_basic(self):
+        """Test basic error logging functionality."""
+        mock_logger = Mock()
+        error_logger = StructuredErrorLogger()
+        error_logger.logger = mock_logger
+        
+        test_error = ValueError("Test error message")
+        correlation_id = error_logger.log_error(
+            error=test_error,
+            message="Something went wrong"
+        )
+        
+        # Should return a correlation ID
+        assert correlation_id is not None
+        assert len(correlation_id) == 8
+        
+        # Should have logged the error
+        mock_logger.error.assert_called_once()
+        call_args = mock_logger.error.call_args
+        assert "Something went wrong" in call_args[0][0]
+        assert correlation_id in call_args[0][0]
+        
+        # Should have structured data in extra
+        extra = call_args[1]['extra']
+        assert 'error_data' in extra
+        assert 'correlation_id' in extra
+        assert extra['structured'] is True
+    
+    def test_log_error_with_all_params(self):
+        """Test error logging with all parameters."""
+        mock_logger = Mock()
+        error_logger = StructuredErrorLogger()
+        error_logger.logger = mock_logger
+        
+        test_error = RuntimeError("Database connection failed")
+        custom_correlation_id = "test-123"
+        
+        returned_id = error_logger.log_error(
+            error=test_error,
+            message="Database operation failed",
+            correlation_id=custom_correlation_id,
+            context={"table": "users", "query": "SELECT *"},
+            user_id="user123",
+            operation="fetch_users",
+            provider="postgres",
+            include_traceback=True
+        )
+        
+        assert returned_id == custom_correlation_id
+        
+        # Check the structured data
+        call_args = mock_logger.error.call_args
+        error_data = call_args[1]['extra']['error_data']
+        
+        assert error_data['correlation_id'] == custom_correlation_id
+        assert error_data['error_type'] == 'RuntimeError'
+        assert error_data['error_message'] == 'Database connection failed'
+        assert error_data['message'] == 'Database operation failed'
+        assert error_data['context'] == {"table": "users", "query": "SELECT *"}
+        assert error_data['user_id'] == "user123"
+        assert error_data['operation'] == "fetch_users"
+        assert error_data['provider'] == "postgres"
+        assert 'traceback' in error_data
+        assert 'timestamp' in error_data
+    
+    def test_log_error_with_vortex_error_attributes(self):
+        """Test error logging with VortexError-like attributes."""
+        mock_logger = Mock()
+        error_logger = StructuredErrorLogger()
+        error_logger.logger = mock_logger
+        
+        # Create a mock error with VortexError attributes
+        test_error = ValueError("Custom error")
+        test_error.correlation_id = "vortex-456"
+        test_error.error_code = "DATA_FETCH_ERROR"
+        test_error.context = {"provider": "yahoo", "symbol": "AAPL"}
+        
+        error_logger.log_error(error=test_error, message="Vortex operation failed")
+        
+        call_args = mock_logger.error.call_args
+        error_data = call_args[1]['extra']['error_data']
+        
+        assert error_data['vortex_correlation_id'] == "vortex-456"
+        assert error_data['error_code'] == "DATA_FETCH_ERROR"
+        assert error_data['vortex_context'] == {"provider": "yahoo", "symbol": "AAPL"}
+    
+    def test_log_error_no_traceback(self):
+        """Test error logging without traceback."""
+        mock_logger = Mock()
+        error_logger = StructuredErrorLogger()
+        error_logger.logger = mock_logger
+        
+        test_error = ValueError("Test error")
+        error_logger.log_error(
+            error=test_error,
+            message="Error without traceback",
+            include_traceback=False
+        )
+        
+        call_args = mock_logger.error.call_args
+        error_data = call_args[1]['extra']['error_data']
+        
+        assert 'traceback' not in error_data
+    
+    def test_log_operation_start(self):
+        """Test operation start logging."""
+        mock_logger = Mock()
+        error_logger = StructuredErrorLogger()
+        error_logger.logger = mock_logger
+        
+        correlation_id = error_logger.log_operation_start(
+            operation="download_data",
+            context={"provider": "yahoo", "symbol": "AAPL"}
+        )
+        
+        assert correlation_id is not None
+        assert len(correlation_id) == 8
+        
+        mock_logger.info.assert_called_once()
+        call_args = mock_logger.info.call_args
+        assert "Operation started: download_data" in call_args[0][0]
+        assert correlation_id in call_args[0][0]
+        
+        operation_data = call_args[1]['extra']['operation_data']
+        assert operation_data['operation'] == "download_data"
+        assert operation_data['status'] == "started"
+        assert operation_data['context'] == {"provider": "yahoo", "symbol": "AAPL"}
+    
+    def test_log_operation_start_with_existing_correlation_id(self):
+        """Test operation start with existing correlation ID."""
+        mock_logger = Mock()
+        error_logger = StructuredErrorLogger()
+        error_logger.logger = mock_logger
+        
+        existing_id = "existing-123"
+        returned_id = error_logger.log_operation_start(
+            operation="validate_data",
+            correlation_id=existing_id
+        )
+        
+        assert returned_id == existing_id
+        
+        call_args = mock_logger.info.call_args
+        operation_data = call_args[1]['extra']['operation_data']
+        assert operation_data['correlation_id'] == existing_id
+    
+    def test_log_operation_success(self):
+        """Test operation success logging."""
+        mock_logger = Mock()
+        error_logger = StructuredErrorLogger()
+        error_logger.logger = mock_logger
+        
+        error_logger.log_operation_success(
+            operation="process_data",
+            correlation_id="test-456",
+            duration_ms=1234.5,
+            context={"records_processed": 100}
+        )
+        
+        mock_logger.info.assert_called_once()
+        call_args = mock_logger.info.call_args
+        assert "Operation completed: process_data" in call_args[0][0]
+        assert "test-456" in call_args[0][0]
+        
+        operation_data = call_args[1]['extra']['operation_data']
+        assert operation_data['operation'] == "process_data"
+        assert operation_data['status'] == "completed"
+        assert operation_data['duration_ms'] == 1234.5
+        assert operation_data['context'] == {"records_processed": 100}
+    
+    def test_log_operation_success_no_duration(self):
+        """Test operation success logging without duration."""
+        mock_logger = Mock()
+        error_logger = StructuredErrorLogger()
+        error_logger.logger = mock_logger
+        
+        error_logger.log_operation_success(
+            operation="simple_task",
+            correlation_id="test-789"
+        )
+        
+        call_args = mock_logger.info.call_args
+        operation_data = call_args[1]['extra']['operation_data']
+        assert 'duration_ms' not in operation_data
+    
+    def test_log_operation_failure(self):
+        """Test operation failure logging."""
+        mock_logger = Mock()
+        error_logger = StructuredErrorLogger()
+        error_logger.logger = mock_logger
+        
+        test_error = ConnectionError("Network timeout")
+        error_logger.log_operation_failure(
+            operation="fetch_remote_data",
+            correlation_id="test-999",
+            error=test_error,
+            duration_ms=5000.0,
+            context={"retry_count": 3}
+        )
+        
+        mock_logger.error.assert_called_once()
+        call_args = mock_logger.error.call_args
+        assert "Operation failed: fetch_remote_data" in call_args[0][0]
+        assert "test-999" in call_args[0][0]
+        
+        operation_data = call_args[1]['extra']['operation_data']
+        assert operation_data['operation'] == "fetch_remote_data"
+        assert operation_data['status'] == "failed"
+        assert operation_data['error_type'] == "ConnectionError"
+        assert operation_data['error_message'] == "Network timeout"
+        assert operation_data['duration_ms'] == 5000.0
+        assert operation_data['context'] == {"retry_count": 3}
+    
+    def test_log_operation_failure_no_duration(self):
+        """Test operation failure logging without duration."""
+        mock_logger = Mock()
+        error_logger = StructuredErrorLogger()
+        error_logger.logger = mock_logger
+        
+        test_error = ValueError("Invalid input")
+        error_logger.log_operation_failure(
+            operation="validate_input",
+            correlation_id="test-000",
+            error=test_error
+        )
+        
+        call_args = mock_logger.error.call_args
+        operation_data = call_args[1]['extra']['operation_data']
+        assert 'duration_ms' not in operation_data
+    
+    def test_generate_correlation_id(self):
+        """Test correlation ID generation."""
+        correlation_id = StructuredErrorLogger.generate_correlation_id()
+        
+        assert isinstance(correlation_id, str)
+        assert len(correlation_id) == 8
+        
+        # Generate multiple IDs to ensure uniqueness (statistical test)
+        ids = [StructuredErrorLogger.generate_correlation_id() for _ in range(10)]
+        assert len(set(ids)) == 10  # All should be unique
+
+
+class TestLoggingUtilsGlobalFunctions:
+    """Test global logging utility functions."""
+    
+    @patch('vortex.utils.logging_utils._structured_logger')
+    def test_get_structured_logger_existing_instance(self, mock_existing_logger):
+        """Test get_structured_logger with existing instance."""
+        mock_instance = Mock()
+        mock_existing_logger = mock_instance
+        
+        # This will use the global variable directly
+        import vortex.utils.logging_utils as utils_module
+        utils_module._structured_logger = mock_instance
+        
+        result = get_structured_logger()
+        assert result is mock_instance
+    
+    def test_get_structured_logger_new_instance(self):
+        """Test get_structured_logger creates new instance."""
+        # Reset global logger
+        import vortex.utils.logging_utils as utils_module
+        utils_module._structured_logger = None
+        
+        result = get_structured_logger()
+        assert isinstance(result, StructuredErrorLogger)
+        
+        # Second call should return same instance
+        result2 = get_structured_logger()
+        assert result is result2
+    
+    @patch('vortex.utils.logging_utils.get_structured_logger')
+    def test_log_error_with_context(self, mock_get_logger):
+        """Test log_error_with_context convenience function."""
+        mock_logger_instance = Mock()
+        mock_logger_instance.log_error.return_value = "correlation-123"
+        mock_get_logger.return_value = mock_logger_instance
+        
+        test_error = RuntimeError("Test error")
+        result = log_error_with_context(
+            error=test_error,
+            message="Something failed",
+            operation="test_operation",
+            provider="test_provider",
+            custom_field="custom_value"
+        )
+        
+        assert result == "correlation-123"
+        mock_get_logger.assert_called_once()
+        mock_logger_instance.log_error.assert_called_once_with(
+            test_error,
+            "Something failed",
+            context={
+                "operation": "test_operation",
+                "provider": "test_provider", 
+                "custom_field": "custom_value"
+            }
+        )
 
 
 class TestLoggingContextIntegration:

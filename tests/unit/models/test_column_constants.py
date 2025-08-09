@@ -17,7 +17,7 @@ from vortex.models.columns import (
     STANDARD_OHLCV_COLUMNS, REQUIRED_PRICE_COLUMNS,
     YAHOO_SPECIFIC_COLUMNS, BARCHART_SPECIFIC_COLUMNS, IBKR_SPECIFIC_COLUMNS,
     validate_required_columns, get_provider_expected_columns,
-    get_column_mapping, standardize_dataframe_columns
+    get_column_mapping, standardize_dataframe_columns, validate_column_data_types
 )
 
 
@@ -27,7 +27,7 @@ class TestColumnConstants:
     
     def test_basic_column_constants(self):
         """Test that basic column constants are properly defined."""
-        assert DATE_TIME_COLUMN == 'DATETIME'
+        assert DATE_TIME_COLUMN == 'Datetime'
         assert OPEN_COLUMN == "Open"
         assert HIGH_COLUMN == "High"
         assert LOW_COLUMN == "Low"
@@ -94,6 +94,21 @@ class TestColumnValidation:
         assert len(missing) == 0
         assert len(found) == len(required)
         assert set(found) == set(required)
+    
+    def test_validate_required_columns_empty_inputs(self):
+        """Test validation with empty inputs."""
+        missing, found = validate_required_columns([], [])
+        assert len(missing) == 0
+        assert len(found) == 0
+        
+        # When required_columns is empty, no columns are missing or found
+        missing, found = validate_required_columns(["A", "B"], [])
+        assert len(missing) == 0  # No required columns to be missing
+        assert len(found) == 0    # No required columns to be found
+        
+        missing, found = validate_required_columns([], ["A", "B"])
+        assert missing == ["A", "B"]
+        assert len(found) == 0
     
     def test_get_provider_expected_columns(self):
         """Test getting provider-specific expected columns."""
@@ -266,3 +281,157 @@ class TestColumnMappingEdgeCases:
             mapping = get_column_mapping(provider, df_columns)
             assert mapping["Time"] == DATE_TIME_COLUMN
             assert mapping["Last"] == CLOSE_COLUMN
+
+
+@pytest.mark.unit
+class TestAdvancedColumnFunctions:
+    """Test advanced column functionality."""
+    
+    def test_standardize_dataframe_columns_strict_mode(self):
+        """Test DataFrame standardization in strict mode."""
+        # Create DataFrame that actually works without conflicts first
+        df = pd.DataFrame({
+            "time": ["2024-01-01", "2024-01-02"],
+            "open": [100, 101],
+            "close": [102, 103]
+        })
+        
+        # Should work in non-strict mode
+        result = standardize_dataframe_columns(df, 'barchart', strict=False)
+        assert isinstance(result, pd.DataFrame)
+        
+        # Should also work in strict mode since no conflicts
+        result = standardize_dataframe_columns(df, 'barchart', strict=True)
+        assert isinstance(result, pd.DataFrame)
+    
+    def test_standardize_dataframe_columns_with_errors(self):
+        """Test DataFrame standardization with errors."""
+        # Create DataFrame that will cause errors
+        df = pd.DataFrame({"bad_column": [1, 2, 3]})
+        
+        # Mock the get_column_mapping to raise an exception
+        with pytest.raises(ValueError, match="Error in column standardization"):
+            # This should trigger error handling
+            standardize_dataframe_columns(None, 'invalid_provider', strict=True)
+    
+    def test_standardize_dataframe_columns_no_mapping_needed(self):
+        """Test standardization when no mapping is needed."""
+        df = pd.DataFrame({
+            DATE_TIME_COLUMN: ["2024-01-01", "2024-01-02"],
+            OPEN_COLUMN: [100, 101],
+            CLOSE_COLUMN: [102, 103]
+        })
+        
+        result = standardize_dataframe_columns(df, 'unknown_provider')
+        pd.testing.assert_frame_equal(df, result)
+
+
+@pytest.mark.unit
+class TestColumnDataTypeValidation:
+    """Test column data type validation functionality."""
+    
+    def test_validate_column_data_types_valid_data(self):
+        """Test validation with valid data."""
+        df = pd.DataFrame({
+            OPEN_COLUMN: [100.0, 101.0, 102.0],
+            HIGH_COLUMN: [105.0, 106.0, 107.0],
+            LOW_COLUMN: [98.0, 99.0, 100.0],
+            CLOSE_COLUMN: [102.0, 103.0, 104.0],
+            VOLUME_COLUMN: [1000, 1100, 1200]
+        })
+        df.index = pd.to_datetime(["2024-01-01", "2024-01-02", "2024-01-03"])
+        df.index.name = DATE_TIME_COLUMN
+        
+        is_valid, issues = validate_column_data_types(df)
+        assert is_valid
+        assert len(issues) == 0
+    
+    def test_validate_column_data_types_invalid_datetime_index(self):
+        """Test validation with invalid datetime index."""
+        df = pd.DataFrame({
+            OPEN_COLUMN: [100.0, 101.0],
+            CLOSE_COLUMN: [102.0, 103.0]
+        })
+        df.index = ["not_datetime", "also_not_datetime"]
+        df.index.name = DATE_TIME_COLUMN
+        
+        is_valid, issues = validate_column_data_types(df)
+        assert not is_valid
+        assert any("should be datetime64" in issue for issue in issues)
+    
+    def test_validate_column_data_types_invalid_price_types(self):
+        """Test validation with invalid price column types."""
+        df = pd.DataFrame({
+            OPEN_COLUMN: ["not_numeric", "also_not_numeric"],
+            HIGH_COLUMN: [105.0, 106.0],
+            LOW_COLUMN: [98.0, 99.0],
+            CLOSE_COLUMN: [102.0, 103.0]
+        })
+        
+        is_valid, issues = validate_column_data_types(df)
+        assert not is_valid
+        assert any(f"Price column '{OPEN_COLUMN}' should be numeric" in issue for issue in issues)
+    
+    def test_validate_column_data_types_negative_prices(self):
+        """Test validation with negative prices."""
+        df = pd.DataFrame({
+            OPEN_COLUMN: [100.0, -101.0],  # Negative price
+            HIGH_COLUMN: [105.0, 106.0],
+            LOW_COLUMN: [98.0, -99.0],     # Negative price
+            CLOSE_COLUMN: [102.0, 103.0],
+            VOLUME_COLUMN: [1000, -1100]   # Negative volume
+        })
+        
+        is_valid, issues = validate_column_data_types(df)
+        assert not is_valid
+        assert any("negative values" in issue for issue in issues)
+    
+    def test_validate_column_data_types_nan_values(self):
+        """Test validation with NaN values in critical columns."""
+        import numpy as np
+        
+        df = pd.DataFrame({
+            OPEN_COLUMN: [100.0, np.nan],
+            HIGH_COLUMN: [105.0, 106.0],
+            LOW_COLUMN: [98.0, 99.0],
+            CLOSE_COLUMN: [np.nan, 103.0]
+        })
+        
+        is_valid, issues = validate_column_data_types(df)
+        assert not is_valid
+        assert any("NaN values" in issue for issue in issues)
+    
+    def test_validate_column_data_types_invalid_ohlc_relationships(self):
+        """Test validation with invalid OHLC relationships."""
+        df = pd.DataFrame({
+            OPEN_COLUMN: [100.0, 101.0],
+            HIGH_COLUMN: [95.0, 106.0],   # High < Open (invalid)
+            LOW_COLUMN: [110.0, 99.0],   # Low > Open (invalid)
+            CLOSE_COLUMN: [102.0, 103.0]
+        })
+        
+        is_valid, issues = validate_column_data_types(df)
+        assert not is_valid
+        assert any("High <" in issue for issue in issues)
+        assert any("Low >" in issue for issue in issues)
+    
+    def test_validate_column_data_types_strict_mode(self):
+        """Test validation in strict mode raises exceptions."""
+        df = pd.DataFrame({
+            OPEN_COLUMN: ["not_numeric", "also_not_numeric"]
+        })
+        
+        with pytest.raises(ValueError, match="Column data type validation failed"):
+            validate_column_data_types(df, strict=True)
+    
+    def test_validate_column_data_types_partial_columns(self):
+        """Test validation with only some columns present."""
+        df = pd.DataFrame({
+            OPEN_COLUMN: [100.0, 101.0],
+            CLOSE_COLUMN: [102.0, 103.0]
+            # Missing HIGH_COLUMN, LOW_COLUMN, VOLUME_COLUMN
+        })
+        
+        is_valid, issues = validate_column_data_types(df)
+        assert is_valid  # Should pass since only validates present columns
+        assert len(issues) == 0

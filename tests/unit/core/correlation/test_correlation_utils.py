@@ -93,6 +93,13 @@ class TestGetStructuredLogger:
         # The function should handle ImportError and return None
         result = get_structured_logger()
         assert result is None
+    
+    def test_import_error_path_coverage(self):
+        """Test the ImportError exception path is covered."""
+        # Mock the import to raise ImportError to cover line 41
+        with patch('builtins.__import__', side_effect=ImportError("Module not found")):
+            result = get_structured_logger()
+            assert result is None
 
 
 class TestCorrelationContext:
