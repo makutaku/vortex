@@ -110,6 +110,26 @@ log_verbose() {
     fi
 }
 
+# Validate CSV columns using centralized Python constants
+validate_csv_columns() {
+    local csv_file="$1"
+    local script_dir
+    script_dir="$(dirname "${BASH_SOURCE[0]}")"
+    local validator="$script_dir/validate_csv_columns.py"
+    
+    if [[ ! -f "$validator" ]]; then
+        log_error "CSV validation helper not found: $validator"
+        return 1
+    fi
+    
+    # Use the Python script for validation with centralized column constants
+    if python3 "$validator" "$csv_file" --quiet; then
+        return 0
+    else
+        return 1
+    fi
+}
+
 show_help() {
     cat << 'EOF'
 Vortex Docker Test Suite
@@ -919,13 +939,8 @@ test_yahoo_download() {
                         data_rows=$(tail -n +2 "$csv_file" 2>/dev/null | wc -l | tr -d ' ')
                         data_rows_total=$((data_rows_total + data_rows))
                         
-                        # Check for required OHLCV columns in header
-                        local header
-                        header=$(head -1 "$csv_file" 2>/dev/null)
-                        
-                        if ([[ "$header" == *"Date"* ]] || [[ "$header" == *"DATETIME"* ]]) && [[ "$header" == *"Open"* ]] && \
-                           [[ "$header" == *"High"* ]] && [[ "$header" == *"Low"* ]] && \
-                           [[ "$header" == *"Close"* ]] && [[ "$header" == *"Volume"* ]]; then
+                        # Validate CSV columns using centralized constants
+                        if validate_csv_columns "$csv_file"; then
                             
                             # Validate we have actual price data (sample a few rows)
                             local sample_rows
@@ -1426,13 +1441,8 @@ EOF
                         data_rows=$(tail -n +2 "$csv_file" 2>/dev/null | wc -l | tr -d ' ')
                         data_rows_total=$((data_rows_total + data_rows))
                         
-                        # Check for required OHLCV columns in header
-                        local header
-                        header=$(head -1 "$csv_file" 2>/dev/null)
-                        
-                        if ([[ "$header" == *"Date"* ]] || [[ "$header" == *"DATETIME"* ]]) && [[ "$header" == *"Open"* ]] && \
-                           [[ "$header" == *"High"* ]] && [[ "$header" == *"Low"* ]] && \
-                           [[ "$header" == *"Close"* ]] && [[ "$header" == *"Volume"* ]]; then
+                        # Validate CSV columns using centralized constants
+                        if validate_csv_columns "$csv_file"; then
                             
                             # Validate we have actual price data (sample a few rows)
                             local sample_rows
@@ -1621,13 +1631,8 @@ test_multi_period_asset_download() {
                         data_rows=$(tail -n +2 "$csv_file" 2>/dev/null | wc -l | tr -d ' ')
                         data_rows_total=$((data_rows_total + data_rows))
                         
-                        # Check for required OHLCV columns in header
-                        local header
-                        header=$(head -1 "$csv_file" 2>/dev/null)
-                        
-                        if ([[ "$header" == *"Date"* ]] || [[ "$header" == *"DATETIME"* ]]) && [[ "$header" == *"Open"* ]] && \
-                           [[ "$header" == *"High"* ]] && [[ "$header" == *"Low"* ]] && \
-                           [[ "$header" == *"Close"* ]] && [[ "$header" == *"Volume"* ]]; then
+                        # Validate CSV columns using centralized constants
+                        if validate_csv_columns "$csv_file"; then
                             
                             # Validate we have actual price data (sample a few rows)
                             local sample_rows

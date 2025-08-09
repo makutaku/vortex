@@ -10,7 +10,7 @@ import pandas as pd
 from vortex.models.metadata import Metadata, default_serializer
 from vortex.infrastructure.storage.metadata import MetadataHandler
 from vortex.models.period import Period
-from vortex.models.columns import VOLUME_COLUMN
+from vortex.models.columns import VOLUME_COLUMN, OPEN_COLUMN, CLOSE_COLUMN
 
 
 class TestMetadata:
@@ -86,8 +86,8 @@ class TestMetadata:
         # Create mock DataFrame
         dates = pd.date_range('2024-01-01', periods=5, freq='D', tz='UTC')
         df = pd.DataFrame({
-            'Open': [100, 101, 102, 103, 104],
-            'Close': [104, 105, 106, 107, 108],
+            OPEN_COLUMN: [100, 101, 102, 103, 104],
+            CLOSE_COLUMN: [104, 105, 106, 107, 108],
             VOLUME_COLUMN: [1000, 1100, 1200, 1300, 1400]
         }, index=dates)
         

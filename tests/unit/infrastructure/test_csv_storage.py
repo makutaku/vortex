@@ -191,8 +191,9 @@ class TestCsvStorage:
         # Should have 3 rows
         assert len(loaded_df) == 3
         # Should have correct columns
-        assert 'Open' in loaded_df.columns
-        assert 'Close' in loaded_df.columns
+        from vortex.models.columns import OPEN_COLUMN, CLOSE_COLUMN
+        assert OPEN_COLUMN in loaded_df.columns
+        assert CLOSE_COLUMN in loaded_df.columns
 
     def test_load_nonexistent_file(self, csv_storage):
         """Test loading from non-existent file raises error."""

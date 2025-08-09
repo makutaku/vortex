@@ -155,9 +155,19 @@ class TestCLIWorkflows:
             assert len(csv_lines) >= 2, f"CSV file should have header + data rows. Got: {len(csv_lines)} lines"
             
             # Validate CSV header format
+            from vortex.models.columns import DATE_TIME_COLUMN, OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, CLOSE_COLUMN, VOLUME_COLUMN
             header = csv_lines[0].lower()
-            required_columns = ['date', 'open', 'high', 'low', 'close', 'volume']
-            for column in required_columns:
+            required_columns_constants = [DATE_TIME_COLUMN, OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, CLOSE_COLUMN, VOLUME_COLUMN]
+            required_columns = [col.lower() for col in required_columns_constants]
+            # Also accept 'date' as it's common in raw CSV output
+            required_columns.append('date')
+            
+            # Check that at least one of datetime/date column exists plus OHLCV columns
+            has_date_time = any(col in header for col in ['datetime', 'date'])
+            assert has_date_time, f"Missing date/datetime column in header: {header}"
+            
+            ohlcv_columns = [col.lower() for col in [OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, CLOSE_COLUMN, VOLUME_COLUMN]]
+            for column in ohlcv_columns:
                 assert column in header, f"Missing required column '{column}' in header: {header}"
             
             # Validate at least one data row exists

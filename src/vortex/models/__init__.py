@@ -19,7 +19,7 @@ from .columns import (
     OPEN_INTEREST_COLUMN, WAP_COLUMN, COUNT_COLUMN,
     YAHOO_SPECIFIC_COLUMNS, BARCHART_SPECIFIC_COLUMNS, IBKR_SPECIFIC_COLUMNS,
     validate_required_columns, get_provider_expected_columns,
-    get_column_mapping, standardize_dataframe_columns
+    get_column_mapping, standardize_dataframe_columns, validate_column_data_types
 )
 
 __all__ = [
@@ -51,4 +51,5 @@ __all__ = [
     'get_provider_expected_columns',
     'get_column_mapping',
     'standardize_dataframe_columns',
+    'validate_column_data_types',
 ]

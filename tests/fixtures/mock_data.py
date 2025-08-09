@@ -9,6 +9,11 @@ import pandas as pd
 from datetime import datetime, timedelta
 from typing import Dict, Any, List
 
+from vortex.models.columns import (
+    DATE_TIME_COLUMN, OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, 
+    CLOSE_COLUMN, VOLUME_COLUMN
+)
+
 
 class MockDataProvider:
     """Provides mock data for testing data providers."""
@@ -35,16 +40,16 @@ class MockDataProvider:
             volume = 50000000 + (i % 5) * 10000000
             
             data.append({
-                'Date': date,
-                'Open': round(open_price, 2),
-                'High': round(high_price, 2),
-                'Low': round(low_price, 2),
-                'Close': round(close_price, 2),
-                'Volume': volume,
+                DATE_TIME_COLUMN: date,
+                OPEN_COLUMN: round(open_price, 2),
+                HIGH_COLUMN: round(high_price, 2),
+                LOW_COLUMN: round(low_price, 2),
+                CLOSE_COLUMN: round(close_price, 2),
+                VOLUME_COLUMN: volume,
                 'Symbol': symbol
             })
         
-        return pd.DataFrame(data).set_index('Date')
+        return pd.DataFrame(data).set_index(DATE_TIME_COLUMN)
 
     @staticmethod
     def sample_futures_data(symbol: str = "GC", days: int = 30) -> pd.DataFrame:
