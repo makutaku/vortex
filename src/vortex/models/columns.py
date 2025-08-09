@@ -24,6 +24,33 @@ CSV_REQUIRED_COLUMNS = [DATETIME_COLUMN_NAME] + REQUIRED_DATA_COLUMNS
 DATE_TIME_COLUMN = DATETIME_COLUMN_NAME  # For backward compatibility only
 REQUIRED_PRICE_COLUMNS = CSV_REQUIRED_COLUMNS  # For backward compatibility with CSV format
 
+# Structured error classes for column validation
+from dataclasses import dataclass
+from typing import List, Optional, Any
+from enum import Enum
+
+class ValidationIssueType(Enum):
+    """Types of column validation issues."""
+    INDEX_TYPE_MISMATCH = "index_type_mismatch"
+    INDEX_NAME_MISMATCH = "index_name_mismatch"  
+    COLUMN_TYPE_MISMATCH = "column_type_mismatch"
+    NEGATIVE_VALUES = "negative_values"
+    NAN_VALUES = "nan_values"
+    OHLC_RELATIONSHIP_VIOLATION = "ohlc_relationship_violation"
+
+@dataclass
+class ValidationIssue:
+    """Structured representation of a column validation issue."""
+    type: ValidationIssueType
+    column_name: Optional[str]
+    message: str
+    count: Optional[int] = None
+    expected_type: Optional[str] = None
+    actual_type: Optional[str] = None
+    
+    def __str__(self) -> str:
+        return self.message
+
 # Column normalization utilities
 def normalize_column_name(column_name):
     """
@@ -198,7 +225,7 @@ def validate_column_data_types(df, strict=False):
         strict: If True, raise exceptions on validation errors. If False, return warnings.
     
     Returns:
-        tuple: (is_valid: bool, issues: list of str)
+        tuple: (is_valid: bool, issues: List[ValidationIssue])
     """
     import pandas as pd
     import numpy as np
@@ -209,38 +236,77 @@ def validate_column_data_types(df, strict=False):
     if pd.api.types.is_datetime64_any_dtype(df.index):
         # Index is datetime - good. Check if name needs to be set or is correct
         if df.index.name is not None and df.index.name != DATETIME_INDEX_NAME:
-            issues.append(f"DataFrame datetime index name should be '{DATETIME_INDEX_NAME}', got '{df.index.name}'")
+            issues.append(ValidationIssue(
+                type=ValidationIssueType.INDEX_NAME_MISMATCH,
+                column_name=None,
+                message=f"DataFrame datetime index name should be '{DATETIME_INDEX_NAME}', got '{df.index.name}'",
+                expected_type=DATETIME_INDEX_NAME,
+                actual_type=str(df.index.name)
+            ))
     else:
-        issues.append(f"DataFrame index should be datetime64, got {df.index.dtype}")
+        issues.append(ValidationIssue(
+            type=ValidationIssueType.INDEX_TYPE_MISMATCH,
+            column_name=None,
+            message=f"DataFrame index should be datetime64, got {df.index.dtype}",
+            expected_type="datetime64",
+            actual_type=str(df.index.dtype)
+        ))
     
     # Check price columns should be numeric
     price_columns = [OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, CLOSE_COLUMN]
     for col in price_columns:
         if col in df.columns:
             if not pd.api.types.is_numeric_dtype(df[col]):
-                issues.append(f"Price column '{col}' should be numeric, got {df[col].dtype}")
+                issues.append(ValidationIssue(
+                    type=ValidationIssueType.COLUMN_TYPE_MISMATCH,
+                    column_name=col,
+                    message=f"Price column '{col}' should be numeric, got {df[col].dtype}",
+                    expected_type="numeric",
+                    actual_type=str(df[col].dtype)
+                ))
             else:
                 # Check for negative prices (usually invalid)
                 if (df[col] < 0).any():
                     neg_count = (df[col] < 0).sum()
-                    issues.append(f"Price column '{col}' contains {neg_count} negative values")
+                    issues.append(ValidationIssue(
+                        type=ValidationIssueType.NEGATIVE_VALUES,
+                        column_name=col,
+                        message=f"Price column '{col}' contains {neg_count} negative values",
+                        count=neg_count
+                    ))
     
     # Check volume column should be numeric and non-negative
     if VOLUME_COLUMN in df.columns:
         if not pd.api.types.is_numeric_dtype(df[VOLUME_COLUMN]):
-            issues.append(f"Volume column '{VOLUME_COLUMN}' should be numeric, got {df[VOLUME_COLUMN].dtype}")
+            issues.append(ValidationIssue(
+                type=ValidationIssueType.COLUMN_TYPE_MISMATCH,
+                column_name=VOLUME_COLUMN,
+                message=f"Volume column '{VOLUME_COLUMN}' should be numeric, got {df[VOLUME_COLUMN].dtype}",
+                expected_type="numeric",
+                actual_type=str(df[VOLUME_COLUMN].dtype)
+            ))
         else:
             # Check for negative volumes
             if (df[VOLUME_COLUMN] < 0).any():
                 neg_count = (df[VOLUME_COLUMN] < 0).sum()
-                issues.append(f"Volume column '{VOLUME_COLUMN}' contains {neg_count} negative values")
+                issues.append(ValidationIssue(
+                    type=ValidationIssueType.NEGATIVE_VALUES,
+                    column_name=VOLUME_COLUMN,
+                    message=f"Volume column '{VOLUME_COLUMN}' contains {neg_count} negative values",
+                    count=neg_count
+                ))
     
     # Check for NaN values in critical columns
     critical_columns = [col for col in [OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, CLOSE_COLUMN] if col in df.columns]
     for col in critical_columns:
         nan_count = df[col].isna().sum()
         if nan_count > 0:
-            issues.append(f"Critical column '{col}' contains {nan_count} NaN values")
+            issues.append(ValidationIssue(
+                type=ValidationIssueType.NAN_VALUES,
+                column_name=col,
+                message=f"Critical column '{col}' contains {nan_count} NaN values",
+                count=nan_count
+            ))
     
     # Validate OHLC relationships if all OHLC columns are present AND all are numeric
     ohlc_cols = [OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, CLOSE_COLUMN]
@@ -251,18 +317,29 @@ def validate_column_data_types(df, strict=False):
                        (df[HIGH_COLUMN] < df[OPEN_COLUMN]) | 
                        (df[HIGH_COLUMN] < df[CLOSE_COLUMN])).sum()
         if invalid_high > 0:
-            issues.append(f"Found {invalid_high} rows where High < (Low, Open, or Close)")
+            issues.append(ValidationIssue(
+                type=ValidationIssueType.OHLC_RELATIONSHIP_VIOLATION,
+                column_name=HIGH_COLUMN,
+                message=f"Found {invalid_high} rows where High < (Low, Open, or Close)",
+                count=invalid_high
+            ))
         
         # Low should be <= High, Open, Close  
         invalid_low = ((df[LOW_COLUMN] > df[HIGH_COLUMN]) | 
                       (df[LOW_COLUMN] > df[OPEN_COLUMN]) | 
                       (df[LOW_COLUMN] > df[CLOSE_COLUMN])).sum()
         if invalid_low > 0:
-            issues.append(f"Found {invalid_low} rows where Low > (High, Open, or Close)")
+            issues.append(ValidationIssue(
+                type=ValidationIssueType.OHLC_RELATIONSHIP_VIOLATION,
+                column_name=LOW_COLUMN,
+                message=f"Found {invalid_low} rows where Low > (High, Open, or Close)",
+                count=invalid_low
+            ))
     
     is_valid = len(issues) == 0
     
     if strict and not is_valid:
-        raise ValueError(f"Column data type validation failed: {'; '.join(issues)}")
+        error_messages = [str(issue) for issue in issues]
+        raise ValueError(f"Column data type validation failed: {'; '.join(error_messages)}")
     
     return is_valid, issues

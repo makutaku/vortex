@@ -381,7 +381,7 @@ class TestColumnDataTypeValidation:
         
         is_valid, issues = validate_column_data_types(df)
         assert not is_valid
-        assert any("should be datetime64" in issue for issue in issues)
+        assert any("should be datetime64" in issue.message for issue in issues)
     
     def test_validate_column_data_types_invalid_price_types(self):
         """Test validation with invalid price column types."""
@@ -394,7 +394,7 @@ class TestColumnDataTypeValidation:
         
         is_valid, issues = validate_column_data_types(df)
         assert not is_valid
-        assert any(f"Price column '{OPEN_COLUMN}' should be numeric" in issue for issue in issues)
+        assert any(f"Price column '{OPEN_COLUMN}' should be numeric" in issue.message for issue in issues)
     
     def test_validate_column_data_types_negative_prices(self):
         """Test validation with negative prices."""
@@ -408,7 +408,7 @@ class TestColumnDataTypeValidation:
         
         is_valid, issues = validate_column_data_types(df)
         assert not is_valid
-        assert any("negative values" in issue for issue in issues)
+        assert any("negative values" in issue.message for issue in issues)
     
     def test_validate_column_data_types_nan_values(self):
         """Test validation with NaN values in critical columns."""
@@ -423,7 +423,7 @@ class TestColumnDataTypeValidation:
         
         is_valid, issues = validate_column_data_types(df)
         assert not is_valid
-        assert any("NaN values" in issue for issue in issues)
+        assert any("NaN values" in issue.message for issue in issues)
     
     def test_validate_column_data_types_invalid_ohlc_relationships(self):
         """Test validation with invalid OHLC relationships."""
@@ -436,8 +436,8 @@ class TestColumnDataTypeValidation:
         
         is_valid, issues = validate_column_data_types(df)
         assert not is_valid
-        assert any("High <" in issue for issue in issues)
-        assert any("Low >" in issue for issue in issues)
+        assert any("High <" in issue.message for issue in issues)
+        assert any("Low >" in issue.message for issue in issues)
     
     def test_validate_column_data_types_strict_mode(self):
         """Test validation in strict mode raises exceptions."""

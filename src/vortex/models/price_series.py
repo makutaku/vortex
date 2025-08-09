@@ -10,6 +10,7 @@ from pandas import DataFrame
 
 from .metadata import Metadata
 from .columns import DATETIME_COLUMN_NAME, DATETIME_INDEX_NAME
+from ..constants import MIN_DATA_POINTS_FOR_ANALYSIS, UNIX_EPOCH_YEAR, UNIX_EPOCH_MONTH, UNIX_EPOCH_DAY
 
 EXPIRATION_THRESHOLD = timedelta(days=7)
 LOW_DATA_THRESHOLD = timedelta(days=3)
@@ -124,7 +125,7 @@ class PriceSeries(ABC):
 
 def file_is_placeholder_for_no_hourly_data(path):
     size = os.path.getsize(path)
-    if size < 150:
+    if size < MIN_DATA_POINTS_FOR_ANALYSIS:
         df = pd.read_csv(path)
         if is_placeholder_for_no_data(df):
             return True
@@ -139,4 +140,6 @@ def is_placeholder_for_no_data(df):
 
 
 def check_row_date(row_date):
-    return row_date.year == 1970 and row_date.month == 1 and row_date.day == 1
+    return (row_date.year == UNIX_EPOCH_YEAR and 
+            row_date.month == UNIX_EPOCH_MONTH and 
+            row_date.day == UNIX_EPOCH_DAY)
