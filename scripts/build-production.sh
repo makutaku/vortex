@@ -8,7 +8,7 @@ set -e
 DEFAULT_REGISTRY="docker.io"
 DEFAULT_USERNAME="makutaku"
 IMAGE_NAME="vortex"
-DOCKERFILE="Dockerfile"
+DOCKERFILE="docker/Dockerfile"
 
 # Colors for output
 RED='\033[0;31m'
