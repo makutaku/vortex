@@ -10,26 +10,13 @@ LOW_COLUMN = "Low"
 CLOSE_COLUMN = "Close"
 VOLUME_COLUMN = "Volume"
 
-# Provider-specific column names
-ADJ_CLOSE_COLUMN = "Adj Close"          # Yahoo Finance adjusted close
-DIVIDENDS_COLUMN = "Dividends"          # Yahoo Finance dividends
-STOCK_SPLITS_COLUMN = "Stock Splits"    # Yahoo Finance stock splits
-OPEN_INTEREST_COLUMN = "Open Interest"  # Barchart/futures open interest
-WAP_COLUMN = "wap"                      # IBKR weighted average price
-COUNT_COLUMN = "count"                  # IBKR trade count
-
 # Standard OHLCV column sets for validation (NO index name included)
 STANDARD_OHLCV_COLUMNS = [OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, CLOSE_COLUMN, VOLUME_COLUMN]
 REQUIRED_DATA_COLUMNS = STANDARD_OHLCV_COLUMNS  # Only actual data columns, not index
 
-# Legacy support (deprecated - use DATETIME_INDEX_NAME and REQUIRED_DATA_COLUMNS instead)
+# Legacy support (for backward compatibility only)
 DATE_TIME_COLUMN = DATETIME_INDEX_NAME  # For backward compatibility only
 REQUIRED_PRICE_COLUMNS = [DATE_TIME_COLUMN] + REQUIRED_DATA_COLUMNS  # For backward compatibility only
-
-# Provider-specific column sets
-YAHOO_SPECIFIC_COLUMNS = [ADJ_CLOSE_COLUMN, DIVIDENDS_COLUMN, STOCK_SPLITS_COLUMN]
-BARCHART_SPECIFIC_COLUMNS = [OPEN_INTEREST_COLUMN]
-IBKR_SPECIFIC_COLUMNS = [WAP_COLUMN, COUNT_COLUMN]
 
 # Column validation utilities
 def validate_required_columns(df_columns, required_columns, case_insensitive=True):
@@ -62,130 +49,32 @@ def get_provider_expected_columns(provider_name):
     Get expected columns for a specific provider.
     
     Args:
-        provider_name: Name of the provider ('yahoo', 'barchart', 'ibkr')
+        provider_name: Name of the provider
     
     Returns:
         tuple: (required_data_columns, optional_columns)
         
     Note: This returns ONLY DataFrame columns. The index name (Datetime) is handled separately.
-    This function now delegates to the column registry for provider-specific columns.
+    This function delegates to the column registry for provider-specific columns.
     """
-    try:
-        # Try to use the new registry system
-        from .column_registry import get_provider_expected_columns as registry_get_columns
-        return registry_get_columns(provider_name)
-    except ImportError:
-        # Fallback to legacy approach if registry not available
-        base_required = REQUIRED_DATA_COLUMNS  # Only actual columns, not index name
-        
-        if provider_name.lower() == 'yahoo':
-            optional = YAHOO_SPECIFIC_COLUMNS
-        elif provider_name.lower() == 'barchart':
-            optional = BARCHART_SPECIFIC_COLUMNS
-        elif provider_name.lower() == 'ibkr':
-            optional = IBKR_SPECIFIC_COLUMNS
-        else:
-            optional = []
-        
-        return base_required, optional
+    from .column_registry import get_provider_expected_columns as registry_get_columns
+    return registry_get_columns(provider_name)
 
 def get_column_mapping(provider_name, df_columns):
     """
     Get a column mapping dictionary for standardizing provider-specific columns.
     
     Args:
-        provider_name: Name of the provider ('yahoo', 'barchart', 'ibkr')
+        provider_name: Name of the provider
         df_columns: List of actual DataFrame column names
     
     Returns:
         dict: Mapping from actual column names to standard column names
         
-    Note: This function now delegates to the column registry for provider-specific mappings.
+    Note: This function delegates to the column registry for provider-specific mappings.
     """
-    try:
-        # Try to use the new registry system
-        from .column_registry import get_column_mapping as registry_get_mapping
-        return registry_get_mapping(provider_name, df_columns)
-    except ImportError:
-        # Fallback to legacy approach if registry not available
-        pass
-        
-    # Legacy implementation follows below...
-    mapping = {}
-    provider_lower = provider_name.lower()
-    
-    # Define provider-specific mappings with variations
-    provider_mappings = {
-        'barchart': {
-            # Date/time variations (these will become the index)
-            'time': DATETIME_INDEX_NAME,
-            'date': DATETIME_INDEX_NAME,
-            'datetime': DATETIME_INDEX_NAME,
-            # Price variations
-            'last': CLOSE_COLUMN,
-            'close': CLOSE_COLUMN,
-            'open': OPEN_COLUMN,
-            'high': HIGH_COLUMN,
-            'low': LOW_COLUMN,
-            # Volume variations
-            'volume': VOLUME_COLUMN,
-            'vol': VOLUME_COLUMN,
-            # Other Barchart specific
-            'open interest': OPEN_INTEREST_COLUMN,
-            'openinterest': OPEN_INTEREST_COLUMN,
-        },
-        'yahoo': {
-            # Date/time variations (these will become the index)
-            'date': DATETIME_INDEX_NAME,
-            'datetime': DATETIME_INDEX_NAME,
-            # Price variations (Yahoo uses capitalized names)
-            'open': OPEN_COLUMN,
-            'high': HIGH_COLUMN,
-            'low': LOW_COLUMN,
-            'close': CLOSE_COLUMN,
-            # Volume
-            'volume': VOLUME_COLUMN,
-            # Yahoo specific
-            'adj close': ADJ_CLOSE_COLUMN,
-            'adjclose': ADJ_CLOSE_COLUMN,
-            'dividends': DIVIDENDS_COLUMN,
-            'stock splits': STOCK_SPLITS_COLUMN,
-        },
-        'ibkr': {
-            # Date/time variations (IBKR uses lowercase - these will become the index)
-            'date': DATETIME_INDEX_NAME,
-            'datetime': DATETIME_INDEX_NAME,
-            # Price variations (IBKR uses lowercase)
-            'open': OPEN_COLUMN,
-            'high': HIGH_COLUMN,
-            'low': LOW_COLUMN,
-            'close': CLOSE_COLUMN,
-            # Volume
-            'volume': VOLUME_COLUMN,
-            # IBKR specific
-            'wap': WAP_COLUMN,
-            'count': COUNT_COLUMN,
-        }
-    }
-    
-    if provider_lower not in provider_mappings:
-        return mapping
-    
-    provider_map = provider_mappings[provider_lower]
-    
-    # Create case-insensitive mapping for actual columns
-    df_cols_lower = {col.lower().replace('_', '').replace(' ', ''): col for col in df_columns}
-    
-    for provider_col, standard_col in provider_map.items():
-        # Normalize provider column name (lowercase, no spaces/underscores)
-        normalized_provider = provider_col.lower().replace('_', '').replace(' ', '')
-        
-        # Find matching actual column
-        if normalized_provider in df_cols_lower:
-            actual_col = df_cols_lower[normalized_provider]
-            mapping[actual_col] = standard_col
-    
-    return mapping
+    from .column_registry import get_column_mapping as registry_get_mapping
+    return registry_get_mapping(provider_name, df_columns)
 
 def standardize_dataframe_columns(df, provider_name, strict=False):
     """

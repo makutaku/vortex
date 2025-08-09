@@ -12,13 +12,33 @@ from unittest.mock import Mock
 from vortex.models.columns import (
     DATETIME_INDEX_NAME, DATE_TIME_COLUMN, OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, 
     CLOSE_COLUMN, VOLUME_COLUMN,
-    ADJ_CLOSE_COLUMN, DIVIDENDS_COLUMN, STOCK_SPLITS_COLUMN,
-    OPEN_INTEREST_COLUMN, WAP_COLUMN, COUNT_COLUMN,
     STANDARD_OHLCV_COLUMNS, REQUIRED_DATA_COLUMNS, REQUIRED_PRICE_COLUMNS,
-    YAHOO_SPECIFIC_COLUMNS, BARCHART_SPECIFIC_COLUMNS, IBKR_SPECIFIC_COLUMNS,
     validate_required_columns, get_provider_expected_columns,
     get_column_mapping, standardize_dataframe_columns, validate_column_data_types
 )
+
+# Import provider-specific constants from their respective providers
+from vortex.infrastructure.providers.yahoo.column_mapping import YahooColumnMapping
+from vortex.infrastructure.providers.barchart.column_mapping import BarchartColumnMapping  
+from vortex.infrastructure.providers.ibkr.column_mapping import IbkrColumnMapping
+
+# Create instances to access constants
+_yahoo_mapping = YahooColumnMapping()
+_barchart_mapping = BarchartColumnMapping()
+_ibkr_mapping = IbkrColumnMapping()
+
+# Extract constants for backward compatibility in tests
+ADJ_CLOSE_COLUMN = _yahoo_mapping.ADJ_CLOSE_COLUMN
+DIVIDENDS_COLUMN = _yahoo_mapping.DIVIDENDS_COLUMN  
+STOCK_SPLITS_COLUMN = _yahoo_mapping.STOCK_SPLITS_COLUMN
+OPEN_INTEREST_COLUMN = _barchart_mapping.OPEN_INTEREST_COLUMN
+WAP_COLUMN = _ibkr_mapping.WAP_COLUMN
+COUNT_COLUMN = _ibkr_mapping.COUNT_COLUMN
+
+# Create provider-specific column sets for tests
+YAHOO_SPECIFIC_COLUMNS = _yahoo_mapping.get_provider_specific_columns()
+BARCHART_SPECIFIC_COLUMNS = _barchart_mapping.get_provider_specific_columns()
+IBKR_SPECIFIC_COLUMNS = _ibkr_mapping.get_provider_specific_columns()
 
 
 @pytest.mark.unit
