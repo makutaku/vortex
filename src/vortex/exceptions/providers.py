@@ -22,7 +22,7 @@ class DataProviderError(VortexError):
     def __init__(self, provider: str, message: str, help_text: Optional[str] = None, error_code: Optional[str] = None):
         self.provider = provider
         full_message = ErrorMessageTemplates.PROVIDER_ERROR.format(provider=provider, message=message)
-        super().__init__(full_message, help_text, error_code)
+        super().__init__(full_message, help_text=help_text, error_code=error_code)
 
 
 class AuthenticationError(DataProviderError):
@@ -71,7 +71,7 @@ class RateLimitError(DataProviderError):
             help_text += f" (suggested wait: {wait_time} seconds)"
         help_text += f" or check your {provider} subscription limits"
         
-        super().__init__(provider, message, help_text, "RATE_LIMIT")
+        super().__init__(provider, message, help_text=help_text, error_code="RATE_LIMIT")
 
 
 class VortexConnectionError(DataProviderError):
@@ -83,7 +83,7 @@ class VortexConnectionError(DataProviderError):
             message += f": {details}"
         
         help_text = f"Check your internet connection and {provider} service status"
-        super().__init__(provider, message, help_text, "CONNECTION_FAILED")
+        super().__init__(provider, message, help_text=help_text, error_code="CONNECTION_FAILED")
 
 
 @dataclass
@@ -103,7 +103,7 @@ class DataNotFoundError(DataProviderError):
             message += f" (HTTP {http_code})"
         
         help_text = f"Verify that {symbol} is valid and data exists for the requested date range on {provider}"
-        super().__init__(provider, message, help_text, "DATA_NOT_FOUND")
+        super().__init__(provider, message, help_text=help_text, error_code="DATA_NOT_FOUND")
 
 
 class AllowanceLimitExceededError(DataProviderError):
@@ -115,4 +115,4 @@ class AllowanceLimitExceededError(DataProviderError):
         
         message = f"Allowance limit exceeded: {current_allowance}/{max_allowance}"
         help_text = f"Wait for allowance reset or upgrade your {provider} subscription"
-        super().__init__(provider, message, help_text, "ALLOWANCE_EXCEEDED")
+        super().__init__(provider, message, help_text=help_text, error_code="ALLOWANCE_EXCEEDED")

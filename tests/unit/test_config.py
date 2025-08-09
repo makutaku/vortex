@@ -257,7 +257,7 @@ class TestConfigurationErrors:
     
     def test_configuration_error_formatting(self):
         """Test configuration error message formatting."""
-        error = ConfigurationError("Config failed", "Check your settings")
+        error = ConfigurationError("Config failed", help_text="Check your settings")
         assert "Config failed" in str(error)
         assert error.help_text == "Check your settings"
     

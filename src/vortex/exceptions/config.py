@@ -24,7 +24,7 @@ class InvalidConfigurationError(ConfigurationError):
         message = f"Invalid configuration for '{field}': got {repr(value)}, expected {expected}"
         help_text = f"Please check the configuration for '{field}' and ensure it matches the expected format: {expected}"
         user_action = f"Run 'vortex config --provider <provider> --help' for valid values"
-        super().__init__(message, help_text, "CONFIG_INVALID", user_action=user_action)
+        super().__init__(message, help_text=help_text, error_code="CONFIG_INVALID", user_action=user_action)
 
 
 class MissingConfigurationError(ConfigurationError):
@@ -35,7 +35,7 @@ class MissingConfigurationError(ConfigurationError):
         help_text = f"Set this value using 'vortex config --provider <provider> --set-credentials'"
         if config_location:
             help_text += f" or add it to {config_location}"
-        super().__init__(message, help_text, "CONFIG_MISSING")
+        super().__init__(message, help_text=help_text, error_code="CONFIG_MISSING")
 
 
 class ConfigurationValidationError(ConfigurationError):
@@ -49,4 +49,4 @@ class ConfigurationValidationError(ConfigurationError):
         
         help_text = "Please check your configuration file and fix the validation errors listed above"
         user_action = "Run 'vortex config --validate' to check your configuration"
-        super().__init__(message, help_text, "CONFIG_VALIDATION", user_action=user_action)
+        super().__init__(message, help_text=help_text, error_code="CONFIG_VALIDATION", user_action=user_action)

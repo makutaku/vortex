@@ -4,6 +4,7 @@ import traceback
 from typing import Dict, Any, Optional
 from uuid import uuid4
 from datetime import datetime
+from dataclasses import dataclass
 
 
 def init_logging(level=logging.INFO):
@@ -13,20 +14,63 @@ def init_logging(level=logging.INFO):
         datefmt='%Y-%m-%d %H:%M:%S')
 
 
+@dataclass
+class LoggingConfiguration:
+    """Configuration for LoggingContext."""
+    entry_msg: Optional[str] = None
+    success_msg: Optional[str] = None
+    failure_msg: Optional[str] = None
+    exit_msg: Optional[str] = None
+    logger: Optional[logging.Logger] = None
+    entry_level: int = logging.DEBUG
+    exit_level: int = logging.DEBUG
+    success_level: int = logging.INFO
+    failure_level: int = logging.ERROR
+
+
+@dataclass
+class ErrorLoggingContext:
+    """Context for structured error logging."""
+    error: Exception
+    message: str
+    correlation_id: Optional[str] = None
+    context: Optional[Dict[str, Any]] = None
+    user_id: Optional[str] = None
+    operation: Optional[str] = None
+    provider: Optional[str] = None
+    include_traceback: bool = True
+
+
 class LoggingContext:
 
-    def __init__(self, entry_msg=None, success_msg=None, failure_msg=None, exit_msg=None, logger=None,
+    def __init__(self, config: Optional[LoggingConfiguration] = None, 
+                 # Legacy parameters for backward compatibility
+                 entry_msg=None, success_msg=None, failure_msg=None, exit_msg=None, logger=None,
                  entry_level=logging.DEBUG, exit_level=logging.DEBUG,
                  success_level=logging.INFO, failure_level=logging.ERROR):
-        self.entry_msg = entry_msg
-        self.success_msg = success_msg
-        self.failure_msg = failure_msg
-        self.exit_msg = exit_msg
-        self.logger = logger or logging.getLogger(__name__)
-        self.entry_level = entry_level
-        self.exit_level = exit_level
-        self.success_level = success_level
-        self.failure_level = failure_level
+        
+        # Handle both new config object and legacy parameters
+        if config is not None:
+            self.entry_msg = config.entry_msg
+            self.success_msg = config.success_msg
+            self.failure_msg = config.failure_msg
+            self.exit_msg = config.exit_msg
+            self.logger = config.logger or logging.getLogger(__name__)
+            self.entry_level = config.entry_level
+            self.exit_level = config.exit_level
+            self.success_level = config.success_level
+            self.failure_level = config.failure_level
+        else:
+            # Legacy parameter handling
+            self.entry_msg = entry_msg
+            self.success_msg = success_msg
+            self.failure_msg = failure_msg
+            self.exit_msg = exit_msg
+            self.logger = logger or logging.getLogger(__name__)
+            self.entry_level = entry_level
+            self.exit_level = exit_level
+            self.success_level = success_level
+            self.failure_level = failure_level
 
     def __enter__(self):
         self.log(self.entry_msg, level=self.entry_level)
@@ -56,8 +100,10 @@ class StructuredErrorLogger:
         self.logger = logging.getLogger(logger_name)
     
     def log_error(self, 
-                  error: Exception,
-                  message: str,
+                  error_context: Optional[ErrorLoggingContext] = None,
+                  # Legacy parameters for backward compatibility
+                  error: Optional[Exception] = None,
+                  message: Optional[str] = None,
                   correlation_id: Optional[str] = None,
                   context: Optional[Dict[str, Any]] = None,
                   user_id: Optional[str] = None,
@@ -67,61 +113,83 @@ class StructuredErrorLogger:
         """Log an error with structured context.
         
         Args:
-            error: The exception that occurred
-            message: Human-readable error message
-            correlation_id: Unique ID to track related operations
-            context: Additional context data
-            user_id: User identifier if available
-            operation: Operation being performed when error occurred
-            provider: Data provider involved in the error
-            include_traceback: Whether to include full traceback
+            error_context: Context object containing error and related information
+            error: The exception that occurred (legacy parameter)
+            message: Human-readable error message (legacy parameter)
+            correlation_id: Unique ID to track related operations (legacy parameter)
+            context: Additional context data (legacy parameter)
+            user_id: User identifier if available (legacy parameter)
+            operation: Operation being performed when error occurred (legacy parameter)
+            provider: Data provider involved in the error (legacy parameter)
+            include_traceback: Whether to include full traceback (legacy parameter)
             
         Returns:
             The correlation ID used for this error
         """
-        if correlation_id is None:
-            correlation_id = self.generate_correlation_id()
+        # Handle both new context object and legacy parameters
+        if error_context is not None:
+            actual_error = error_context.error
+            actual_message = error_context.message
+            actual_correlation_id = error_context.correlation_id
+            actual_context = error_context.context
+            actual_user_id = error_context.user_id
+            actual_operation = error_context.operation
+            actual_provider = error_context.provider
+            actual_include_traceback = error_context.include_traceback
+        else:
+            # Legacy parameter handling
+            actual_error = error
+            actual_message = message
+            actual_correlation_id = correlation_id
+            actual_context = context
+            actual_user_id = user_id
+            actual_operation = operation
+            actual_provider = provider
+            actual_include_traceback = include_traceback
+        
+        if actual_correlation_id is None:
+            actual_correlation_id = self.generate_correlation_id()
         
         error_data = {
             "timestamp": datetime.utcnow().isoformat(),
-            "correlation_id": correlation_id,
-            "error_type": type(error).__name__,
-            "error_message": str(error),
-            "message": message,
-            "context": context or {},
+            "correlation_id": actual_correlation_id,
+            "error_type": type(actual_error).__name__,
+            "error_message": str(actual_error),
+            "message": actual_message,
+            "context": actual_context or {},
         }
         
         # Add optional fields
-        if user_id:
-            error_data["user_id"] = user_id
-        if operation:
-            error_data["operation"] = operation
-        if provider:
-            error_data["provider"] = provider
+        if actual_user_id:
+            error_data["user_id"] = actual_user_id
+        if actual_operation:
+            error_data["operation"] = actual_operation
+        if actual_provider:
+            error_data["provider"] = actual_provider
         
         # Add VortexError specific fields if available
-        if hasattr(error, 'correlation_id'):
-            error_data["vortex_correlation_id"] = error.correlation_id
-        if hasattr(error, 'error_code'):
-            error_data["error_code"] = error.error_code
-        if hasattr(error, 'context'):
-            error_data["vortex_context"] = error.context
+        if hasattr(actual_error, 'correlation_id'):
+            error_data["vortex_correlation_id"] = actual_error.correlation_id
+        if hasattr(actual_error, 'error_code'):
+            error_data["error_code"] = actual_error.error_code
+        if hasattr(actual_error, 'context'):
+            error_data["vortex_context"] = actual_error.context
         
         # Add traceback if requested
-        if include_traceback:
+        if actual_include_traceback:
             error_data["traceback"] = traceback.format_exc()
         
         # Log as structured JSON for better parsing
         self.logger.error(
-            f"{message} [ID: {correlation_id}]",
+            f"{actual_message} [ID: {actual_correlation_id}]",
             extra={
                 "error_data": error_data,
-                "correlation_id": correlation_id,
+                "correlation_id": actual_correlation_id,
                 "structured": True
             }
         )
         
-        return correlation_id
+        return actual_correlation_id
     
     def log_operation_start(self, 
                            operation: str,

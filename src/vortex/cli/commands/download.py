@@ -1,8 +1,9 @@
 """Download command implementation."""
 
 from datetime import datetime, timedelta, timezone
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional, List, Union
 
 import click
 from rich.console import Console
@@ -33,6 +34,37 @@ console = Console()
 ux = get_ux()
 logger = get_module_logger()
 perf_logger = get_module_performance_logger()
+
+
+@dataclass
+class DownloadExecutionConfig:
+    """Configuration for download execution."""
+    config_manager: ConfigManager
+    provider: str
+    symbols: List[str]
+    instrument_configs: dict
+    start_date: datetime
+    end_date: datetime
+    output_dir: Path
+    backup: bool
+    force: bool
+    chunk_size: int
+    dry_run: bool
+
+
+@dataclass
+class JobExecutionContext:
+    """Context for executing a single download job."""
+    downloader: object  # UpdatingDownloader instance
+    instrument: object  # Instrument instance
+    period: object  # Period instance
+    start_date: datetime
+    end_date: datetime
+    symbol: str
+    provider: str
+    job_count: int
+    total_jobs: int
+    progress: object  # Progress tracking instance
 
 
 def load_config_instruments(assets_file_path: Path) -> dict:
@@ -172,15 +204,54 @@ def download(
         # Run without installation
         uv run vortex download --help
     """
-    # Get configuration manager first
+    # Setup and validation phase
     config_manager = ConfigManager(ctx.obj.get('config_file'))
+    provider = _resolve_provider(config_manager, provider)
+    _validate_provider(provider)
     
-    # Use default provider from configuration if none specified
+    # Set default dates and paths
+    start_date, end_date, output_dir = _set_defaults(start_date, end_date, output_dir)
+    
+    # Parse and validate symbols/instruments
+    symbols, instrument_configs = _resolve_symbols_and_configs(
+        provider, symbol, symbols_file, assets
+    )
+    
+    # Final validation
+    symbols = _validate_inputs(symbols, start_date, end_date, output_dir)
+    
+    # User confirmation
+    show_download_summary(provider, symbols, start_date, end_date, output_dir, backup, force)
+    if not yes and not ux.confirm("Proceed with download?", True):
+        ux.print_warning("Download cancelled")
+        return
+    
+    # Execute download
+    exec_config = DownloadExecutionConfig(
+        config_manager=config_manager,
+        provider=provider,
+        symbols=symbols,
+        instrument_configs=instrument_configs,
+        start_date=start_date,
+        end_date=end_date,
+        output_dir=output_dir,
+        backup=backup,
+        force=force,
+        chunk_size=chunk_size,
+        dry_run=ctx.obj.get('dry_run', False)
+    )
+    _execute_and_report_results(exec_config)
+
+def _resolve_provider(config_manager: ConfigManager, provider: str) -> str:
+    """Resolve the provider, using default if none specified."""
     if provider is None:
         provider = config_manager.get_default_provider()
         ux.print_info(f"Using default provider: {provider}")
-    
-    # Validate provider exists in plugin registry
+    return provider
+
+
+def _validate_provider(provider: str) -> None:
+    """Validate that the provider exists in the plugin registry."""
     try:
         registry = get_provider_registry()
         registry.get_plugin(provider)  # This will raise PluginNotFoundError if not found
@@ -190,16 +261,24 @@ def download(
         ux.print_info(f"Available providers: {', '.join(available_providers)}")
         ux.print_info("💡 Use 'vortex providers --list' to see all available providers")
         raise click.Abort()
-    
-    # Set defaults
+
+
+def _set_defaults(start_date: Optional[datetime], end_date: Optional[datetime], 
+                  output_dir: Optional[Path]) -> tuple[datetime, datetime, Path]:
+    """Set default values for dates and output directory."""
     if not start_date:
         start_date = datetime.now() - timedelta(days=30)
     if not end_date:
         end_date = datetime.now()
     if not output_dir:
         output_dir = Path("./data")
-    
-    # Parse and validate instruments
+    return start_date, end_date, output_dir
+
+
+def _resolve_symbols_and_configs(
+    provider: str, symbol: tuple, symbols_file: Optional[Path], assets: Optional[Path]
+) -> tuple[List[str], dict]:
+    """Parse and validate symbols and instrument configurations."""
     instrument_configs = None
     symbols = None
     
@@ -221,14 +300,17 @@ def download(
                 # Specific exceptions for common file/parsing errors
                 ux.print_error(f"No symbols specified and no default assets found for {provider}")
                 ux.print_info("💡 Try: vortex download -p yahoo -s AAPL")
-                raise MissingArgumentError(
-                    "symbol", 
-                    "download",
-                ) from e
+                raise MissingArgumentError("symbol", "download") from e
     
+    return symbols, instrument_configs
+
+
+def _validate_inputs(symbols: List[str], start_date: datetime, end_date: datetime, 
+                     output_dir: Path) -> List[str]:
+    """Validate symbols, date range, and create output directory."""
     # Validate symbols
-    symbols = validate_symbols(symbols)
-    if not symbols:
+    validated_symbols = validate_symbols(symbols)
+    if not validated_symbols:
         ux.print_error("No valid symbols to download")
         raise click.Abort()
     
@@ -242,39 +324,25 @@ def download(
     # Create output directory
     output_dir.mkdir(parents=True, exist_ok=True)
     
-    # Show download summary
-    show_download_summary(provider, symbols, start_date, end_date, output_dir, backup, force)
-    
-    if not yes and not ux.confirm("Proceed with download?", True):
-        ux.print_warning("Download cancelled")
-        return
-    
-    # Execute download
+    return validated_symbols
+
+
+def _execute_and_report_results(config: DownloadExecutionConfig) -> None:
+    """Execute the download and report results."""
     try:
-        success_count = execute_download(
-            config_manager=config_manager,
-            provider=provider,
-            symbols=symbols,
-            instrument_configs=instrument_configs,
-            start_date=start_date,
-            end_date=end_date,
-            output_dir=output_dir,
-            backup=backup,
-            force=force,
-            chunk_size=chunk_size,
-            dry_run=ctx.obj.get('dry_run', False)
-        )
+        success_count = execute_download(config)
         
-        if success_count == len(symbols):
+        if success_count == len(config.symbols):
             ux.print_success(f"Download completed! All {success_count} symbols successful")
         else:
-            ux.print_warning(f"Download completed with issues: {success_count}/{len(symbols)} symbols successful")
+            ux.print_warning(f"Download completed with issues: {success_count}/{len(config.symbols)} symbols successful")
             ux.print_info(f"💡 Check logs for details on failed symbols")
         
     except Exception as e:
         ux.print_error(f"Download failed: {e}")
         logger.error("Download process failed", error=str(e))
         raise click.Abort()
+
 
 def show_download_summary(
     provider: str,
@@ -305,26 +373,30 @@ def show_download_summary(
     else:
         console.print(f"[dim]Symbols: {', '.join(symbols[:5])} ... and {len(symbols)-5} more[/dim]")
 
-def execute_download(
-    config_manager: ConfigManager,
-    provider: str,
-    symbols: List[str],
-    instrument_configs: dict,
-    start_date: datetime,
-    end_date: datetime,
-    output_dir: Path,
-    backup: bool,
-    force: bool,
-    chunk_size: int,
-    dry_run: bool
-) -> int:
+def execute_download(config: DownloadExecutionConfig) -> int:
     """Execute the actual download process."""
     
-    if dry_run:
+    if config.dry_run:
         console.print("[yellow]DRY RUN: Would download data but no changes will be made[/yellow]")
-        return len(symbols)
+        return len(config.symbols)
     
-    # If no instrument configs available, create simple stock configs with daily periods
+    # Setup phase
+    instrument_configs = _ensure_instrument_configs(config.instrument_configs, config.symbols)
+    download_config = get_download_config(config.config_manager, config.output_dir, config.backup, config.force)
+    downloader = create_downloader(config.provider, download_config)
+    
+    # Count total jobs
+    total_jobs = _count_total_jobs(config.symbols, instrument_configs)
+    
+    # Process downloads
+    return _process_all_downloads(
+        downloader, config.symbols, instrument_configs, config.start_date, config.end_date, 
+        config.provider, total_jobs
+    )
+
+
+def _ensure_instrument_configs(instrument_configs: dict, symbols: List[str]) -> dict:
+    """Ensure all symbols have instrument configurations, creating defaults if needed."""
     if not instrument_configs:
         instrument_configs = {}
         for symbol in symbols:
@@ -335,19 +407,11 @@ def execute_download(
                 code=symbol,
                 periods='1d'
             )
-    
-    # Get download configuration
-    download_config = get_download_config(
-        config_manager=config_manager,
-        output_dir=output_dir,
-        backup=backup,
-        force=force
-    )
-    
-    # Create downloader once
-    downloader = create_downloader(provider, download_config)
-    
-    # Count total jobs to process 
+    return instrument_configs
+
+
+def _count_total_jobs(symbols: List[str], instrument_configs: dict) -> int:
+    """Count the total number of download jobs to process."""
     total_jobs = 0
     for symbol in symbols:
         config = instrument_configs.get(symbol)
@@ -355,35 +419,22 @@ def execute_download(
             total_jobs += len(config.periods)
         else:
             total_jobs += 1  # Default to one job (daily)
-    
+    return total_jobs
+
+
+def _process_all_downloads(
+    downloader, symbols: List[str], instrument_configs: dict,
+    start_date: datetime, end_date: datetime, provider: str, total_jobs: int
+) -> int:
+    """Process all downloads with progress tracking."""
     success_count = 0
     job_count = 0
     
     with ux.progress(f"Downloading {total_jobs} symbol-period combinations") as progress:
         for symbol in symbols:
             config = instrument_configs.get(symbol)
-            
-            # Determine periods to download
-            periods = []
-            if config and config.periods:
-                periods = config.periods
-            else:
-                # Fallback to daily for direct symbol input
-                periods = [Period.Daily]
-            
-            # Create appropriate instrument object
-            if config and hasattr(config, 'asset_class'):
-                if config.asset_class.value == 'stock':
-                    instrument = Stock(id=symbol, symbol=config.code)
-                elif config.asset_class.value == 'forex':
-                    from vortex.models.forex import Forex
-                    instrument = Forex(id=symbol, symbol=config.code)
-                else:
-                    # Default to stock if unknown type
-                    instrument = Stock(id=symbol, symbol=symbol)
-            else:
-                # Default to stock for direct symbol downloads
-                instrument = Stock(id=symbol, symbol=symbol)
+            periods = _get_periods_for_symbol(config)
+            instrument = _create_instrument_from_config(symbol, config)
             
             logger.info(f"Processing {symbol} with {len(periods)} period(s): {[p.value for p in periods]}", 
                        symbol=symbol, provider=provider)
@@ -391,40 +442,87 @@ def execute_download(
             # Process each period for this symbol
             for period in periods:
                 job_count += 1
-                progress.update(job_count - 1, total_jobs, 
-                              f"Processing {symbol}|{period.value} ({job_count}/{total_jobs})")
                 
-                try:
-                    logger.info(f"Processing {str(instrument)}|{period.value}|{start_date.strftime('%Y-%m-%d')}|{end_date.strftime('%Y-%m-%d')}", 
-                               symbol=symbol, period=period.value, provider=provider)
-                    
-                    # Ensure dates are timezone-aware (use UTC if naive) 
-                    safe_start_date = start_date.replace(tzinfo=timezone.utc) if start_date.tzinfo is None else start_date
-                    safe_end_date = end_date.replace(tzinfo=timezone.utc) if end_date.tzinfo is None else end_date
-                    
-                    job = DownloadJob(
-                        data_provider=downloader.data_provider,
-                        data_storage=downloader.data_storage,
-                        instrument=instrument,
-                        period=period,  # Use the actual period from config
-                        start_date=safe_start_date,
-                        end_date=safe_end_date
-                    )
-                    
-                    # Process the download job
-                    downloader._process_job(job)
-                    
-                    progress.update(job_count, total_jobs, 
-                                  f"✓ {symbol}|{period.value} completed ({job_count}/{total_jobs})")
+                job_context = JobExecutionContext(
+                    downloader=downloader,
+                    instrument=instrument,
+                    period=period,
+                    start_date=start_date,
+                    end_date=end_date,
+                    symbol=symbol,
+                    provider=provider,
+                    job_count=job_count,
+                    total_jobs=total_jobs,
+                    progress=progress
+                )
+                
+                result = _process_single_job(job_context)
+                if result:
                     success_count += 1
-                    
-                except Exception as e:
-                    progress.update(job_count, total_jobs, 
-                                  f"✗ {symbol}|{period.value} failed ({job_count}/{total_jobs})")
-                    logger.error(f"Failed to download {symbol}|{period.value}: {e}", 
-                               symbol=symbol, period=period.value, error=str(e))
     
     return success_count
+
+
+def _get_periods_for_symbol(config) -> List:
+    """Get the periods to download for a symbol."""
+    if config and config.periods:
+        return config.periods
+    else:
+        # Fallback to daily for direct symbol input
+        return [Period.Daily]
+
+
+def _create_instrument_from_config(symbol: str, config):
+    """Create the appropriate instrument object from configuration."""
+    if config and hasattr(config, 'asset_class'):
+        if config.asset_class.value == 'stock':
+            return Stock(id=symbol, symbol=config.code)
+        elif config.asset_class.value == 'forex':
+            from vortex.models.forex import Forex
+            return Forex(id=symbol, symbol=config.code)
+        else:
+            # Default to stock if unknown type
+            return Stock(id=symbol, symbol=symbol)
+    else:
+        # Default to stock for direct symbol downloads
+        return Stock(id=symbol, symbol=symbol)
+
+
+def _process_single_job(context: JobExecutionContext) -> bool:
+    """Process a single download job and return success status."""
+    context.progress.update(context.job_count - 1, context.total_jobs, 
+                  f"Processing {context.symbol}|{context.period.value} ({context.job_count}/{context.total_jobs})")
+    
+    try:
+        logger.info(f"Processing {str(context.instrument)}|{context.period.value}|{context.start_date.strftime('%Y-%m-%d')}|{context.end_date.strftime('%Y-%m-%d')}", 
+                   symbol=context.symbol, period=context.period.value, provider=context.provider)
+        
+        # Ensure dates are timezone-aware (use UTC if naive) 
+        safe_start_date = context.start_date.replace(tzinfo=timezone.utc) if context.start_date.tzinfo is None else context.start_date
+        safe_end_date = context.end_date.replace(tzinfo=timezone.utc) if context.end_date.tzinfo is None else context.end_date
+        
+        job = DownloadJob(
+            data_provider=context.downloader.data_provider,
+            data_storage=context.downloader.data_storage,
+            instrument=context.instrument,
+            period=context.period,  # Use the actual period from config
+            start_date=safe_start_date,
+            end_date=safe_end_date
+        )
+        
+        # Process the download job
+        context.downloader._process_job(job)
+        
+        context.progress.update(context.job_count, context.total_jobs, 
+                      f"✓ {context.symbol}|{context.period.value} completed ({context.job_count}/{context.total_jobs})")
+        return True
+        
+    except Exception as e:
+        context.progress.update(context.job_count, context.total_jobs, 
+                      f"✗ {context.symbol}|{context.period.value} failed ({context.job_count}/{context.total_jobs})")
+        logger.error(f"Failed to download {context.symbol}|{context.period.value}: {e}", 
+                   symbol=context.symbol, period=context.period.value, error=str(e))
+        return False
 
 def get_download_config(
     config_manager: ConfigManager,

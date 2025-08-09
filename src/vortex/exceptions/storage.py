@@ -27,7 +27,7 @@ class FileStorageError(DataStorageError):
             message += f" - {details}"
         
         help_text = f"Check file permissions and available disk space for {file_path.parent}"
-        super().__init__(message, help_text, "FILE_STORAGE_ERROR")
+        super().__init__(message, help_text=help_text, error_code="FILE_STORAGE_ERROR")
 
 
 class VortexPermissionError(DataStorageError):
@@ -36,7 +36,7 @@ class VortexPermissionError(DataStorageError):
     def __init__(self, path: Path, operation: str = "access"):
         message = f"Permission denied: cannot {operation} {path}"
         help_text = f"Check file/directory permissions for {path} and ensure Vortex has the necessary access rights"
-        super().__init__(message, help_text, "PERMISSION_DENIED")
+        super().__init__(message, help_text=help_text, error_code="PERMISSION_DENIED")
 
 
 class DiskSpaceError(DataStorageError):
@@ -48,4 +48,4 @@ class DiskSpaceError(DataStorageError):
             message += f" (need at least {required_space})"
         
         help_text = f"Free up disk space in {path} or choose a different output directory"
-        super().__init__(message, help_text, "DISK_SPACE_ERROR")
+        super().__init__(message, help_text=help_text, error_code="DISK_SPACE_ERROR")

@@ -402,7 +402,7 @@ class TestExecuteDownload:
     
     def test_execute_download_dry_run(self):
         """Test execute_download in dry run mode."""
-        from vortex.cli.commands.download import execute_download
+        from vortex.cli.commands.download import execute_download, DownloadExecutionConfig
         
         config_manager = Mock()
         symbols = ["AAPL", "GOOGL"]
@@ -410,11 +410,22 @@ class TestExecuteDownload:
         end_date = datetime(2023, 12, 31, tzinfo=timezone.utc)
         output_dir = Path("/test/output")
         
+        config = DownloadExecutionConfig(
+            config_manager=config_manager,
+            provider="yahoo",
+            symbols=symbols,
+            instrument_configs=None,
+            start_date=start_date,
+            end_date=end_date,
+            output_dir=output_dir,
+            backup=False,
+            force=False,
+            chunk_size=30,
+            dry_run=True
+        )
+        
         with patch('vortex.cli.commands.download.console') as mock_console:
-            result = execute_download(
-                config_manager, "yahoo", symbols, None, start_date, end_date,
-                output_dir, False, False, 30, dry_run=True
-            )
+            result = execute_download(config)
             
             assert result == len(symbols)  # Should return number of symbols
             mock_console.print.assert_called_with("[yellow]DRY RUN: Would download data but no changes will be made[/yellow]")
@@ -424,7 +435,7 @@ class TestExecuteDownload:
     @patch('vortex.cli.commands.download.ux')
     def test_execute_download_success(self, mock_ux, mock_create_downloader, mock_get_config):
         """Test successful download execution."""
-        from vortex.cli.commands.download import execute_download
+        from vortex.cli.commands.download import execute_download, DownloadExecutionConfig
         
         # Setup mocks
         config_manager = Mock()
@@ -441,10 +452,21 @@ class TestExecuteDownload:
         end_date = datetime(2023, 12, 31, tzinfo=timezone.utc)
         output_dir = Path("/test/output")
         
-        result = execute_download(
-            config_manager, "yahoo", symbols, None, start_date, end_date,
-            output_dir, False, False, 30, dry_run=False
+        config = DownloadExecutionConfig(
+            config_manager=config_manager,
+            provider="yahoo",
+            symbols=symbols,
+            instrument_configs=None,
+            start_date=start_date,
+            end_date=end_date,
+            output_dir=output_dir,
+            backup=False,
+            force=False,
+            chunk_size=30,
+            dry_run=False
         )
+        
+        result = execute_download(config)
         
         assert result == 2  # Both symbols successful
         assert mock_progress.update.call_count >= 2  # Progress updated
@@ -456,7 +478,7 @@ class TestExecuteDownload:
     @patch('vortex.cli.commands.download.logger')
     def test_execute_download_with_errors(self, mock_logger, mock_ux, mock_create_downloader, mock_get_config):
         """Test download execution with some failures."""
-        from vortex.cli.commands.download import execute_download
+        from vortex.cli.commands.download import execute_download, DownloadExecutionConfig
         
         # Setup mocks
         config_manager = Mock()
@@ -475,10 +497,21 @@ class TestExecuteDownload:
         end_date = datetime(2023, 12, 31, tzinfo=timezone.utc)
         output_dir = Path("/test/output")
         
-        result = execute_download(
-            config_manager, "yahoo", symbols, None, start_date, end_date,
-            output_dir, False, False, 30, dry_run=False
+        config = DownloadExecutionConfig(
+            config_manager=config_manager,
+            provider="yahoo",
+            symbols=symbols,
+            instrument_configs=None,
+            start_date=start_date,
+            end_date=end_date,
+            output_dir=output_dir,
+            backup=False,
+            force=False,
+            chunk_size=30,
+            dry_run=False
         )
+        
+        result = execute_download(config)
         
         assert result == 1  # Only one symbol successful
         mock_logger.error.assert_called()  # Error logged for failed symbol

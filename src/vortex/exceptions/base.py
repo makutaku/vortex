@@ -5,8 +5,20 @@ Provides the foundational VortexError class that all other exceptions inherit fr
 """
 
 import uuid
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, Optional
+
+
+@dataclass
+class ExceptionContext:
+    """Context information for Vortex exceptions."""
+    help_text: Optional[str] = None
+    error_code: Optional[str] = None
+    context: Dict[str, Any] = field(default_factory=dict)
+    user_action: Optional[str] = None
+    technical_details: Optional[str] = None
+    correlation_id: Optional[str] = None
 
 
 class VortexError(Exception):
@@ -28,22 +40,34 @@ class VortexError(Exception):
     def __init__(
         self, 
         message: str, 
+        context: Optional[ExceptionContext] = None,
+        # Legacy parameters for backward compatibility
         help_text: Optional[str] = None, 
         error_code: Optional[str] = None,
-        context: Optional[Dict[str, Any]] = None,
         user_action: Optional[str] = None,
         technical_details: Optional[str] = None,
         correlation_id: Optional[str] = None
     ):
         self.message = message
-        self.help_text = help_text
-        self.error_code = error_code
-        self.context = context or {}
-        self.user_action = user_action
-        self.technical_details = technical_details
-        self.correlation_id = correlation_id or str(uuid.uuid4())[:8]
-        self.timestamp = datetime.now()
         
+        # Handle both new context object and legacy parameters for backward compatibility
+        if context is not None:
+            self.help_text = context.help_text
+            self.error_code = context.error_code
+            self.context = context.context
+            self.user_action = context.user_action
+            self.technical_details = context.technical_details
+            self.correlation_id = context.correlation_id or str(uuid.uuid4())[:8]
+        else:
+            # Legacy parameter handling
+            self.help_text = help_text
+            self.error_code = error_code
+            self.context = {}  # No context dict in legacy mode
+            self.user_action = user_action
+            self.technical_details = technical_details
+            self.correlation_id = correlation_id or str(uuid.uuid4())[:8]
+        
+        self.timestamp = datetime.now()
         super().__init__(message)
     
     def __str__(self) -> str:

@@ -20,7 +20,7 @@ class InvalidInstrumentError(InstrumentError):
     def __init__(self, symbol: str, reason: str):
         message = f"Invalid instrument '{symbol}': {reason}"
         help_text = "Check the symbol format and ensure it's supported by the selected provider"
-        super().__init__(message, help_text, "INVALID_INSTRUMENT")
+        super().__init__(message, help_text=help_text, error_code="INVALID_INSTRUMENT")
 
 
 class UnsupportedInstrumentError(InstrumentError):
@@ -32,4 +32,4 @@ class UnsupportedInstrumentError(InstrumentError):
             message += f" (supports: {', '.join(supported_types)})"
         
         help_text = f"Use 'vortex providers --info {provider}' to see supported instrument types"
-        super().__init__(message, help_text, "UNSUPPORTED_INSTRUMENT")
+        super().__init__(message, help_text=help_text, error_code="UNSUPPORTED_INSTRUMENT")
