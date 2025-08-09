@@ -12,7 +12,9 @@ from pandas import DataFrame
 from ..base import DataProvider
 from vortex.models.columns import (
     DATE_TIME_COLUMN, OPEN_COLUMN, HIGH_COLUMN, 
-    LOW_COLUMN, CLOSE_COLUMN, VOLUME_COLUMN
+    LOW_COLUMN, CLOSE_COLUMN, VOLUME_COLUMN,
+    validate_required_columns, get_provider_expected_columns,
+    standardize_dataframe_columns
 )
 from vortex.models.forex import Forex
 from vortex.models.future import Future
@@ -125,21 +127,22 @@ class IbkrDataProvider(DataProvider):
         df = util.df(bars)
         logging.debug(f"Received data {df.shape} from {self.get_name()}")
 
-        columns = {
-            "date": DATE_TIME_COLUMN,
-            "volume": VOLUME_COLUMN,
-            "high": HIGH_COLUMN,
-            "low": LOW_COLUMN,
-            "open": OPEN_COLUMN,
-            "close": CLOSE_COLUMN
-        }
-        df = df.rename(columns=columns)
+        # Standardize columns using the centralized mapping system
+        df = standardize_dataframe_columns(df, 'ibkr')
 
         if not freq_attrs.frequency.is_intraday():
             df[DATE_TIME_COLUMN] = (pd.to_datetime(df[DATE_TIME_COLUMN], format='%Y-%m-%d', errors='coerce')
                                     .dt.tz_localize(FUTURES_SOURCE_TIME_ZONE).dt.tz_convert('UTC'))
 
         df.set_index(DATE_TIME_COLUMN, inplace=True)
+        
+        # Validate expected IBKR columns
+        required_cols, optional_cols = get_provider_expected_columns('ibkr')
+        # Don't validate the index column (DATE_TIME_COLUMN) since it's the index now
+        required_data_cols = [col for col in required_cols if col != DATE_TIME_COLUMN]
+        missing_cols, found_cols = validate_required_columns(df.columns, required_data_cols, case_insensitive=True)
+        if missing_cols:
+            logging.warning(f"Missing expected IBKR columns: {missing_cols}. Found columns: {list(df.columns)}")
 
         return df
 

@@ -10,7 +10,10 @@ from rich.table import Table
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn
 
 from vortex.models.columns import (
-    DATE_TIME_COLUMN, OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, CLOSE_COLUMN, VOLUME_COLUMN
+    DATE_TIME_COLUMN, OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, CLOSE_COLUMN, VOLUME_COLUMN,
+    ADJ_CLOSE_COLUMN, DIVIDENDS_COLUMN, STOCK_SPLITS_COLUMN,
+    OPEN_INTEREST_COLUMN, WAP_COLUMN, COUNT_COLUMN,
+    YAHOO_SPECIFIC_COLUMNS, BARCHART_SPECIFIC_COLUMNS, IBKR_SPECIFIC_COLUMNS
 )
 
 console = Console()
@@ -316,33 +319,68 @@ def validate_provider_format(path: Path, provider: str) -> dict:
             return result
         
         if provider == "barchart":
-            # Barchart expected columns and formats
-            expected_cols = ['date', 'time', 'open', 'high', 'low', 'close', 'volume', 'openinterest']
-            df_columns_lower = [col.lower() for col in df.columns]
+            # Barchart validation - handle both raw format and processed format
+            df_columns_lower = [col.lower().replace(' ', '') for col in df.columns]
             
-            missing_cols = [col for col in expected_cols if col not in df_columns_lower]
-            if missing_cols:
-                result["warnings"].append(f"Barchart format missing columns: {', '.join(missing_cols)}")
+            # Check for date/time column (can be Date, Time, or DATETIME)
+            has_date_time = any(col in df_columns_lower for col in ['date', 'time', 'datetime'])
+            if not has_date_time:
+                result["warnings"].append("Barchart format missing date/time column (Date, Time, or DATETIME)")
+            
+            # Check for OHLCV columns
+            required_ohlcv = ['open', 'high', 'low', 'volume']
+            # For close, accept either 'close' or 'last' (Barchart uses 'Last')
+            has_close = any(col in df_columns_lower for col in ['close', 'last'])
+            if not has_close:
+                result["warnings"].append("Barchart format missing close/last price column")
+                
+            for col in required_ohlcv:
+                if col not in df_columns_lower:
+                    result["warnings"].append(f"Barchart format missing '{col}' column")
+            
+            # Check for open interest (optional for Barchart futures)
+            has_open_interest = any(col in df_columns_lower for col in ['openinterest', 'open_interest'])
+            # Don't warn about missing open interest as it's optional
                 
         elif provider == "yahoo":
-            # Yahoo Finance expected columns
-            expected_cols = ['date', 'open', 'high', 'low', 'close', 'adj close', 'volume']
-            df_columns_lower = [col.lower() for col in df.columns]
+            # Yahoo Finance validation - flexible column checking
+            df_columns_lower = [col.lower().replace(' ', '_') for col in df.columns]
             
-            # Check for Yahoo's specific "Adj Close" column
-            if 'adj close' not in df_columns_lower and 'adj_close' not in df_columns_lower:
-                result["warnings"].append("Yahoo format typically includes 'Adj Close' column")
+            # Check for required OHLCV columns
+            required_cols = ['open', 'high', 'low', 'close', 'volume']
+            for col in required_cols:
+                if col not in df_columns_lower:
+                    result["warnings"].append(f"Yahoo format missing '{col}' column")
+            
+            # Check for date column (can be Date or DATETIME)
+            has_date = any(col in df_columns_lower for col in ['date', 'datetime'])
+            if not has_date:
+                result["warnings"].append("Yahoo format missing date column")
+            
+            # Check for Yahoo's specific "Adj Close" column (optional)
+            has_adj_close = any(col in df_columns_lower for col in ['adj_close', 'adjclose'])
+            if not has_adj_close:
+                result["warnings"].append(f"Yahoo format typically includes '{ADJ_CLOSE_COLUMN}' column")
                 
         elif provider == "ibkr":
-            # IBKR expected columns
-            expected_cols = ['date', 'open', 'high', 'low', 'close', 'volume', 'wap', 'count']
+            # IBKR validation - handle lowercase column names
             df_columns_lower = [col.lower() for col in df.columns]
             
-            # Check for IBKR specific columns
-            if 'wap' not in df_columns_lower:  # Weighted Average Price
-                result["warnings"].append("IBKR format typically includes 'WAP' (Weighted Average Price) column")
-            if 'count' not in df_columns_lower:  # Trade count
-                result["warnings"].append("IBKR format typically includes 'Count' (trade count) column")
+            # Check for required OHLCV columns
+            required_cols = ['open', 'high', 'low', 'close', 'volume']
+            for col in required_cols:
+                if col not in df_columns_lower:
+                    result["warnings"].append(f"IBKR format missing '{col}' column")
+            
+            # Check for date column
+            if 'date' not in df_columns_lower and 'datetime' not in df_columns_lower:
+                result["warnings"].append("IBKR format missing date column")
+            
+            # Check for IBKR specific columns (optional)
+            if WAP_COLUMN.lower() not in df_columns_lower:  # Weighted Average Price
+                result["warnings"].append(f"IBKR format typically includes '{WAP_COLUMN}' (Weighted Average Price) column")
+            if COUNT_COLUMN.lower() not in df_columns_lower:  # Trade count
+                result["warnings"].append(f"IBKR format typically includes '{COUNT_COLUMN}' (trade count) column")
         
         else:
             result["warnings"].append(f"Unknown provider '{provider}' - skipping provider-specific validation")
