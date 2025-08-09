@@ -15,6 +15,11 @@ from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from vortex.constants import (
+    DEFAULT_DAILY_LIMIT, DEFAULT_IBKR_PORT, MAX_PORT_NUMBER, 
+    DEFAULT_TIMEOUT_SECONDS, DEFAULT_LOG_FILE_SIZE_BYTES,
+    DEFAULT_LOG_BACKUP_COUNT, MIN_LOG_FILE_SIZE_BYTES
+)
 
 try:
     if sys.version_info >= (3, 11):
@@ -44,7 +49,7 @@ class BarchartConfig(BaseModel):
     """Barchart provider configuration."""
     username: Optional[str] = Field(None, description="Barchart username")
     password: Optional[str] = Field(None, description="Barchart password")
-    daily_limit: int = Field(150, ge=1, le=1000, description="Daily download limit")
+    daily_limit: int = Field(DEFAULT_DAILY_LIMIT, ge=1, le=1000, description="Daily download limit")
     
     @field_validator('username', 'password')
     @classmethod
@@ -69,9 +74,9 @@ class YahooConfig(BaseModel):
 class IBKRConfig(BaseModel):
     """Interactive Brokers provider configuration."""
     host: str = Field("localhost", description="TWS/Gateway host")
-    port: int = Field(7497, ge=1, le=65535, description="TWS/Gateway port")
+    port: int = Field(DEFAULT_IBKR_PORT, ge=1, le=MAX_PORT_NUMBER, description="TWS/Gateway port")
     client_id: int = Field(1, ge=0, le=999, description="Client ID")
-    timeout: int = Field(30, ge=1, le=300, description="Connection timeout in seconds")
+    timeout: int = Field(DEFAULT_TIMEOUT_SECONDS, ge=1, le=300, description="Connection timeout in seconds")
 
 
 class ProvidersConfig(BaseModel):
@@ -88,12 +93,12 @@ class LoggingConfig(BaseModel):
     output: List[str] = Field(["console"], description="Log outputs: console, file")
     file_path: Optional[Path] = Field(None, description="Log file path")
     max_file_size: int = Field(
-        10 * 1024 * 1024, 
-        ge=1024, 
+        DEFAULT_LOG_FILE_SIZE_BYTES, 
+        ge=MIN_LOG_FILE_SIZE_BYTES, 
         description="Maximum log file size in bytes"
     )
     backup_count: int = Field(
-        5, 
+        DEFAULT_LOG_BACKUP_COUNT, 
         ge=1, 
         le=20, 
         description="Number of backup log files to keep"

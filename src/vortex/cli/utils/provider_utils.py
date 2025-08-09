@@ -8,8 +8,8 @@ the plugin system, eliminating hardcoded provider strings.
 from typing import List, Optional, Dict, Any
 import click
 
-from vortex.plugins import get_provider_registry, PluginNotFoundError
-from vortex.logging_integration import get_module_logger
+from vortex.infrastructure.plugins import get_provider_registry, PluginNotFoundError
+from vortex.core.logging_integration import get_module_logger
 
 logger = get_module_logger()
 

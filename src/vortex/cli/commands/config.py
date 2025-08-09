@@ -9,8 +9,9 @@ from rich.table import Table
 from rich.prompt import Prompt, Confirm
 
 from vortex.exceptions import ConfigurationError, InvalidConfigurationError, MissingArgumentError
-from vortex.core.config import ConfigManager, Provider
-from vortex.logging_integration import get_module_logger
+from vortex.core.config import ConfigManager
+from vortex.constants import DEFAULT_IBKR_PORT
+from vortex.core.logging_integration import get_module_logger
 
 console = Console()
 logger = get_module_logger()
@@ -203,7 +204,7 @@ def show_provider_configuration(config_manager: ConfigManager, provider: str) ->
         table.add_row("Enabled", str(provider_config.get("enabled", True)))
     elif provider == "ibkr":
         table.add_row("Host", provider_config.get("host", "localhost"))
-        table.add_row("Port", str(provider_config.get("port", 7497)))
+        table.add_row("Port", str(provider_config.get("port", DEFAULT_IBKR_PORT)))
         table.add_row("Client ID", str(provider_config.get("client_id", 1)))
         table.add_row("Timeout", f"{provider_config.get('timeout', 30)}s")
     
@@ -247,7 +248,7 @@ def set_provider_credentials(config_manager: ConfigManager, provider: str) -> No
     elif provider == "ibkr":
         console.print("Enter your Interactive Brokers TWS/Gateway settings:")
         host = Prompt.ask("Host", default="localhost")
-        port = Prompt.ask("Port", default="7497")
+        port = Prompt.ask("Port", default=str(DEFAULT_IBKR_PORT))
         client_id = Prompt.ask("Client ID", default="1")
         timeout = Prompt.ask("Timeout (seconds)", default="30")
         

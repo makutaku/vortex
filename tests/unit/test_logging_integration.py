@@ -10,7 +10,7 @@ import logging
 from unittest.mock import Mock, patch, MagicMock
 from datetime import datetime, timezone
 
-from vortex.logging_integration import (
+from vortex.core.logging_integration import (
     configure_logging_from_config, reconfigure_if_changed, 
     get_logger, _logging_configured, _current_config,
     HealthChecker
@@ -23,9 +23,9 @@ class TestLoggingIntegration:
     
     def setup_method(self):
         """Reset global state before each test."""
-        import vortex.logging_integration
-        vortex.logging_integration._logging_configured = False
-        vortex.logging_integration._current_config = None
+        import vortex.core.logging_integration
+        vortex.core.logging_integration._logging_configured = False
+        vortex.core.logging_integration._current_config = None
 
     def test_reconfigure_if_changed_not_configured(self):
         """Test reconfigure_if_changed when logging not yet configured."""
@@ -39,15 +39,15 @@ class TestLoggingIntegration:
             )
         )
         
-        with patch('vortex.logging_integration.configure_logging_from_config') as mock_configure:
+        with patch('vortex.core.logging_integration.configure_logging_from_config') as mock_configure:
             reconfigure_if_changed(config)
             mock_configure.assert_called_once_with(config)
 
     def test_reconfigure_if_changed_no_current_config(self):
         """Test reconfigure_if_changed with no current config stored."""
-        import vortex.logging_integration
-        vortex.logging_integration._logging_configured = True
-        vortex.logging_integration._current_config = None
+        import vortex.core.logging_integration
+        vortex.core.logging_integration._logging_configured = True
+        vortex.core.logging_integration._current_config = None
         
         config = VortexConfig(
             general=GeneralConfig(
@@ -59,14 +59,14 @@ class TestLoggingIntegration:
             )
         )
         
-        with patch('vortex.logging_integration.configure_logging_from_config') as mock_configure:
+        with patch('vortex.core.logging_integration.configure_logging_from_config') as mock_configure:
             reconfigure_if_changed(config)
             mock_configure.assert_called_once_with(config)
 
     def test_reconfigure_if_changed_level_changed(self):
         """Test reconfigure_if_changed when log level changed."""
-        import vortex.logging_integration
-        vortex.logging_integration._logging_configured = True
+        import vortex.core.logging_integration
+        vortex.core.logging_integration._logging_configured = True
         
         old_config = VortexConfig(
             general=GeneralConfig(
@@ -77,7 +77,7 @@ class TestLoggingIntegration:
                 )
             )
         )
-        vortex.logging_integration._current_config = old_config
+        vortex.core.logging_integration._current_config = old_config
         
         new_config = VortexConfig(
             general=GeneralConfig(
@@ -89,14 +89,14 @@ class TestLoggingIntegration:
             )
         )
         
-        with patch('vortex.logging_integration.configure_logging_from_config') as mock_configure:
+        with patch('vortex.core.logging_integration.configure_logging_from_config') as mock_configure:
             reconfigure_if_changed(new_config)
             mock_configure.assert_called_once_with(new_config)
 
     def test_reconfigure_if_changed_format_changed(self):
         """Test reconfigure_if_changed when log format changed."""
-        import vortex.logging_integration
-        vortex.logging_integration._logging_configured = True
+        import vortex.core.logging_integration
+        vortex.core.logging_integration._logging_configured = True
         
         old_config = VortexConfig(
             general=GeneralConfig(
@@ -107,7 +107,7 @@ class TestLoggingIntegration:
                 )
             )
         )
-        vortex.logging_integration._current_config = old_config
+        vortex.core.logging_integration._current_config = old_config
         
         new_config = VortexConfig(
             general=GeneralConfig(
@@ -119,14 +119,14 @@ class TestLoggingIntegration:
             )
         )
         
-        with patch('vortex.logging_integration.configure_logging_from_config') as mock_configure:
+        with patch('vortex.core.logging_integration.configure_logging_from_config') as mock_configure:
             reconfigure_if_changed(new_config)
             mock_configure.assert_called_once_with(new_config)
 
     def test_reconfigure_if_changed_output_changed(self):
         """Test reconfigure_if_changed when output changed."""
-        import vortex.logging_integration
-        vortex.logging_integration._logging_configured = True
+        import vortex.core.logging_integration
+        vortex.core.logging_integration._logging_configured = True
         
         old_config = VortexConfig(
             general=GeneralConfig(
@@ -137,7 +137,7 @@ class TestLoggingIntegration:
                 )
             )
         )
-        vortex.logging_integration._current_config = old_config
+        vortex.core.logging_integration._current_config = old_config
         
         new_config = VortexConfig(
             general=GeneralConfig(
@@ -149,14 +149,14 @@ class TestLoggingIntegration:
             )
         )
         
-        with patch('vortex.logging_integration.configure_logging_from_config') as mock_configure:
+        with patch('vortex.core.logging_integration.configure_logging_from_config') as mock_configure:
             reconfigure_if_changed(new_config)
             mock_configure.assert_called_once_with(new_config)
 
     def test_reconfigure_if_changed_file_path_changed(self):
         """Test reconfigure_if_changed when file_path changed."""
-        import vortex.logging_integration
-        vortex.logging_integration._logging_configured = True
+        import vortex.core.logging_integration
+        vortex.core.logging_integration._logging_configured = True
         
         old_config = VortexConfig(
             general=GeneralConfig(
@@ -168,7 +168,7 @@ class TestLoggingIntegration:
                 )
             )
         )
-        vortex.logging_integration._current_config = old_config
+        vortex.core.logging_integration._current_config = old_config
         
         new_config = VortexConfig(
             general=GeneralConfig(
@@ -181,14 +181,14 @@ class TestLoggingIntegration:
             )
         )
         
-        with patch('vortex.logging_integration.configure_logging_from_config') as mock_configure:
+        with patch('vortex.core.logging_integration.configure_logging_from_config') as mock_configure:
             reconfigure_if_changed(new_config)
             mock_configure.assert_called_once_with(new_config)
 
     def test_reconfigure_if_changed_no_changes(self):
         """Test reconfigure_if_changed when no config changes."""
-        import vortex.logging_integration
-        vortex.logging_integration._logging_configured = True
+        import vortex.core.logging_integration
+        vortex.core.logging_integration._logging_configured = True
         
         config = VortexConfig(
             general=GeneralConfig(
@@ -199,10 +199,10 @@ class TestLoggingIntegration:
                 )
             )
         )
-        vortex.logging_integration._current_config = config
+        vortex.core.logging_integration._current_config = config
         
         # Same config
-        with patch('vortex.logging_integration.configure_logging_from_config') as mock_configure:
+        with patch('vortex.core.logging_integration.configure_logging_from_config') as mock_configure:
             reconfigure_if_changed(config)
             mock_configure.assert_not_called()
 

@@ -13,7 +13,11 @@ from typing import List, Optional, Tuple
 import click
 
 from vortex.core.config import ConfigManager
-from vortex.logging_integration import get_module_logger
+from vortex.core.logging_integration import get_module_logger
+from vortex.constants import (
+    ALL_COMMON_SYMBOLS, MAX_COMPLETION_SUGGESTIONS, MAX_RECENT_SYMBOLS,
+    DEFAULT_COMPLETION_LIMIT, SUPPORTED_CONFIG_EXTENSIONS, DAYS_IN_MONTH_APPROX
+)
 
 logger = get_module_logger()
 
@@ -26,42 +30,22 @@ def complete_provider(ctx, param, incomplete):
 
 def complete_symbol(ctx, param, incomplete):
     """Auto-complete symbol names from common symbols."""
-    # Common symbols for quick completion
-    common_symbols = [
-        # Major stocks
-        "AAPL", "GOOGL", "MSFT", "AMZN", "TSLA", "META", "NVDA", "NFLX",
-        "BRKB", "JPM", "JNJ", "V", "PG", "UNH", "HD", "MA", "DIS", "PYPL",
-        
-        # Major indices/ETFs
-        "SPY", "QQQ", "IWM", "VTI", "VOO", "VEA", "VWO", "AGG", "BND",
-        
-        # Futures (Barchart)
-        "ES", "NQ", "YM", "RTY",  # Equity indices
-        "GC", "SI", "HG", "PL",   # Metals
-        "CL", "NG", "RB", "HO",   # Energy
-        "ZC", "ZS", "ZW", "ZM",   # Agriculture
-        "6E", "6B", "6J", "6A",   # Currencies
-        
-        # Forex pairs
-        "EURUSD", "GBPUSD", "USDJPY", "USDCHF", "AUDUSD", "USDCAD"
-    ]
-    
     incomplete_upper = incomplete.upper()
-    matches = [s for s in common_symbols if s.startswith(incomplete_upper)]
+    matches = [s for s in ALL_COMMON_SYMBOLS if s.startswith(incomplete_upper)]
     
     # Also try to load symbols from recent downloads
     try:
         data_dir = Path("./data")
         if data_dir.exists():
             csv_files = list(data_dir.glob("*.csv"))
-            recent_symbols = [f.stem for f in csv_files[-20:]]  # Last 20 files
+            recent_symbols = [f.stem for f in csv_files[-MAX_RECENT_SYMBOLS:]]
             for symbol in recent_symbols:
                 if symbol.upper().startswith(incomplete_upper) and symbol not in matches:
                     matches.append(symbol.upper())
     except Exception:
         pass  # Ignore errors in completion
     
-    return matches[:20]  # Limit to 20 suggestions
+    return matches[:MAX_COMPLETION_SUGGESTIONS]
 
 
 def complete_config_file(ctx, param, incomplete):
@@ -85,7 +69,7 @@ def complete_config_file(ctx, param, incomplete):
         current_dir = Path(".")
         for item in current_dir.iterdir():
             if item.name.startswith(incomplete):
-                if item.is_file() and item.suffix in [".toml", ".yaml", ".yml", ".json"]:
+                if item.is_file() and item.suffix in SUPPORTED_CONFIG_EXTENSIONS:
                     paths.append(str(item))
                 elif item.is_dir():
                     paths.append(str(item) + "/")
@@ -174,7 +158,7 @@ def complete_date(ctx, param, incomplete):
         suggestions.append(week_ago.strftime("%Y-%m-%d"))
     
     if not incomplete or "month".startswith(incomplete.lower()):
-        month_ago = today - timedelta(days=30)
+        month_ago = today - timedelta(days=DAYS_IN_MONTH_APPROX)
         suggestions.append(month_ago.strftime("%Y-%m-%d"))
     
     # Add year boundaries
@@ -189,7 +173,7 @@ def complete_date(ctx, param, incomplete):
     if incomplete:
         suggestions = [s for s in suggestions if s.startswith(incomplete)]
     
-    return suggestions[:10]
+    return suggestions[:DEFAULT_COMPLETION_LIMIT]
 
 
 class CompletionInstaller:

@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 from uuid import uuid4
 
-from vortex.logging_integration import get_module_logger
+from vortex.core.logging_integration import get_module_logger
 
 logger = get_module_logger()
 

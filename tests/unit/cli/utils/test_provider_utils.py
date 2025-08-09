@@ -14,7 +14,7 @@ from vortex.cli.utils.provider_utils import (
     get_provider_auth_requirements,
     check_provider_configuration
 )
-from vortex.plugins import PluginNotFoundError
+from vortex.infrastructure.plugins import PluginNotFoundError
 
 
 class TestProviderUtils:

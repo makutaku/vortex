@@ -3,7 +3,7 @@
 import pytest
 from unittest.mock import Mock, patch
 
-from vortex.plugins import ProviderRegistry, get_provider_registry, PluginNotFoundError
+from vortex.infrastructure.plugins import ProviderRegistry, get_provider_registry, PluginNotFoundError
 
 
 class TestProviderRegistry:
@@ -50,7 +50,7 @@ class TestProviderRegistry:
         assert 'test_provider' in registry.list_plugins()
         assert registry.get_plugin('test_provider') == mock_plugin
     
-    @patch('vortex.plugins.YahooDataProvider')
+    @patch('vortex.infrastructure.plugins.YahooDataProvider')
     def test_create_yahoo_provider(self, mock_yahoo_class):
         """Test creating Yahoo provider instance."""
         registry = ProviderRegistry()
@@ -63,7 +63,7 @@ class TestProviderRegistry:
         mock_yahoo_class.assert_called_once_with()
         assert provider == mock_instance
     
-    @patch('vortex.plugins.BarchartDataProvider')
+    @patch('vortex.infrastructure.plugins.BarchartDataProvider')
     def test_create_barchart_provider(self, mock_barchart_class):
         """Test creating Barchart provider instance."""
         registry = ProviderRegistry()
@@ -77,7 +77,7 @@ class TestProviderRegistry:
         mock_barchart_class.assert_called_once_with(config)
         assert provider == mock_instance
     
-    @patch('vortex.plugins.IbkrDataProvider')
+    @patch('vortex.infrastructure.plugins.IbkrDataProvider')
     def test_create_ibkr_provider(self, mock_ibkr_class):
         """Test creating IBKR provider instance."""
         registry = ProviderRegistry()
@@ -151,8 +151,8 @@ class TestProviderRegistryGlobal:
     def test_get_provider_registry_singleton(self):
         """Test that get_provider_registry returns singleton."""
         # Reset global registry
-        import vortex.plugins
-        vortex.plugins._registry = None
+        import vortex.infrastructure.plugins
+        vortex.infrastructure.plugins._registry = None
         
         registry1 = get_provider_registry()
         registry2 = get_provider_registry()

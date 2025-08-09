@@ -28,7 +28,7 @@ try:
 except ImportError:
     RICH_AVAILABLE = False
 
-from vortex.logging_integration import get_module_logger
+from vortex.core.logging_integration import get_module_logger
 from vortex.exceptions import VortexError, CLIError, MissingArgumentError
 
 logger = get_module_logger()

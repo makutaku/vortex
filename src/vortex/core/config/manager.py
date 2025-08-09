@@ -122,10 +122,17 @@ class ConfigManager:
     
     def _apply_env_overrides(self, config_data: Dict[str, Any]) -> Dict[str, Any]:
         """Apply environment variable overrides to configuration."""
-        # Refresh settings to pick up any environment variable changes
         settings = VortexSettings()
         
-        # Initialize nested dictionaries if they don't exist
+        self._initialize_config_sections(config_data)
+        self._apply_general_env_overrides(config_data, settings)
+        self._apply_logging_env_overrides(config_data, settings)
+        self._apply_provider_env_overrides(config_data, settings)
+        
+        return config_data
+    
+    def _initialize_config_sections(self, config_data: Dict[str, Any]) -> None:
+        """Initialize nested configuration dictionaries if they don't exist."""
         if "general" not in config_data:
             config_data["general"] = {}
         if "providers" not in config_data:
@@ -134,49 +141,66 @@ class ConfigManager:
             config_data["providers"]["barchart"] = {}
         if "ibkr" not in config_data["providers"]:
             config_data["providers"]["ibkr"] = {}
+    
+    def _apply_general_env_overrides(self, config_data: Dict[str, Any], settings: VortexSettings) -> None:
+        """Apply general environment variable overrides."""
+        general_config = config_data["general"]
         
-        # Apply modern environment variables
         if settings.vortex_output_directory:
-            config_data["general"]["output_directory"] = settings.vortex_output_directory
+            general_config["output_directory"] = settings.vortex_output_directory
         if settings.vortex_log_level:
-            config_data["general"]["log_level"] = settings.vortex_log_level
+            general_config["log_level"] = settings.vortex_log_level
         if settings.vortex_backup_enabled is not None:
-            config_data["general"]["backup_enabled"] = settings.vortex_backup_enabled
+            general_config["backup_enabled"] = settings.vortex_backup_enabled
         if settings.vortex_dry_run is not None:
-            config_data["general"]["dry_run"] = settings.vortex_dry_run
+            general_config["dry_run"] = settings.vortex_dry_run
         if settings.vortex_default_provider:
-            config_data["general"]["default_provider"] = settings.vortex_default_provider
-        
-        # Apply logging environment variables
+            general_config["default_provider"] = settings.vortex_default_provider
+    
+    def _apply_logging_env_overrides(self, config_data: Dict[str, Any], settings: VortexSettings) -> None:
+        """Apply logging environment variable overrides."""
         if "logging" not in config_data["general"]:
             config_data["general"]["logging"] = {}
         
+        logging_config = config_data["general"]["logging"]
+        
         if settings.vortex_logging_level:
-            config_data["general"]["logging"]["level"] = settings.vortex_logging_level
+            logging_config["level"] = settings.vortex_logging_level
         if settings.vortex_logging_format:
-            config_data["general"]["logging"]["format"] = settings.vortex_logging_format
+            logging_config["format"] = settings.vortex_logging_format
         if settings.vortex_logging_output:
             # Parse comma-separated outputs
             outputs = [o.strip() for o in settings.vortex_logging_output.split(",")]
-            config_data["general"]["logging"]["output"] = outputs
+            logging_config["output"] = outputs
         if settings.vortex_logging_file_path:
-            config_data["general"]["logging"]["file_path"] = settings.vortex_logging_file_path
+            logging_config["file_path"] = settings.vortex_logging_file_path
+    
+    def _apply_provider_env_overrides(self, config_data: Dict[str, Any], settings: VortexSettings) -> None:
+        """Apply provider-specific environment variable overrides."""
+        self._apply_barchart_env_overrides(config_data, settings)
+        self._apply_ibkr_env_overrides(config_data, settings)
+    
+    def _apply_barchart_env_overrides(self, config_data: Dict[str, Any], settings: VortexSettings) -> None:
+        """Apply Barchart provider environment variable overrides."""
+        barchart_config = config_data["providers"]["barchart"]
         
         if settings.vortex_barchart_username:
-            config_data["providers"]["barchart"]["username"] = settings.vortex_barchart_username
+            barchart_config["username"] = settings.vortex_barchart_username
         if settings.vortex_barchart_password:
-            config_data["providers"]["barchart"]["password"] = settings.vortex_barchart_password
+            barchart_config["password"] = settings.vortex_barchart_password
         if settings.vortex_barchart_daily_limit:
-            config_data["providers"]["barchart"]["daily_limit"] = settings.vortex_barchart_daily_limit
+            barchart_config["daily_limit"] = settings.vortex_barchart_daily_limit
+    
+    def _apply_ibkr_env_overrides(self, config_data: Dict[str, Any], settings: VortexSettings) -> None:
+        """Apply IBKR provider environment variable overrides."""
+        ibkr_config = config_data["providers"]["ibkr"]
         
         if settings.vortex_ibkr_host:
-            config_data["providers"]["ibkr"]["host"] = settings.vortex_ibkr_host
+            ibkr_config["host"] = settings.vortex_ibkr_host
         if settings.vortex_ibkr_port:
-            config_data["providers"]["ibkr"]["port"] = settings.vortex_ibkr_port
+            ibkr_config["port"] = settings.vortex_ibkr_port
         if settings.vortex_ibkr_client_id:
-            config_data["providers"]["ibkr"]["client_id"] = settings.vortex_ibkr_client_id
-        
-        return config_data
+            ibkr_config["client_id"] = settings.vortex_ibkr_client_id
     
     def _remove_none_values(self, data):
         """Recursively remove None values from dictionary to avoid TOML serialization issues."""

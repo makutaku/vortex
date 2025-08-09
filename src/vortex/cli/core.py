@@ -202,7 +202,7 @@ def main() -> None:
         rich_available = False
     
     try:
-        from vortex.logging_integration import get_logger
+        from vortex.core.logging_integration import get_logger
         config_available = True
     except ImportError:
         get_logger = None

@@ -22,8 +22,8 @@ from vortex.exceptions import (
 from vortex.core.instruments import InstrumentConfig
 from vortex.models.stock import Stock
 from vortex.models.period import Period
-from vortex.logging_integration import get_module_logger, get_module_performance_logger
-from vortex.plugins import get_provider_registry
+from vortex.core.logging_integration import get_module_logger, get_module_performance_logger
+from vortex.infrastructure.plugins import get_provider_registry
 from ..completion import complete_provider, complete_symbol, complete_symbols_file, complete_assets_file, complete_date
 from ..utils.provider_utils import get_available_providers, get_provider_config_from_vortex_config
 from ..utils.instrument_parser import parse_instruments

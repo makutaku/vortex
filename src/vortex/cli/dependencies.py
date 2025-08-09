@@ -126,7 +126,7 @@ def null_correlation_decorator(*args, **kwargs):
 def _import_config():
     """Import configuration modules."""
     from vortex.core.config import ConfigManager
-    from vortex.logging_integration import configure_logging_from_manager, get_logger, run_health_checks
+    from vortex.core.logging_integration import configure_logging_from_manager, get_logger, run_health_checks
     return {
         'ConfigManager': ConfigManager,
         'configure_logging_from_manager': configure_logging_from_manager,

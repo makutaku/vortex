@@ -10,7 +10,7 @@ from vortex.cli.commands.providers import (
     show_ibkr_info, _show_fallback_providers_list, _test_providers_fallback
 )
 from vortex.core.config import ConfigManager
-from vortex.plugins import ProviderRegistry
+from vortex.infrastructure.plugins import ProviderRegistry
 
 
 class TestProvidersCommand:

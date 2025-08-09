@@ -1,6 +1,7 @@
 import enum
 from dataclasses import dataclass
 from datetime import timedelta, datetime, timezone
+from vortex.constants import MINUTE_10, MINUTE_15, MINUTE_20, MINUTE_30, DAYS_IN_MONTH_APPROX
 
 
 class Period(enum.Enum):
@@ -25,14 +26,14 @@ class Period(enum.Enum):
             Period.Minute_1: timedelta(minutes=1),
             Period.Minute_2: timedelta(minutes=2),
             Period.Minute_5: timedelta(minutes=5),
-            Period.Minute_10: timedelta(minutes=10),
-            Period.Minute_15: timedelta(minutes=15),
-            Period.Minute_20: timedelta(minutes=20),
-            Period.Minute_30: timedelta(minutes=30),
+            Period.Minute_10: timedelta(minutes=MINUTE_10),
+            Period.Minute_15: timedelta(minutes=MINUTE_15),
+            Period.Minute_20: timedelta(minutes=MINUTE_20),
+            Period.Minute_30: timedelta(minutes=MINUTE_30),
             Period.Hourly: timedelta(hours=1),
             Period.Daily: timedelta(days=1),
             Period.Weekly: timedelta(weeks=1),
-            Period.Monthly: timedelta(days=30),  # Approximate for a month
+            Period.Monthly: timedelta(days=DAYS_IN_MONTH_APPROX),  # Approximate for a month
             Period.Quarterly: timedelta(days=90)  # Approximate for a quarter
         }
         return time_units[self]
@@ -42,14 +43,14 @@ class Period(enum.Enum):
             Period.Minute_1: 24 * timedelta(minutes=1) / 5,
             Period.Minute_2: 24 * timedelta(minutes=2) / 5,
             Period.Minute_5: 24 * timedelta(minutes=5) / 5,
-            Period.Minute_10: 24 * timedelta(minutes=10) / 5,
-            Period.Minute_15: 24 * timedelta(minutes=15) / 5,
-            Period.Minute_20: 24 * timedelta(minutes=20) / 5,
-            Period.Minute_30: 24 * timedelta(minutes=30) / 5,
+            Period.Minute_10: 24 * timedelta(minutes=MINUTE_10) / 5,
+            Period.Minute_15: 24 * timedelta(minutes=MINUTE_15) / 5,
+            Period.Minute_20: 24 * timedelta(minutes=MINUTE_20) / 5,
+            Period.Minute_30: 24 * timedelta(minutes=MINUTE_30) / 5,
             Period.Hourly: 24 * timedelta(hours=1) / 5,
             Period.Daily: 7 * timedelta(days=1) / 5,
             Period.Weekly: timedelta(weeks=1),
-            Period.Monthly: timedelta(days=30),  # Approximate for a month
+            Period.Monthly: timedelta(days=DAYS_IN_MONTH_APPROX),  # Approximate for a month
             Period.Quarterly: timedelta(days=90)  # Approximate for a quarter
         }
         return time_units[self]

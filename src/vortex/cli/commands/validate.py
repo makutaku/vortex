@@ -12,6 +12,7 @@ from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn
 from vortex.models.columns import (
     DATE_TIME_COLUMN, OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, CLOSE_COLUMN, VOLUME_COLUMN
 )
+from vortex.constants import BYTES_PER_KB, BYTES_PER_MB
 
 # Import provider-specific constants from their respective providers
 from vortex.infrastructure.providers.yahoo.column_mapping import YahooColumnMapping
@@ -564,9 +565,9 @@ def show_validation_summary(results: List[dict]) -> None:
 
 def format_file_size(size_bytes: int) -> str:
     """Format file size in human readable format."""
-    if size_bytes < 1024:
+    if size_bytes < BYTES_PER_KB:
         return f"{size_bytes} B"
-    elif size_bytes < 1024 * 1024:
-        return f"{size_bytes / 1024:.1f} KB"
+    elif size_bytes < BYTES_PER_MB:
+        return f"{size_bytes / BYTES_PER_KB:.1f} KB"
     else:
-        return f"{size_bytes / (1024 * 1024):.1f} MB"
+        return f"{size_bytes / BYTES_PER_MB:.1f} MB"
