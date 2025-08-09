@@ -68,19 +68,26 @@ def get_provider_expected_columns(provider_name):
         tuple: (required_data_columns, optional_columns)
         
     Note: This returns ONLY DataFrame columns. The index name (Datetime) is handled separately.
+    This function now delegates to the column registry for provider-specific columns.
     """
-    base_required = REQUIRED_DATA_COLUMNS  # Only actual columns, not index name
-    
-    if provider_name.lower() == 'yahoo':
-        optional = YAHOO_SPECIFIC_COLUMNS
-    elif provider_name.lower() == 'barchart':
-        optional = BARCHART_SPECIFIC_COLUMNS
-    elif provider_name.lower() == 'ibkr':
-        optional = IBKR_SPECIFIC_COLUMNS
-    else:
-        optional = []
-    
-    return base_required, optional
+    try:
+        # Try to use the new registry system
+        from .column_registry import get_provider_expected_columns as registry_get_columns
+        return registry_get_columns(provider_name)
+    except ImportError:
+        # Fallback to legacy approach if registry not available
+        base_required = REQUIRED_DATA_COLUMNS  # Only actual columns, not index name
+        
+        if provider_name.lower() == 'yahoo':
+            optional = YAHOO_SPECIFIC_COLUMNS
+        elif provider_name.lower() == 'barchart':
+            optional = BARCHART_SPECIFIC_COLUMNS
+        elif provider_name.lower() == 'ibkr':
+            optional = IBKR_SPECIFIC_COLUMNS
+        else:
+            optional = []
+        
+        return base_required, optional
 
 def get_column_mapping(provider_name, df_columns):
     """
@@ -92,7 +99,18 @@ def get_column_mapping(provider_name, df_columns):
     
     Returns:
         dict: Mapping from actual column names to standard column names
+        
+    Note: This function now delegates to the column registry for provider-specific mappings.
     """
+    try:
+        # Try to use the new registry system
+        from .column_registry import get_column_mapping as registry_get_mapping
+        return registry_get_mapping(provider_name, df_columns)
+    except ImportError:
+        # Fallback to legacy approach if registry not available
+        pass
+        
+    # Legacy implementation follows below...
     mapping = {}
     provider_lower = provider_name.lower()
     

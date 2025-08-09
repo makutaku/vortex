@@ -23,6 +23,9 @@ from .columns import (
     # Legacy support
     REQUIRED_PRICE_COLUMNS
 )
+from .column_registry import (
+    ProviderColumnMapping, ColumnMappingRegistry, register_provider_column_mapping
+)
 
 __all__ = [
     'Instrument',
@@ -56,4 +59,8 @@ __all__ = [
     'get_column_mapping',
     'standardize_dataframe_columns',
     'validate_column_data_types',
+    # New registry system
+    'ProviderColumnMapping',
+    'ColumnMappingRegistry',
+    'register_provider_column_mapping',
 ]

@@ -126,7 +126,8 @@
       "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/models/test_column_constants.py::TestColumnValidation::test_validate_required_columns_empty_inputs tests/unit/models/test_column_constants.py::TestAdvancedColumnFunctions::test_standardize_dataframe_columns_strict_mode tests/unit/models/test_column_constants.py::TestColumnDataTypeValidation::test_validate_column_data_types_invalid_price_types -v)",
       "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/ --cov=src --cov-report=term-missing --cov-fail-under=80 --tb=no -q)",
       "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/core/correlation/test_correlation_utils.py::TestGetStructuredLogger::test_import_error_path_coverage --cov=src/vortex/core/correlation/utils.py --cov-report=term-missing -v)",
-      "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/models/test_price_series.py::TestNormalizeDatetimeForComparison -v)"
+      "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/models/test_price_series.py::TestNormalizeDatetimeForComparison -v)",
+      "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/models/test_column_constants.py -v --tb=short)"
     ],
     "deny": []
   }
