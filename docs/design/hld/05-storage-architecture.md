@@ -162,13 +162,14 @@ The CSV storage implementation prioritizes human readability and universal compa
 - **Human Readable:** Plain text format for easy inspection and debugging
 - **Universal Compatibility:** Works with spreadsheet applications and text editors
 - **Encoding Standardization:** UTF-8 encoding with proper escaping
-- **Header Consistency:** Standardized column naming and ordering
+- **Header Consistency:** Standardized internal column naming convention (`Datetime` index, `Open`, `High`, `Low`, `Close`, `Volume` columns)
 
 **CSV Storage Features:**
 - **Delimiter Handling:** Configurable delimiter with automatic escaping
 - **Quote Management:** Proper quoting of text fields containing delimiters
-- **Type Preservation:** Consistent data type handling across save/load cycles
+- **Type Preservation:** Consistent data type handling across save/load cycles (float64 for OHLC, int64 for Volume)
 - **Large File Support:** Streaming operations for datasets exceeding memory
+- **Column Validation:** Ensures adherence to internal standard format before persistence
 
 ### 3.2 Parquet Storage Architecture
 The Parquet storage implementation optimizes for analytical performance and storage efficiency through columnar compression and schema evolution.
@@ -184,6 +185,31 @@ The Parquet storage implementation optimizes for analytical performance and stor
 - **Partition Support:** Date-based partitioning for query optimization
 - **Metadata Caching:** Column statistics for query planning
 - **Vectorized Operations:** Optimized reading for analytical workloads
+
+### 3.3 Column Naming Convention Enforcement
+
+**Storage-Level Validation:**
+All storage implementations enforce the internal standard column naming convention before persistence:
+
+```python
+# Required Internal Standard Format
+Index: "Datetime" (pandas DatetimeIndex)
+Columns: ["Open", "High", "Low", "Close", "Volume"] (exact title case)
+Provider-Specific: Original casing preserved (e.g., "Adj Close", "Open Interest")
+```
+
+**Validation Requirements:**
+- **Pre-Storage Validation:** Verify column names match internal standard before saving
+- **Post-Load Validation:** Confirm loaded data maintains naming convention
+- **Error Handling:** Reject data that doesn't conform to naming requirements
+- **Metadata Tracking:** Record any column transformations applied during storage
+
+**Storage Format Examples:**
+```csv
+# CSV File Header (example)
+Datetime,Open,High,Low,Close,Volume,symbol,provider,Adj Close
+2024-01-15T14:30:00Z,1850.25,1852.75,1849.50,1851.00,12500,GC_202406,barchart,1850.00
+```
 
 *Detailed format implementations available in [Storage Implementation](../lld/04-storage-implementation.md)*
 

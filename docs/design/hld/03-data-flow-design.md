@@ -313,16 +313,21 @@ The transformation layer converts provider-specific formats into the standard OH
 **Column Standardization Process:**
 - **External Format Preservation:** Provider-specific column names maintained during ingestion
 - **Mapping Layer:** Each provider implements explicit column transformation rules
-- **Internal Standard:** All providers output consistent Datetime index + title-case OHLCV columns
-- **Provider-Specific Preservation:** Additional columns (Adj Close, WAP, Open Interest) preserved as-is
+- **Internal Standard:** All providers output consistent `Datetime` index + title-case OHLCV columns (`Open`, `High`, `Low`, `Close`, `Volume`)
+- **Provider-Specific Preservation:** Additional columns (`Adj Close`, `Open Interest`, `wap`) preserved with original casing
 
 **Column Transformation Rules by Provider:**
 
-| Provider | External Format | Transformation | Internal Standard |
-|----------|----------------|----------------|-------------------|
-| **Yahoo** | `Date` (index), `Open`, `High`, `Low`, `Close`, `Volume`, `Adj Close` | `Date` → `Datetime` (index only) | `Datetime` (index), `Open`, `High`, `Low`, `Close`, `Volume`, `Adj Close` |
-| **Barchart** | `Time`, `Open`, `High`, `Low`, `Last`, `Volume`, `Open Interest` | `Time` → `Datetime`, `Last` → `Close` | `Datetime` (index), `Open`, `High`, `Low`, `Close`, `Volume`, `Open Interest` |
-| **IBKR** | `date`, `open`, `high`, `low`, `close`, `volume`, `wap`, `count` | All OHLCV: lowercase → title case, `date` → `Datetime` | `Datetime` (index), `Open`, `High`, `Low`, `Close`, `Volume`, `wap`, `count` |
+| Provider | External Format | Transformation | Internal Standard Format |
+|----------|----------------|----------------|-------------------------|
+| **Yahoo** | `Date` (index), `Open`, `High`, `Low`, `Close`, `Volume`, `Adj Close` | `Date` → `Datetime` (index name only) | **Index:** `Datetime`<br>**Columns:** `Open`, `High`, `Low`, `Close`, `Volume`, `Adj Close` |
+| **Barchart** | `Time`, `Open`, `High`, `Low`, `Last`, `Volume`, `Open Interest` | `Time` → `Datetime` (index), `Last` → `Close` | **Index:** `Datetime`<br>**Columns:** `Open`, `High`, `Low`, `Close`, `Volume`, `Open Interest` |
+| **IBKR** | `date`, `open`, `high`, `low`, `close`, `volume`, `wap`, `count` | `date` → `Datetime` (index), OHLCV: lowercase → title case | **Index:** `Datetime`<br>**Columns:** `Open`, `High`, `Low`, `Close`, `Volume`, `wap`, `count` |
+
+**Naming Convention Requirements:**
+- **Index Name:** Must be exactly `Datetime` (title case)
+- **OHLCV Columns:** Must be exactly `Open`, `High`, `Low`, `Close`, `Volume` (title case)
+- **Provider-Specific Columns:** Preserved with original casing (e.g., `Adj Close`, `Open Interest`, `wap`)
 
 **Data Type Standardization:**
 - float64 for all price columns (Open, High, Low, Close)
@@ -339,11 +344,11 @@ The transformation layer converts provider-specific formats into the standard OH
 - Symbol normalization across providers
 - Data quality scoring and validation flags
 
-**Final Output Schema:**
-- **Index:** `Datetime` (pd.DatetimeIndex, UTC timezone)
-- **Standard Columns:** `Open`, `High`, `Low`, `Close`, `Volume` (title case)
+**Final Output Schema (Internal Standard Format):**
+- **Index:** `Datetime` (pd.DatetimeIndex, UTC timezone) - **Index name, not a column**
+- **Required OHLCV Columns:** `Open`, `High`, `Low`, `Close`, `Volume` (exact title case)
 - **Metadata Columns:** `symbol`, `provider`
-- **Provider-Specific:** Preserved with original names and casing
+- **Provider-Specific Columns:** Preserved with original names and casing (e.g., `Adj Close`, `Open Interest`, `wap`, `count`)
 - **Sorting:** Chronologically sorted by Datetime index
 
 *Detailed transformation implementation available in [Data Processing Implementation](../lld/02-data-processing-implementation.md)*

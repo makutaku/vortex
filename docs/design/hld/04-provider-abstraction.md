@@ -88,12 +88,38 @@ The provider abstraction defines a unified contract that all data providers must
 - **Instrument Compatibility:** Validate and map instruments to provider capabilities
 - **Rate Limit Management:** Abstract provider-specific throttling requirements
 - **Health Monitoring:** Provide availability and status checking capabilities
+- **Column Name Standardization:** Transform provider-specific formats to internal standard
 
 **Interface Design Principles:**
 - **Uniform API Surface:** All providers expose identical methods regardless of underlying implementation
 - **Provider Agnostic:** Client code works with any provider without modification
 - **Error Standardization:** Common error types and handling across all providers
 - **State Encapsulation:** Each provider manages its own authentication and session state
+- **Column Name Standardization:** All providers must output internal standard format
+
+### 2.1.1 Internal Standard Format Requirements
+
+**Mandatory Column Naming Convention:**
+All providers must transform their native column formats to this exact internal standard:
+
+- **Index Name:** `Datetime` (pandas DatetimeIndex, UTC timezone)
+- **OHLCV Columns:** `Open`, `High`, `Low`, `Close`, `Volume` (exact title case)
+- **Provider-Specific Columns:** Preserved with original casing (e.g., `Adj Close`, `Open Interest`, `wap`)
+
+**Column Transformation Examples:**
+```python
+# Yahoo Provider (already title case)
+External: Date (index), Open, High, Low, Close, Volume, Adj Close
+Internal: Datetime (index), Open, High, Low, Close, Volume, Adj Close
+
+# Barchart Provider (Last → Close mapping)
+External: Time, Open, High, Low, Last, Volume, Open Interest
+Internal: Datetime (index), Open, High, Low, Close, Volume, Open Interest
+
+# IBKR Provider (lowercase → title case)
+External: date, open, high, low, close, volume, wap, count
+Internal: Datetime (index), Open, High, Low, Close, Volume, wap, count
+```
 
 *Detailed interface implementation available in [Provider Implementation](../lld/03-provider-implementation.md)*
 
