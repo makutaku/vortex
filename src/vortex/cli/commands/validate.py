@@ -225,13 +225,15 @@ def validate_csv_file(path: Path, provider: Optional[str]) -> dict:
             result["warnings"].append(f"Found {empty_rows} completely empty rows")
         
         # Validate OHLC relationships if columns exist
-        if all(col.lower() in df_columns_lower or col.capitalize() in df.columns for col in ['open', 'high', 'low', 'close']):
+        ohlc_constants = [OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, CLOSE_COLUMN]
+        ohlc_lower = [col.lower() for col in ohlc_constants]
+        if all(col in df_columns_lower or col.capitalize() in df.columns for col in ohlc_lower):
             # Find actual column names (case insensitive)
             ohlc_cols = {}
-            for target in ['open', 'high', 'low', 'close']:
+            for target_lower, target_const in zip(ohlc_lower, ohlc_constants):
                 for actual_col in df.columns:
-                    if actual_col.lower() == target:
-                        ohlc_cols[target] = actual_col
+                    if actual_col.lower() == target_lower:
+                        ohlc_cols[target_lower] = actual_col
                         break
             
             if len(ohlc_cols) == 4:
@@ -239,7 +241,10 @@ def validate_csv_file(path: Path, provider: Optional[str]) -> dict:
                 invalid_ohlc = 0
                 for idx, row in df.iterrows():
                     try:
-                        o, h, l, c = float(row[ohlc_cols['open']]), float(row[ohlc_cols['high']]), float(row[ohlc_cols['low']]), float(row[ohlc_cols['close']])
+                        o = float(row[ohlc_cols['open']])
+                        h = float(row[ohlc_cols['high']]) 
+                        l = float(row[ohlc_cols['low']])
+                        c = float(row[ohlc_cols['close']])
                         if not (l <= o <= h and l <= c <= h):
                             invalid_ohlc += 1
                     except (ValueError, TypeError):
@@ -327,16 +332,17 @@ def validate_provider_format(path: Path, provider: str) -> dict:
             if not has_date_time:
                 result["warnings"].append("Barchart format missing date/time column (Date, Time, or DATETIME)")
             
-            # Check for OHLCV columns
-            required_ohlcv = ['open', 'high', 'low', 'volume']
+            # Check for OHLCV columns using constants
+            required_ohlcv_constants = [OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, VOLUME_COLUMN]
+            required_ohlcv = [col.lower() for col in required_ohlcv_constants]
             # For close, accept either 'close' or 'last' (Barchart uses 'Last')
-            has_close = any(col in df_columns_lower for col in ['close', 'last'])
+            has_close = any(col in df_columns_lower for col in [CLOSE_COLUMN.lower(), 'last'])
             if not has_close:
                 result["warnings"].append("Barchart format missing close/last price column")
                 
-            for col in required_ohlcv:
-                if col not in df_columns_lower:
-                    result["warnings"].append(f"Barchart format missing '{col}' column")
+            for col_const, col_lower in zip(required_ohlcv_constants, required_ohlcv):
+                if col_lower not in df_columns_lower:
+                    result["warnings"].append(f"Barchart format missing '{col_const}' column")
             
             # Check for open interest (optional for Barchart futures)
             has_open_interest = any(col in df_columns_lower for col in ['openinterest', 'open_interest'])
@@ -346,11 +352,12 @@ def validate_provider_format(path: Path, provider: str) -> dict:
             # Yahoo Finance validation - flexible column checking
             df_columns_lower = [col.lower().replace(' ', '_') for col in df.columns]
             
-            # Check for required OHLCV columns
-            required_cols = ['open', 'high', 'low', 'close', 'volume']
-            for col in required_cols:
-                if col not in df_columns_lower:
-                    result["warnings"].append(f"Yahoo format missing '{col}' column")
+            # Check for required OHLCV columns using constants
+            required_cols_constants = [OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, CLOSE_COLUMN, VOLUME_COLUMN]
+            required_cols = [col.lower() for col in required_cols_constants]
+            for col_const, col_lower in zip(required_cols_constants, required_cols):
+                if col_lower not in df_columns_lower:
+                    result["warnings"].append(f"Yahoo format missing '{col_const}' column")
             
             # Check for date column (can be Date or DATETIME)
             has_date = any(col in df_columns_lower for col in ['date', 'datetime'])
@@ -366,11 +373,12 @@ def validate_provider_format(path: Path, provider: str) -> dict:
             # IBKR validation - handle lowercase column names
             df_columns_lower = [col.lower() for col in df.columns]
             
-            # Check for required OHLCV columns
-            required_cols = ['open', 'high', 'low', 'close', 'volume']
-            for col in required_cols:
-                if col not in df_columns_lower:
-                    result["warnings"].append(f"IBKR format missing '{col}' column")
+            # Check for required OHLCV columns using constants
+            required_cols_constants = [OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, CLOSE_COLUMN, VOLUME_COLUMN]
+            required_cols = [col.lower() for col in required_cols_constants]
+            for col_const, col_lower in zip(required_cols_constants, required_cols):
+                if col_lower not in df_columns_lower:
+                    result["warnings"].append(f"IBKR format missing '{col_const}' column")
             
             # Check for date column
             if 'date' not in df_columns_lower and 'datetime' not in df_columns_lower:

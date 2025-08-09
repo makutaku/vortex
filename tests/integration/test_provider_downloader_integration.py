@@ -97,7 +97,8 @@ class TestProviderDownloaderIntegration:
                 assert not df.empty, "Downloaded CSV is empty"
                 
                 # Check expected columns are present
-                expected_columns = ['DATETIME', 'Open', 'High', 'Low', 'Close', 'Volume']
+                from vortex.models.columns import REQUIRED_PRICE_COLUMNS
+                expected_columns = REQUIRED_PRICE_COLUMNS
                 for col in expected_columns:
                     assert col in df.columns, f"Missing expected column: {col}"
                 
@@ -134,14 +135,15 @@ class TestProviderDownloaderIntegration:
         assert hasattr(csv_storage, 'load')
         
         # Create mock data in the expected format (with proper index)
+        from vortex.models.columns import DATE_TIME_COLUMN, OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, CLOSE_COLUMN, VOLUME_COLUMN
         dates = [datetime.now(pytz.UTC) - timedelta(days=i) for i in range(5, 0, -1)]
         mock_df = pd.DataFrame({
-            'Open': [100.0 + i for i in range(5)],
-            'High': [105.0 + i for i in range(5)],
-            'Low': [95.0 + i for i in range(5)],
-            'Close': [102.0 + i for i in range(5)],
-            'Volume': [1000000 + i * 10000 for i in range(5)]
-        }, index=pd.DatetimeIndex(dates, name='DATETIME'))
+            OPEN_COLUMN: [100.0 + i for i in range(5)],
+            HIGH_COLUMN: [105.0 + i for i in range(5)],
+            LOW_COLUMN: [95.0 + i for i in range(5)],
+            CLOSE_COLUMN: [102.0 + i for i in range(5)],
+            VOLUME_COLUMN: [1000000 + i * 10000 for i in range(5)]
+        }, index=pd.DatetimeIndex(dates, name=DATE_TIME_COLUMN))
         
         # Create metadata as expected by storage
         metadata = Metadata(
@@ -178,7 +180,8 @@ class TestProviderDownloaderIntegration:
             assert loaded_data.metadata.symbol == sample_stock.symbol
             
             # Verify expected columns are present
-            expected_columns = ['Open', 'High', 'Low', 'Close', 'Volume']
+            from vortex.models.columns import STANDARD_OHLCV_COLUMNS
+            expected_columns = STANDARD_OHLCV_COLUMNS
             for col in expected_columns:
                 assert col in loaded_data.df.columns, f"Missing expected column: {col}"
             
