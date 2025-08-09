@@ -100,7 +100,7 @@ class ConfigManager:
         if tomllib is None:
             raise ConfigurationError(
                 "TOML support not available",
-                "Install the 'tomli' package: pip install tomli"
+                help_text="Install the 'tomli' package: pip install tomli"
             )
         
         try:
@@ -111,7 +111,7 @@ class ConfigManager:
         except PermissionError as e:
             raise ConfigurationError(
                 f"Cannot read configuration file: {e}",
-                f"Check file permissions for {self.config_file}"
+                help_text=f"Check file permissions for {self.config_file}"
             )
         except Exception as e:
             raise InvalidConfigurationError(
@@ -239,7 +239,7 @@ class ConfigManager:
         except PermissionError as e:
             raise ConfigurationError(
                 f"Cannot write configuration file: {e}",
-                f"Check write permissions for {self.config_file.parent}"
+                help_text=f"Check write permissions for {self.config_file.parent}"
             )
     
     def get_provider_config(self, provider: str) -> Dict[str, Any]:
@@ -317,7 +317,7 @@ class ConfigManager:
         if not file_path.exists():
             raise ConfigurationError(
                 f"Configuration file not found: {file_path}",
-                "Check that the file path is correct"
+                help_text="Check that the file path is correct"
             )
         
         try:
@@ -361,7 +361,7 @@ class ConfigManager:
         except PermissionError as e:
             raise ConfigurationError(
                 f"Cannot write to export file: {e}",
-                f"Check write permissions for {file_path.parent}"
+                help_text=f"Check write permissions for {file_path.parent}"
             )
     
     def _filter_none_values(self, data: Any) -> Any:
