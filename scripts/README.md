@@ -18,16 +18,16 @@ Comprehensive Docker build script for production deployments to Docker Hub.
 **Usage:**
 ```bash
 # Basic build
-./scripts/build-production.sh -u your-dockerhub-username v1.0.0
+./scripts/build-production.sh v1.0.0
 
 # Build and push to Docker Hub
-./scripts/build-production.sh -u your-dockerhub-username -p v1.0.0
+./scripts/build-production.sh -p v1.0.0
 
 # Build with tests
-./scripts/build-production.sh -u your-dockerhub-username --test v1.0.0
+./scripts/build-production.sh --test v1.0.0
 
 # Dry run (see what would happen)
-./scripts/build-production.sh -u your-dockerhub-username --dry-run -p v1.0.0
+./scripts/build-production.sh --dry-run -p v1.0.0
 ```
 
 ### `example-docker-publish.sh`
@@ -38,7 +38,7 @@ Example workflow for publishing Vortex to Docker Hub. Copy and customize for you
 Set these environment variables for automated builds:
 
 ```bash
-export DOCKER_USERNAME="your-dockerhub-username"
+export DOCKER_USERNAME="makutaku"
 export DOCKER_PASSWORD="your-dockerhub-password"  # For CI/CD
 ```
 
@@ -53,17 +53,17 @@ export DOCKER_PASSWORD="your-dockerhub-password"  # For CI/CD
 
 3. **Build and test locally**:
    ```bash
-   ./scripts/build-production.sh -u your-username --test v1.0.0
+   ./scripts/build-production.sh --test v1.0.0
    ```
 
 4. **Push to Docker Hub**:
    ```bash
-   ./scripts/build-production.sh -u your-username -p v1.0.0
+   ./scripts/build-production.sh -p v1.0.0
    ```
 
 5. **Deploy**:
    ```bash
-   docker run -d --name vortex your-username/vortex:v1.0.0
+   docker run -d --name vortex makutaku/vortex:v1.0.0
    ```
 
 ## Docker Compose Example
@@ -74,7 +74,7 @@ Update your `docker-compose.yml` to use the published image:
 version: '3.8'
 services:
   vortex:
-    image: your-username/vortex:v1.0.0  # Use your published image
+    image: makutaku/vortex:v1.0.0  # Use your published image
     container_name: vortex-prod
     environment:
       - VORTEX_DEFAULT_PROVIDER=yahoo
@@ -92,7 +92,7 @@ For GitHub Actions, see `.github/workflows/docker-publish.yml` (if available) or
 ```yaml
 - name: Build and Push
   run: |
-    ./scripts/build-production.sh -u ${{ secrets.DOCKER_USERNAME }} -p ${{ github.ref_name }}
+    ./scripts/build-production.sh -p ${{ github.ref_name }}
   env:
     DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
 ```

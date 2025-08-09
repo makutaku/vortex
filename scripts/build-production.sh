@@ -6,7 +6,7 @@ set -e
 
 # Configuration
 DEFAULT_REGISTRY="docker.io"
-DEFAULT_USERNAME="your-dockerhub-username"  # TODO: Replace with your Docker Hub username
+DEFAULT_USERNAME="makutaku"
 IMAGE_NAME="vortex"
 DOCKERFILE="Dockerfile"
 

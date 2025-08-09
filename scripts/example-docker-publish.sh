@@ -2,8 +2,8 @@
 # Example usage of build-production.sh for Docker Hub publishing
 # Copy this file and customize for your Docker Hub account
 
-# Replace 'youruser' with your actual Docker Hub username
-DOCKER_USERNAME="youruser"
+# Docker Hub username
+DOCKER_USERNAME="makutaku"
 VERSION="v1.0.0"
 
 echo "=== Vortex Docker Hub Publishing Example ==="
