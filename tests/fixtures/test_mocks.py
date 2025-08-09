@@ -11,6 +11,10 @@ import pytest
 from vortex.infrastructure.providers.base import DataProvider
 from vortex.infrastructure.storage.file_storage import FileStorage
 from vortex.models.instrument import Instrument
+from vortex.models.columns import (
+    DATE_TIME_COLUMN, OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, 
+    CLOSE_COLUMN, VOLUME_COLUMN
+)
 
 
 class MockDataProvider(DataProvider):
@@ -51,8 +55,8 @@ class MockDataProvider(DataProvider):
         
         # Convert to DataFrame
         df = pd.DataFrame(data_list)
-        df['date'] = pd.to_datetime(df['date'])
-        return df.set_index('date')
+        df[DATE_TIME_COLUMN] = pd.to_datetime(df[DATE_TIME_COLUMN])
+        return df.set_index(DATE_TIME_COLUMN)
     
     def download_data(self, instrument: Instrument, start_date: datetime, end_date: datetime) -> List[Dict[str, Any]]:
         """Mock download data implementation."""
@@ -79,12 +83,12 @@ class MockDataProvider(DataProvider):
             price = max(price + price_change, 1.0)
             
             data.append({
-                "date": current_date.strftime("%Y-%m-%d"),
-                "open": round(price * 0.99, 2),
-                "high": round(price * 1.02, 2),
-                "low": round(price * 0.97, 2),
-                "close": round(price, 2),
-                "volume": hash(f"{symbol}{current_date}") % 10000 + 1000
+                DATE_TIME_COLUMN: current_date.strftime("%Y-%m-%d"),
+                OPEN_COLUMN: round(price * 0.99, 2),
+                HIGH_COLUMN: round(price * 1.02, 2),
+                LOW_COLUMN: round(price * 0.97, 2),
+                CLOSE_COLUMN: round(price, 2),
+                VOLUME_COLUMN: hash(f"{symbol}{current_date}") % 10000 + 1000
             })
             
             current_date += timedelta(days=1)
@@ -246,12 +250,12 @@ class TestMockDataProvider:
         
         # Check data structure
         for record in data:
-            assert "date" in record
-            assert "open" in record
-            assert "high" in record
-            assert "low" in record
-            assert "close" in record
-            assert "volume" in record
+            assert DATE_TIME_COLUMN in record
+            assert OPEN_COLUMN in record
+            assert HIGH_COLUMN in record
+            assert LOW_COLUMN in record
+            assert CLOSE_COLUMN in record
+            assert VOLUME_COLUMN in record
     
     def test_failure_simulation(self, mock_failing_provider):
         """Test simulated failure."""
@@ -306,8 +310,8 @@ class TestMockFileStorage:
         start_date = datetime(2024, 1, 1)
         end_date = datetime(2024, 1, 2)
         test_data = [
-            {"date": "2024-01-01", "close": 100.0},
-            {"date": "2024-01-02", "close": 101.0}
+            {DATE_TIME_COLUMN: "2024-01-01", CLOSE_COLUMN: 100.0},
+            {DATE_TIME_COLUMN: "2024-01-02", CLOSE_COLUMN: 101.0}
         ]
         
         # Save data
@@ -327,7 +331,7 @@ class TestMockFileStorage:
         """Test save failure simulation."""
         start_date = datetime(2024, 1, 1)
         end_date = datetime(2024, 1, 1)
-        test_data = [{"date": "2024-01-01", "close": 100.0}]
+        test_data = [{DATE_TIME_COLUMN: "2024-01-01", CLOSE_COLUMN: 100.0}]
         
         with pytest.raises(Exception, match="Mock save failure"):
             mock_failing_storage.save(test_data, mock_instrument, start_date, end_date)
@@ -358,7 +362,7 @@ class TestMockFileStorage:
         """Test storage statistics tracking."""
         start_date = datetime(2024, 1, 1)
         end_date = datetime(2024, 1, 1)
-        test_data = [{"date": "2024-01-01", "close": 100.0}]
+        test_data = [{DATE_TIME_COLUMN: "2024-01-01", CLOSE_COLUMN: 100.0}]
         
         # Save data for multiple instruments
         for instrument in sample_instruments:

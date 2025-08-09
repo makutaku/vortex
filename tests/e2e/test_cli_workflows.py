@@ -13,6 +13,7 @@ from click.testing import CliRunner
 from datetime import datetime, timedelta
 
 from vortex.cli.main import cli
+from vortex.models.columns import DATE_TIME_COLUMN
 
 
 def check_network_connectivity(host="finance.yahoo.com", port=443, timeout=5):
@@ -279,7 +280,7 @@ class TestCLIWorkflows:
                     content = f.read()
                     assert len(content) > 50, f"{symbol}.csv seems too small: {len(content)} chars"
                     # Check for date/datetime column (different providers use different formats)
-                    has_date_column = any(col in content.upper() for col in ["DATE", "DATETIME"])
+                    has_date_column = any(col in content.upper() for col in [DATE_TIME_COLUMN.upper(), "DATE"])
                     assert has_date_column, f"{symbol}.csv missing date column. Content start: {content[:200]}"
                     
             else:
@@ -428,7 +429,7 @@ class TestCLIWorkflows:
                     
                     # Check for date/datetime column
                     header = lines[0].upper()
-                    if not any(col in header for col in ["DATE", "DATETIME"]):
+                    if not any(col in header for col in [DATE_TIME_COLUMN, "DATE"]):
                         failed_periods.append({
                             "period": period,
                             "reason": f"Missing date column in header: {header}",

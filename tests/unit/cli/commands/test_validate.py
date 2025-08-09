@@ -16,6 +16,10 @@ from vortex.cli.commands.validate import (
     display_table_results, display_json_results, display_csv_results,
     show_validation_summary, show_detailed_issues, format_file_size
 )
+from vortex.models.columns import (
+    DATE_TIME_COLUMN, OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, 
+    CLOSE_COLUMN, VOLUME_COLUMN
+)
 
 
 class TestValidateCommand:
@@ -334,7 +338,7 @@ class TestValidateCsvFile:
         """Test validation of basic CSV file."""
         with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as temp_file:
             writer = csv.writer(temp_file)
-            writer.writerow(["Date", "Open", "High", "Low", "Close", "Volume"])
+            writer.writerow([DATE_TIME_COLUMN, OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, CLOSE_COLUMN, VOLUME_COLUMN])
             writer.writerow(["2024-01-01", "100", "105", "98", "102", "1000"])
             temp_path = Path(temp_file.name)
             
@@ -351,7 +355,7 @@ class TestValidateCsvFile:
         """Test CSV validation with specific provider."""
         with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as temp_file:
             writer = csv.writer(temp_file)
-            writer.writerow(["Date", "Open", "High", "Low", "Close", "Volume"])
+            writer.writerow([DATE_TIME_COLUMN, OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, CLOSE_COLUMN, VOLUME_COLUMN])
             writer.writerow(["2024-01-01", "100", "105", "98", "102", "1000"])
             temp_path = Path(temp_file.name)
             
@@ -367,7 +371,7 @@ class TestValidateCsvFile:
         """Test CSV with invalid OHLC relationships."""
         with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as temp_file:
             writer = csv.writer(temp_file)
-            writer.writerow(["Date", "Open", "High", "Low", "Close", "Volume"])
+            writer.writerow([DATE_TIME_COLUMN, OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, CLOSE_COLUMN, VOLUME_COLUMN])
             # Invalid: Low > High
             writer.writerow(["2024-01-01", "100", "90", "110", "95", "1000"])
             temp_file.flush()  # Ensure data is written to disk
@@ -383,7 +387,7 @@ class TestValidateCsvFile:
         """Test CSV with missing expected columns."""
         with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as temp_file:
             writer = csv.writer(temp_file)
-            writer.writerow(["Date", "Price"])  # Missing OHLC columns
+            writer.writerow([DATE_TIME_COLUMN, "Price"])  # Missing OHLC columns
             writer.writerow(["2024-01-01", "100"])
             temp_file.flush()  # Ensure data is written to disk
             temp_path = Path(temp_file.name)
@@ -398,7 +402,7 @@ class TestValidateCsvFile:
         """Test CSV with empty rows."""
         with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as temp_file:
             writer = csv.writer(temp_file)
-            writer.writerow(["Date", "Open", "High", "Low", "Close", "Volume"])
+            writer.writerow([DATE_TIME_COLUMN, OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, CLOSE_COLUMN, VOLUME_COLUMN])
             writer.writerow(["2024-01-01", "100", "105", "98", "102", "1000"])
             writer.writerow(["", "", "", "", "", ""])  # Empty row
             temp_file.flush()  # Ensure data is written to disk
