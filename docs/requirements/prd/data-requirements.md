@@ -86,7 +86,7 @@
 ### 3.1 Standard OHLCV Schema
 ```python
 {
-  "DATETIME": "2024-01-15T14:30:00Z",   # ISO 8601 UTC (index)
+  "Datetime": "2024-01-15T14:30:00Z",   # ISO 8601 UTC (index)
   "Open": 1850.25,                      # float64
   "High": 1852.75,                      # float64  
   "Low": 1849.50,                       # float64
@@ -98,7 +98,7 @@
 ```
 
 **Schema Requirements:**
-- **DR-018:** **DATETIME index with title-case OHLCV columns (Open, High, Low, Close, Volume)**
+- **DR-018:** **Datetime index with title-case OHLCV columns (Open, High, Low, Close, Volume)**
 - **DR-019:** Standardized data types (float64 for prices, int64 for volume)
 - **DR-020:** UTC timestamps in ISO 8601 format as pandas DatetimeIndex
 - **DR-021:** Provider attribution for audit trail
@@ -107,58 +107,49 @@
 ### 3.2 Column Name Standardization
 
 #### Internal Standard Format
-All providers must transform their external column names to this internal standard:
+All data providers must transform their external column names to this internal standard:
 
 | **Column** | **Type** | **Requirements** |
 |------------|----------|------------------|
-| `DATETIME` | DatetimeIndex | **Index name**, UTC timezone, ISO 8601 format |
+| `Datetime` | DatetimeIndex | **Index name**, UTC timezone, ISO 8601 format |
 | `Open` | float64 | Opening price, title case |
 | `High` | float64 | High price, title case |
 | `Low` | float64 | Low price, title case |
 | `Close` | float64 | Closing price, title case |
 | `Volume` | int64 | Trading volume, title case |
 
-#### Provider-Specific Column Transformations
+#### Column Transformation Examples
 
-**Yahoo Finance Provider:**
-```
-External: Date (index), Open, High, Low, Close, Volume, Adj Close
-   ↓
-Internal: DATETIME (index), Open, High, Low, Close, Volume, Adj Close
-```
+Providers may use different external column names that get transformed to the internal standard while preserving provider-specific columns:
 
-**Barchart Provider:**
-```  
-External: Time, Open, High, Low, Last, Volume, Open Interest
-   ↓
-Internal: DATETIME (index), Open, High, Low, Close, Volume, Open Interest
+**Example transformations:**
 ```
+Provider A: Date (index), open, high, low, close, volume, adj_close
+   ↓
+Internal: Datetime (index), Open, High, Low, Close, Volume, adj_close
 
-**IBKR Provider:**
-```
-External: date, open, high, low, close, volume, wap, count
+Provider B: Time, Open, High, Low, Last, Volume, OpenInterest  
    ↓
-Internal: DATETIME (index), Open, High, Low, Close, Volume, wap, count
+Internal: Datetime (index), Open, High, Low, Close, Volume, OpenInterest
 ```
 
 **Column Transformation Requirements:**
 - **DR-023:** **Provider-specific external column names preserved during ingestion**
 - **DR-024:** **All OHLCV columns standardized to title case format**
-- **DR-025:** **Provider-specific columns (Adj Close, WAP, Open Interest) preserved as-is**
-- **DR-026:** **Date/timestamp columns always mapped to DATETIME index**
+- **DR-025:** **Date/timestamp columns always mapped to Datetime index**
 
 ### 3.3 File Formats
 
 #### Primary Format: CSV
 ```csv
-DATETIME,Open,High,Low,Close,Volume,symbol,provider
+Datetime,Open,High,Low,Close,Volume,symbol,provider
 2024-01-15T14:30:00Z,1850.25,1852.75,1849.50,1851.00,12500,GC_202406,barchart
 ```
 
 **CSV Requirements:**
 - **DR-027:** UTF-8 encoding with BOM for Excel compatibility
 - **DR-028:** RFC 4180 compliant CSV format  
-- **DR-029:** Header row with standardized column names (DATETIME, Open, High, Low, Close, Volume)
+- **DR-029:** Header row with standardized column names (Datetime, Open, High, Low, Close, Volume)
 - **DR-030:** Consistent decimal precision (2 places for most instruments)
 
 #### Secondary Format: Parquet
@@ -190,7 +181,7 @@ EURUSD_5M_20240201_20240229.csv
 ### 4.1 Validation Rules
 
 #### Column Name Validation
-- **DR-039:** **DATETIME must be the index name, not a column**
+- **DR-039:** **Datetime must be the index name, not a column**
 - **DR-040:** **OHLCV columns must use exact title case (Open, High, Low, Close, Volume)**
 - **DR-041:** **Provider-specific columns preserved with original casing**
 - **DR-042:** **Validation logic must handle case-sensitive column checking**

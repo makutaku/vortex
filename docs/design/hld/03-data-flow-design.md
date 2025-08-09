@@ -264,13 +264,13 @@ graph TB
     end
     
     subgraph "Column Mapping Layer"
-        YahooMap[Date → DATETIME index only]
-        BarchartMap[Time → DATETIME, Last → Close]
-        IBKRMap[date → DATETIME, lowercase → title case]
+        YahooMap[Date → Datetime index only]
+        BarchartMap[Time → Datetime, Last → Close]
+        IBKRMap[date → Datetime, lowercase → title case]
     end
     
     subgraph "Internal Standard Format"
-        StandardIndex[DATETIME Index: UTC pd.DatetimeIndex]
+        StandardIndex[Datetime Index: UTC pd.DatetimeIndex]
         StandardCols[OHLCV: Open, High, Low, Close, Volume]
         ProviderCols[Provider-Specific: Adj Close, Open Interest, wap, count]
     end
@@ -313,16 +313,16 @@ The transformation layer converts provider-specific formats into the standard OH
 **Column Standardization Process:**
 - **External Format Preservation:** Provider-specific column names maintained during ingestion
 - **Mapping Layer:** Each provider implements explicit column transformation rules
-- **Internal Standard:** All providers output consistent DATETIME index + title-case OHLCV columns
+- **Internal Standard:** All providers output consistent Datetime index + title-case OHLCV columns
 - **Provider-Specific Preservation:** Additional columns (Adj Close, WAP, Open Interest) preserved as-is
 
 **Column Transformation Rules by Provider:**
 
 | Provider | External Format | Transformation | Internal Standard |
 |----------|----------------|----------------|-------------------|
-| **Yahoo** | `Date` (index), `Open`, `High`, `Low`, `Close`, `Volume`, `Adj Close` | `Date` → `DATETIME` (index only) | `DATETIME` (index), `Open`, `High`, `Low`, `Close`, `Volume`, `Adj Close` |
-| **Barchart** | `Time`, `Open`, `High`, `Low`, `Last`, `Volume`, `Open Interest` | `Time` → `DATETIME`, `Last` → `Close` | `DATETIME` (index), `Open`, `High`, `Low`, `Close`, `Volume`, `Open Interest` |
-| **IBKR** | `date`, `open`, `high`, `low`, `close`, `volume`, `wap`, `count` | All OHLCV: lowercase → title case, `date` → `DATETIME` | `DATETIME` (index), `Open`, `High`, `Low`, `Close`, `Volume`, `wap`, `count` |
+| **Yahoo** | `Date` (index), `Open`, `High`, `Low`, `Close`, `Volume`, `Adj Close` | `Date` → `Datetime` (index only) | `Datetime` (index), `Open`, `High`, `Low`, `Close`, `Volume`, `Adj Close` |
+| **Barchart** | `Time`, `Open`, `High`, `Low`, `Last`, `Volume`, `Open Interest` | `Time` → `Datetime`, `Last` → `Close` | `Datetime` (index), `Open`, `High`, `Low`, `Close`, `Volume`, `Open Interest` |
+| **IBKR** | `date`, `open`, `high`, `low`, `close`, `volume`, `wap`, `count` | All OHLCV: lowercase → title case, `date` → `Datetime` | `Datetime` (index), `Open`, `High`, `Low`, `Close`, `Volume`, `wap`, `count` |
 
 **Data Type Standardization:**
 - float64 for all price columns (Open, High, Low, Close)
@@ -340,11 +340,11 @@ The transformation layer converts provider-specific formats into the standard OH
 - Data quality scoring and validation flags
 
 **Final Output Schema:**
-- **Index:** `DATETIME` (pd.DatetimeIndex, UTC timezone)
+- **Index:** `Datetime` (pd.DatetimeIndex, UTC timezone)
 - **Standard Columns:** `Open`, `High`, `Low`, `Close`, `Volume` (title case)
 - **Metadata Columns:** `symbol`, `provider`
 - **Provider-Specific:** Preserved with original names and casing
-- **Sorting:** Chronologically sorted by DATETIME index
+- **Sorting:** Chronologically sorted by Datetime index
 
 *Detailed transformation implementation available in [Data Processing Implementation](../lld/02-data-processing-implementation.md)*
 
@@ -360,7 +360,7 @@ graph TB
         Incomplete[Incomplete Constants: Only 3/8 defined]
         Hardcoded[20+ Files: Hardcoded column names]
         CaseIssue[Case Mismatch: Title vs lowercase]
-        IndexIssue[Index Confusion: DATETIME as column vs index]
+        IndexIssue[Index Confusion: Datetime as column vs index]
     end
     
     subgraph "Impact Areas"
@@ -410,7 +410,7 @@ graph TB
    - Update provider mapping implementations
 
 3. **Validation Logic Architecture:**
-   - **Index Validation:** `df.index.name == 'DATETIME'` (not `'DATETIME' in df.columns`)
+   - **Index Validation:** `df.index.name == 'Datetime'` (not `'Datetime' in df.columns`)
    - **Column Validation:** Exact case matching for `['Open', 'High', 'Low', 'Close', 'Volume']`
    - **Provider Column Preservation:** Flexible handling of additional columns
 

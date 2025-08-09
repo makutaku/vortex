@@ -106,7 +106,27 @@
       "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/models/test_overlapping_downloads.py::TestOverlappingDownloads::test_merge_method_with_overlap -v --tb=long)",
       "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/models/test_overlapping_downloads.py::TestOverlappingDownloads::test_consecutive_overlapping_downloads_scenario -v --tb=long)",
       "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/services/test_backfill_downloader.py::TestBackfillDownloader::test_process_job_successful_fetch -v --tb=long)",
-      "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/utils/test_utils.py::TestRandomSleep::test_random_sleep_default -v --tb=long)"
+      "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/utils/test_utils.py::TestRandomSleep::test_random_sleep_default -v --tb=long)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:pypi.org)",
+      "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/infrastructure/storage/test_parquet_storage.py -v --tb=short)",
+      "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/infrastructure/test_csv_storage.py tests/unit/storage/test_metadata.py -v --tb=short)",
+      "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/infrastructure/providers/test_barchart_parser.py::TestBarchartParser::test_convert_daily_csv_to_df -v --tb=long)",
+      "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/infrastructure/providers/test_barchart_parser.py::TestBarchartParser::test_convert_daily_csv_to_df tests/unit/infrastructure/providers/test_barchart_parser.py::TestBarchartParser::test_logging_integration -v --tb=short)",
+      "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/ -x --tb=short -q)",
+      "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/models/test_column_constants.py -v)",
+      "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/fixtures/test_mocks.py -v)",
+      "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/cli/commands/test_validate.py::TestValidateCsvFile::test_valid_csv_basic -v)",
+      "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/ --cov=src --cov-report=term-missing --tb=no -q)",
+      "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/utils/test_logging_utils.py --cov=src/vortex/utils/logging_utils.py --cov-report=term-missing)",
+      "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/utils/test_logging_utils.py --cov=src/vortex/utils/logging_utils.py --cov-report=term-missing -v)",
+      "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/models/test_column_constants.py::TestColumnValidation::test_validate_required_columns_empty_inputs -v --tb=short)",
+      "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/models/test_column_constants.py::TestAdvancedColumnFunctions::test_standardize_dataframe_columns_strict_mode -v --tb=short)",
+      "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/models/test_column_constants.py::TestColumnDataTypeValidation::test_validate_column_data_types_invalid_price_types -v --tb=short)",
+      "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/models/test_column_constants.py::TestColumnValidation::test_validate_required_columns_empty_inputs tests/unit/models/test_column_constants.py::TestAdvancedColumnFunctions::test_standardize_dataframe_columns_strict_mode tests/unit/models/test_column_constants.py::TestColumnDataTypeValidation::test_validate_column_data_types_invalid_price_types -v)",
+      "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/ --cov=src --cov-report=term-missing --cov-fail-under=80 --tb=no -q)",
+      "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/core/correlation/test_correlation_utils.py::TestGetStructuredLogger::test_import_error_path_coverage --cov=src/vortex/core/correlation/utils.py --cov-report=term-missing -v)",
+      "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/models/test_price_series.py::TestNormalizeDatetimeForComparison -v)"
     ],
     "deny": []
   }
