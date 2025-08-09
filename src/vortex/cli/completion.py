@@ -18,6 +18,7 @@ from vortex.constants import (
     ALL_COMMON_SYMBOLS, MAX_COMPLETION_SUGGESTIONS, MAX_RECENT_SYMBOLS,
     DEFAULT_COMPLETION_LIMIT, SUPPORTED_CONFIG_EXTENSIONS, DAYS_IN_MONTH_APPROX
 )
+from vortex.utils.error_handling import SafeOperationHandler
 
 logger = get_module_logger()
 
@@ -28,13 +29,14 @@ def complete_provider(ctx, param, incomplete):
     return [p for p in providers if p.startswith(incomplete.lower())]
 
 
+@SafeOperationHandler.safe_completion
 def complete_symbol(ctx, param, incomplete):
     """Auto-complete symbol names from common symbols."""
     incomplete_upper = incomplete.upper()
     matches = [s for s in ALL_COMMON_SYMBOLS if s.startswith(incomplete_upper)]
     
     # Also try to load symbols from recent downloads
-    try:
+    def load_recent_symbols():
         data_dir = Path("./data")
         if data_dir.exists():
             csv_files = list(data_dir.glob("*.csv"))
@@ -42,12 +44,19 @@ def complete_symbol(ctx, param, incomplete):
             for symbol in recent_symbols:
                 if symbol.upper().startswith(incomplete_upper) and symbol not in matches:
                     matches.append(symbol.upper())
-    except Exception:
-        pass  # Ignore errors in completion
+        return matches
     
-    return matches[:MAX_COMPLETION_SUGGESTIONS]
+    recent_matches = SafeOperationHandler.safe_analytics_operation(
+        "recent_symbols_completion",
+        load_recent_symbols
+    )
+    
+    # Use recent_matches if available, otherwise use base matches
+    final_matches = recent_matches if recent_matches is not None else matches
+    return final_matches[:MAX_COMPLETION_SUGGESTIONS]
 
 
+@SafeOperationHandler.safe_completion
 def complete_config_file(ctx, param, incomplete):
     """Auto-complete configuration file paths."""
     paths = []
@@ -65,7 +74,7 @@ def complete_config_file(ctx, param, incomplete):
             paths.append(str(path))
     
     # Also complete paths in current directory
-    try:
+    def scan_current_directory():
         current_dir = Path(".")
         for item in current_dir.iterdir():
             if item.name.startswith(incomplete):
@@ -73,17 +82,19 @@ def complete_config_file(ctx, param, incomplete):
                     paths.append(str(item))
                 elif item.is_dir():
                     paths.append(str(item) + "/")
-    except Exception:
-        pass
+        return paths
     
-    return paths
+    return SafeOperationHandler.safe_analytics_operation(
+        "config_file_completion",
+        scan_current_directory
+    ) or paths
 
 
+@SafeOperationHandler.safe_completion
 def complete_symbols_file(ctx, param, incomplete):
     """Auto-complete symbols file paths."""
-    paths = []
-    
-    try:
+    def scan_symbols_files():
+        paths = []
         current_dir = Path(".")
         for item in current_dir.iterdir():
             if item.name.startswith(incomplete):
@@ -91,28 +102,25 @@ def complete_symbols_file(ctx, param, incomplete):
                     paths.append(str(item))
                 elif item.is_dir():
                     paths.append(str(item) + "/")
-    except Exception:
-        pass
+        return paths
     
-    return paths
+    return scan_symbols_files()
 
 
+@SafeOperationHandler.safe_completion
 def complete_assets_file(ctx, param, incomplete):
     """Auto-complete assets file paths."""
-    paths = []
-    
-    # Check assets directory
-    assets_dir = Path("assets")
-    if assets_dir.exists():
-        try:
+    def scan_assets_files():
+        paths = []
+        
+        # Check assets directory
+        assets_dir = Path("assets")
+        if assets_dir.exists():
             for item in assets_dir.iterdir():
                 if item.name.startswith(incomplete) and item.suffix == ".json":
                     paths.append(str(item))
-        except Exception:
-            pass
-    
-    # Also check current directory
-    try:
+        
+        # Also check current directory
         current_dir = Path(".")
         for item in current_dir.iterdir():
             if item.name.startswith(incomplete):
@@ -120,10 +128,10 @@ def complete_assets_file(ctx, param, incomplete):
                     paths.append(str(item))
                 elif item.is_dir():
                     paths.append(str(item) + "/")
-    except Exception:
-        pass
+        
+        return paths
     
-    return paths
+    return scan_assets_files()
 
 
 def complete_log_level(ctx, param, incomplete):

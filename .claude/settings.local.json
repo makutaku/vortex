@@ -157,7 +157,10 @@
       "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/models/test_column_constants.py::TestColumnDataTypeValidation::test_validate_column_data_types_invalid_datetime_index -v)",
       "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/models/test_column_constants.py::TestColumnDataTypeValidation -v --tb=short)",
       "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/ --tb=line -x)",
-      "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/integration/ --tb=short -v)"
+      "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/integration/ --tb=short -v)",
+      "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/cli/test_completion.py -v --tb=short)",
+      "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/cli/test_completion.py::TestCompletionHelpers::test_complete_provider -v --tb=short)",
+      "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/cli/test_completion.py::TestCompletionHelpers::test_complete_symbol_common_symbols tests/unit/cli/test_completion.py::TestCompletionHelpers::test_complete_config_file_basic tests/unit/cli/test_completion.py::TestCompletionHelpers::test_complete_symbols_file_basic -v --tb=short)"
     ],
     "deny": []
   }
