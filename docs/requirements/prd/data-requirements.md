@@ -86,46 +86,89 @@
 ### 3.1 Standard OHLCV Schema
 ```python
 {
-  "timestamp": "2024-01-15T14:30:00Z",  # ISO 8601 UTC
-  "open": 1850.25,                      # float64
-  "high": 1852.75,                      # float64  
-  "low": 1849.50,                       # float64
-  "close": 1851.00,                     # float64
-  "volume": 12500,                      # int64
+  "DATETIME": "2024-01-15T14:30:00Z",   # ISO 8601 UTC (index)
+  "Open": 1850.25,                      # float64
+  "High": 1852.75,                      # float64  
+  "Low": 1849.50,                       # float64
+  "Close": 1851.00,                     # float64
+  "Volume": 12500,                      # int64
   "symbol": "GC_202406",               # string
   "provider": "barchart"               # string
 }
 ```
 
 **Schema Requirements:**
-- **DR-018:** Consistent column names across all providers
+- **DR-018:** **DATETIME index with title-case OHLCV columns (Open, High, Low, Close, Volume)**
 - **DR-019:** Standardized data types (float64 for prices, int64 for volume)
-- **DR-020:** UTC timestamps in ISO 8601 format
+- **DR-020:** UTC timestamps in ISO 8601 format as pandas DatetimeIndex
 - **DR-021:** Provider attribution for audit trail
 - **DR-022:** Optional metadata fields for provider-specific data
 
-### 3.2 File Formats
+### 3.2 Column Name Standardization
+
+#### Internal Standard Format
+All providers must transform their external column names to this internal standard:
+
+| **Column** | **Type** | **Requirements** |
+|------------|----------|------------------|
+| `DATETIME` | DatetimeIndex | **Index name**, UTC timezone, ISO 8601 format |
+| `Open` | float64 | Opening price, title case |
+| `High` | float64 | High price, title case |
+| `Low` | float64 | Low price, title case |
+| `Close` | float64 | Closing price, title case |
+| `Volume` | int64 | Trading volume, title case |
+
+#### Provider-Specific Column Transformations
+
+**Yahoo Finance Provider:**
+```
+External: Date (index), Open, High, Low, Close, Volume, Adj Close
+   ↓
+Internal: DATETIME (index), Open, High, Low, Close, Volume, Adj Close
+```
+
+**Barchart Provider:**
+```  
+External: Time, Open, High, Low, Last, Volume, Open Interest
+   ↓
+Internal: DATETIME (index), Open, High, Low, Close, Volume, Open Interest
+```
+
+**IBKR Provider:**
+```
+External: date, open, high, low, close, volume, wap, count
+   ↓
+Internal: DATETIME (index), Open, High, Low, Close, Volume, wap, count
+```
+
+**Column Transformation Requirements:**
+- **DR-023:** **Provider-specific external column names preserved during ingestion**
+- **DR-024:** **All OHLCV columns standardized to title case format**
+- **DR-025:** **Provider-specific columns (Adj Close, WAP, Open Interest) preserved as-is**
+- **DR-026:** **Date/timestamp columns always mapped to DATETIME index**
+
+### 3.3 File Formats
 
 #### Primary Format: CSV
 ```csv
-timestamp,open,high,low,close,volume,symbol,provider
+DATETIME,Open,High,Low,Close,Volume,symbol,provider
 2024-01-15T14:30:00Z,1850.25,1852.75,1849.50,1851.00,12500,GC_202406,barchart
 ```
 
 **CSV Requirements:**
-- **DR-023:** UTF-8 encoding with BOM for Excel compatibility
-- **DR-024:** RFC 4180 compliant CSV format
-- **DR-025:** Header row with standard column names
-- **DR-026:** Consistent decimal precision (2 places for most instruments)
+- **DR-027:** UTF-8 encoding with BOM for Excel compatibility
+- **DR-028:** RFC 4180 compliant CSV format  
+- **DR-029:** Header row with standardized column names (DATETIME, Open, High, Low, Close, Volume)
+- **DR-030:** Consistent decimal precision (2 places for most instruments)
 
 #### Secondary Format: Parquet
 **Parquet Requirements:**
-- **DR-027:** Columnar storage for analytical workloads
-- **DR-028:** Snappy compression for size optimization
-- **DR-029:** Schema evolution support for format changes
-- **DR-030:** Partition by symbol and date for query performance
+- **DR-031:** Columnar storage for analytical workloads
+- **DR-032:** Snappy compression for size optimization
+- **DR-033:** Schema evolution support for format changes
+- **DR-034:** Partition by symbol and date for query performance
 
-### 3.3 Naming Conventions
+### 3.4 Naming Conventions
 ```
 # File naming pattern
 {symbol}_{frequency}_{date_range}.{extension}
@@ -137,26 +180,32 @@ EURUSD_5M_20240201_20240229.csv
 ```
 
 **Naming Requirements:**
-- **DR-031:** Consistent file naming across all instruments
-- **DR-032:** Sortable alphanumeric format
-- **DR-033:** Include frequency and date range in filename
-- **DR-034:** Special characters escaped or replaced
+- **DR-035:** Consistent file naming across all instruments
+- **DR-036:** Sortable alphanumeric format
+- **DR-037:** Include frequency and date range in filename
+- **DR-038:** Special characters escaped or replaced
 
 ## 4. Data Quality Standards
 
 ### 4.1 Validation Rules
 
+#### Column Name Validation
+- **DR-039:** **DATETIME must be the index name, not a column**
+- **DR-040:** **OHLCV columns must use exact title case (Open, High, Low, Close, Volume)**
+- **DR-041:** **Provider-specific columns preserved with original casing**
+- **DR-042:** **Validation logic must handle case-sensitive column checking**
+
 #### Price Data Validation
-- **DR-035:** Open, High, Low, Close must be positive numbers
-- **DR-036:** High >= max(Open, Close) and Low <= min(Open, Close)
-- **DR-037:** Price changes > 20% flagged for review
-- **DR-038:** Volume must be non-negative integer
+- **DR-043:** Open, High, Low, Close must be positive numbers
+- **DR-044:** High >= max(Open, Close) and Low <= min(Open, Close)  
+- **DR-045:** Price changes > 20% flagged for review
+- **DR-046:** Volume must be non-negative integer
 
 #### Temporal Validation  
-- **DR-039:** Timestamps must be monotonically increasing
-- **DR-040:** No duplicate timestamps per symbol
-- **DR-041:** Trading hours validation per instrument
-- **DR-042:** Weekend/holiday data flagged appropriately
+- **DR-047:** Timestamps must be monotonically increasing
+- **DR-048:** No duplicate timestamps per symbol
+- **DR-049:** Trading hours validation per instrument
+- **DR-050:** Weekend/holiday data flagged appropriately
 
 #### Completeness Validation
 - **DR-043:** Missing data periods identified and logged
@@ -269,10 +318,42 @@ EURUSD_5M_20240201_20240229.csv
 
 ---
 
+## 11. Column Standardization Discovery
+
+### 11.1 Current State Analysis
+**Critical Issue Identified:** Comprehensive analysis revealed that column names are severely scattered throughout the codebase with inconsistent handling:
+
+**Problems Found:**
+- **Incomplete Constants:** Only 3 of 8+ required column constants defined (`models/columns.py`)
+- **Hardcoded Usage:** 20+ files use hardcoded column names instead of constants  
+- **Case Inconsistency:** Provider output (title case) vs test expectations (lowercase)
+- **Index Confusion:** Tests treating `DATETIME` as column instead of index name
+- **Provider Variations:** Each provider handles column transformations differently
+
+**Impact on Maintainability:**
+- High risk when changing column names (requires updates across 20+ files)
+- Error-prone due to hardcoded string typos
+- Fragile validation logic with case sensitivity issues
+
+### 11.2 Required Standardization Work
+**Priority 1 Requirements:**
+- Complete column constants in `models/columns.py` (add `OPEN_COLUMN`, `HIGH_COLUMN`, `LOW_COLUMN`)
+- Update all hardcoded column usage to use constants
+- Standardize validation logic for case-sensitive column handling
+- Fix index vs column confusion in test expectations
+
+**Architecture Principles Confirmed:**
+- ✅ External provider column names cannot and should not be changed
+- ✅ Internal standardization through column mapping layer is correct approach
+- ✅ Provider-specific columns must be preserved (e.g., `Adj Close`, `WAP`, `Open Interest`)
+
+---
+
 **Data Requirements Summary:**
-- **Total Requirements:** 98 detailed specifications
-- **Critical Path:** Schema standardization, quality validation, provider integration
-- **Success Metrics:** >99% data quality score, <1% failed downloads
+- **Total Requirements:** 104+ detailed specifications (updated)
+- **Critical Path:** Column standardization, schema validation, provider integration  
+- **New Priority:** Column name consistency and validation standardization
+- **Success Metrics:** >99% data quality score, <1% failed downloads, 100% column consistency
 - **Compliance:** Market data licensing, data protection regulations
 
-**Next Review:** 2025-02-08 (monthly review cycle)
+**Next Review:** 2025-02-08 (monthly review cycle)**

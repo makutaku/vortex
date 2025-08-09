@@ -78,24 +78,26 @@ Automated financial data pipeline that:
 - **REQ-007:** Avoid duplicate downloads of existing data
 - **REQ-008:** Validate data quality and completeness
 - **REQ-009:** Maintain download metadata and lineage
+- **REQ-010:** **Standardize column names across all data providers**
+- **REQ-011:** **Transform provider-specific column formats to internal standard**
 
 ### 4.3 Automation & Scheduling (SHOULD HAVE)
-- **REQ-010:** Support cron-based scheduled execution
-- **REQ-011:** Automated retry with exponential backoff
-- **REQ-012:** Email/webhook notifications for failures
-- **REQ-013:** Dry-run mode for testing configurations
+- **REQ-012:** Support cron-based scheduled execution
+- **REQ-013:** Automated retry with exponential backoff
+- **REQ-014:** Email/webhook notifications for failures
+- **REQ-015:** Dry-run mode for testing configurations
 
 ### 4.4 Configuration & Extensibility (SHOULD HAVE)
-- **REQ-014:** JSON-based instrument configuration
-- **REQ-015:** Environment variable-based settings
-- **REQ-016:** Plugin architecture for new data providers
-- **REQ-017:** Configurable data retention policies
+- **REQ-016:** JSON-based instrument configuration
+- **REQ-017:** Environment variable-based settings
+- **REQ-018:** Plugin architecture for new data providers
+- **REQ-019:** Configurable data retention policies
 
 ### 4.5 Monitoring & Operations (COULD HAVE)
-- **REQ-018:** Health check endpoints for monitoring
-- **REQ-019:** Structured logging for operational visibility
-- **REQ-020:** Metrics collection for performance monitoring
-- **REQ-021:** Container-based deployment support
+- **REQ-020:** Health check endpoints for monitoring
+- **REQ-021:** Structured logging for operational visibility
+- **REQ-022:** Metrics collection for performance monitoring
+- **REQ-023:** Container-based deployment support
 
 ## 5. Non-Functional Requirements
 
@@ -129,12 +131,20 @@ Automated financial data pipeline that:
 - **NFR-019:** Standard Python packaging and distribution
 - **NFR-020:** Active community support and contribution guidelines
 
+### 5.6 Data Standardization
+- **NFR-021:** **Consistent internal column naming regardless of data provider**
+- **NFR-022:** **Provider-specific column transformations must be transparent**
+- **NFR-023:** **Column name constants centralized in shared module**
+- **NFR-024:** **Case-sensitive column handling across all validation logic**
+
 ## 6. Constraints & Assumptions
 
 ### 6.1 Technical Constraints
 - Python-only implementation for ecosystem compatibility
 - Must respect third-party API rate limits and terms of service
 - Limited by upstream data quality and availability
+- **External data provider column names cannot be modified**
+- **Provider-specific columns (e.g., Adj Close, WAP) must be preserved**
 
 ### 6.2 Business Constraints
 - Open-source BSD license for broad adoption

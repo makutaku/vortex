@@ -257,63 +257,165 @@ The validation pipeline applies multiple layers of data quality checks:
 #### Format Standardization Process
 ```mermaid
 graph TB
-    subgraph "Input Formats"
-        BCFormat[Barchart Format]
-        YFormat[Yahoo Format]
-        IBFormat[IBKR Format]
+    subgraph "External Provider Formats"
+        YahooExt[Yahoo: Date, Open, High, Low, Close, Volume, Adj Close]
+        BarchartExt[Barchart: Time, Open, High, Low, Last, Volume, Open Interest]
+        IBKRExt[IBKR: date, open, high, low, close, volume, wap, count]
     end
     
-    subgraph "Transformation Rules"
-        TimeMap[Timestamp Mapping]
-        ColMap[Column Mapping]
-        TypeConv[Type Conversion]
-        UnitConv[Unit Conversion]
+    subgraph "Column Mapping Layer"
+        YahooMap[Date → DATETIME index only]
+        BarchartMap[Time → DATETIME, Last → Close]
+        IBKRMap[date → DATETIME, lowercase → title case]
     end
     
-    subgraph "Standard Format"
-        Schema[Standard OHLCV Schema]
-        Meta[Metadata Enrichment]
-        Quality[Quality Scoring]
+    subgraph "Internal Standard Format"
+        StandardIndex[DATETIME Index: UTC pd.DatetimeIndex]
+        StandardCols[OHLCV: Open, High, Low, Close, Volume]
+        ProviderCols[Provider-Specific: Adj Close, Open Interest, wap, count]
     end
     
-    BCFormat --> TimeMap
-    YFormat --> ColMap
-    IBFormat --> TypeConv
+    subgraph "Validation & Quality"
+        ColumnVal[Column Name Validation]
+        CaseVal[Case Consistency Validation]
+        IndexVal[Index vs Column Validation]
+    end
     
-    TimeMap --> Schema
-    ColMap --> Schema
-    TypeConv --> Schema
-    UnitConv --> Schema
+    YahooExt --> YahooMap
+    BarchartExt --> BarchartMap
+    IBKRExt --> IBKRMap
     
-    Schema --> Meta
-    Meta --> Quality
+    YahooMap --> StandardIndex
+    BarchartMap --> StandardIndex
+    IBKRMap --> StandardIndex
     
-    style Schema fill:#e8f5e8
-    style Quality fill:#fff3e0
+    YahooMap --> StandardCols
+    BarchartMap --> StandardCols
+    IBKRMap --> StandardCols
+    
+    YahooExt --> ProviderCols
+    BarchartExt --> ProviderCols
+    IBKRExt --> ProviderCols
+    
+    StandardIndex --> ColumnVal
+    StandardCols --> CaseVal
+    ProviderCols --> IndexVal
+    
+    style StandardIndex fill:#e1f5fe
+    style StandardCols fill:#e8f5e8
+    style ProviderCols fill:#fff3e0
+    style ColumnVal fill:#ffcdd2
 ```
 
 #### Data Transformation Architecture
-The transformation layer converts provider-specific formats into the standard OHLCV schema:
+The transformation layer converts provider-specific formats into the standard OHLCV schema through a comprehensive column mapping system:
 
-**Column Standardization:**
-- Provider-specific column mapping to standard names
-- Data type normalization (float64 for prices, int64 for volume)
-- Unit conversion where necessary
+**Column Standardization Process:**
+- **External Format Preservation:** Provider-specific column names maintained during ingestion
+- **Mapping Layer:** Each provider implements explicit column transformation rules
+- **Internal Standard:** All providers output consistent DATETIME index + title-case OHLCV columns
+- **Provider-Specific Preservation:** Additional columns (Adj Close, WAP, Open Interest) preserved as-is
+
+**Column Transformation Rules by Provider:**
+
+| Provider | External Format | Transformation | Internal Standard |
+|----------|----------------|----------------|-------------------|
+| **Yahoo** | `Date` (index), `Open`, `High`, `Low`, `Close`, `Volume`, `Adj Close` | `Date` → `DATETIME` (index only) | `DATETIME` (index), `Open`, `High`, `Low`, `Close`, `Volume`, `Adj Close` |
+| **Barchart** | `Time`, `Open`, `High`, `Low`, `Last`, `Volume`, `Open Interest` | `Time` → `DATETIME`, `Last` → `Close` | `DATETIME` (index), `Open`, `High`, `Low`, `Close`, `Volume`, `Open Interest` |
+| **IBKR** | `date`, `open`, `high`, `low`, `close`, `volume`, `wap`, `count` | All OHLCV: lowercase → title case, `date` → `DATETIME` | `DATETIME` (index), `Open`, `High`, `Low`, `Close`, `Volume`, `wap`, `count` |
+
+**Data Type Standardization:**
+- float64 for all price columns (Open, High, Low, Close)
+- int64 for Volume column
+- Provider-specific columns maintain original data types
 
 **Timestamp Standardization:**
-- All timestamps converted to UTC
-- Provider-specific timezone handling
-- ISO 8601 format enforcement
+- All timestamps converted to UTC pandas DatetimeIndex
+- Provider-specific timezone handling (Yahoo: Date, Barchart: Time, IBKR: date)
+- ISO 8601 format enforcement with timezone awareness
 
 **Metadata Enrichment:**
 - Provider attribution for audit trails
 - Symbol normalization across providers
-- Data quality scoring
+- Data quality scoring and validation flags
 
-**Output Format:**
-- Standard OHLCV columns: timestamp, open, high, low, close, volume
-- Metadata columns: symbol, provider
-- Sorted by timestamp for consistency
+**Final Output Schema:**
+- **Index:** `DATETIME` (pd.DatetimeIndex, UTC timezone)
+- **Standard Columns:** `Open`, `High`, `Low`, `Close`, `Volume` (title case)
+- **Metadata Columns:** `symbol`, `provider`
+- **Provider-Specific:** Preserved with original names and casing
+- **Sorting:** Chronologically sorted by DATETIME index
+
+*Detailed transformation implementation available in [Data Processing Implementation](../lld/02-data-processing-implementation.md)*
+
+#### Column Standardization Challenges & Solutions
+
+**Critical Architecture Issue Identified:**
+Comprehensive analysis revealed severe column name inconsistencies throughout the system affecting maintainability and reliability.
+
+**Problem Analysis:**
+```mermaid
+graph TB
+    subgraph "Current Issues"
+        Incomplete[Incomplete Constants: Only 3/8 defined]
+        Hardcoded[20+ Files: Hardcoded column names]
+        CaseIssue[Case Mismatch: Title vs lowercase]
+        IndexIssue[Index Confusion: DATETIME as column vs index]
+    end
+    
+    subgraph "Impact Areas"
+        Validation[CLI Validation Logic]
+        Testing[Test Expectations]
+        Providers[Provider Implementations]
+        Constants[Column Constants Module]
+    end
+    
+    subgraph "Architectural Solutions"
+        CompleteConstants[Complete Column Constants]
+        StandardizeUsage[Standardize All Usage]
+        CaseConsistency[Enforce Case Consistency]
+        ProperValidation[Fix Index/Column Validation]
+    end
+    
+    Incomplete --> Constants
+    Hardcoded --> Testing
+    CaseIssue --> Validation
+    IndexIssue --> Providers
+    
+    Constants --> CompleteConstants
+    Testing --> StandardizeUsage
+    Validation --> CaseConsistency
+    Providers --> ProperValidation
+    
+    style Incomplete fill:#ffcdd2
+    style Hardcoded fill:#ffcdd2
+    style CompleteConstants fill:#c8e6c9
+    style StandardizeUsage fill:#c8e6c9
+```
+
+**Required Architecture Fixes:**
+1. **Complete Column Constants Module** (`models/columns.py`):
+   ```python
+   # Missing constants that must be added:
+   OPEN_COLUMN = "Open"
+   HIGH_COLUMN = "High" 
+   LOW_COLUMN = "Low"
+   DATE_COLUMN = "Date"  # For Yahoo provider mapping
+   ```
+
+2. **Standardize Column Usage Across Codebase:**
+   - Update 20+ files using hardcoded column names
+   - Fix CLI validation logic case sensitivity
+   - Correct test expectations (lowercase → title case)
+   - Update provider mapping implementations
+
+3. **Validation Logic Architecture:**
+   - **Index Validation:** `df.index.name == 'DATETIME'` (not `'DATETIME' in df.columns`)
+   - **Column Validation:** Exact case matching for `['Open', 'High', 'Low', 'Close', 'Volume']`
+   - **Provider Column Preservation:** Flexible handling of additional columns
+
+**Data Flow Impact:**
+This standardization is critical for the transformation layer reliability. Without proper column constants and validation, the data pipeline becomes fragile and error-prone during provider integration and data quality validation phases.
 
 *Detailed transformation implementation available in [Data Processing Implementation](../lld/02-data-processing-implementation.md)*
 
