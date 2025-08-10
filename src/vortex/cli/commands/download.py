@@ -20,7 +20,7 @@ from vortex.exceptions import (
     CLIError, MissingArgumentError, InvalidCommandError,
     ConfigurationError, DataProviderError, DataStorageError
 )
-from vortex.core.instruments import InstrumentConfig
+from vortex.core.instruments import InstrumentConfig, DEFAULT_CONTRACT_DURATION_IN_DAYS
 from vortex.models.stock import Stock
 from vortex.models.period import Period
 from vortex.core.logging_integration import get_module_logger, get_module_performance_logger
@@ -480,6 +480,22 @@ def _create_instrument_from_config(symbol: str, config):
         elif config.asset_class.value == 'forex':
             from vortex.models.forex import Forex
             return Forex(id=symbol, symbol=config.code)
+        elif config.asset_class.value == 'future':
+            from vortex.models.future import Future
+            # Create Future with proper parameters from config
+            # For now, use current year and first month from cycle for active contract
+            current_year = datetime.now().year
+            # Get the first month code from cycle or default to 'M' (June)
+            month_code = config.cycle[0] if config.cycle else 'M'
+            
+            return Future(
+                id=symbol,
+                futures_code=config.code,
+                year=current_year,
+                month_code=month_code,
+                tick_date=config.tick_date if config.tick_date else datetime.now(),
+                days_count=config.days_count if config.days_count else DEFAULT_CONTRACT_DURATION_IN_DAYS
+            )
         else:
             # Default to stock if unknown type
             return Stock(id=symbol, symbol=symbol)

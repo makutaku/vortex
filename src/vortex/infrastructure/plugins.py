@@ -43,8 +43,15 @@ class ProviderRegistry:
         if name == 'yahoo':
             # Yahoo provider doesn't take config parameters
             return provider_class()
+        elif name == 'barchart':
+            # Barchart provider takes individual parameters
+            return provider_class(
+                username=config.get('username'),
+                password=config.get('password'),
+                daily_download_limit=config.get('daily_limit', 150)
+            )
         else:
-            # Other providers (barchart, ibkr) take config parameters
+            # Other providers (ibkr) take config parameters as dictionary
             return provider_class(config)
     
     def get_plugin_info(self, name: str):

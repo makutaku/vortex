@@ -80,17 +80,23 @@ class BarchartDataProvider(DataProvider):
 
         return [
             FrequencyAttributes(Period('1d'), get_min_start_date(Period('1d')), 
-                              get_max_range(Period('1d')), self.MAX_BARS_PER_DOWNLOAD, 'daily'),
+                              get_max_range(Period('1d')), 
+                              {'max_bars': self.MAX_BARS_PER_DOWNLOAD, 'frequency_name': 'daily'}),
             FrequencyAttributes(Period('1h'), get_min_start_date(Period('1h')), 
-                              get_max_range(Period('1h')), self.MAX_BARS_PER_DOWNLOAD, 'hourly'),
+                              get_max_range(Period('1h')), 
+                              {'max_bars': self.MAX_BARS_PER_DOWNLOAD, 'frequency_name': 'hourly'}),
             FrequencyAttributes(Period('30m'), get_min_start_date(Period('30m')), 
-                              get_max_range(Period('30m')), self.MAX_BARS_PER_DOWNLOAD, '30minute'),
+                              get_max_range(Period('30m')), 
+                              {'max_bars': self.MAX_BARS_PER_DOWNLOAD, 'frequency_name': '30minute'}),
             FrequencyAttributes(Period('15m'), get_min_start_date(Period('15m')), 
-                              get_max_range(Period('15m')), self.MAX_BARS_PER_DOWNLOAD, '15minute'),
+                              get_max_range(Period('15m')), 
+                              {'max_bars': self.MAX_BARS_PER_DOWNLOAD, 'frequency_name': '15minute'}),
             FrequencyAttributes(Period('5m'), get_min_start_date(Period('5m')), 
-                              get_max_range(Period('5m')), self.MAX_BARS_PER_DOWNLOAD, '5minute'),
+                              get_max_range(Period('5m')), 
+                              {'max_bars': self.MAX_BARS_PER_DOWNLOAD, 'frequency_name': '5minute'}),
             FrequencyAttributes(Period('1m'), get_min_start_date(Period('1m')), 
-                              get_max_range(Period('1m')), self.MAX_BARS_PER_DOWNLOAD, 'minute'),
+                              get_max_range(Period('1m')), 
+                              {'max_bars': self.MAX_BARS_PER_DOWNLOAD, 'frequency_name': 'minute'}),
         ]
 
     @singledispatchmethod

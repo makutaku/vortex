@@ -117,8 +117,8 @@ if [[ "$VORTEX_SCHEDULE" != "# DISABLED" && "$VORTEX_SCHEDULE" != "" ]]; then
     # Use dynamic cron scheduling instead of fixed intervals
     log_info "Using dynamic cron scheduling for: $VORTEX_SCHEDULE"
     
-    # Escape quotes in VORTEX_SCHEDULE for supervisord
-    VORTEX_SCHEDULE_ESCAPED="${VORTEX_SCHEDULE//\"/\\\"}"
+    # Remove quotes from VORTEX_SCHEDULE for supervisord (it will be inside double quotes)
+    VORTEX_SCHEDULE_CLEAN="${VORTEX_SCHEDULE//\"/}"
     
     cat > /home/vortex/.config/supervisor/conf.d/vortex-scheduler.conf << EOF
 [program:vortex-scheduler]
@@ -128,7 +128,7 @@ autostart=true
 autorestart=true
 stderr_logfile=/home/vortex/logs/vortex-scheduler.err.log
 stdout_logfile=/home/vortex/logs/vortex-scheduler.out.log
-environment=HOME="/home/vortex",VORTEX_OUTPUT_DIR="$VORTEX_OUTPUT_DIR",VORTEX_DOWNLOAD_ARGS="$VORTEX_DOWNLOAD_ARGS",VORTEX_SCHEDULE="$VORTEX_SCHEDULE_ESCAPED"
+environment=HOME="/home/vortex",VORTEX_OUTPUT_DIR="$VORTEX_OUTPUT_DIR",VORTEX_DOWNLOAD_ARGS="$VORTEX_DOWNLOAD_ARGS",VORTEX_SCHEDULE="$VORTEX_SCHEDULE_CLEAN"
 EOF
 
     # Create scheduler script with comprehensive cron parser

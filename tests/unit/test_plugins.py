@@ -73,8 +73,12 @@ class TestProviderRegistry:
         
         provider = registry.create_provider('barchart', config)
         
-        # Barchart provider should be created with config
-        mock_barchart_class.assert_called_once_with(config)
+        # Barchart provider should be created with individual keyword arguments including defaults
+        mock_barchart_class.assert_called_once_with(
+            username='test', 
+            password='secret', 
+            daily_download_limit=150
+        )
         assert provider == mock_instance
     
     @patch('vortex.infrastructure.plugins.IbkrDataProvider')
