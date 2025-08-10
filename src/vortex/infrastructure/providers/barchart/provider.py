@@ -127,8 +127,28 @@ class BarchartDataProvider(DataProvider):
                                start_date, end_date, url: str, tz: str) -> Optional[DataFrame]:
         """Internal method to fetch historical data."""
         try:
-            # GET the historical download page to get tokens
+            # GET the historical download page
             hist_resp = self.auth.session.get(url)
+            
+            # Check if response is JSON (new Barchart API)
+            if hist_resp.headers.get('content-type', '').startswith('application/json'):
+                import json
+                import logging
+                logger = logging.getLogger(__name__)
+                
+                try:
+                    json_data = json.loads(hist_resp.text)
+                    if 'error' in json_data:
+                        logger.info(f"Barchart returned JSON error: {json_data['error']}")
+                        # Try alternative JSON API endpoints
+                        return self._try_json_api_download(instrument, freq_attrs, start_date, end_date, tz)
+                    else:
+                        # Process JSON data directly
+                        return self._process_json_response(json_data, tz)
+                except json.JSONDecodeError:
+                    logger.warning("Failed to parse JSON response, falling back to HTML method")
+            
+            # Original HTML-based method
             xsf_token = self.auth.extract_xsrf_token(hist_resp)
             
             # Check allowance
@@ -147,7 +167,112 @@ class BarchartDataProvider(DataProvider):
                 df = self._try_alternative_download(instrument, freq_attrs, start_date, end_date, url, tz)
             else:
                 raise
-        return df
+        
+        return df if df is not None else None
+
+    def _try_json_api_download(self, instrument: str, freq_attrs: FrequencyAttributes,
+                              start_date, end_date, tz: str) -> Optional[DataFrame]:
+        """Try JSON API endpoints for data download."""
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        logger.info("Attempting JSON API download endpoints")
+        
+        # Format dates for JSON API
+        start_str = start_date.strftime('%Y-%m-%d')
+        end_str = end_date.strftime('%Y-%m-%d')
+        
+        # Try JSON API endpoints
+        json_endpoints = [
+            f"/futures/quotes/{instrument}/chart",
+            f"/stocks/quotes/{instrument}/chart", 
+            f"/api/getQuote/{instrument}/history",
+            f"/api/v1/historical/{instrument}",
+        ]
+        
+        for endpoint in json_endpoints:
+            try:
+                params = {
+                    'start': start_str,
+                    'end': end_str,
+                    'interval': 'daily',
+                    'type': 'historical',
+                    'fields': 'open,high,low,close,volume'
+                }
+                
+                response = self.auth.session.get(f"https://www.barchart.com{endpoint}", params=params)
+                if response.status_code == 200:
+                    try:
+                        json_data = response.json()
+                        if json_data and 'data' in json_data:
+                            logger.info(f"JSON API download successful via {endpoint}")
+                            return self._process_json_response(json_data, tz)
+                    except Exception as e:
+                        logger.debug(f"JSON parsing failed for {endpoint}: {e}")
+                        continue
+                        
+            except Exception as e:
+                logger.debug(f"JSON API endpoint {endpoint} failed: {e}")
+                continue
+        
+        logger.warning("All JSON API endpoints failed")
+        return None
+
+    def _process_json_response(self, json_data: dict, tz: str) -> Optional[DataFrame]:
+        """Process JSON response from Barchart API."""
+        import pandas as pd
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        try:
+            # Extract data array from various JSON structures
+            data_array = None
+            if 'data' in json_data:
+                data_array = json_data['data']
+            elif 'history' in json_data:
+                data_array = json_data['history']
+            elif 'results' in json_data:
+                data_array = json_data['results']
+            elif isinstance(json_data, list):
+                data_array = json_data
+            
+            if not data_array:
+                logger.warning("No data found in JSON response")
+                return None
+            
+            # Create DataFrame from JSON data
+            df = pd.DataFrame(data_array)
+            
+            if df.empty:
+                logger.warning("Empty DataFrame from JSON data")
+                return None
+            
+            # Standardize column names
+            column_mapping = {
+                'date': 'Datetime', 'time': 'Datetime', 'timestamp': 'Datetime',
+                'dateTime': 'Datetime', 'tradingDay': 'Datetime',
+                'open': 'Open', 'high': 'High', 'low': 'Low', 'close': 'Close',
+                'volume': 'Volume', 'openInterest': 'Open Interest'
+            }
+            
+            # Rename columns
+            df.rename(columns=column_mapping, inplace=True)
+            
+            # Process datetime column
+            if 'Datetime' in df.columns:
+                df['Datetime'] = pd.to_datetime(df['Datetime'])
+                if df['Datetime'].dt.tz is None:
+                    df['Datetime'] = df['Datetime'].dt.tz_localize(tz)
+                df['Datetime'] = df['Datetime'].dt.tz_convert('UTC')
+                df.set_index('Datetime', inplace=True)
+                df.sort_index(inplace=True)
+            
+            logger.info(f"Successfully processed JSON data: {df.shape}")
+            return df
+            
+        except Exception as e:
+            logger.error(f"Failed to process JSON response: {e}")
+            return None
 
     def _try_alternative_download(self, instrument: str, freq_attrs: FrequencyAttributes,
                                  start_date, end_date, url: str, tz: str) -> Optional[DataFrame]:
