@@ -198,7 +198,8 @@
       "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/ -x --tb=line)",
       "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/test_plugins.py::TestProviderRegistry::test_create_barchart_provider -v --tb=long)",
       "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/test_plugins.py::TestProviderRegistry::test_create_barchart_provider -v)",
-      "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/test_plugins.py -v --tb=short)"
+      "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/test_plugins.py -v --tb=short)",
+      "WebFetch(domain:www.barchart.com)"
     ],
     "deny": []
   }

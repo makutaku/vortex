@@ -39,10 +39,36 @@ class BarchartAuth:
             # GET the login page, scrape to get CSRF token
             resp = self.session.get(self.BARCHART_LOGIN_URL)
             soup = BeautifulSoup(resp.text, 'html.parser')
-            tag = soup.find(type='hidden')
-            if tag is None:
-                raise ValueError("Login CSRF token not found - Barchart login page structure may have changed")
-            csrf_token = tag.attrs['value']
+            
+            # Try multiple ways to find the login token
+            csrf_token = None
+            token_selectors = [
+                # Original method
+                {'type': 'hidden'},
+                # Common CSRF token locations
+                {'name': 'input', 'attrs': {'name': '_token'}},
+                {'name': 'input', 'attrs': {'name': 'csrf_token'}},
+                {'name': 'meta', 'attrs': {'name': 'csrf-token'}},
+            ]
+            
+            for selector in token_selectors:
+                if 'type' in selector:
+                    tag = soup.find(type=selector['type'])
+                    if tag and 'value' in tag.attrs:
+                        csrf_token = tag.attrs['value']
+                        break
+                else:
+                    tag = soup.find(selector['name'], selector.get('attrs', {}))
+                    if tag:
+                        if selector['name'] == 'meta' and 'content' in tag.attrs:
+                            csrf_token = tag.attrs['content']
+                            break
+                        elif 'value' in tag.attrs:
+                            csrf_token = tag.attrs['value']
+                            break
+            
+            if csrf_token is None:
+                raise ValueError("Login CSRF token not found - Barchart login page may have changed authentication method")
             
             # Login to site
             payload = self._build_login_payload(csrf_token, self.username, self.password)
@@ -69,18 +95,74 @@ class BarchartAuth:
     
     @staticmethod
     def extract_xsrf_token(hist_resp) -> str:
-        """Extract XSRF token from response."""
+        """Extract XSRF token from response with adaptive fallbacks."""
         soup = BeautifulSoup(hist_resp.text, 'html.parser')
-        csrf_token_element = soup.find(attrs={'name': 'csrf-token'})
-        if csrf_token_element is None:
-            raise ValueError("CSRF token not found in page - Barchart page structure may have changed")
-        return csrf_token_element['content']
+        
+        # Try multiple possible CSRF token formats
+        token_selectors = [
+            # Original format
+            {'attrs': {'name': 'csrf-token'}, 'attr': 'content'},
+            # Meta tag variations
+            {'name': 'meta', 'attrs': {'name': 'csrf-token'}, 'attr': 'content'},
+            {'name': 'meta', 'attrs': {'name': '_token'}, 'attr': 'content'},
+            # Hidden input variations  
+            {'name': 'input', 'attrs': {'name': '_token'}, 'attr': 'value'},
+            {'name': 'input', 'attrs': {'name': 'csrf_token'}, 'attr': 'value'},
+            # JavaScript variable extraction (common in modern sites)
+            {'script_var': '_csrf_token'},
+            {'script_var': 'window.csrf_token'},
+        ]
+        
+        for selector in token_selectors:
+            if 'script_var' in selector:
+                # Extract from JavaScript variables
+                scripts = soup.find_all('script')
+                for script in scripts:
+                    if script.string and selector['script_var'] in script.string:
+                        # Simple regex to extract token value
+                        import re
+                        pattern = rf'{selector["script_var"]}\s*[=:]\s*["\']([^"\']+)["\']'
+                        match = re.search(pattern, script.string)
+                        if match:
+                            return match.group(1)
+            else:
+                # Extract from HTML elements
+                element = soup.find(selector.get('name'), selector.get('attrs', {}))
+                if element and element.get(selector['attr']):
+                    return element[selector['attr']]
+        
+        raise ValueError("CSRF token not found in page - Barchart may have updated their authentication system. Please check for updates to Vortex.")
     
     @staticmethod  
     def scrape_csrf_token(hist_resp) -> str:
-        """Extract CSRF token from historical data response."""
+        """Extract CSRF token from historical data response with adaptive fallbacks."""
         soup = BeautifulSoup(hist_resp.text, 'html.parser')
-        hist_csrf_element = soup.find(id='hist-csrf-token')
-        if hist_csrf_element is None:
-            raise ValueError("Historical CSRF token not found in page - Barchart page structure may have changed")
-        return hist_csrf_element['value']
+        
+        # Try multiple possible historical CSRF token formats
+        token_selectors = [
+            # Original format
+            {'id': 'hist-csrf-token', 'attr': 'value'},
+            # Common variations
+            {'name': 'input', 'attrs': {'name': 'hist_csrf_token'}, 'attr': 'value'},
+            {'name': 'input', 'attrs': {'name': 'download_token'}, 'attr': 'value'},
+            {'name': 'input', 'attrs': {'class': 'csrf-token'}, 'attr': 'value'},
+            # Data attributes
+            {'attrs': {'data-csrf-token': True}, 'data_attr': 'data-csrf-token'},
+            {'attrs': {'data-download-token': True}, 'data_attr': 'data-download-token'},
+        ]
+        
+        for selector in token_selectors:
+            if 'id' in selector:
+                element = soup.find(id=selector['id'])
+                if element and element.get(selector['attr']):
+                    return element[selector['attr']]
+            elif 'data_attr' in selector:
+                element = soup.find(attrs=selector['attrs'])
+                if element and element.get(selector['data_attr']):
+                    return element[selector['data_attr']]
+            else:
+                element = soup.find(selector.get('name'), selector.get('attrs', {}))
+                if element and element.get(selector['attr']):
+                    return element[selector['attr']]
+        
+        raise ValueError("Historical CSRF token not found in page - Barchart may have updated their download system. Please check for updates to Vortex.")
