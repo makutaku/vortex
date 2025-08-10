@@ -28,47 +28,24 @@ class BarchartAuth:
     def _create_session(self) -> requests.Session:
         """Create and configure a requests session for Barchart."""
         session = requests.Session()
+        # Use the same User-Agent as the working bc-utils project
         session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/85.0.4183.121 Safari/537.36'
+            'User-Agent': 'Mozilla/5.0'
         })
         return session
     
     def login(self):
         """Authenticate with Barchart using credentials."""
         with LoggingContext(entry_msg="Logging in ...", success_msg="Logged in."):
-            # GET the login page, scrape to get CSRF token
+            # GET the login page, scrape to get CSRF token (using bc-utils approach)
             resp = self.session.get(self.BARCHART_LOGIN_URL)
             soup = BeautifulSoup(resp.text, 'html.parser')
             
-            # Try multiple ways to find the login token
-            csrf_token = None
-            token_selectors = [
-                # Original method
-                {'type': 'hidden'},
-                # Common CSRF token locations
-                {'name': 'input', 'attrs': {'name': '_token'}},
-                {'name': 'input', 'attrs': {'name': 'csrf_token'}},
-                {'name': 'meta', 'attrs': {'name': 'csrf-token'}},
-            ]
-            
-            for selector in token_selectors:
-                if 'type' in selector:
-                    tag = soup.find(type=selector['type'])
-                    if tag and 'value' in tag.attrs:
-                        csrf_token = tag.attrs['value']
-                        break
-                else:
-                    tag = soup.find(selector['name'], selector.get('attrs', {}))
-                    if tag:
-                        if selector['name'] == 'meta' and 'content' in tag.attrs:
-                            csrf_token = tag.attrs['content']
-                            break
-                        elif 'value' in tag.attrs:
-                            csrf_token = tag.attrs['value']
-                            break
-            
-            if csrf_token is None:
+            # Use the same approach as working bc-utils project
+            tag = soup.find(type='hidden')
+            if tag is None:
                 raise ValueError("Login CSRF token not found - Barchart login page may have changed authentication method")
+            csrf_token = tag.attrs['value']
             
             # Login to site
             payload = self._build_login_payload(csrf_token, self.username, self.password)
@@ -98,6 +75,10 @@ class BarchartAuth:
         """Extract XSRF token from response with adaptive fallbacks."""
         soup = BeautifulSoup(hist_resp.text, 'html.parser')
         
+        # Check if this might be a login redirect or different page structure
+        if "login" in hist_resp.url.lower() or "sign" in hist_resp.url.lower():
+            raise ValueError("Redirected to login page - authentication may have expired")
+        
         # Try multiple possible CSRF token formats
         token_selectors = [
             # Original format
@@ -105,12 +86,16 @@ class BarchartAuth:
             # Meta tag variations
             {'name': 'meta', 'attrs': {'name': 'csrf-token'}, 'attr': 'content'},
             {'name': 'meta', 'attrs': {'name': '_token'}, 'attr': 'content'},
+            {'name': 'meta', 'attrs': {'name': 'X-CSRF-TOKEN'}, 'attr': 'content'},
             # Hidden input variations  
             {'name': 'input', 'attrs': {'name': '_token'}, 'attr': 'value'},
             {'name': 'input', 'attrs': {'name': 'csrf_token'}, 'attr': 'value'},
+            {'name': 'input', 'attrs': {'name': 'authenticity_token'}, 'attr': 'value'},
             # JavaScript variable extraction (common in modern sites)
             {'script_var': '_csrf_token'},
             {'script_var': 'window.csrf_token'},
+            {'script_var': 'csrfToken'},
+            {'script_var': 'window._token'},
         ]
         
         for selector in token_selectors:
@@ -130,6 +115,23 @@ class BarchartAuth:
                 element = soup.find(selector.get('name'), selector.get('attrs', {}))
                 if element and element.get(selector['attr']):
                     return element[selector['attr']]
+        
+        # Debug: Log what we actually found in the page
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        # Extract first 500 chars of page content for diagnostics
+        page_preview = hist_resp.text[:500] if hist_resp.text else "No content"
+        logger.error(f"CSRF token extraction failed. Page preview: {page_preview}")
+        
+        # Look for any script tags or forms that might indicate new auth method
+        forms = soup.find_all('form')
+        scripts = soup.find_all('script')
+        logger.error(f"Found {len(forms)} forms and {len(scripts)} script tags")
+        
+        if forms:
+            for i, form in enumerate(forms[:3]):  # Log first 3 forms
+                logger.error(f"Form {i}: {form}")
         
         raise ValueError("CSRF token not found in page - Barchart may have updated their authentication system. Please check for updates to Vortex.")
     
@@ -164,5 +166,26 @@ class BarchartAuth:
                 element = soup.find(selector.get('name'), selector.get('attrs', {}))
                 if element and element.get(selector['attr']):
                     return element[selector['attr']]
+        
+        # Debug: Log what we actually found in the page
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        # Extract first 500 chars of page content for diagnostics
+        page_preview = hist_resp.text[:500] if hist_resp.text else "No content"
+        logger.error(f"Historical CSRF token extraction failed. Page preview: {page_preview}")
+        
+        # Look for download-related elements
+        download_links = soup.find_all('a', href=True)
+        download_forms = soup.find_all('form')
+        logger.error(f"Found {len(download_links)} links and {len(download_forms)} forms")
+        
+        # Check for any download buttons or elements
+        download_buttons = soup.find_all(['button', 'input'], {'type': ['submit', 'button']})
+        logger.error(f"Found {len(download_buttons)} potential download buttons")
+        
+        if download_forms:
+            for i, form in enumerate(download_forms[:2]):  # Log first 2 forms
+                logger.error(f"Download form {i}: {form}")
         
         raise ValueError("Historical CSRF token not found in page - Barchart may have updated their download system. Please check for updates to Vortex.")

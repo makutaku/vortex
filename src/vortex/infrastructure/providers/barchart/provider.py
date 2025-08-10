@@ -126,17 +126,120 @@ class BarchartDataProvider(DataProvider):
     def _fetch_historical_data_(self, instrument: str, freq_attrs: FrequencyAttributes,
                                start_date, end_date, url: str, tz: str) -> Optional[DataFrame]:
         """Internal method to fetch historical data."""
-        # GET the historical download page to get tokens
-        hist_resp = self.auth.session.get(url)
-        xsf_token = self.auth.extract_xsrf_token(hist_resp)
+        try:
+            # GET the historical download page to get tokens
+            hist_resp = self.auth.session.get(url)
+            xsf_token = self.auth.extract_xsrf_token(hist_resp)
+            
+            # Check allowance
+            xsf_token = self._fetch_download_token(url, xsf_token)
+            
+            # Get CSRF token and download data
+            hist_csrf_token = self.auth.scrape_csrf_token(hist_resp)
+            df = self._download_data(xsf_token, hist_csrf_token, instrument, freq_attrs, 
+                                    start_date, end_date, url, tz)
+            
+        except ValueError as e:
+            if "CSRF token" in str(e) or "authentication system" in str(e):
+                # Fallback: Try alternative download method without CSRF tokens
+                import logging
+                logging.warning(f"CSRF token extraction failed, attempting alternative download method: {e}")
+                df = self._try_alternative_download(instrument, freq_attrs, start_date, end_date, url, tz)
+            else:
+                raise
+        return df
+
+    def _try_alternative_download(self, instrument: str, freq_attrs: FrequencyAttributes,
+                                 start_date, end_date, url: str, tz: str) -> Optional[DataFrame]:
+        """Alternative download method when CSRF tokens are not available."""
+        import logging
+        logger = logging.getLogger(__name__)
         
-        # Check allowance
-        xsf_token = self._fetch_download_token(url, xsf_token)
+        try:
+            # Method 1: Try direct session-based download
+            logger.info("Attempting direct session-based download")
+            
+            # Format dates for Barchart API
+            start_str = start_date.strftime('%m/%d/%Y')
+            end_str = end_date.strftime('%m/%d/%Y')
+            
+            # Try common Barchart download endpoints
+            download_endpoints = [
+                f"/api/getDownloadData/{instrument}",
+                f"/getHistory.json", 
+                f"/proxies/timeseries/queryeod.ashx"
+            ]
+            
+            for endpoint in download_endpoints:
+                try:
+                    # Prepare download parameters
+                    params = {
+                        'symbol': instrument,
+                        'start': start_str,
+                        'end': end_str,
+                        'frequency': 'daily',
+                        'volume': 'contract',
+                        'order': 'asc',
+                        'dividends': 'false',
+                        'backadjusted': 'false',
+                        'daystoexpiration': 'false',
+                        'contractroll': 'expiration'
+                    }
+                    
+                    response = self.auth.session.get(f"https://www.barchart.com{endpoint}", params=params)
+                    if response.status_code == 200 and response.text:
+                        logger.info(f"Alternative download successful via {endpoint}")
+                        
+                        # Try to parse as CSV or JSON
+                        if 'json' in endpoint.lower():
+                            # Handle JSON response
+                            import json
+                            data = json.loads(response.text)
+                            if 'data' in data:
+                                # Convert JSON to DataFrame
+                                import pandas as pd
+                                df = pd.DataFrame(data['data'])
+                                return self._process_alternative_data(df, tz)
+                        else:
+                            # Handle CSV response
+                            from .parser import BarchartParser
+                            return BarchartParser.convert_downloaded_csv_to_df(
+                                freq_attrs.period, response.text, tz)
+                            
+                except Exception as e:
+                    logger.debug(f"Alternative endpoint {endpoint} failed: {e}")
+                    continue
+            
+            logger.warning("All alternative download methods failed")
+            return None
+            
+        except Exception as e:
+            logger.error(f"Alternative download method failed: {e}")
+            return None
+
+    def _process_alternative_data(self, df, tz: str):
+        """Process data from alternative download methods."""
+        # Basic processing to match expected format
+        import pandas as pd
         
-        # Get CSRF token and download data
-        hist_csrf_token = self.auth.scrape_csrf_token(hist_resp)
-        df = self._download_data(xsf_token, hist_csrf_token, instrument, freq_attrs, 
-                                start_date, end_date, url, tz)
+        if df.empty:
+            return df
+            
+        # Try to identify and rename columns to standard format
+        column_mappings = {
+            'date': 'Datetime', 'time': 'Datetime', 'timestamp': 'Datetime',
+            'open': 'Open', 'high': 'High', 'low': 'Low', 'close': 'Close',
+            'volume': 'Volume', 'vol': 'Volume'
+        }
+        
+        # Rename columns
+        df.columns = [column_mappings.get(col.lower(), col) for col in df.columns]
+        
+        # Process datetime if available
+        if 'Datetime' in df.columns:
+            df['Datetime'] = pd.to_datetime(df['Datetime']).dt.tz_localize(tz).dt.tz_convert('UTC')
+            df.set_index('Datetime', inplace=True)
+        
         return df
 
     def _download_data(self, xsrf_token: str, hist_csrf_token: str, symbol: str, 

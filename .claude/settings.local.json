@@ -199,7 +199,9 @@
       "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/test_plugins.py::TestProviderRegistry::test_create_barchart_provider -v --tb=long)",
       "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/test_plugins.py::TestProviderRegistry::test_create_barchart_provider -v)",
       "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/test_plugins.py -v --tb=short)",
-      "WebFetch(domain:www.barchart.com)"
+      "WebFetch(domain:www.barchart.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:api.github.com)"
     ],
     "deny": []
   }
