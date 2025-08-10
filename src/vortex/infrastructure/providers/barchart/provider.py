@@ -158,10 +158,17 @@ class BarchartDataProvider(DataProvider):
         """Fetch and validate download token."""
         allowance, xsf_token = self.client.fetch_allowance(url, xsf_token)
         
+        if allowance is None:
+            raise DataProviderError(
+                "barchart",
+                "Failed to fetch allowance data - received None response",
+                "This may indicate authentication failure or Barchart server issues. Please check credentials and try again."
+            )
+        
         if allowance.get('error') is not None:
             raise AllowanceLimitExceededError(250, self.max_allowance)
 
-        if not allowance['success']:
+        if not allowance.get('success', False):
             raise DataProviderError(
                 "barchart",
                 "Invalid allowance response format - missing 'success' field",

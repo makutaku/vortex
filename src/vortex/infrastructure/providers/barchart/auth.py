@@ -40,6 +40,8 @@ class BarchartAuth:
             resp = self.session.get(self.BARCHART_LOGIN_URL)
             soup = BeautifulSoup(resp.text, 'html.parser')
             tag = soup.find(type='hidden')
+            if tag is None:
+                raise ValueError("Login CSRF token not found - Barchart login page structure may have changed")
             csrf_token = tag.attrs['value']
             
             # Login to site
@@ -69,11 +71,16 @@ class BarchartAuth:
     def extract_xsrf_token(hist_resp) -> str:
         """Extract XSRF token from response."""
         soup = BeautifulSoup(hist_resp.text, 'html.parser')
-        return soup.find(attrs={'name': 'csrf-token'})['content']
+        csrf_token_element = soup.find(attrs={'name': 'csrf-token'})
+        if csrf_token_element is None:
+            raise ValueError("CSRF token not found in page - Barchart page structure may have changed")
+        return csrf_token_element['content']
     
     @staticmethod  
     def scrape_csrf_token(hist_resp) -> str:
         """Extract CSRF token from historical data response."""
         soup = BeautifulSoup(hist_resp.text, 'html.parser')
-        hist_csrf_token = soup.find(id='hist-csrf-token')['value']
-        return hist_csrf_token
+        hist_csrf_element = soup.find(id='hist-csrf-token')
+        if hist_csrf_element is None:
+            raise ValueError("Historical CSRF token not found in page - Barchart page structure may have changed")
+        return hist_csrf_element['value']
