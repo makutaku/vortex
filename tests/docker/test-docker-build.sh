@@ -939,6 +939,10 @@ test_yahoo_download() {
                         data_rows=$(tail -n +2 "$csv_file" 2>/dev/null | wc -l | tr -d ' ')
                         data_rows_total=$((data_rows_total + data_rows))
                         
+                        # Read header for debugging purposes
+                        local header
+                        header=$(head -n 1 "$csv_file" 2>/dev/null || echo "")
+                        
                         # Validate CSV columns using centralized constants
                         if validate_csv_columns "$csv_file"; then
                             
@@ -1441,6 +1445,10 @@ EOF
                         data_rows=$(tail -n +2 "$csv_file" 2>/dev/null | wc -l | tr -d ' ')
                         data_rows_total=$((data_rows_total + data_rows))
                         
+                        # Read header for debugging purposes
+                        local header
+                        header=$(head -n 1 "$csv_file" 2>/dev/null || echo "")
+                        
                         # Validate CSV columns using centralized constants
                         if validate_csv_columns "$csv_file"; then
                             
@@ -1630,6 +1638,10 @@ test_multi_period_asset_download() {
                         local data_rows
                         data_rows=$(tail -n +2 "$csv_file" 2>/dev/null | wc -l | tr -d ' ')
                         data_rows_total=$((data_rows_total + data_rows))
+                        
+                        # Read header for debugging purposes
+                        local header
+                        header=$(head -n 1 "$csv_file" 2>/dev/null || echo "")
                         
                         # Validate CSV columns using centralized constants
                         if validate_csv_columns "$csv_file"; then

@@ -3,7 +3,7 @@
 CSV Column Validation Helper for Docker Tests
 
 This script provides column validation functionality for Docker test scripts,
-using the centralized column constants from the main codebase.
+using hardcoded column constants to avoid pandas dependency issues.
 """
 
 import sys
@@ -11,18 +11,14 @@ import csv
 import argparse
 from pathlib import Path
 
-# Add the src directory to Python path to import vortex modules
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'src'))
-
-try:
-    from vortex.models.columns import (
-        DATE_TIME_COLUMN, OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, 
-        CLOSE_COLUMN, VOLUME_COLUMN, REQUIRED_PRICE_COLUMNS
-    )
-except ImportError as e:
-    print(f"Error importing vortex modules: {e}")
-    print("This script must be run from the project root or with proper PYTHONPATH")
-    sys.exit(1)
+# Hardcoded column constants to avoid import issues in Docker environment
+DATE_TIME_COLUMN = "Datetime"
+OPEN_COLUMN = "Open"
+HIGH_COLUMN = "High"
+LOW_COLUMN = "Low"
+CLOSE_COLUMN = "Close"
+VOLUME_COLUMN = "Volume"
+REQUIRED_PRICE_COLUMNS = [DATE_TIME_COLUMN, OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, CLOSE_COLUMN, VOLUME_COLUMN]
 
 
 def validate_csv_columns(csv_file_path, check_data_rows=True):
