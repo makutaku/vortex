@@ -133,6 +133,31 @@ uv pip install -e .          # Links to source code
 uv pip install -e ".[dev]"   # Include development dependencies
 ```
 
+### Production Docker Build and Publishing
+
+**🐳 Docker Hub Publishing:**
+```bash
+# Build and publish to Docker Hub
+./scripts/build-production.sh
+
+# The script builds for multiple architectures and pushes to makutaku/vortex
+# Tags: latest (dev), v1.0.0 (production), v1.0.0-build.123 (specific builds)
+```
+
+**🚀 Production Deployment:**
+```bash
+# Use versioned tags for production stability
+docker compose -f docker-compose.prod.yml up -d
+
+# Development environments use latest
+docker compose -f docker-compose.dev.yml up -d
+
+# Modern docker compose command (not deprecated docker-compose)
+docker compose up -d
+docker compose down
+docker compose logs -f
+```
+
 ### Modern CLI Usage
 ```bash
 # After installation, use the modern CLI interface:
@@ -289,6 +314,54 @@ vortex download --provider yahoo --assets /path/to/my-assets.json
 vortex download --provider yahoo --symbol AAPL
 ```
 
+#### Assets File Format
+
+**⚠️ IMPORTANT**: Assets files must use the correct Vortex format with nested objects (not arrays):
+
+```json
+{
+  "stock": {
+    "AAPL": {
+      "code": "AAPL",
+      "tick_date": "1980-12-12",
+      "start_date": "1980-12-12",
+      "periods": "1d"
+    },
+    "GOOGL": {
+      "code": "GOOGL",
+      "tick_date": "2004-08-19",
+      "start_date": "2004-08-19",
+      "periods": "1d"
+    }
+  },
+  "future": {
+    "GC": {
+      "code": "GC=F",
+      "tick_date": "2008-05-04",
+      "start_date": "2008-05-04",
+      "periods": "1d"
+    }
+  },
+  "forex": {
+    "EURUSD": {
+      "code": "EURUSD=X",
+      "tick_date": "2000-01-01",
+      "start_date": "2000-01-01",
+      "periods": "1d"
+    }
+  }
+}
+```
+
+**Key Format Requirements:**
+- Use **objects** `{}` not **arrays** `[]`
+- Use **singular** asset class names: `"stock"`, `"future"`, `"forex"` (not plural)
+- **Instrument name as key**: The instrument name becomes the JSON key
+- **Required field**: Only `code` is mandatory; other fields are optional
+- **Provider-specific fields**:
+  - **Barchart**: `cycle` (futures contract cycle)
+  - **IBKR**: `conId`, `localSymbol`, `multiplier`, `baseCurrency`, `quoteCurrency`
+
 Each assets file defines futures, forex, and stock instruments with metadata like trading cycles, tick dates, and periods. Users can maintain a single assets file for all providers or create provider-specific files based on their needs.
 
 ### Data Flow
@@ -315,6 +388,54 @@ Each assets file defines futures, forex, and stock instruments with metadata lik
 - Cron scheduling with `cronfile`
 - Health checks with `ping.sh`
 - Modern CLI works in containers: `docker run vortex vortex --help`
+
+### Production Environment Deployment
+
+**🏗️ Environment Structure:**
+Vortex supports organized deployment environments with provider-specific configurations:
+
+```
+vortex-share/environments/
+├── dev/       # Development environments (latest image)
+├── test/      # Testing environments (latest image)  
+└── prod/      # Production environments (versioned image)
+    ├── yahoo/     # Yahoo Finance provider
+    ├── barchart/  # Barchart.com provider
+    └── ibkr/      # Interactive Brokers provider
+```
+
+**🚀 Environment Deployment:**
+```bash
+# Deploy development environment
+cd ~/vortex-share/environments/dev/yahoo
+docker compose up -d
+
+# Deploy production environment (versioned image)
+cd ~/vortex-share/environments/prod/yahoo
+docker compose up -d
+
+# Check logs
+docker compose logs -f
+
+# Deploy all providers in an environment
+for provider in yahoo barchart ibkr; do
+  cd ~/vortex-share/environments/prod/$provider
+  docker compose up -d
+done
+```
+
+**📁 Volume Mapping:**
+Each environment maps essential directories:
+- `./assets:/app/assets` - Provider-specific instrument definitions
+- `./config:/app/config` - TOML configuration files
+- `./data:/app/data` - Downloaded CSV and Parquet files
+- `./logs:/app/logs` - Application logs with rotation
+
+**⚙️ Environment Variables:**
+- **Production**: Uses versioned Docker images (`makutaku/vortex:v1.0.0`)
+- **Dev/Test**: Uses latest images (`makutaku/vortex:latest`) 
+- **Logging**: Comprehensive file and console output with configurable levels
+- **Scheduling**: Provider-specific cron schedules to avoid conflicts
 
 ### Recent Architectural Improvements
 
