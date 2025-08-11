@@ -37,7 +37,9 @@ class BarchartDataProvider(DataProvider):
     def __init__(self, username: str, password: str, 
                  daily_download_limit: int = DEFAULT_SELF_IMPOSED_DOWNLOAD_DAILY_LIMIT):
         
-        self.max_allowance = daily_download_limit
+        # Store daily limit for informational purposes (not enforced client-side)
+        # bc-utils relies on server-side enforcement: 250 for paid, 5 for free users
+        self.daily_limit = daily_download_limit
         self.auth = BarchartAuth(username, password)
         self.client = BarchartClient(self.auth)
         self.parser = BarchartParser()
@@ -55,6 +57,14 @@ class BarchartDataProvider(DataProvider):
     def logout(self):
         """Logout from Barchart (delegated to auth module)."""
         self.auth.logout()
+
+    def _fetch_allowance(self, url: str, xsf_token: str) -> tuple[dict, str]:
+        """Check download allowance remaining (delegated to client)."""
+        return self.client.fetch_allowance(url, xsf_token)
+
+    def get_daily_limit(self) -> int:
+        """Get the configured daily download limit for informational purposes."""
+        return self.daily_limit
 
     def _get_frequency_attributes(self) -> list[FrequencyAttributes]:
         """Get supported frequency attributes for this provider."""
@@ -131,7 +141,8 @@ class BarchartDataProvider(DataProvider):
         
         try:
             # Use exact bc-utils approach: /my/download endpoint
-            logger.info(f"Attempting bc-utils download for {instrument}")
+            # Note: bc-utils relies on server-side allowance enforcement (250 paid/5 free per day)
+            logger.info(f"Attempting bc-utils download for {instrument} (daily limit: {self.daily_limit})")
             df = self._fetch_via_bc_utils_download(instrument, freq_attrs, start_date, end_date, tz)
             if df is not None:
                 return self._validate_data_availability(df, instrument, freq_attrs, start_date, end_date)
