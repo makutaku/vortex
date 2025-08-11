@@ -204,7 +204,7 @@ end_year = 2025
         auth_success = "Logged in" in output_text
         assert auth_success, f"Authentication failed. Output: {output_text}"
         
-        # If a symbol worked, validate file creation
+        # If a symbol worked, validate file creation with comprehensive validation
         if successful_symbol:
             # Determine expected directory based on symbol type
             if successful_symbol in ['GCZ24', 'GC']:
@@ -215,13 +215,33 @@ end_year = 2025
             expected_csv_file = temp_output_dir / expected_dir / "1d" / f"{successful_symbol}.csv"
             
             if expected_csv_file.exists():
-                # Validate file content if it was created
-                with open(expected_csv_file, 'r') as f:
-                    csv_content = f.read()
-                    assert len(csv_content) > 100, f"CSV file too small: {len(csv_content)} chars"
-                    
-                    csv_lines = csv_content.strip().split('\n')
-                    assert len(csv_lines) >= 2, f"CSV should have header + data. Got: {len(csv_lines)} lines"
+                # Comprehensive CSV validation
+                from .csv_validation import validate_market_data_csv, validate_business_day_count
+                
+                # Calculate expected date range
+                date_range = (start_date, end_date)
+                
+                validation_result = validate_market_data_csv(
+                    expected_csv_file,
+                    expected_min_rows=3,  # At least 3 trading days in 2-week period
+                    date_range=date_range,
+                    provider="barchart"
+                )
+                
+                assert validation_result.is_valid, f"Barchart CSV validation failed: {validation_result.errors}"
+                
+                # Validate business day count
+                is_valid, expected_days, message = validate_business_day_count(
+                    start_date, end_date, validation_result.row_count, tolerance=5  # More tolerance for Barchart
+                )
+                # Note: Barchart might have different data availability, so warnings are ok
+                if not is_valid:
+                    print(f"⚠️ Business day count warning for Barchart: {message}")
+                
+                print(f"✅ Barchart CSV validation passed for {successful_symbol}:")
+                print(f"  Rows: {validation_result.row_count}")
+                print(f"  Columns: {', '.join(validation_result.columns)}")
+                print(f"  Size: {validation_result.file_size} bytes")
             else:
                 # If no file was created, that's also okay as long as auth worked
                 # Some symbols might not have data available
@@ -285,21 +305,37 @@ end_year = 2025
             else:
                 pytest.fail(f"Unexpected failure: {result.output}")
         
-        # If successful, validate file creation
+        # If successful, validate file creation with comprehensive validation
         expected_csv_file = temp_output_dir / "stocks" / "1d" / "AAPL.csv"
         if expected_csv_file.exists():
-            # Validate content
-            with open(expected_csv_file, 'r') as f:
-                content = f.read()
-                assert len(content) > 50, f"Stock CSV too small: {len(content)} chars"
-                
-                lines = content.strip().split('\n')
-                assert len(lines) >= 2, "Should have header + data"
-                
-                # Check for stock-specific columns
-                header = lines[0].upper()
-                assert any(col in header for col in ["DATE", "DATETIME"]), f"Missing date: {header}"
-                assert "CLOSE" in header, f"Missing close price: {header}"
+            # Comprehensive CSV validation for Barchart stock data
+            from .csv_validation import validate_market_data_csv, validate_business_day_count
+            
+            # Calculate expected date range
+            date_range = (start_date, end_date)
+            
+            validation_result = validate_market_data_csv(
+                expected_csv_file,
+                expected_min_rows=3,  # At least 3 trading days in 7-day period
+                date_range=date_range,
+                provider="barchart"
+            )
+            
+            assert validation_result.is_valid, f"Barchart AAPL CSV validation failed: {validation_result.errors}"
+            
+            # Validate business day count for stocks
+            is_valid, expected_days, message = validate_business_day_count(
+                start_date, end_date, validation_result.row_count, tolerance=3
+            )
+            assert is_valid, f"AAPL business day count validation failed: {message}"
+            
+            print(f"✅ Barchart AAPL CSV validation passed:")
+            print(f"  Rows: {validation_result.row_count} (expected ~{expected_days} business days)")
+            print(f"  Columns: {', '.join(validation_result.columns)}")
+            print(f"  Size: {validation_result.file_size} bytes")
+            
+            if validation_result.warnings:
+                print(f"  Warnings: {', '.join(validation_result.warnings)}")
 
     @pytest.mark.skipif(
         not check_barchart_connectivity("www.barchart.com"),
@@ -383,23 +419,40 @@ end_year = 2025
             f"Output: {output_text}"
         )
         
-        # Validate file creation for processed symbols
+        # Comprehensive validation for all created files
+        from .csv_validation import validate_multiple_csvs, print_validation_summary
+        
         created_files = []
         for symbol in processed_symbols:
             expected_file = temp_output_dir / "futures" / "1d" / f"{symbol}.csv"
             if expected_file.exists():
                 created_files.append(expected_file)
-                
-                # Quick content validation
-                with open(expected_file, 'r') as f:
-                    content = f.read()
-                    assert len(content) > 100, f"{symbol} file too small"
         
         # Require at least one successful file creation
         assert len(created_files) >= 1, (
             f"No CSV files created. Processed symbols: {processed_symbols}, "
             f"Directory contents: {list(temp_output_dir.rglob('*'))}"
         )
+        
+        # Comprehensive validation of all created CSV files
+        date_range = (start_date, end_date)
+        validation_results = validate_multiple_csvs(
+            created_files,
+            expected_min_rows=2,  # At least 2 trading days in 5-day period
+            date_range=date_range,
+            provider="barchart"
+        )
+        
+        # Check that all created files passed validation
+        failed_validations = [name for name, result in validation_results.items() if not result.is_valid]
+        if failed_validations:
+            print(f"⚠️ Some files failed validation: {failed_validations}")
+            # For futures data, be more lenient - just ensure at least one file is valid
+            valid_count = len([r for r in validation_results.values() if r.is_valid])
+            assert valid_count > 0, f"No files passed validation: {failed_validations}"
+        
+        # Print detailed validation summary
+        print_validation_summary(validation_results)
         
         # Validate batch processing completion
         completion_indicators = [

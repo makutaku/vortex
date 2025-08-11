@@ -147,42 +147,39 @@ class TestCLIWorkflows:
         expected_csv_file = temp_output_dir / "stocks" / "1d" / "AAPL.csv"
         assert expected_csv_file.exists(), f"Expected CSV file not created: {expected_csv_file}"
         
-        # Validate CSV file content
-        with open(expected_csv_file, 'r') as f:
-            csv_content = f.read()
-            
-            # Check for proper CSV header
-            csv_lines = csv_content.strip().split('\n')
-            assert len(csv_lines) >= 2, f"CSV file should have header + data rows. Got: {len(csv_lines)} lines"
-            
-            # Validate CSV header format
-            from vortex.models.columns import DATE_TIME_COLUMN, OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, CLOSE_COLUMN, VOLUME_COLUMN
-            header = csv_lines[0].lower()
-            required_columns_constants = [DATE_TIME_COLUMN, OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, CLOSE_COLUMN, VOLUME_COLUMN]
-            required_columns = [col.lower() for col in required_columns_constants]
-            # Also accept 'date' as it's common in raw CSV output
-            required_columns.append('date')
-            
-            # Check that at least one of datetime/date column exists plus OHLCV columns
-            has_date_time = any(col in header for col in ['datetime', 'date'])
-            assert has_date_time, f"Missing date/datetime column in header: {header}"
-            
-            ohlcv_columns = [col.lower() for col in [OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, CLOSE_COLUMN, VOLUME_COLUMN]]
-            for column in ohlcv_columns:
-                assert column in header, f"Missing required column '{column}' in header: {header}"
-            
-            # Validate at least one data row exists
-            assert len(csv_lines) > 1, "CSV should contain at least one data row"
-            
-            # Validate data row format (basic sanity check)
-            if len(csv_lines) > 1:
-                sample_data_row = csv_lines[1]
-                data_fields = sample_data_row.split(',')
-                assert len(data_fields) >= 6, f"Data row should have at least 6 fields: {sample_data_row}"
+        # Comprehensive CSV validation
+        from .csv_validation import validate_market_data_csv, validate_business_day_count
         
-        # Validate file size (ensure it's not empty)
-        file_size = expected_csv_file.stat().st_size
-        assert file_size > 100, f"CSV file seems too small: {file_size} bytes"
+        # Calculate expected business day count
+        date_range = (start_date, end_date)
+        
+        # Perform comprehensive validation
+        validation_result = validate_market_data_csv(
+            expected_csv_file,
+            expected_min_rows=3,  # At least 3 trading days in 10-day period
+            date_range=date_range,
+            provider="yahoo"
+        )
+        
+        # Assert validation passed
+        assert validation_result.is_valid, f"CSV validation failed: {validation_result.errors}"
+        
+        # Validate business day count
+        is_valid, expected_days, message = validate_business_day_count(
+            start_date, end_date, validation_result.row_count, tolerance=3
+        )
+        assert is_valid, f"Business day count validation failed: {message}"
+        
+        # Log validation success details
+        print(f"✅ Yahoo CSV validation passed:")
+        print(f"  File: {expected_csv_file.name}")
+        print(f"  Rows: {validation_result.row_count}")
+        print(f"  Columns: {', '.join(validation_result.columns)}")
+        print(f"  Size: {validation_result.file_size} bytes")
+        print(f"  {message}")
+        
+        if validation_result.warnings:
+            print(f"  Warnings: {', '.join(validation_result.warnings)}")
 
     @pytest.mark.e2e
     @pytest.mark.network
@@ -266,7 +263,10 @@ class TestCLIWorkflows:
         
         assert symbols_found >= 2, f"Expected processing of at least 2 symbols. Output: {output_text}"
         
-        # Validate file creation for each symbol
+        # Comprehensive validation for multiple CSV files
+        from .csv_validation import validate_multiple_csvs, print_validation_summary
+        
+        # Find all created CSV files
         created_files = []
         missing_files = []
         
@@ -274,20 +274,26 @@ class TestCLIWorkflows:
             expected_file = temp_output_dir / "stocks" / "1d" / f"{symbol}.csv"
             if expected_file.exists():
                 created_files.append(expected_file)
-                
-                # Validate file content briefly
-                with open(expected_file, 'r') as f:
-                    content = f.read()
-                    assert len(content) > 50, f"{symbol}.csv seems too small: {len(content)} chars"
-                    # Check for date/datetime column (different providers use different formats)
-                    has_date_column = any(col in content.upper() for col in [DATE_TIME_COLUMN.upper(), "DATE"])
-                    assert has_date_column, f"{symbol}.csv missing date column. Content start: {content[:200]}"
-                    
             else:
                 missing_files.append(symbol)
         
         # Require at least 2 out of 3 files to be created (some might fail due to market conditions)
         assert len(created_files) >= 2, f"Expected at least 2 CSV files. Created: {len(created_files)}, Missing: {missing_files}"
+        
+        # Validate all created CSV files comprehensively
+        validation_results = validate_multiple_csvs(
+            created_files,
+            expected_min_rows=3,  # At least 3 trading days in 7-day period
+            date_range=(start_date, end_date),
+            provider="yahoo"
+        )
+        
+        # Check that all created files passed validation
+        failed_validations = [name for name, result in validation_results.items() if not result.is_valid]
+        assert len(failed_validations) == 0, f"CSV validation failed for: {failed_validations}"
+        
+        # Print detailed validation summary
+        print_validation_summary(validation_results)
         
         # Validate directory structure was created properly
         stocks_dir = temp_output_dir / "stocks" / "1d"
@@ -413,36 +419,32 @@ class TestCLIWorkflows:
                     })
                     continue
                 
-                # Validate file content
-                with open(expected_file, 'r') as f:
-                    content = f.read()
-                    lines = content.strip().split('\n')
-                    
-                    # Check minimum content requirements
-                    if len(lines) < 2:  # At least header + 1 data row
-                        failed_periods.append({
-                            "period": period,
-                            "reason": f"Insufficient data rows: {len(lines)} lines",
-                            "output": result.output[:500]
-                        })
-                        continue
-                    
-                    # Check for date/datetime column
-                    header = lines[0].upper()
-                    if not any(col in header for col in [DATE_TIME_COLUMN, "DATE"]):
-                        failed_periods.append({
-                            "period": period,
-                            "reason": f"Missing date column in header: {header}",
-                            "output": result.output[:500]
-                        })
-                        continue
+                # Comprehensive CSV validation for this period
+                from .csv_validation import validate_market_data_csv
+                
+                validation_result = validate_market_data_csv(
+                    expected_file,
+                    expected_min_rows=1,  # Minimum 1 data row
+                    date_range=(start_date, end_date),
+                    provider="yahoo"
+                )
+                
+                if not validation_result.is_valid:
+                    failed_periods.append({
+                        "period": period,
+                        "reason": f"CSV validation failed: {', '.join(validation_result.errors)}",
+                        "output": result.output[:500]
+                    })
+                    continue
                 
                 # If we got here, the period test was successful
                 successful_periods.append({
                     "period": period,
                     "file": str(expected_file),
-                    "rows": len(lines),
-                    "size": expected_file.stat().st_size
+                    "rows": validation_result.row_count,
+                    "columns": len(validation_result.columns),
+                    "size": validation_result.file_size,
+                    "warnings": validation_result.warnings
                 })
                 
             except Exception as e:
