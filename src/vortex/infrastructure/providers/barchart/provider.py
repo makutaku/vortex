@@ -158,38 +158,13 @@ class BarchartDataProvider(DataProvider):
         
         # Note: Using actual working API format from network capture (ISO dates)
         
-        # Try the historical download endpoint from the symbol page
-        historical_url = f"{self.BARCHART_URL}/stocks/quotes/{instrument}/historical-download"
-        
-        # Also try the original /my/download endpoint as fallback
+        # Use the /my/download endpoint directly
         download_url = f"{self.BARCHART_URL}/my/download"
         
         try:
             logger.info(f"Using bc-utils /my/download endpoint for {instrument}")
             
-            # First, visit the symbol page to get proper download links (manual approach)
-            symbol_url = f"{self.BARCHART_URL}/stocks/quotes/{instrument}/historical-prices"
-            symbol_response = self.auth.session.get(symbol_url)
-            
-            if symbol_response.status_code == 200:
-                logger.debug(f"Symbol page accessed successfully for {instrument}")
-                # Check if there's a download link or form on the symbol page
-                from bs4 import BeautifulSoup
-                symbol_soup = BeautifulSoup(symbol_response.text, 'html.parser')
-                download_links = symbol_soup.find_all('a', href=True)
-                download_forms = symbol_soup.find_all('form')
-                logger.debug(f"Found {len(download_links)} links and {len(download_forms)} forms on symbol page")
-                
-                # Look for download-related elements
-                for link in download_links:
-                    if 'download' in link.get('href', '').lower():
-                        logger.debug(f"Found download link: {link.get('href')}")
-                        
-                for form in download_forms:
-                    if 'download' in str(form).lower():
-                        logger.debug(f"Found download form action: {form.get('action')}")
-            
-            # Get CSRF token from a page that has meta tags (home page works best)
+            # Get CSRF token from home page (the only request we actually need)
             home_response = self.auth.session.get(self.BARCHART_URL)
             
             if home_response.status_code != 200:
