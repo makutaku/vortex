@@ -125,23 +125,18 @@ class BarchartDataProvider(DataProvider):
 
     def _fetch_historical_data_(self, instrument: str, freq_attrs: FrequencyAttributes,
                                start_date, end_date, url: str, tz: str) -> Optional[DataFrame]:
-        """Internal method to fetch historical data using bc-utils methodology."""
+        """Internal method to fetch historical data using exact bc-utils methodology."""
         import logging
         logger = logging.getLogger(__name__)
         
         try:
-            # Use bc-utils approach: try JSON API endpoints first
-            df = self._fetch_via_json_api(instrument, freq_attrs, start_date, end_date, tz)
+            # Use exact bc-utils approach: /my/download endpoint
+            logger.info(f"Attempting bc-utils download for {instrument}")
+            df = self._fetch_via_bc_utils_download(instrument, freq_attrs, start_date, end_date, tz)
             if df is not None:
                 return self._validate_data_availability(df, instrument, freq_attrs, start_date, end_date)
             
-            # Fallback: try CSV download method
-            logger.info(f"JSON API failed, attempting CSV download for {instrument}")
-            df = self._fetch_via_csv_download(instrument, freq_attrs, start_date, end_date, tz)
-            if df is not None:
-                return self._validate_data_availability(df, instrument, freq_attrs, start_date, end_date)
-            
-            # No data found with any method
+            # No data found
             from vortex.exceptions.providers import DataNotFoundError
             raise DataNotFoundError(
                 provider="barchart",
@@ -152,219 +147,212 @@ class BarchartDataProvider(DataProvider):
             )
             
         except Exception as e:
-            logger.error(f"All download methods failed for {instrument}: {e}")
+            logger.error(f"bc-utils download failed for {instrument}: {e}")
             raise
 
-    def _fetch_via_json_api(self, instrument: str, freq_attrs: FrequencyAttributes,
-                           start_date, end_date, tz: str) -> Optional[DataFrame]:
-        """Fetch data using Barchart JSON API (bc-utils methodology)."""
+    def _fetch_via_bc_utils_download(self, instrument: str, freq_attrs: FrequencyAttributes,
+                                    start_date, end_date, tz: str) -> Optional[DataFrame]:
+        """Fetch data using exact bc-utils /my/download methodology."""
         import logging
         logger = logging.getLogger(__name__)
         
-        # Format dates for API
-        start_str = start_date.strftime('%Y-%m-%d')
-        end_str = end_date.strftime('%Y-%m-%d')
+        # Note: Using actual working API format from network capture (ISO dates)
         
-        # Determine frequency parameter
-        frequency = self._get_api_frequency(freq_attrs.frequency)
+        # Try the historical download endpoint from the symbol page
+        historical_url = f"{self.BARCHART_URL}/stocks/quotes/{instrument}/historical-download"
         
-        # Primary JSON API endpoints (based on bc-utils pattern)
-        api_endpoints = [
-            # Core API endpoint (most reliable)
-            {
-                'url': 'https://www.barchart.com/proxies/core-api/v1/quotes/get',
-                'params': {
-                    'symbol': instrument,
-                    'start': start_str,
-                    'end': end_str,
-                    'type': 'historical',
-                    'interval': frequency
-                }
-            },
-            # Alternative endpoints
-            {
-                'url': f'https://www.barchart.com/proxies/timeseries/queryeod.ashx',
-                'params': {
-                    'symbol': instrument,
-                    'start': start_str,
-                    'end': end_str,
-                    'frequency': frequency,
-                    'volume': 'contract',
-                    'order': 'asc'
-                }
-            }
-        ]
-        
-        for endpoint in api_endpoints:
-            try:
-                logger.info(f"Attempting JSON API: {endpoint['url']}")
-                
-                # Make authenticated API request
-                response_data = self.auth.make_api_request(endpoint['url'], endpoint['params'])
-                
-                if response_data and 'data' in response_data:
-                    # Check if this is actually CSV data disguised as JSON
-                    if 'content_type' in response_data and 'csv' in response_data.get('content_type', '').lower():
-                        logger.info(f"CSV response received from JSON API for {instrument}")
-                        return self._process_csv_response(response_data['data'], freq_attrs.frequency, tz)
-                    elif isinstance(response_data['data'], str):
-                        # Data is a string, likely CSV
-                        logger.info(f"String data received from JSON API for {instrument}")
-                        return self._process_csv_response(response_data['data'], freq_attrs.frequency, tz)
-                    else:
-                        # Actual JSON data
-                        logger.info(f"JSON API successful for {instrument}")
-                        return self._process_json_response(response_data, tz)
-                    
-            except Exception as e:
-                logger.debug(f"JSON API endpoint failed: {e}")
-                continue
-        
-        logger.warning(f"All JSON API endpoints failed for {instrument}")
-        return None
-
-    def _process_json_response(self, json_data: dict, tz: str) -> Optional[DataFrame]:
-        """Process JSON response from Barchart API."""
-        import pandas as pd
-        import logging
-        logger = logging.getLogger(__name__)
+        # Also try the original /my/download endpoint as fallback
+        download_url = f"{self.BARCHART_URL}/my/download"
         
         try:
-            # Debug: log the JSON structure
-            logger.debug(f"Processing JSON response keys: {list(json_data.keys()) if isinstance(json_data, dict) else 'Not a dict'}")
+            logger.info(f"Using bc-utils /my/download endpoint for {instrument}")
             
-            # Extract data array from various JSON structures
-            data_array = None
-            if isinstance(json_data, dict):
-                if 'data' in json_data:
-                    data_array = json_data['data']
-                elif 'history' in json_data:
-                    data_array = json_data['history']
-                elif 'results' in json_data:
-                    data_array = json_data['results']
-                else:
-                    # Try to use the whole dict if it looks like data
-                    if any(key in json_data for key in ['open', 'high', 'low', 'close', 'date', 'time']):
-                        data_array = [json_data]  # Wrap single record
-            elif isinstance(json_data, list):
-                data_array = json_data
+            # First, visit the symbol page to get proper download links (manual approach)
+            symbol_url = f"{self.BARCHART_URL}/stocks/quotes/{instrument}/historical-prices"
+            symbol_response = self.auth.session.get(symbol_url)
             
-            if not data_array:
-                logger.warning(f"No data found in JSON response. Response structure: {json_data}")
-                return None
-            
-            # Validate data_array is suitable for DataFrame
-            if not isinstance(data_array, list):
-                logger.error(f"Data array is not a list: {type(data_array)}")
-                return None
+            if symbol_response.status_code == 200:
+                logger.debug(f"Symbol page accessed successfully for {instrument}")
+                # Check if there's a download link or form on the symbol page
+                from bs4 import BeautifulSoup
+                symbol_soup = BeautifulSoup(symbol_response.text, 'html.parser')
+                download_links = symbol_soup.find_all('a', href=True)
+                download_forms = symbol_soup.find_all('form')
+                logger.debug(f"Found {len(download_links)} links and {len(download_forms)} forms on symbol page")
                 
-            if not data_array:
-                logger.warning("Data array is empty")
+                # Look for download-related elements
+                for link in download_links:
+                    if 'download' in link.get('href', '').lower():
+                        logger.debug(f"Found download link: {link.get('href')}")
+                        
+                for form in download_forms:
+                    if 'download' in str(form).lower():
+                        logger.debug(f"Found download form action: {form.get('action')}")
+            
+            # Get CSRF token from a page that has meta tags (home page works best)
+            home_response = self.auth.session.get(self.BARCHART_URL)
+            
+            if home_response.status_code != 200:
+                logger.error(f"Cannot access home page for CSRF token: {home_response.status_code}")
                 return None
-                
-            # Log first item structure for debugging
-            logger.debug(f"First data item: {data_array[0] if data_array else 'Empty'}")
             
-            # Create DataFrame from JSON data
-            df = pd.DataFrame(data_array)
+            # Extract meta CSRF token (this is the key fix!)
+            from bs4 import BeautifulSoup
+            soup = BeautifulSoup(home_response.text, 'html.parser')
+            csrf_token = None
             
-            if df.empty:
-                logger.warning("Empty DataFrame from JSON data")
+            # Look for meta CSRF token (the correct token type)
+            meta_token = soup.find('meta', {'name': 'csrf-token'})
+            if meta_token:
+                csrf_token = meta_token.get('content')
+                logger.debug(f"Found meta CSRF token: {csrf_token[:20]}...")
+            else:
+                logger.error("No meta CSRF token found on home page")
                 return None
             
-            # Standardize column names
-            column_mapping = {
-                'date': 'Datetime', 'time': 'Datetime', 'timestamp': 'Datetime',
-                'dateTime': 'Datetime', 'tradingDay': 'Datetime',
-                'open': 'Open', 'high': 'High', 'low': 'Low', 'close': 'Close',
-                'volume': 'Volume', 'openInterest': 'Open Interest'
-            }
-            
-            # Rename columns
-            df.rename(columns=column_mapping, inplace=True)
-            
-            # Process datetime column
-            if 'Datetime' in df.columns:
-                df['Datetime'] = pd.to_datetime(df['Datetime'])
-                if df['Datetime'].dt.tz is None:
-                    df['Datetime'] = df['Datetime'].dt.tz_localize(tz)
-                df['Datetime'] = df['Datetime'].dt.tz_convert('UTC')
-                df.set_index('Datetime', inplace=True)
-                df.sort_index(inplace=True)
-            
-            logger.info(f"Successfully processed JSON data: {df.shape}")
-            return df
-            
-        except Exception as e:
-            logger.error(f"Failed to process JSON response: {e}")
-            return None
-
-    def _fetch_via_csv_download(self, instrument: str, freq_attrs: FrequencyAttributes,
-                               start_date, end_date, tz: str) -> Optional[DataFrame]:
-        """Fetch data via CSV download (bc-utils methodology)."""
-        import logging
-        logger = logging.getLogger(__name__)
-        
-        try:
-            # Format dates for CSV download
-            start_str = start_date.strftime('%m/%d/%Y')
-            end_str = end_date.strftime('%m/%d/%Y')
-            
-            # CSV download endpoint
-            csv_url = "https://www.barchart.com/proxies/timeseries/queryeod.ashx"
-            
-            params = {
+            # Prepare payload using actual working format from network capture
+            payload = {
+                '_token': csrf_token,
+                'fileName': f'{instrument}_Daily_Historical+Data',
                 'symbol': instrument,
-                'start': start_str,
-                'end': end_str,
-                'frequency': 'daily',
-                'volume': 'contract',
-                'order': 'asc',
-                'dividends': 'false',
-                'backadjusted': 'false',
-                'daystoexpiration': 'false',
-                'contractroll': 'expiration'
+                'fields': 'tradeTime.format(m/d/Y),openPrice,highPrice,lowPrice,lastPrice,priceChange,percentChange,volume',
+                'startDate': start_date.strftime('%Y-%m-%d'),  # ISO format: 2025-01-01
+                'endDate': end_date.strftime('%Y-%m-%d'),      # ISO format: 2025-06-30
+                'type': 'eod',  # end of day (not 'daily')
+                'orderBy': 'tradeTime',
+                'orderDir': 'desc',
+                'method': 'historical',  # This is crucial!
+                'limit': '10000',
+                'period': self._get_barchart_period(freq_attrs.frequency),
+                'customView': 'true',
+                'exclude': '',
+                'customGetParameters': '',
+                'pageTitle': 'Historical+Data'
             }
             
-            logger.info(f"Attempting CSV download for {instrument}")
-            response_data = self.auth.make_api_request(csv_url, params)
+            # For intraday data, update the type parameter
+            if freq_attrs.frequency != Period('1d'):
+                payload['type'] = 'minutes'  # Override type for intraday
             
-            if 'data' in response_data and response_data['data']:
-                logger.info(f"CSV download successful for {instrument}")
-                return self._process_csv_response(response_data['data'], freq_attrs.frequency, tz)
+            logger.debug(f"bc-utils payload: {payload}")
             
-            logger.warning(f"CSV download failed for {instrument} - no data returned")
-            return None
+            # Prepare headers for POST request  
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:86.0) Gecko/20100101 Firefox/86.0',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'Origin': self.BARCHART_URL,
+                'Referer': self.BARCHART_URL,
+                'X-CSRF-TOKEN': csrf_token
+            }
             
+            # Use the /my/download endpoint directly (this is what works!)
+            logger.info(f"Using /my/download endpoint with meta CSRF token for {instrument}")
+            response = self.auth.session.post(download_url, data=payload, headers=headers)
+            
+            logger.debug(f"Download response status: {response.status_code}")
+            logger.debug(f"Download response headers: {dict(response.headers)}")
+            
+            if response.status_code != 200:
+                logger.error(f"Download failed with status: {response.status_code}")
+                logger.debug(f"Response content: {response.text[:300]}...")
+                return None
+            
+            # Check if response contains CSV data
+            logger.debug(f"Response content preview: {response.text[:300]}...")
+            
+            # Barchart CSV may use 'Time' instead of 'tradeTime'
+            csv_indicators = ['tradeTime', 'Time', 'Open,High,Low', 'Last']
+            has_csv_data = any(indicator in response.text for indicator in csv_indicators)
+            
+            if response.text and has_csv_data:
+                logger.info(f"bc-utils download successful for {instrument}")
+                return self._process_bc_utils_csv_response(response.text, freq_attrs.frequency, tz)
+            else:
+                logger.warning(f"bc-utils download returned no CSV data for {instrument}")
+                logger.debug(f"Full response content: {response.text}")
+                return None
+                
         except Exception as e:
-            logger.error(f"CSV download failed for {instrument}: {e}")
+            logger.error(f"bc-utils download failed for {instrument}: {e}")
             return None
 
-    def _process_csv_response(self, csv_data: str, frequency, tz: str) -> Optional[DataFrame]:
-        """Process CSV response data."""
-        try:
-            from .parser import BarchartParser
-            return BarchartParser.convert_downloaded_csv_to_df(frequency, csv_data, tz)
-        except Exception as e:
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.error(f"Failed to process CSV response: {e}")
-            return None
     
-    def _get_api_frequency(self, period) -> str:
-        """Convert Period to Barchart API frequency parameter."""
+    def _get_bc_utils_frequency(self, period) -> str:
+        """Convert Period to bc-utils frequency parameter."""
         from vortex.models.period import Period
         
-        frequency_mapping = {
+        # bc-utils uses 'daily' or 'minutes'
+        if period == Period('1d'):
+            return 'daily'
+        else:
+            return 'minutes'  # All intraday periods use 'minutes'
+    
+    def _get_barchart_period(self, period) -> str:
+        """Convert Period to Barchart period parameter (for actual API)."""
+        from vortex.models.period import Period
+        
+        # Map to Barchart period values
+        period_mapping = {
             Period('1d'): 'daily',
-            Period('1h'): 'hourly', 
+            Period('1h'): 'hourly',
             Period('30m'): '30minute',
             Period('15m'): '15minute',
             Period('5m'): '5minute',
             Period('1m'): 'minute'
         }
         
-        return frequency_mapping.get(period, 'daily')
+        return period_mapping.get(period, 'daily')
+
+    def _process_bc_utils_csv_response(self, csv_data: str, frequency, tz: str) -> Optional[DataFrame]:
+        """Process CSV response from bc-utils /my/download endpoint."""
+        import pandas as pd
+        import io
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        try:
+            # bc-utils CSV format has different column names
+            iostr = io.StringIO(csv_data)
+            
+            # Read CSV and check if it has data
+            df = pd.read_csv(iostr)
+            
+            if df.empty:
+                logger.warning("bc-utils returned empty CSV")
+                return None
+                
+            logger.debug(f"bc-utils CSV columns: {list(df.columns)}")
+            logger.debug(f"bc-utils CSV shape: {df.shape}")
+            
+            # Map bc-utils columns to standard format
+            column_mapping = {
+                'tradeTime': 'Time',
+                'openPrice': 'Open', 
+                'highPrice': 'High',
+                'lowPrice': 'Low',
+                'lastPrice': 'Last',
+                'volume': 'Volume',
+                'openInterest': 'Open Interest'
+            }
+            
+            # Rename columns
+            df.rename(columns=column_mapping, inplace=True)
+            
+            # Process with our standard parser (which expects Time, Last, etc.)
+            from .parser import BarchartParser
+            
+            # Convert back to CSV string for parser
+            csv_output = io.StringIO()
+            df.to_csv(csv_output, index=False)
+            csv_string = csv_output.getvalue()
+            
+            # Use our standard parser
+            return BarchartParser.convert_downloaded_csv_to_df(frequency, csv_string, tz)
+            
+        except Exception as e:
+            logger.error(f"Failed to process bc-utils CSV response: {e}")
+            return None
 
     def _validate_data_availability(self, df: DataFrame, symbol: str, freq_attrs: FrequencyAttributes = None, 
                                    start_date=None, end_date=None) -> DataFrame:

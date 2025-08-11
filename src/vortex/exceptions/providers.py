@@ -98,7 +98,10 @@ class DataNotFoundError(DataProviderError):
         self.end_date = end_date
         self.http_code = http_code
         
-        message = f"No data found for {symbol} ({period}) from {start_date.date()} to {end_date.date()}"
+        # Handle both datetime and date objects
+        start_str = start_date.date() if hasattr(start_date, 'date') else start_date
+        end_str = end_date.date() if hasattr(end_date, 'date') else end_date
+        message = f"No data found for {symbol} ({period}) from {start_str} to {end_str}"
         if http_code:
             message += f" (HTTP {http_code})"
         
