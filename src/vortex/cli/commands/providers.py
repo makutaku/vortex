@@ -395,7 +395,8 @@ def check_single_provider(config_manager: ConfigManager, provider: str) -> dict:
             
             if resp.status_code == 200:
                 # Extract XSRF token and check allowance
-                xsf_token = BarchartDataProvider.extract_xsrf_token(resp)
+                # Get XSRF token for allowance check
+                xsf_token = bc_provider.auth.get_xsrf_token()
                 allowance, _ = bc_provider._fetch_allowance(url, xsf_token)
                 
                 if allowance.get('success'):

@@ -46,7 +46,7 @@ class BarchartClient:
             headers = self._build_allowance_request_headers(url, xsf_token)
             payload = self._build_allowance_payload()
             resp = self.session.post(self.BARCHART_ALLOWANCE_URL, headers=headers, data=payload)
-            xsf_token = self.auth.extract_xsrf_token(resp)
+            xsf_token = self.auth.get_xsrf_token()
             allowance = json.loads(resp.text)
             logging.debug(f"allowance: {allowance}")
             return allowance, xsf_token

@@ -66,6 +66,86 @@ class BarchartDataProvider(DataProvider):
         """Get the configured daily download limit for informational purposes."""
         return self.daily_limit
 
+    def _check_server_allowance(self) -> Optional[int]:
+        """Check current download allowance using exact bc-utils methodology."""
+        import logging
+        import json
+        logger = logging.getLogger(__name__)
+        
+        try:
+            # Use exact bc-utils approach: GET home page for CSRF token, then POST with onlyCheckPermissions
+            home_response = self.auth.session.get(self.BARCHART_URL)
+            
+            if home_response.status_code != 200:
+                logger.debug(f"Cannot access home page for allowance check: {home_response.status_code}")
+                return None
+            
+            # Extract meta CSRF token (same as working download)
+            from bs4 import BeautifulSoup
+            soup = BeautifulSoup(home_response.text, 'html.parser')
+            csrf_token = None
+            
+            meta_token = soup.find('meta', {'name': 'csrf-token'})
+            if meta_token:
+                csrf_token = meta_token.get('content')
+                logger.debug(f"Found meta CSRF token for allowance check: {csrf_token[:20]}...")
+            else:
+                logger.debug("No meta CSRF token found for allowance check")
+                return None
+            
+            # Prepare bc-utils allowance check payload
+            payload = {
+                'onlyCheckPermissions': 'true'  # This is the bc-utils secret!
+            }
+            
+            # Prepare headers (same as working download)
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:86.0) Gecko/20100101 Firefox/86.0',
+                'Accept': 'application/json, text/javascript, */*; q=0.01',
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'Origin': self.BARCHART_URL,
+                'Referer': self.BARCHART_URL,
+                'X-CSRF-TOKEN': csrf_token
+            }
+            
+            # Use bc-utils /my/download endpoint with onlyCheckPermissions
+            download_url = f"{self.BARCHART_URL}/my/download"
+            logger.debug(f"bc-utils allowance check payload: {payload}")
+            response = self.auth.session.post(download_url, data=payload, headers=headers)
+            
+            logger.debug(f"Allowance check response status: {response.status_code}")
+            logger.debug(f"Allowance check response: {response.text[:200]}...")
+            
+            if response.status_code == 200:
+                try:
+                    allowance = json.loads(response.text)
+                    logger.debug(f"Parsed allowance: {allowance}")
+                    
+                    # Check for error (bc-utils approach)
+                    if allowance.get("error") is not None:
+                        logger.debug(f"Allowance check error: {allowance.get('error')}")
+                        return None
+                    
+                    # Check for success and count (bc-utils approach)
+                    if allowance.get("success"):
+                        current_count = int(allowance.get('count', '0'))
+                        logger.debug(f"bc-utils allowance success: {allowance['success']}, count: {current_count}")
+                        return current_count
+                    else:
+                        logger.debug(f"Allowance check unsuccessful: {allowance}")
+                        return None
+                        
+                except (json.JSONDecodeError, ValueError) as e:
+                    logger.debug(f"Failed to parse allowance response: {e}")
+                    return None
+            else:
+                logger.debug(f"Allowance check failed with status: {response.status_code}")
+                return None
+                
+        except Exception as e:
+            logger.debug(f"Allowance check error: {e}")
+            return None
+
     def _get_frequency_attributes(self) -> list[FrequencyAttributes]:
         """Get supported frequency attributes for this provider."""
         def get_min_start_date(period):
@@ -140,9 +220,16 @@ class BarchartDataProvider(DataProvider):
         logger = logging.getLogger(__name__)
         
         try:
+            # Check server allowance using exact bc-utils methodology
+            current_allowance = self._check_server_allowance()
+            if current_allowance is not None:
+                logger.info(f"bc-utils server allowance: {current_allowance} downloads used today (configured limit: {self.daily_limit})")
+            else:
+                logger.info(f"bc-utils allowance check unavailable (configured limit: {self.daily_limit})")
+            
             # Use exact bc-utils approach: /my/download endpoint
             # Note: bc-utils relies on server-side allowance enforcement (250 paid/5 free per day)
-            logger.info(f"Attempting bc-utils download for {instrument} (daily limit: {self.daily_limit})")
+            logger.info(f"Attempting bc-utils download for {instrument}")
             df = self._fetch_via_bc_utils_download(instrument, freq_attrs, start_date, end_date, tz)
             if df is not None:
                 return self._validate_data_availability(df, instrument, freq_attrs, start_date, end_date)
