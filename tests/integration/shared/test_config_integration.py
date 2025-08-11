@@ -24,7 +24,7 @@ from vortex.core.config import (
 class TestConfigManagerIntegration:
     """Integration tests for ConfigManager involving file operations."""
     
-    def test_save_and_load_config(self, config_manager, vortex_config):
+    def test_save_and_load_config(self, config_manager, vortex_config, clean_environment):
         """Test saving and loading configuration to/from files."""
         # Save config
         config_manager.save_config(vortex_config)
@@ -65,7 +65,7 @@ class TestConfigManagerIntegration:
         # Yahoo should always pass (no credentials required)
         assert config_manager.validate_provider_credentials("yahoo") is True
 
-    def test_get_missing_credentials(self, temp_dir):
+    def test_get_missing_credentials(self, temp_dir, clean_environment):
         """Test getting missing credential information."""
         # Create a config manager with no existing config (defaults only)
         empty_config_file = temp_dir / "empty_config.toml"
