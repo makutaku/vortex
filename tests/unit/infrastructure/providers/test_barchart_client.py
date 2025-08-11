@@ -21,7 +21,7 @@ def mock_auth():
     """Create a mock BarchartAuth instance."""
     auth = Mock(spec=BarchartAuth)
     auth.session = Mock(spec=requests.Session)
-    auth.extract_xsrf_token = Mock(return_value="test-xsrf-token")
+    auth.get_xsrf_token = Mock(return_value="test-xsrf-token")
     return auth
 
 
@@ -173,7 +173,7 @@ class TestBarchartClientAllowance:
         mock_response = Mock()
         mock_response.text = json.dumps(allowance_data)
         client.session.post.return_value = mock_response
-        client.auth.extract_xsrf_token.return_value = "new-xsrf-token"
+        client.auth.get_xsrf_token.return_value = "new-xsrf-token"
         
         url = "https://www.barchart.com/test"
         xsf_token = "old-xsrf-token"
@@ -184,7 +184,7 @@ class TestBarchartClientAllowance:
         assert result_allowance == allowance_data
         assert result_token == "new-xsrf-token"
         client.session.post.assert_called_once()
-        client.auth.extract_xsrf_token.assert_called_once_with(mock_response)
+        client.auth.get_xsrf_token.assert_called_once()
         mock_debug.assert_called_once()
     
     def test_fetch_allowance_headers(self, client):
@@ -192,7 +192,7 @@ class TestBarchartClientAllowance:
         mock_response = Mock()
         mock_response.text = '{"success": true}'
         client.session.post.return_value = mock_response
-        client.auth.extract_xsrf_token.return_value = "token"
+        client.auth.get_xsrf_token.return_value = "token"
         
         url = "https://www.barchart.com/test"
         xsf_token = "test-token"
@@ -212,7 +212,7 @@ class TestBarchartClientAllowance:
         mock_response = Mock()
         mock_response.text = '{"success": true}'
         client.session.post.return_value = mock_response
-        client.auth.extract_xsrf_token.return_value = "token"
+        client.auth.get_xsrf_token.return_value = "token"
         
         client.fetch_allowance("http://test.com", "token")
         
@@ -334,7 +334,7 @@ class TestBarchartClientIntegration:
         
         # Mock token extraction
         new_token = "refreshed-xsrf-token"
-        client.auth.extract_xsrf_token.return_value = new_token
+        client.auth.get_xsrf_token.return_value = new_token
         
         # Execute allowance check
         allowance, token = client.fetch_allowance(
