@@ -62,10 +62,21 @@ ehthumbs.db
 Thumbs.db
 
 # Project specific
-.env
-.env.local
 /data
 *.log
+
+# Security - Credential files
+.env
+.env.local
+.env.production
+.env.development
+credentials.json
+*credentials.json
+*credentials.yaml
+*credentials.yml
+!.env.example
+!*credentials*.example
+!tests/fixtures/*credentials*.py
 
 # Test artifacts
 test-*/

@@ -20,6 +20,7 @@ from vortex.models.future import Future
 from vortex.models.period import Period, FrequencyAttributes
 from vortex.models.price_series import FUTURES_SOURCE_TIME_ZONE, STOCK_SOURCE_TIME_ZONE
 from vortex.models.stock import Stock
+from vortex.core.constants import ProviderConstants
 
 from .auth import BarchartAuth
 from .client import BarchartClient  
@@ -30,9 +31,9 @@ class BarchartDataProvider(DataProvider):
     """Barchart data provider with modular architecture."""
     
     PROVIDER_NAME = "Barchart"
-    DEFAULT_SELF_IMPOSED_DOWNLOAD_DAILY_LIMIT = 150
-    MAX_BARS_PER_DOWNLOAD: int = 20000
-    BARCHART_URL = 'https://www.barchart.com'
+    DEFAULT_SELF_IMPOSED_DOWNLOAD_DAILY_LIMIT = ProviderConstants.Barchart.DEFAULT_DAILY_DOWNLOAD_LIMIT
+    MAX_BARS_PER_DOWNLOAD: int = ProviderConstants.Barchart.MAX_BARS_PER_DOWNLOAD
+    BARCHART_URL = ProviderConstants.Barchart.BASE_URL
     
     def __init__(self, username: str, password: str, 
                  daily_download_limit: int = DEFAULT_SELF_IMPOSED_DOWNLOAD_DAILY_LIMIT):
@@ -445,7 +446,7 @@ class BarchartDataProvider(DataProvider):
                 from vortex.exceptions.providers import DataProviderError
                 raise DataProviderError("barchart", f"No data available for {symbol}")
         
-        if len(df) <= 3:
+        if len(df) < ProviderConstants.Barchart.MIN_REQUIRED_DATA_POINTS:
             from vortex.exceptions.providers import DataProviderError
             raise DataProviderError(
                 "barchart",

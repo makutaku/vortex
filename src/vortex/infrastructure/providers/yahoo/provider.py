@@ -10,6 +10,7 @@ from ..base import DataProvider
 from vortex.models.columns import DATETIME_INDEX_NAME, validate_required_columns, get_provider_expected_columns, standardize_dataframe_columns
 from vortex.models.instrument import Instrument
 from vortex.models.period import Period, FrequencyAttributes
+from vortex.core.constants import ProviderConstants, TimeConstants
 
 
 class YahooDataProvider(DataProvider):
@@ -36,19 +37,19 @@ class YahooDataProvider(DataProvider):
                                 min_start=None,
                                 properties={'interval': '1d'}),
             FrequencyAttributes(Period.Hourly,
-                                min_start=timedelta(days=729),
+                                min_start=timedelta(days=TimeConstants.MIN_INTRADAY_DATA_DAYS),
                                 properties={'interval': '1h'}),
             FrequencyAttributes(Period.Minute_30,
-                                min_start=timedelta(days=59),
+                                min_start=timedelta(days=ProviderConstants.Yahoo.INTRADAY_30MIN_DAYS_LIMIT),
                                 properties={'interval': '30m'}),
             FrequencyAttributes(Period.Minute_15,
-                                min_start=timedelta(days=59),
+                                min_start=timedelta(days=ProviderConstants.Yahoo.INTRADAY_15MIN_DAYS_LIMIT),
                                 properties={'interval': '15m'}),
             FrequencyAttributes(Period.Minute_5,
-                                min_start=timedelta(days=59),
+                                min_start=timedelta(days=ProviderConstants.Yahoo.INTRADAY_5MIN_DAYS_LIMIT),
                                 properties={'interval': '5m'}),
             FrequencyAttributes(Period.Minute_1,
-                                min_start=timedelta(days=7),
+                                min_start=timedelta(days=ProviderConstants.Yahoo.INTRADAY_1MIN_DAYS_LIMIT),
                                 properties={'interval': '1m'}),
         ]
 

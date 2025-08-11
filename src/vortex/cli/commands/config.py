@@ -11,6 +11,7 @@ from rich.prompt import Prompt, Confirm
 from vortex.exceptions import ConfigurationError, InvalidConfigurationError, MissingArgumentError
 from vortex.core.config import ConfigManager
 from vortex.constants import DEFAULT_IBKR_PORT
+from vortex.core.constants import ProviderConstants
 from vortex.core.logging_integration import get_module_logger
 
 console = Console()
@@ -198,7 +199,7 @@ def show_provider_configuration(config_manager: ConfigManager, provider: str) ->
     if provider == "barchart":
         table.add_row("Username", provider_config.get("username") or "[red]Not set[/red]")
         table.add_row("Password", "••••••••" if provider_config.get("password") else "[red]Not set[/red]")
-        table.add_row("Daily Limit", str(provider_config.get("daily_limit", 150)))
+        table.add_row("Daily Limit", str(provider_config.get("daily_limit", ProviderConstants.Barchart.DEFAULT_DAILY_DOWNLOAD_LIMIT)))
     elif provider == "yahoo":
         table.add_row("Status", "No configuration required")
         table.add_row("Enabled", str(provider_config.get("enabled", True)))
@@ -228,7 +229,7 @@ def set_provider_credentials(config_manager: ConfigManager, provider: str) -> No
         console.print("Enter your Barchart.com credentials:")
         username = Prompt.ask("Username (email)")
         password = Prompt.ask("Password", password=True)
-        daily_limit = Prompt.ask("Daily download limit", default="150")
+        daily_limit = Prompt.ask("Daily download limit", default=str(ProviderConstants.Barchart.DEFAULT_DAILY_DOWNLOAD_LIMIT))
         
         config_manager.set_provider_config(provider, {
             "username": username,
