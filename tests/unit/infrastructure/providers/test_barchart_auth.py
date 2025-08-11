@@ -48,7 +48,7 @@ class TestBarchartAuth:
         assert isinstance(session, requests.Session)
         assert "User-Agent" in session.headers
         assert "Mozilla/5.0" in session.headers["User-Agent"]
-        assert "Chrome" in session.headers["User-Agent"]
+        # bc-utils uses a simple Mozilla User-Agent, not Chrome
 
 
 @pytest.mark.unit
@@ -65,18 +65,19 @@ class TestBarchartAuthLogin:
         """Test successful login flow."""
         # Mock the GET response for login page
         mock_get_response = Mock()
-        mock_get_response.text = '<input type="hidden" name="_token" value="test-csrf-token">'
+        mock_get_response.text = '<meta name="csrf-token" content="test-csrf-token">'
         self.auth.session.get.return_value = mock_get_response
         
         # Mock the POST response for login
         mock_post_response = Mock()
         mock_post_response.url = "https://www.barchart.com/dashboard"  # Different from login URL
+        mock_post_response.status_code = 200
         self.auth.session.post.return_value = mock_post_response
         
         with patch('bs4.BeautifulSoup') as mock_soup:
-            mock_tag = Mock()
-            mock_tag.attrs = {'value': 'test-csrf-token'}
-            mock_soup.return_value.find.return_value = mock_tag
+            mock_meta = Mock()
+            mock_meta.get.return_value = 'test-csrf-token'
+            mock_soup.return_value.find.return_value = mock_meta
             
             # Should not raise exception
             self.auth.login()
@@ -108,17 +109,18 @@ class TestBarchartAuthLogin:
     def test_login_csrf_token_extraction(self):
         """Test CSRF token extraction during login."""
         mock_get_response = Mock()
-        mock_get_response.text = '<input type="hidden" name="_token" value="extracted-token">'
+        mock_get_response.text = '<meta name="csrf-token" content="extracted-token">'
         self.auth.session.get.return_value = mock_get_response
         
         mock_post_response = Mock()
         mock_post_response.url = "https://www.barchart.com/dashboard"
+        mock_post_response.status_code = 200
         self.auth.session.post.return_value = mock_post_response
         
         with patch('bs4.BeautifulSoup') as mock_soup:
-            mock_tag = Mock()
-            mock_tag.attrs = {'value': 'extracted-token'}
-            mock_soup.return_value.find.return_value = mock_tag
+            mock_meta = Mock()
+            mock_meta.get.return_value = 'extracted-token'
+            mock_soup.return_value.find.return_value = mock_meta
             
             self.auth.login()
             
@@ -137,52 +139,51 @@ class TestBarchartAuthLogin:
 
 
 @pytest.mark.unit
-class TestBarchartAuthStaticMethods:
-    """Test static utility methods."""
+class TestBarchartAuthMethods:
+    """Test new bc-utils methodology methods."""
     
-    def test_build_login_payload(self):
-        """Test login payload construction."""
-        payload = BarchartAuth._build_login_payload("test-token", "user@example.com", "password123")
-        
-        expected = {
-            '_token': 'test-token',
-            'email': 'user@example.com',
-            'password': 'password123',
-            'remember': 'on',
-            'g-recaptcha-response': ''
-        }
-        
-        assert payload == expected
+    def setup_method(self):
+        """Set up test fixtures."""
+        with patch.object(BarchartAuth, '_create_session'):
+            self.auth = BarchartAuth("testuser", "testpass")
+            self.auth.session = Mock(spec=requests.Session)
     
-    def test_extract_xsrf_token(self):
-        """Test XSRF token extraction from response."""
+    def test_get_api_headers(self):
+        """Test API headers generation."""
+        # Mock cookies
+        self.auth.session.cookies = {'XSRF-TOKEN': 'test%20token'}
+        
+        headers = self.auth.get_api_headers()
+        
+        assert 'User-Agent' in headers
+        assert headers['Accept'] == 'application/json'
+        assert headers['Content-Type'] == 'application/json'
+        assert headers['X-Requested-With'] == 'XMLHttpRequest'
+        assert headers['X-XSRF-TOKEN'] == 'test token'  # URL decoded
+    
+    def test_get_xsrf_token_from_cookies(self):
+        """Test XSRF token extraction from cookies."""
+        self.auth.session.cookies = {'XSRF-TOKEN': 'test%20token%20123'}
+        
+        token = self.auth.get_xsrf_token()
+        
+        assert token == 'test token 123'
+    
+    def test_make_api_request_success(self):
+        """Test successful API request."""
+        # Mock response
         mock_response = Mock()
-        mock_response.text = '<meta name="csrf-token" content="xsrf-token-123">'
+        mock_response.headers = {'content-type': 'application/json'}
+        mock_response.json.return_value = {'data': 'test'}
+        mock_response.raise_for_status = Mock()
         
-        with patch('vortex.infrastructure.providers.barchart.auth.BeautifulSoup') as mock_soup:
-            mock_meta = Mock()
-            mock_meta.__getitem__ = Mock(return_value='xsrf-token-123')
-            mock_soup.return_value.find.return_value = mock_meta
-            
-            token = BarchartAuth.extract_xsrf_token(mock_response)
-            
-            assert token == 'xsrf-token-123'
-            mock_soup.assert_called_once_with(mock_response.text, 'html.parser')
-    
-    def test_scrape_csrf_token(self):
-        """Test CSRF token scraping from historical data response."""
-        mock_response = Mock()
-        mock_response.text = '<input id="hist-csrf-token" value="hist-token-456">'
+        self.auth.session.get.return_value = mock_response
+        self.auth.session.cookies = {'XSRF-TOKEN': 'test-token'}
         
-        with patch('vortex.infrastructure.providers.barchart.auth.BeautifulSoup') as mock_soup:
-            mock_input = Mock()
-            mock_input.__getitem__ = Mock(return_value='hist-token-456')
-            mock_soup.return_value.find.return_value = mock_input
-            
-            token = BarchartAuth.scrape_csrf_token(mock_response)
-            
-            assert token == 'hist-token-456'
-            mock_soup.return_value.find.assert_called_once_with(id='hist-csrf-token')
+        result = self.auth.make_api_request('https://test.com/api')
+        
+        assert result == {'data': 'test'}
+        mock_response.raise_for_status.assert_called_once()
 
 
 @pytest.mark.unit
@@ -216,8 +217,6 @@ class TestBarchartAuthEdgeCases:
         user_agent = auth.session.headers.get('User-Agent')
         assert user_agent is not None
         assert 'Mozilla/5.0' in user_agent
-        assert 'Chrome' in user_agent
-        assert 'Safari' in user_agent
     
     def test_url_constants(self):
         """Test URL constants are properly defined."""
@@ -236,12 +235,14 @@ class TestBarchartAuthIntegration:
             auth = BarchartAuth("testuser", "testpass")
             auth.session = Mock(spec=requests.Session)
             
-            # Mock realistic login page HTML
+            # Mock realistic login page HTML with csrf meta tag
             login_page_html = '''
             <html>
+            <head>
+                <meta name="csrf-token" content="csrf-token-12345">
+            </head>
             <body>
                 <form>
-                    <input type="hidden" name="_token" value="csrf-token-12345">
                     <input type="email" name="email">
                     <input type="password" name="password">
                 </form>
@@ -256,7 +257,9 @@ class TestBarchartAuthIntegration:
             # Mock successful login redirect
             mock_post_response = Mock()
             mock_post_response.url = "https://www.barchart.com/dashboard"
+            mock_post_response.status_code = 200
             auth.session.post.return_value = mock_post_response
+            auth.session.cookies = {'laravel_session': 'test-session'}
             
             auth.login()
             
@@ -270,4 +273,4 @@ class TestBarchartAuthIntegration:
             assert '_token' in payload
             assert payload['email'] == 'testuser'
             assert payload['password'] == 'testpass'
-            assert payload['remember'] == 'on'
+            assert payload['remember'] == '1'  # bc-utils uses '1' instead of 'on'

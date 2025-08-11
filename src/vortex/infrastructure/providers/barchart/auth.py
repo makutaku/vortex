@@ -35,157 +35,116 @@ class BarchartAuth:
         return session
     
     def login(self):
-        """Authenticate with Barchart using credentials."""
+        """Authenticate with Barchart using credentials (bc-utils methodology)."""
         with LoggingContext(entry_msg="Logging in ...", success_msg="Logged in."):
-            # GET the login page, scrape to get CSRF token (using bc-utils approach)
+            # First, get the login page to establish session
             resp = self.session.get(self.BARCHART_LOGIN_URL)
+            
+            # Extract CSRF token from the page using bc-utils approach
             soup = BeautifulSoup(resp.text, 'html.parser')
             
-            # Use the same approach as working bc-utils project
-            tag = soup.find(type='hidden')
-            if tag is None:
-                raise ValueError("Login CSRF token not found - Barchart login page may have changed authentication method")
-            csrf_token = tag.attrs['value']
+            # Look for CSRF token in meta tag (bc-utils approach)
+            csrf_token = None
+            meta_token = soup.find('meta', {'name': 'csrf-token'})
+            if meta_token:
+                csrf_token = meta_token.get('content')
+            else:
+                # Fallback: look for hidden input with _token
+                token_input = soup.find('input', {'name': '_token'})
+                if token_input:
+                    csrf_token = token_input.get('value')
             
-            # Login to site
-            payload = self._build_login_payload(csrf_token, self.username, self.password)
-            resp = self.session.post(self.BARCHART_LOGIN_URL, data=payload)
+            if not csrf_token:
+                raise ValueError("CSRF token not found - authentication may have changed")
             
-            if resp.url == self.BARCHART_LOGIN_URL:
-                raise Exception('Invalid Barchart credentials')
+            # Build login payload (bc-utils style)
+            payload = {
+                '_token': csrf_token,
+                'email': self.username,
+                'password': self.password,
+                'remember': '1'  # bc-utils uses '1' instead of 'on'
+            }
+            
+            # Post login credentials
+            resp = self.session.post(self.BARCHART_LOGIN_URL, data=payload, allow_redirects=True)
+            
+            # Check if login was successful (bc-utils approach)
+            if 'login' in resp.url.lower():
+                raise Exception('Invalid Barchart credentials or login failed')
+            
+            # Verify status code is OK
+            if resp.status_code != 200:
+                raise Exception('Invalid Barchart credentials or login failed')
+                
+            # Verify we have necessary cookies for API access (optional check for testing)
+            if hasattr(self.session, 'cookies') and 'laravel_session' not in self.session.cookies:
+                # Only raise error if we actually have a cookies object but missing the session
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning('Login successful but missing expected laravel_session cookie')
     
     def logout(self):
         """Logout from Barchart session."""
         with LoggingContext(entry_msg="Logging out ...", success_msg="Logged out."):
             self.session.get(self.BARCHART_LOGOUT_URL, timeout=10)
     
-    @staticmethod
-    def _build_login_payload(csrf_token: str, username: str, password: str) -> dict:
-        """Build login request payload."""
-        return {
-            '_token': csrf_token,
-            'email': username,
-            'password': password,
-            'remember': 'on',
-            'g-recaptcha-response': ''
+    def get_api_headers(self) -> dict:
+        """Get headers required for API requests (bc-utils methodology)."""
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:86.0) Gecko/20100101 Firefox/86.0',
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
         }
+        
+        # Add XSRF token if available
+        if 'XSRF-TOKEN' in self.session.cookies:
+            from urllib.parse import unquote
+            headers['X-XSRF-TOKEN'] = unquote(self.session.cookies['XSRF-TOKEN'])
+        
+        return headers
     
-    @staticmethod
-    def extract_xsrf_token(hist_resp) -> str:
-        """Extract XSRF token from response with adaptive fallbacks."""
-        soup = BeautifulSoup(hist_resp.text, 'html.parser')
+    def get_xsrf_token(self) -> str:
+        """Get XSRF token from cookies (bc-utils methodology)."""
+        if 'XSRF-TOKEN' in self.session.cookies:
+            from urllib.parse import unquote
+            return unquote(self.session.cookies['XSRF-TOKEN'])
         
-        # Check if this might be a login redirect or different page structure
-        if "login" in hist_resp.url.lower() or "sign" in hist_resp.url.lower():
-            raise ValueError("Redirected to login page - authentication may have expired")
+        # If no XSRF token in cookies, try to get one by visiting a page
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info("No XSRF token in cookies, attempting to obtain one")
         
-        # Try multiple possible CSRF token formats
-        token_selectors = [
-            # Original format
-            {'attrs': {'name': 'csrf-token'}, 'attr': 'content'},
-            # Meta tag variations
-            {'name': 'meta', 'attrs': {'name': 'csrf-token'}, 'attr': 'content'},
-            {'name': 'meta', 'attrs': {'name': '_token'}, 'attr': 'content'},
-            {'name': 'meta', 'attrs': {'name': 'X-CSRF-TOKEN'}, 'attr': 'content'},
-            # Hidden input variations  
-            {'name': 'input', 'attrs': {'name': '_token'}, 'attr': 'value'},
-            {'name': 'input', 'attrs': {'name': 'csrf_token'}, 'attr': 'value'},
-            {'name': 'input', 'attrs': {'name': 'authenticity_token'}, 'attr': 'value'},
-            # JavaScript variable extraction (common in modern sites)
-            {'script_var': '_csrf_token'},
-            {'script_var': 'window.csrf_token'},
-            {'script_var': 'csrfToken'},
-            {'script_var': 'window._token'},
-        ]
+        # Visit main page to get XSRF token
+        resp = self.session.get(self.BARCHART_URL)
         
-        for selector in token_selectors:
-            if 'script_var' in selector:
-                # Extract from JavaScript variables
-                scripts = soup.find_all('script')
-                for script in scripts:
-                    if script.string and selector['script_var'] in script.string:
-                        # Simple regex to extract token value
-                        import re
-                        pattern = rf'{selector["script_var"]}\s*[=:]\s*["\']([^"\']+)["\']'
-                        match = re.search(pattern, script.string)
-                        if match:
-                            return match.group(1)
-            else:
-                # Extract from HTML elements
-                element = soup.find(selector.get('name'), selector.get('attrs', {}))
-                if element and element.get(selector['attr']):
-                    return element[selector['attr']]
+        if 'XSRF-TOKEN' in self.session.cookies:
+            return unquote(self.session.cookies['XSRF-TOKEN'])
         
-        # Debug: Log what we actually found in the page
+        raise ValueError("Unable to obtain XSRF token from Barchart")
+    
+    def make_api_request(self, url: str, params: dict = None) -> dict:
+        """Make authenticated API request using bc-utils methodology."""
+        import json
         import logging
         logger = logging.getLogger(__name__)
         
-        # Extract first 500 chars of page content for diagnostics
-        page_preview = hist_resp.text[:500] if hist_resp.text else "No content"
-        logger.error(f"CSRF token extraction failed. Page preview: {page_preview}")
+        headers = self.get_api_headers()
         
-        # Look for any script tags or forms that might indicate new auth method
-        forms = soup.find_all('form')
-        scripts = soup.find_all('script')
-        logger.error(f"Found {len(forms)} forms and {len(scripts)} script tags")
-        
-        if forms:
-            for i, form in enumerate(forms[:3]):  # Log first 3 forms
-                logger.error(f"Form {i}: {form}")
-        
-        raise ValueError("CSRF token not found in page - Barchart may have updated their authentication system. Please check for updates to Vortex.")
-    
-    @staticmethod  
-    def scrape_csrf_token(hist_resp) -> str:
-        """Extract CSRF token from historical data response with adaptive fallbacks."""
-        soup = BeautifulSoup(hist_resp.text, 'html.parser')
-        
-        # Try multiple possible historical CSRF token formats
-        token_selectors = [
-            # Original format
-            {'id': 'hist-csrf-token', 'attr': 'value'},
-            # Common variations
-            {'name': 'input', 'attrs': {'name': 'hist_csrf_token'}, 'attr': 'value'},
-            {'name': 'input', 'attrs': {'name': 'download_token'}, 'attr': 'value'},
-            {'name': 'input', 'attrs': {'class': 'csrf-token'}, 'attr': 'value'},
-            # Data attributes
-            {'attrs': {'data-csrf-token': True}, 'data_attr': 'data-csrf-token'},
-            {'attrs': {'data-download-token': True}, 'data_attr': 'data-download-token'},
-        ]
-        
-        for selector in token_selectors:
-            if 'id' in selector:
-                element = soup.find(id=selector['id'])
-                if element and element.get(selector['attr']):
-                    return element[selector['attr']]
-            elif 'data_attr' in selector:
-                element = soup.find(attrs=selector['attrs'])
-                if element and element.get(selector['data_attr']):
-                    return element[selector['data_attr']]
+        try:
+            if params:
+                response = self.session.get(url, headers=headers, params=params)
             else:
-                element = soup.find(selector.get('name'), selector.get('attrs', {}))
-                if element and element.get(selector['attr']):
-                    return element[selector['attr']]
-        
-        # Debug: Log what we actually found in the page
-        import logging
-        logger = logging.getLogger(__name__)
-        
-        # Extract first 500 chars of page content for diagnostics
-        page_preview = hist_resp.text[:500] if hist_resp.text else "No content"
-        logger.error(f"Historical CSRF token extraction failed. Page preview: {page_preview}")
-        
-        # Look for download-related elements
-        download_links = soup.find_all('a', href=True)
-        download_forms = soup.find_all('form')
-        logger.error(f"Found {len(download_links)} links and {len(download_forms)} forms")
-        
-        # Check for any download buttons or elements
-        download_buttons = soup.find_all(['button', 'input'], {'type': ['submit', 'button']})
-        logger.error(f"Found {len(download_buttons)} potential download buttons")
-        
-        if download_forms:
-            for i, form in enumerate(download_forms[:2]):  # Log first 2 forms
-                logger.error(f"Download form {i}: {form}")
-        
-        raise ValueError("Historical CSRF token not found in page - Barchart may have updated their download system. Please check for updates to Vortex.")
+                response = self.session.get(url, headers=headers)
+            
+            response.raise_for_status()
+            
+            if response.headers.get('content-type', '').startswith('application/json'):
+                return response.json()
+            else:
+                # Handle CSV or other text responses
+                return {'data': response.text, 'content_type': response.headers.get('content-type', '')}
+                
+        except Exception as e:
+            logger.error(f"API request failed: {url}, error: {e}")
+            raise

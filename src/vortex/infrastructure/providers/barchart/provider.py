@@ -125,97 +125,102 @@ class BarchartDataProvider(DataProvider):
 
     def _fetch_historical_data_(self, instrument: str, freq_attrs: FrequencyAttributes,
                                start_date, end_date, url: str, tz: str) -> Optional[DataFrame]:
-        """Internal method to fetch historical data."""
-        try:
-            # GET the historical download page
-            hist_resp = self.auth.session.get(url)
-            
-            # Check if response is JSON (new Barchart API)
-            if hist_resp.headers.get('content-type', '').startswith('application/json'):
-                import json
-                import logging
-                logger = logging.getLogger(__name__)
-                
-                try:
-                    json_data = json.loads(hist_resp.text)
-                    if 'error' in json_data:
-                        logger.info(f"Barchart returned JSON error: {json_data['error']}")
-                        # Try alternative JSON API endpoints
-                        return self._try_json_api_download(instrument, freq_attrs, start_date, end_date, tz)
-                    else:
-                        # Process JSON data directly
-                        return self._process_json_response(json_data, tz)
-                except json.JSONDecodeError:
-                    logger.warning("Failed to parse JSON response, falling back to HTML method")
-            
-            # Original HTML-based method
-            xsf_token = self.auth.extract_xsrf_token(hist_resp)
-            
-            # Check allowance
-            xsf_token = self._fetch_download_token(url, xsf_token)
-            
-            # Get CSRF token and download data
-            hist_csrf_token = self.auth.scrape_csrf_token(hist_resp)
-            df = self._download_data(xsf_token, hist_csrf_token, instrument, freq_attrs, 
-                                    start_date, end_date, url, tz)
-            
-        except ValueError as e:
-            if "CSRF token" in str(e) or "authentication system" in str(e):
-                # Fallback: Try alternative download method without CSRF tokens
-                import logging
-                logging.warning(f"CSRF token extraction failed, attempting alternative download method: {e}")
-                df = self._try_alternative_download(instrument, freq_attrs, start_date, end_date, url, tz)
-            else:
-                raise
-        
-        return df if df is not None else None
-
-    def _try_json_api_download(self, instrument: str, freq_attrs: FrequencyAttributes,
-                              start_date, end_date, tz: str) -> Optional[DataFrame]:
-        """Try JSON API endpoints for data download."""
+        """Internal method to fetch historical data using bc-utils methodology."""
         import logging
         logger = logging.getLogger(__name__)
         
-        logger.info("Attempting JSON API download endpoints")
+        try:
+            # Use bc-utils approach: try JSON API endpoints first
+            df = self._fetch_via_json_api(instrument, freq_attrs, start_date, end_date, tz)
+            if df is not None:
+                return self._validate_data_availability(df, instrument, freq_attrs, start_date, end_date)
+            
+            # Fallback: try CSV download method
+            logger.info(f"JSON API failed, attempting CSV download for {instrument}")
+            df = self._fetch_via_csv_download(instrument, freq_attrs, start_date, end_date, tz)
+            if df is not None:
+                return self._validate_data_availability(df, instrument, freq_attrs, start_date, end_date)
+            
+            # No data found with any method
+            from vortex.exceptions.providers import DataNotFoundError
+            raise DataNotFoundError(
+                provider="barchart",
+                symbol=instrument,
+                period=freq_attrs.frequency,
+                start_date=start_date,
+                end_date=end_date
+            )
+            
+        except Exception as e:
+            logger.error(f"All download methods failed for {instrument}: {e}")
+            raise
+
+    def _fetch_via_json_api(self, instrument: str, freq_attrs: FrequencyAttributes,
+                           start_date, end_date, tz: str) -> Optional[DataFrame]:
+        """Fetch data using Barchart JSON API (bc-utils methodology)."""
+        import logging
+        logger = logging.getLogger(__name__)
         
-        # Format dates for JSON API
+        # Format dates for API
         start_str = start_date.strftime('%Y-%m-%d')
         end_str = end_date.strftime('%Y-%m-%d')
         
-        # Try JSON API endpoints
-        json_endpoints = [
-            f"/futures/quotes/{instrument}/chart",
-            f"/stocks/quotes/{instrument}/chart", 
-            f"/api/getQuote/{instrument}/history",
-            f"/api/v1/historical/{instrument}",
-        ]
+        # Determine frequency parameter
+        frequency = self._get_api_frequency(freq_attrs.frequency)
         
-        for endpoint in json_endpoints:
-            try:
-                params = {
+        # Primary JSON API endpoints (based on bc-utils pattern)
+        api_endpoints = [
+            # Core API endpoint (most reliable)
+            {
+                'url': 'https://www.barchart.com/proxies/core-api/v1/quotes/get',
+                'params': {
+                    'symbol': instrument,
                     'start': start_str,
                     'end': end_str,
-                    'interval': 'daily',
                     'type': 'historical',
-                    'fields': 'open,high,low,close,volume'
+                    'interval': frequency
                 }
+            },
+            # Alternative endpoints
+            {
+                'url': f'https://www.barchart.com/proxies/timeseries/queryeod.ashx',
+                'params': {
+                    'symbol': instrument,
+                    'start': start_str,
+                    'end': end_str,
+                    'frequency': frequency,
+                    'volume': 'contract',
+                    'order': 'asc'
+                }
+            }
+        ]
+        
+        for endpoint in api_endpoints:
+            try:
+                logger.info(f"Attempting JSON API: {endpoint['url']}")
                 
-                response = self.auth.session.get(f"https://www.barchart.com{endpoint}", params=params)
-                if response.status_code == 200:
-                    try:
-                        json_data = response.json()
-                        if json_data and 'data' in json_data:
-                            logger.info(f"JSON API download successful via {endpoint}")
-                            return self._process_json_response(json_data, tz)
-                    except Exception as e:
-                        logger.debug(f"JSON parsing failed for {endpoint}: {e}")
-                        continue
-                        
+                # Make authenticated API request
+                response_data = self.auth.make_api_request(endpoint['url'], endpoint['params'])
+                
+                if response_data and 'data' in response_data:
+                    # Check if this is actually CSV data disguised as JSON
+                    if 'content_type' in response_data and 'csv' in response_data.get('content_type', '').lower():
+                        logger.info(f"CSV response received from JSON API for {instrument}")
+                        return self._process_csv_response(response_data['data'], freq_attrs.frequency, tz)
+                    elif isinstance(response_data['data'], str):
+                        # Data is a string, likely CSV
+                        logger.info(f"String data received from JSON API for {instrument}")
+                        return self._process_csv_response(response_data['data'], freq_attrs.frequency, tz)
+                    else:
+                        # Actual JSON data
+                        logger.info(f"JSON API successful for {instrument}")
+                        return self._process_json_response(response_data, tz)
+                    
             except Exception as e:
-                logger.debug(f"JSON API endpoint {endpoint} failed: {e}")
+                logger.debug(f"JSON API endpoint failed: {e}")
                 continue
         
-        logger.warning("All JSON API endpoints failed")
+        logger.warning(f"All JSON API endpoints failed for {instrument}")
         return None
 
     def _process_json_response(self, json_data: dict, tz: str) -> Optional[DataFrame]:
@@ -225,20 +230,40 @@ class BarchartDataProvider(DataProvider):
         logger = logging.getLogger(__name__)
         
         try:
+            # Debug: log the JSON structure
+            logger.debug(f"Processing JSON response keys: {list(json_data.keys()) if isinstance(json_data, dict) else 'Not a dict'}")
+            
             # Extract data array from various JSON structures
             data_array = None
-            if 'data' in json_data:
-                data_array = json_data['data']
-            elif 'history' in json_data:
-                data_array = json_data['history']
-            elif 'results' in json_data:
-                data_array = json_data['results']
+            if isinstance(json_data, dict):
+                if 'data' in json_data:
+                    data_array = json_data['data']
+                elif 'history' in json_data:
+                    data_array = json_data['history']
+                elif 'results' in json_data:
+                    data_array = json_data['results']
+                else:
+                    # Try to use the whole dict if it looks like data
+                    if any(key in json_data for key in ['open', 'high', 'low', 'close', 'date', 'time']):
+                        data_array = [json_data]  # Wrap single record
             elif isinstance(json_data, list):
                 data_array = json_data
             
             if not data_array:
-                logger.warning("No data found in JSON response")
+                logger.warning(f"No data found in JSON response. Response structure: {json_data}")
                 return None
+            
+            # Validate data_array is suitable for DataFrame
+            if not isinstance(data_array, list):
+                logger.error(f"Data array is not a list: {type(data_array)}")
+                return None
+                
+            if not data_array:
+                logger.warning("Data array is empty")
+                return None
+                
+            # Log first item structure for debugging
+            logger.debug(f"First data item: {data_array[0] if data_array else 'Empty'}")
             
             # Create DataFrame from JSON data
             df = pd.DataFrame(data_array)
@@ -274,141 +299,100 @@ class BarchartDataProvider(DataProvider):
             logger.error(f"Failed to process JSON response: {e}")
             return None
 
-    def _try_alternative_download(self, instrument: str, freq_attrs: FrequencyAttributes,
-                                 start_date, end_date, url: str, tz: str) -> Optional[DataFrame]:
-        """Alternative download method when CSRF tokens are not available."""
+    def _fetch_via_csv_download(self, instrument: str, freq_attrs: FrequencyAttributes,
+                               start_date, end_date, tz: str) -> Optional[DataFrame]:
+        """Fetch data via CSV download (bc-utils methodology)."""
         import logging
         logger = logging.getLogger(__name__)
         
         try:
-            # Method 1: Try direct session-based download
-            logger.info("Attempting direct session-based download")
-            
-            # Format dates for Barchart API
+            # Format dates for CSV download
             start_str = start_date.strftime('%m/%d/%Y')
             end_str = end_date.strftime('%m/%d/%Y')
             
-            # Try common Barchart download endpoints
-            download_endpoints = [
-                f"/api/getDownloadData/{instrument}",
-                f"/getHistory.json", 
-                f"/proxies/timeseries/queryeod.ashx"
-            ]
+            # CSV download endpoint
+            csv_url = "https://www.barchart.com/proxies/timeseries/queryeod.ashx"
             
-            for endpoint in download_endpoints:
-                try:
-                    # Prepare download parameters
-                    params = {
-                        'symbol': instrument,
-                        'start': start_str,
-                        'end': end_str,
-                        'frequency': 'daily',
-                        'volume': 'contract',
-                        'order': 'asc',
-                        'dividends': 'false',
-                        'backadjusted': 'false',
-                        'daystoexpiration': 'false',
-                        'contractroll': 'expiration'
-                    }
-                    
-                    response = self.auth.session.get(f"https://www.barchart.com{endpoint}", params=params)
-                    if response.status_code == 200 and response.text:
-                        logger.info(f"Alternative download successful via {endpoint}")
-                        
-                        # Try to parse as CSV or JSON
-                        if 'json' in endpoint.lower():
-                            # Handle JSON response
-                            import json
-                            data = json.loads(response.text)
-                            if 'data' in data:
-                                # Convert JSON to DataFrame
-                                import pandas as pd
-                                df = pd.DataFrame(data['data'])
-                                return self._process_alternative_data(df, tz)
-                        else:
-                            # Handle CSV response
-                            from .parser import BarchartParser
-                            return BarchartParser.convert_downloaded_csv_to_df(
-                                freq_attrs.period, response.text, tz)
-                            
-                except Exception as e:
-                    logger.debug(f"Alternative endpoint {endpoint} failed: {e}")
-                    continue
+            params = {
+                'symbol': instrument,
+                'start': start_str,
+                'end': end_str,
+                'frequency': 'daily',
+                'volume': 'contract',
+                'order': 'asc',
+                'dividends': 'false',
+                'backadjusted': 'false',
+                'daystoexpiration': 'false',
+                'contractroll': 'expiration'
+            }
             
-            logger.warning("All alternative download methods failed")
+            logger.info(f"Attempting CSV download for {instrument}")
+            response_data = self.auth.make_api_request(csv_url, params)
+            
+            if 'data' in response_data and response_data['data']:
+                logger.info(f"CSV download successful for {instrument}")
+                return self._process_csv_response(response_data['data'], freq_attrs.frequency, tz)
+            
+            logger.warning(f"CSV download failed for {instrument} - no data returned")
             return None
             
         except Exception as e:
-            logger.error(f"Alternative download method failed: {e}")
+            logger.error(f"CSV download failed for {instrument}: {e}")
             return None
 
-    def _process_alternative_data(self, df, tz: str):
-        """Process data from alternative download methods."""
-        # Basic processing to match expected format
-        import pandas as pd
+    def _process_csv_response(self, csv_data: str, frequency, tz: str) -> Optional[DataFrame]:
+        """Process CSV response data."""
+        try:
+            from .parser import BarchartParser
+            return BarchartParser.convert_downloaded_csv_to_df(frequency, csv_data, tz)
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Failed to process CSV response: {e}")
+            return None
+    
+    def _get_api_frequency(self, period) -> str:
+        """Convert Period to Barchart API frequency parameter."""
+        from vortex.models.period import Period
         
-        if df.empty:
-            return df
-            
-        # Try to identify and rename columns to standard format
-        column_mappings = {
-            'date': 'Datetime', 'time': 'Datetime', 'timestamp': 'Datetime',
-            'open': 'Open', 'high': 'High', 'low': 'Low', 'close': 'Close',
-            'volume': 'Volume', 'vol': 'Volume'
+        frequency_mapping = {
+            Period('1d'): 'daily',
+            Period('1h'): 'hourly', 
+            Period('30m'): '30minute',
+            Period('15m'): '15minute',
+            Period('5m'): '5minute',
+            Period('1m'): 'minute'
         }
         
-        # Rename columns
-        df.columns = [column_mappings.get(col.lower(), col) for col in df.columns]
+        return frequency_mapping.get(period, 'daily')
+
+    def _validate_data_availability(self, df: DataFrame, symbol: str, freq_attrs: FrequencyAttributes = None, 
+                                   start_date=None, end_date=None) -> DataFrame:
+        """Validate downloaded data meets minimum requirements."""
+        if df is None or df.empty:
+            from vortex.exceptions.providers import DataNotFoundError
+            if freq_attrs and start_date and end_date:
+                raise DataNotFoundError(
+                    provider="barchart",
+                    symbol=symbol,
+                    period=freq_attrs.frequency,
+                    start_date=start_date,
+                    end_date=end_date
+                )
+            else:
+                # Fallback for cases where we don't have all parameters
+                from vortex.exceptions.providers import DataProviderError
+                raise DataProviderError("barchart", f"No data available for {symbol}")
         
-        # Process datetime if available
-        if 'Datetime' in df.columns:
-            df['Datetime'] = pd.to_datetime(df['Datetime']).dt.tz_localize(tz).dt.tz_convert('UTC')
-            df.set_index('Datetime', inplace=True)
-        
-        return df
-
-    def _download_data(self, xsrf_token: str, hist_csrf_token: str, symbol: str, 
-                      freq_attrs: FrequencyAttributes, start_date, end_date, url: str, tz: str) -> DataFrame:
-        """Download and parse data."""
-        resp = self.client.request_download(xsrf_token, hist_csrf_token, symbol, 
-                                           freq_attrs, url, start_date, end_date)
-
-        if resp.status_code != 200 or 'Error retrieving data' in resp.text:
-            raise DownloadError(resp.status_code, "Barchart error retrieving data")
-
-        df = self.parser.convert_downloaded_csv_to_df(freq_attrs.frequency, resp.text, tz)
         if len(df) <= 3:
-            raise LowDataError()
-
+            from vortex.exceptions.providers import DataProviderError
+            raise DataProviderError(
+                "barchart",
+                f"Insufficient data for {symbol} - only {len(df)} records found",
+                "This may indicate the symbol is delisted or has limited trading history"
+            )
+        
         return df
-
-    def _fetch_download_token(self, url: str, xsf_token: str) -> str:
-        """Fetch and validate download token."""
-        allowance, xsf_token = self.client.fetch_allowance(url, xsf_token)
-        
-        if allowance is None:
-            raise DataProviderError(
-                "barchart",
-                "Failed to fetch allowance data - received None response",
-                "This may indicate authentication failure or Barchart server issues. Please check credentials and try again."
-            )
-        
-        if allowance.get('error') is not None:
-            raise AllowanceLimitExceededError(250, self.max_allowance)
-
-        if not allowance.get('success', False):
-            raise DataProviderError(
-                "barchart",
-                "Invalid allowance response format - missing 'success' field",
-                "This may indicate a temporary Barchart API issue. Please try again later."
-            )
-
-        current_allowance = int(allowance.get('count', '0'))
-        if self.max_allowance is not None and current_allowance > self.max_allowance:
-            raise AllowanceLimitExceededError(current_allowance, self.max_allowance)
-
-        logging.info(f"Allowance: {current_allowance}")
-        return xsf_token
 
     @singledispatchmethod
     def get_historical_quote_url(self, future: Future) -> str:
