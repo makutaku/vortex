@@ -119,7 +119,7 @@ class TestDataProviders:
         )
         assert provider is not None
         assert provider.auth.username == "test@example.com"
-        assert provider.max_allowance == 100
+        assert provider.daily_limit == 100
         mock_login.assert_called_once()
     
     @patch('vortex.infrastructure.providers.ibkr.provider.IbkrDataProvider.login')
