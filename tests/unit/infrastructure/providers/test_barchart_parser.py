@@ -45,11 +45,11 @@ Footer data to skip
         assert len(df) == 3
         assert DATE_TIME_COLUMN == df.index.name  # DATE_TIME_COLUMN becomes the index
         assert CLOSE_COLUMN in df.columns
-        # Should have called debug twice: once for received data, once for column mapping
-        assert mock_debug.call_count == 2
-        # Verify the first call is about received data
+        # Should have called debug 4 times: raw data, received data, columns, and column mapping
+        assert mock_debug.call_count == 4
+        # Verify the first call is about raw CSV data
         first_call = mock_debug.call_args_list[0][0][0]
-        assert "Received data" in first_call
+        assert "Raw CSV data" in first_call
         assert "from Barchart" in first_call
         
         # Verify data types and timezone
@@ -192,13 +192,17 @@ Footer
             period = Period('1d')
             df = BarchartParser.convert_downloaded_csv_to_df(period, csv_data, 'UTC')
             
-            # Should log twice: DataFrame shape and column mapping
-            assert mock_debug.call_count == 2
-            # Check first call (received data)
+            # Should log 4 times: raw data, received data, columns, and column mapping
+            assert mock_debug.call_count == 4
+            # Check first call (raw CSV data)
             first_call_args = mock_debug.call_args_list[0][0][0]
-            assert "Received data" in first_call_args
-            assert "(2, 6)" in first_call_args  # Shape should be (2, 6)
+            assert "Raw CSV data" in first_call_args
             assert "from Barchart" in first_call_args
+            # Check second call (received data)
+            second_call_args = mock_debug.call_args_list[1][0][0]
+            assert "Received data" in second_call_args
+            assert "(2, 6)" in second_call_args  # Shape should be (2, 6)
+            assert "from Barchart" in second_call_args
 
 
 @pytest.mark.unit
