@@ -7,6 +7,11 @@ data download, and file output validation using real Barchart.com API.
 IMPORTANT: These tests require valid Barchart credentials and network access.
 They make real API calls to Barchart.com and should be run with caution in
 production environments due to API rate limits.
+
+CONSERVATION NOTICE: Tests use minimal symbols to conserve daily download credits:
+- Only one symbol per asset type (e.g., AAPL for stocks, GC for futures)
+- Reuse symbols across tests when possible to minimize unique API requests
+- Focus on functionality validation rather than exhaustive symbol coverage
 """
 
 import pytest
@@ -172,32 +177,28 @@ end_year = 2025
         end_date_str = end_date.strftime('%Y-%m-%d')
         
         # Execute complete CLI download workflow  
-        # Focus on symbols that are definitely available on Barchart (commodities/futures)
-        # Barchart specializes in commodity data more than stocks
-        test_symbols = ['AAPL', 'IBM', '^GSPC']  # Try stocks, but expect some might not work
+        # Use single symbol to conserve Barchart download credits
+        # AAPL is highly liquid and commonly available
+        test_symbol = 'AAPL'  # Single stock symbol to minimize API usage
         
-        result = None
+        result = cli_runner.invoke(cli, [
+            '--config', str(test_config_file),
+            'download',
+            '--provider', 'barchart',
+            '--symbol', test_symbol,
+            '--start-date', start_date_str,
+            '--end-date', end_date_str,
+            '--output-dir', str(temp_output_dir),
+            '--yes'
+        ])
+        
+        # Check if this symbol worked
         successful_symbol = None
+        if result.exit_code == 0 and ("Download completed successfully" in result.output or "successful" in result.output):
+            successful_symbol = test_symbol
         
-        for symbol in test_symbols:
-            result = cli_runner.invoke(cli, [
-                '--config', str(test_config_file),
-                'download',
-                '--provider', 'barchart',
-                '--symbol', symbol,
-                '--start-date', start_date_str,
-                '--end-date', end_date_str,
-                '--output-dir', str(temp_output_dir),
-                '--yes'
-            ])
-            
-            # Check if this symbol worked
-            if result.exit_code == 0 and ("Download completed successfully" in result.output or "successful" in result.output):
-                successful_symbol = symbol
-                break
-        
-        # At least one symbol should work or we should get clear authentication success
-        assert result is not None, "No test symbols were tried"
+        # Authentication should work regardless of symbol availability
+        assert result is not None, "Test execution failed"
         
         # Check if authentication worked (most important for this test)
         output_text = result.output
@@ -367,14 +368,7 @@ end_year = 2025
                     "tick_date": "2020-01-01",
                     "start_date": "2020-01-01",
                     "periods": "1d",
-                    "cycle": "GHKMQUVXZ"  # Gold futures cycle
-                },
-                "CL": {
-                    "code": "CL", 
-                    "tick_date": "2020-01-01",
-                    "start_date": "2020-01-01",
-                    "periods": "1d",
-                    "cycle": "FGHJKMNQUVXZ"  # Crude oil futures cycle
+                    "cycle": "GHKMQUVXZ"  # Gold futures cycle - single symbol to conserve credits
                 }
             }
         }
@@ -405,17 +399,16 @@ end_year = 2025
         # Validate command execution
         assert result.exit_code == 0, f"Assets file processing failed: {result.output}"
         
-        # Check that symbols were processed
+        # Check that symbol was processed  
         output_text = result.output
-        expected_symbols = ["GC", "CL"]
+        expected_symbol = "GC"  # Single symbol to minimize API usage
         processed_symbols = []
         
-        for symbol in expected_symbols:
-            if symbol in output_text:
-                processed_symbols.append(symbol)
+        if expected_symbol in output_text:
+            processed_symbols.append(expected_symbol)
         
         assert len(processed_symbols) >= 1, (
-            f"No symbols processed successfully. Expected: {expected_symbols}, "
+            f"Symbol not processed successfully. Expected: {expected_symbol}, "
             f"Output: {output_text}"
         )
         
@@ -537,13 +530,13 @@ end_year = 2025
                 content = f.read()
                 assert len(content) < 100, f"Invalid symbol created substantial file: {len(content)} chars"
         
-        # Test 2: Invalid date range (future dates)
+        # Test 2: Invalid date range (future dates) - reuse same symbol to conserve credits
         future_date = (datetime.now() + timedelta(days=30)).strftime('%Y-%m-%d')
         result2 = cli_runner.invoke(cli, [
             '--config', str(test_config_file),
             'download',
             '--provider', 'barchart', 
-            '--symbol', 'GC',
+            '--symbol', 'AAPL',  # Reuse AAPL to minimize unique symbol requests
             '--start-date', future_date,
             '--end-date', future_date,
             '--output-dir', str(temp_output_dir),
