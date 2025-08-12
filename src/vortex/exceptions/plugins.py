@@ -11,12 +11,13 @@ class PluginError(VortexError):
     """Base exception for plugin system errors."""
     
     def __init__(self, message: str, plugin_name: str = None, help_text: str = None):
+        from .base import ExceptionContext
         self.plugin_name = plugin_name
-        super().__init__(
-            message=message,
+        context = ExceptionContext(
             help_text=help_text,
             error_code="PLUGIN_ERROR"
-        )
+        ) if help_text else ExceptionContext(error_code="PLUGIN_ERROR")
+        super().__init__(message, context)
 
 
 class PluginNotFoundError(PluginError):

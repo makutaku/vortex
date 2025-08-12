@@ -27,7 +27,9 @@ class TestInstrumentError:
         
     def test_with_help_and_code(self):
         """Test InstrumentError with help text and error code."""
-        error = InstrumentError("Test message", help_text="Help text", error_code="TEST_CODE")
+        from vortex.exceptions.base import ExceptionContext
+        context = ExceptionContext(help_text="Help text", error_code="TEST_CODE")
+        error = InstrumentError("Test message", context)
         error_str = str(error)
         assert "Test message" in error_str
         assert "💡 Help: Help text" in error_str

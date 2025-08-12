@@ -171,13 +171,15 @@ class TestFileStorage:
             # Verify LoggingContext was used
             mock_logging_context.assert_called_once()
             call_args = mock_logging_context.call_args
-            assert 'entry_msg' in call_args.kwargs
-            assert 'success_msg' in call_args.kwargs
-            assert 'failure_msg' in call_args.kwargs
+            # LoggingContext now takes a LoggingConfiguration object as first argument
+            config_obj = call_args.args[0]
+            assert hasattr(config_obj, 'entry_msg')
+            assert hasattr(config_obj, 'success_msg')
+            assert hasattr(config_obj, 'failure_msg')
             
             # Verify the messages contain relevant information
-            assert 'Saving data' in call_args.kwargs['entry_msg']
-            assert 'GC_202412' in call_args.kwargs['entry_msg']
+            assert 'Saving data' in config_obj.entry_msg
+            assert 'GC_202412' in config_obj.entry_msg
 
     @patch('os.path.exists')
     @patch('os.path.isfile')
@@ -270,13 +272,15 @@ class TestFileStorage:
             # Verify LoggingContext was used
             mock_logging_context.assert_called_once()
             call_args = mock_logging_context.call_args
-            assert 'entry_msg' in call_args.kwargs
-            assert 'success_msg' in call_args.kwargs
-            assert 'success_level' in call_args.kwargs
+            # LoggingContext now takes a LoggingConfiguration object as first argument
+            config_obj = call_args.args[0]
+            assert hasattr(config_obj, 'entry_msg')
+            assert hasattr(config_obj, 'success_msg')
+            assert hasattr(config_obj, 'success_level')
             
             # Verify the messages contain relevant information
-            assert 'Loading data from' in call_args.kwargs['entry_msg']
-            assert 'EURUSD' in call_args.kwargs['entry_msg']
+            assert 'Loading data from' in config_obj.entry_msg
+            assert 'EURUSD' in config_obj.entry_msg
 
     @patch('vortex.infrastructure.storage.file_storage.MetadataHandler')
     def test_load_metadata_static_method(self, mock_metadata_handler_class):

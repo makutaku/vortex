@@ -6,7 +6,7 @@ from vortex.infrastructure.providers.base import HistoricalDataResult
 from .base_downloader import BaseDownloader
 from .download_job import DownloadJob
 from vortex.models.price_series import LOW_DATA_THRESHOLD
-from vortex.utils.logging_utils import LoggingContext
+from vortex.utils.logging_utils import LoggingContext, LoggingConfiguration
 from vortex.utils.utils import random_sleep
 
 
@@ -19,11 +19,13 @@ class UpdatingDownloader(BaseDownloader):
         self.random_sleep_in_sec = random_sleep_in_sec if random_sleep_in_sec is not None and random_sleep_in_sec > 0 else None
 
     def _process_job(self, job: DownloadJob) -> HistoricalDataResult:
-        with LoggingContext(
-                entry_msg=f"Processing {job}",
-                entry_level=logging.INFO,
-                success_msg=f"Processed {job}",
-                success_level=logging.DEBUG):
+        config = LoggingConfiguration(
+            entry_msg=f"Processing {job}",
+            entry_level=logging.INFO,
+            success_msg=f"Processed {job}",
+            success_level=logging.DEBUG
+        )
+        with LoggingContext(config):
 
             start_date = job.start_date
             end_date = job.end_date

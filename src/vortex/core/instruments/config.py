@@ -7,7 +7,7 @@ import pandas as pd
 import pytz
 
 from vortex.models.period import Period
-from vortex.utils.logging_utils import LoggingContext
+from vortex.utils.logging_utils import LoggingContext, LoggingConfiguration
 from vortex.utils.utils import convert_date_strings_to_datetime
 
 DEFAULT_CONTRACT_DURATION_IN_DAYS = 360
@@ -45,10 +45,13 @@ class InstrumentConfig:
 
     @staticmethod
     def load_from_json(file_path: str) -> dict[str, 'InstrumentConfig']:
-        with LoggingContext(entry_msg=f"Loading config from '{file_path}'",
-                            entry_level=logging.DEBUG,
-                            success_msg=f"Loaded config from '{file_path}'",
-                            failure_msg=f"Failed to load config from '{file_path}'"):
+        config = LoggingConfiguration(
+            entry_msg=f"Loading config from '{file_path}'",
+            entry_level=logging.DEBUG,
+            success_msg=f"Loaded config from '{file_path}'",
+            failure_msg=f"Failed to load config from '{file_path}'"
+        )
+        with LoggingContext(config):
             with open(file_path, 'r') as file:
                 config_data = json.load(file)
 

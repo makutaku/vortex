@@ -406,12 +406,12 @@ class ManualInterventionRequiredException(VortexError):
     """Raised when manual intervention is required to resolve an error."""
     
     def __init__(self, message: str, **kwargs):
-        super().__init__(
-            message,
+        from vortex.exceptions.base import ExceptionContext
+        context = ExceptionContext(
             help_text="This error requires manual intervention to resolve",
-            error_code="MANUAL_INTERVENTION_REQUIRED",
-            **kwargs
+            error_code="MANUAL_INTERVENTION_REQUIRED"
         )
+        super().__init__(message, context)
 
 
 def with_error_recovery(

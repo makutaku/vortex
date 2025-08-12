@@ -10,6 +10,7 @@ from vortex.exceptions import (
     DataProviderError, DataStorageError, CLIError,
     MissingArgumentError, InvalidCommandError
 )
+from vortex.exceptions.base import ExceptionContext
 
 
 @pytest.mark.unit
@@ -18,7 +19,9 @@ class TestVortexError:
     
     def test_basic_error_creation(self):
         """Test basic error creation with message and help."""
-        error = VortexError("Test error message", help_text="Test help text")
+        from vortex.exceptions.base import ExceptionContext
+        context = ExceptionContext(help_text="Test help text")
+        error = VortexError("Test error message", context)
         
         # The new enhanced error format includes help text and error ID
         error_str = str(error)
@@ -30,7 +33,7 @@ class TestVortexError:
     
     def test_error_with_code(self):
         """Test error creation with error code."""
-        error = VortexError("Test error", help_text="Test help", error_code="TEST_001")
+        error = VortexError("Test error", ExceptionContext(help_text="Test help", error_code="TEST_001"))
         
         assert error.error_code == "TEST_001"
     
@@ -48,7 +51,7 @@ class TestVortexError:
     def test_error_chaining(self):
         """Test error chaining with cause."""
         original_error = ValueError("Original error")
-        vortex_error = VortexError("Vortex error", help_text="Help text")
+        vortex_error = VortexError("Vortex error", ExceptionContext(help_text="Help text"))
         
         # Test that we can chain errors
         try:
@@ -58,7 +61,7 @@ class TestVortexError:
     
     def test_error_representation(self):
         """Test error representation."""
-        error = VortexError("Test message", help_text="Help text", error_code="CODE_001")
+        error = VortexError("Test message", ExceptionContext(help_text="Help text", error_code="CODE_001"))
         
         repr_str = repr(error)
         assert "VortexError" in repr_str
@@ -71,7 +74,7 @@ class TestConfigurationErrors:
     
     def test_configuration_error(self):
         """Test ConfigurationError creation."""
-        error = ConfigurationError("Config failed", help_text="Check config file")
+        error = ConfigurationError("Config failed", ExceptionContext(help_text="Check config file"))
         
         assert isinstance(error, VortexError)
         assert "Config failed" in str(error)
@@ -128,7 +131,7 @@ class TestDataErrors:
     
     def test_data_storage_error(self):
         """Test DataStorageError creation."""
-        error = DataStorageError("/path/to/file - Permission denied", help_text="Check file permissions")
+        error = DataStorageError("/path/to/file - Permission denied", ExceptionContext(help_text="Check file permissions"))
         
         assert isinstance(error, VortexError)
         assert "/path/to/file" in str(error)
@@ -142,7 +145,7 @@ class TestCLIErrors:
     
     def test_cli_error(self):
         """Test CLIError creation."""
-        error = CLIError("Invalid command syntax", help_text="Use --help for usage")
+        error = CLIError("Invalid command syntax", ExceptionContext(help_text="Use --help for usage"))
         
         assert isinstance(error, VortexError)
         assert "Invalid command syntax" in str(error)
@@ -176,13 +179,13 @@ class TestErrorInheritance:
     def test_inheritance_chain(self):
         """Test that all errors inherit from VortexError."""
         errors = [
-            ConfigurationError("test", help_text="help"),
+            ConfigurationError("test", ExceptionContext(help_text="help")),
             InvalidConfigurationError("field", "value", "expected"),
             ConfigurationValidationError(["error"]),
             MissingConfigurationError("field"),
             DataProviderError("provider", "message", "help"),
-            DataStorageError("path - message", help_text="help"),
-            CLIError("message", help_text="help"),
+            DataStorageError("path - message", ExceptionContext(help_text="help")),
+            CLIError("message", ExceptionContext(help_text="help")),
             MissingArgumentError("arg", "command"),
             InvalidCommandError("command", "reason")
         ]
@@ -223,7 +226,7 @@ class TestErrorMessages:
         """Test that error messages contain key information."""
         # Test various error types have expected key information
         errors = [
-            (ConfigurationError("Config error", help_text="Help"), "config error"),
+            (ConfigurationError("Config error", ExceptionContext(help_text="Help")), "config error"),
             (InvalidConfigurationError("port", "99999", "1-65535"), "port"),
             (DataProviderError("yahoo", "Network error", "Check connection"), "yahoo"),
             (MissingArgumentError("--symbol", "download"), "--symbol"),
@@ -288,7 +291,7 @@ class TestErrorHandling:
         
         # Test that VortexError is handled by context manager
         with TestContext():
-            raise ConfigurationError("Test error", help_text="Test help")
+            raise ConfigurationError("Test error", ExceptionContext(help_text="Test help"))
         
         # Test that other errors are not handled
         with pytest.raises(ValueError):
@@ -300,7 +303,7 @@ class TestErrorHandling:
         original = FileNotFoundError("File not found")
         
         try:
-            raise ConfigurationError("Config file missing", help_text="Check file path") from original
+            raise ConfigurationError("Config file missing", ExceptionContext(help_text="Check file path")) from original
         except ConfigurationError as e:
             assert e.__cause__ is original
             assert isinstance(e.__cause__, FileNotFoundError)

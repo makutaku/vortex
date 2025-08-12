@@ -257,7 +257,9 @@ class TestConfigurationErrors:
     
     def test_configuration_error_formatting(self):
         """Test configuration error message formatting."""
-        error = ConfigurationError("Config failed", help_text="Check your settings")
+        from vortex.exceptions.base import ExceptionContext
+        context = ExceptionContext(help_text="Check your settings")
+        error = ConfigurationError("Config failed", context)
         assert "Config failed" in str(error)
         assert error.help_text == "Check your settings"
     

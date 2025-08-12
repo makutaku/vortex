@@ -7,7 +7,7 @@ Handles login, logout, CSRF token extraction, and session creation for Barchart.
 import requests
 from bs4 import BeautifulSoup
 
-from vortex.utils.logging_utils import LoggingContext
+from vortex.utils.logging_utils import LoggingContext, LoggingConfiguration
 
 
 class BarchartAuth:
@@ -36,7 +36,8 @@ class BarchartAuth:
     
     def login(self):
         """Authenticate with Barchart using credentials (bc-utils methodology)."""
-        with LoggingContext(entry_msg="Logging in ...", success_msg="Logged in."):
+        config = LoggingConfiguration(entry_msg="Logging in ...", success_msg="Logged in.")
+        with LoggingContext(config):
             # First, get the login page to establish session
             resp = self.session.get(self.BARCHART_LOGIN_URL)
             
@@ -85,7 +86,8 @@ class BarchartAuth:
     
     def logout(self):
         """Logout from Barchart session."""
-        with LoggingContext(entry_msg="Logging out ...", success_msg="Logged out."):
+        config = LoggingConfiguration(entry_msg="Logging out ...", success_msg="Logged out.")
+        with LoggingContext(config):
             self.session.get(self.BARCHART_LOGOUT_URL, timeout=10)
     
     def get_api_headers(self) -> dict:

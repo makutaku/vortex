@@ -11,7 +11,7 @@ from datetime import datetime
 import requests
 
 from vortex.models.period import FrequencyAttributes
-from vortex.utils.logging_utils import LoggingContext
+from vortex.utils.logging_utils import LoggingContext, LoggingConfiguration
 from .auth import BarchartAuth
 
 
@@ -41,8 +41,9 @@ class BarchartClient:
     
     def fetch_usage(self, url: str, xsrf_token: str) -> tuple[dict, str]:
         """Check download usage count."""
-        with LoggingContext(entry_msg="Checking usage", 
-                           success_msg="Checked usage"):
+        config = LoggingConfiguration(entry_msg="Checking usage", 
+                                     success_msg="Checked usage")
+        with LoggingContext(config):
             headers = self._build_usage_request_headers(url, xsrf_token)
             payload = self._build_usage_payload()
             resp = self.session.post(self.BARCHART_USAGE_URL, headers=headers, data=payload)

@@ -14,7 +14,7 @@ from vortex.models.forex import Forex
 from vortex.models.future import Future
 from vortex.models.price_series import LOW_DATA_THRESHOLD
 from vortex.models.stock import Stock
-from vortex.utils.logging_utils import LoggingContext
+from vortex.utils.logging_utils import LoggingContext, LoggingConfiguration
 from vortex.utils.utils import (
     date_range_generator, total_elements_in_dict_of_lists,
     get_first_and_last_day_of_years, generate_year_month_tuples,
@@ -253,10 +253,12 @@ class BaseDownloader(ABC):
         jobs_processed = 0
         jobs_downloaded = 0
 
-        with LoggingContext(
-                entry_msg=f"--------------------------- processing {len(job_list)} jobs ---------------------------",
-                entry_level=logging.INFO,
-                failure_msg=f"Failed to completely process scheduled downloads"):
+        config = LoggingConfiguration(
+            entry_msg=f"--------------------------- processing {len(job_list)} jobs ---------------------------",
+            entry_level=logging.INFO,
+            failure_msg=f"Failed to completely process scheduled downloads"
+        )
+        with LoggingContext(config):
 
             for job in job_list:
                 try:

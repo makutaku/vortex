@@ -292,4 +292,9 @@ def log_error_with_context(error: Exception,
         The correlation ID for this error
     """
     logger = get_structured_logger()
-    return logger.log_error(error, message, context=context)
+    error_context = ErrorLoggingContext(
+        error=error,
+        message=message,
+        context=context
+    )
+    return logger.log_error(error_context)

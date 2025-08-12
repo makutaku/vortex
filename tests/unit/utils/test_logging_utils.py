@@ -48,20 +48,23 @@ class TestLoggingContext:
     
     def test_logging_context_initialization_defaults(self):
         """Test LoggingContext initialization with defaults."""
-        context = LoggingContext()
+        from vortex.utils.logging_utils import LoggingConfiguration
+        config = LoggingConfiguration()
+        context = LoggingContext(config)
         
-        assert context.entry_msg is None
-        assert context.success_msg is None
-        assert context.failure_msg is None
-        assert context.exit_msg is None
-        assert context.entry_level == logging.DEBUG
-        assert context.exit_level == logging.DEBUG
-        assert context.success_level == logging.INFO
-        assert context.failure_level == logging.ERROR
+        assert config.entry_msg is None
+        assert config.success_msg is None
+        assert config.failure_msg is None
+        assert config.exit_msg is None
+        assert config.entry_level == logging.DEBUG
+        assert config.exit_level == logging.DEBUG
+        assert config.success_level == logging.INFO
+        assert config.failure_level == logging.ERROR
     
     def test_logging_context_initialization_custom(self, mock_logger):
         """Test LoggingContext initialization with custom values."""
-        context = LoggingContext(
+        from vortex.utils.logging_utils import LoggingConfiguration
+        config = LoggingConfiguration(
             entry_msg="Starting",
             success_msg="Success",
             failure_msg="Failed",
@@ -72,25 +75,28 @@ class TestLoggingContext:
             success_level=logging.DEBUG,
             failure_level=logging.CRITICAL
         )
+        context = LoggingContext(config)
         
-        assert context.entry_msg == "Starting"
-        assert context.success_msg == "Success"
-        assert context.failure_msg == "Failed"
-        assert context.exit_msg == "Finished"
+        assert config.entry_msg == "Starting"
+        assert config.success_msg == "Success"
+        assert config.failure_msg == "Failed"
+        assert config.exit_msg == "Finished"
         assert context.logger == mock_logger
-        assert context.entry_level == logging.INFO
-        assert context.exit_level == logging.INFO
-        assert context.success_level == logging.DEBUG
-        assert context.failure_level == logging.CRITICAL
+        assert config.entry_level == logging.INFO
+        assert config.exit_level == logging.INFO
+        assert config.success_level == logging.DEBUG
+        assert config.failure_level == logging.CRITICAL
     
     def test_logging_context_successful_execution(self, mock_logger):
         """Test LoggingContext with successful execution (no exception)."""
-        context = LoggingContext(
+        from vortex.utils.logging_utils import LoggingConfiguration
+        config = LoggingConfiguration(
             entry_msg="Starting task",
             success_msg="Task completed",
             exit_msg="Exiting",
             logger=mock_logger
         )
+        context = LoggingContext(config)
         
         # Test context manager for successful execution
         with context:
@@ -110,12 +116,14 @@ class TestLoggingContext:
     
     def test_logging_context_exception_execution(self, mock_logger):
         """Test LoggingContext with exception during execution."""
-        context = LoggingContext(
+        from vortex.utils.logging_utils import LoggingConfiguration
+        config = LoggingConfiguration(
             entry_msg="Starting task",
             failure_msg="Task failed",
             exit_msg="Exiting after error",
             logger=mock_logger
         )
+        context = LoggingContext(config)
         
         # Test context manager with exception
         with pytest.raises(ValueError):
@@ -136,7 +144,9 @@ class TestLoggingContext:
     
     def test_logging_context_no_messages(self, mock_logger):
         """Test LoggingContext with no messages configured."""
-        context = LoggingContext(logger=mock_logger)
+        from vortex.utils.logging_utils import LoggingConfiguration
+        config = LoggingConfiguration(logger=mock_logger)
+        context = LoggingContext(config)
         
         # Test context manager with no messages
         with context:
@@ -147,13 +157,15 @@ class TestLoggingContext:
     
     def test_logging_context_partial_messages(self, mock_logger):
         """Test LoggingContext with only some messages configured."""
-        context = LoggingContext(
+        from vortex.utils.logging_utils import LoggingConfiguration
+        config = LoggingConfiguration(
             entry_msg="Starting",
             success_msg=None,  # No success message
             failure_msg="Failed",
             exit_msg=None,     # No exit message
             logger=mock_logger
         )
+        context = LoggingContext(config)
         
         # Test successful execution
         with context:
@@ -164,7 +176,9 @@ class TestLoggingContext:
     
     def test_log_method_with_message(self, mock_logger):
         """Test the log method with a message."""
-        context = LoggingContext(logger=mock_logger)
+        from vortex.utils.logging_utils import LoggingConfiguration
+        config = LoggingConfiguration(logger=mock_logger)
+        context = LoggingContext(config)
         
         context.log("Test message", logging.WARNING)
         
@@ -172,7 +186,9 @@ class TestLoggingContext:
     
     def test_log_method_with_none_message(self, mock_logger):
         """Test the log method with None message."""
-        context = LoggingContext(logger=mock_logger)
+        from vortex.utils.logging_utils import LoggingConfiguration
+        config = LoggingConfiguration(logger=mock_logger)
+        context = LoggingContext(config)
         
         context.log(None, logging.INFO)
         
@@ -181,7 +197,9 @@ class TestLoggingContext:
     
     def test_log_method_with_empty_message(self, mock_logger):
         """Test the log method with empty string message."""
-        context = LoggingContext(logger=mock_logger)
+        from vortex.utils.logging_utils import LoggingConfiguration
+        config = LoggingConfiguration(logger=mock_logger)
+        context = LoggingContext(config)
         
         context.log("", logging.INFO)
         
@@ -190,7 +208,9 @@ class TestLoggingContext:
     
     def test_log_method_default_level(self, mock_logger):
         """Test the log method with default INFO level."""
-        context = LoggingContext(logger=mock_logger)
+        from vortex.utils.logging_utils import LoggingConfiguration
+        config = LoggingConfiguration(logger=mock_logger)
+        context = LoggingContext(config)
         
         context.log("Test message")
         
@@ -202,7 +222,9 @@ class TestLoggingContext:
         mock_logger = Mock()
         mock_get_logger.return_value = mock_logger
         
-        context = LoggingContext(entry_msg="Test")
+        from vortex.utils.logging_utils import LoggingConfiguration
+        config = LoggingConfiguration(entry_msg="Test")
+        context = LoggingContext(config)
         
         mock_get_logger.assert_called_once_with('vortex.utils.logging_utils')
         assert context.logger == mock_logger
@@ -245,10 +267,12 @@ class TestStructuredErrorLogger:
         error_logger.logger = mock_logger
         
         test_error = ValueError("Test error message")
-        correlation_id = error_logger.log_error(
+        from vortex.utils.logging_utils import ErrorLoggingContext
+        error_context = ErrorLoggingContext(
             error=test_error,
             message="Something went wrong"
         )
+        correlation_id = error_logger.log_error(error_context)
         
         # Should return a correlation ID
         assert correlation_id is not None
@@ -275,7 +299,8 @@ class TestStructuredErrorLogger:
         test_error = RuntimeError("Database connection failed")
         custom_correlation_id = "test-123"
         
-        returned_id = error_logger.log_error(
+        from vortex.utils.logging_utils import ErrorLoggingContext
+        error_context = ErrorLoggingContext(
             error=test_error,
             message="Database operation failed",
             correlation_id=custom_correlation_id,
@@ -285,6 +310,7 @@ class TestStructuredErrorLogger:
             provider="postgres",
             include_traceback=True
         )
+        returned_id = error_logger.log_error(error_context)
         
         assert returned_id == custom_correlation_id
         
@@ -315,7 +341,12 @@ class TestStructuredErrorLogger:
         test_error.error_code = "DATA_FETCH_ERROR"
         test_error.context = {"provider": "yahoo", "symbol": "AAPL"}
         
-        error_logger.log_error(error=test_error, message="Vortex operation failed")
+        from vortex.utils.logging_utils import ErrorLoggingContext
+        error_context = ErrorLoggingContext(
+            error=test_error,
+            message="Vortex operation failed"
+        )
+        error_logger.log_error(error_context)
         
         call_args = mock_logger.error.call_args
         error_data = call_args[1]['extra']['error_data']
@@ -331,11 +362,13 @@ class TestStructuredErrorLogger:
         error_logger.logger = mock_logger
         
         test_error = ValueError("Test error")
-        error_logger.log_error(
+        from vortex.utils.logging_utils import ErrorLoggingContext
+        error_context = ErrorLoggingContext(
             error=test_error,
             message="Error without traceback",
             include_traceback=False
         )
+        error_logger.log_error(error_context)
         
         call_args = mock_logger.error.call_args
         error_data = call_args[1]['extra']['error_data']
@@ -527,15 +560,22 @@ class TestLoggingUtilsGlobalFunctions:
         
         assert result == "correlation-123"
         mock_get_logger.assert_called_once()
-        mock_logger_instance.log_error.assert_called_once_with(
-            test_error,
-            "Something failed",
-            context={
-                "operation": "test_operation",
-                "provider": "test_provider", 
-                "custom_field": "custom_value"
-            }
-        )
+        
+        # Verify the call was made with ErrorLoggingContext
+        call_args = mock_logger_instance.log_error.call_args
+        assert len(call_args[0]) == 1  # One positional argument
+        error_context = call_args[0][0]
+        
+        # Check the ErrorLoggingContext fields
+        from vortex.utils.logging_utils import ErrorLoggingContext
+        assert isinstance(error_context, ErrorLoggingContext)
+        assert error_context.error is test_error
+        assert error_context.message == "Something failed"
+        assert error_context.context == {
+            "operation": "test_operation",
+            "provider": "test_provider", 
+            "custom_field": "custom_value"
+        }
 
 
 class TestLoggingContextIntegration:
@@ -545,17 +585,20 @@ class TestLoggingContextIntegration:
         """Test nested LoggingContext usage."""
         mock_logger = Mock()
         
-        outer_context = LoggingContext(
+        from vortex.utils.logging_utils import LoggingConfiguration
+        outer_config = LoggingConfiguration(
             entry_msg="Outer start",
             success_msg="Outer success",
             logger=mock_logger
         )
+        outer_context = LoggingContext(outer_config)
         
-        inner_context = LoggingContext(
+        inner_config = LoggingConfiguration(
             entry_msg="Inner start", 
             success_msg="Inner success",
             logger=mock_logger
         )
+        inner_context = LoggingContext(inner_config)
         
         with outer_context:
             with inner_context:
@@ -572,11 +615,13 @@ class TestLoggingContextIntegration:
     def test_logging_context_with_return_value(self):
         """Test LoggingContext doesn't interfere with return values."""
         mock_logger = Mock()
-        context = LoggingContext(
+        from vortex.utils.logging_utils import LoggingConfiguration
+        config = LoggingConfiguration(
             entry_msg="Processing",
             success_msg="Done",
             logger=mock_logger
         )
+        context = LoggingContext(config)
         
         def test_function():
             with context:
@@ -593,7 +638,9 @@ class TestLoggingUtilsEdgeCases:
     def test_logging_context_exception_preservation(self):
         """Test that LoggingContext preserves the original exception."""
         mock_logger = Mock()
-        context = LoggingContext(failure_msg="Failed", logger=mock_logger)
+        from vortex.utils.logging_utils import LoggingConfiguration
+        config = LoggingConfiguration(failure_msg="Failed", logger=mock_logger)
+        context = LoggingContext(config)
         
         original_exception = ValueError("Original error")
         
@@ -616,7 +663,9 @@ class TestLoggingUtilsEdgeCases:
             mock_logger = Mock()
             mock_get_logger.return_value = mock_logger
             
-            context = LoggingContext(entry_msg="Test", logger=None)  # Use default
+            from vortex.utils.logging_utils import LoggingConfiguration
+            config = LoggingConfiguration(entry_msg="Test")
+            context = LoggingContext(config)  # Use default
             
             # Should get logger for the module
             mock_get_logger.assert_called_once_with('vortex.utils.logging_utils')

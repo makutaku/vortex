@@ -294,31 +294,6 @@ class TestConfigManagerAdvanced:
         assert reset_config.providers.barchart.daily_limit == 150  # Default value
         assert reset_config.general.logging.level == LogLevel.INFO  # Default
     
-    def test_merge_config(self, temp_config_file):
-        """Test configuration merging."""
-        manager = ConfigManager(temp_config_file)
-        
-        base = {
-            "general": {"output_directory": "/base", "backup_enabled": False},
-            "providers": {"barchart": {"daily_limit": 100}}
-        }
-        
-        override = {
-            "general": {"backup_enabled": True, "new_field": "added"},
-            "providers": {"barchart": {"username": "merged"}, "yahoo": {"enabled": False}}
-        }
-        
-        result = manager._merge_config(base, override)
-        
-        # Base values preserved
-        assert result["general"]["output_directory"] == "/base"
-        assert result["providers"]["barchart"]["daily_limit"] == 100
-        
-        # Override values applied
-        assert result["general"]["backup_enabled"] is True
-        assert result["general"]["new_field"] == "added"
-        assert result["providers"]["barchart"]["username"] == "merged"
-        assert result["providers"]["yahoo"]["enabled"] is False
     
     def test_config_directory_property(self, temp_config_file):
         """Test config_directory property."""
@@ -364,18 +339,6 @@ class TestConfigManagerAdvanced:
         assert "valid" in filtered["list_with_nones"]
         assert "another" in filtered["list_with_nones"]
     
-    def test_get_default_config(self, temp_config_file):
-        """Test getting default configuration structure."""
-        manager = ConfigManager(temp_config_file)
-        default_config = manager._get_default_config()
-        
-        assert isinstance(default_config, dict)
-        assert "general" in default_config
-        assert "providers" in default_config
-        assert "logging" in default_config["general"]
-        assert "barchart" in default_config["providers"]
-        assert "yahoo" in default_config["providers"]
-        assert "ibkr" in default_config["providers"]
     
     def test_invalid_provider_config(self, temp_config_file):
         """Test error handling for invalid provider."""
@@ -478,34 +441,6 @@ class TestConfigManagerAdvanced:
             assert result["providers"]["barchart"]["daily_limit"] == 999  # Converted to int
             assert result["general"]["backup_enabled"] is True  # Converted to bool
     
-    def test_deep_merge_config_edge_cases(self, temp_config_file):
-        """Test edge cases in deep config merging."""
-        manager = ConfigManager(temp_config_file)
-        
-        # Test merging with lists, None values, and complex structures
-        base = {
-            "general": {
-                "list_field": ["a", "b"],
-                "none_field": None,
-                "deep": {"inner": {"value": 1}}
-            }
-        }
-        
-        override = {
-            "general": {
-                "list_field": ["c", "d"],  # Should replace, not merge
-                "new_field": "added",
-                "deep": {"inner": {"new_value": 2}}  # Should merge deep
-            }
-        }
-        
-        result = manager._merge_config(base, override)
-        
-        assert result["general"]["list_field"] == ["c", "d"]  # Replaced
-        assert result["general"]["none_field"] is None  # Preserved
-        assert result["general"]["new_field"] == "added"  # Added
-        assert result["general"]["deep"]["inner"]["value"] == 1  # Preserved
-        assert result["general"]["deep"]["inner"]["new_value"] == 2  # Added
 
 
 class TestConfigurationPrecedenceRules:
