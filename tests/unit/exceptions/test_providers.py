@@ -235,40 +235,40 @@ class TestDataNotFoundError:
 
 
 class TestAllowanceLimitExceededError:
-    def test_basic_allowance_limit_error(self):
+    def test_basic_usage_limit_error(self):
         """Test basic AllowanceLimitExceededError creation."""
-        error = AllowanceLimitExceededError("barchart", 150, 150)
+        error = AllowanceLimitExceededError("barchart", 150, 250)
         
         assert isinstance(error, DataProviderError)
         assert error.provider == "barchart"
-        assert error.current_allowance == 150
-        assert error.max_allowance == 150
+        assert error.current_usage == 150
+        assert error.daily_limit == 250
 
-    def test_allowance_limit_error_message(self):
+    def test_usage_limit_error_message(self):
         """Test AllowanceLimitExceededError message formatting."""
-        error = AllowanceLimitExceededError("yahoo", 95, 100)
+        error = AllowanceLimitExceededError("barchart", 95, 250)
         
-        assert "Allowance limit exceeded: 95/100" in str(error)
+        assert "Daily usage limit exceeded: 95/250 downloads used" in str(error)
 
-    def test_allowance_limit_error_help_text(self):
+    def test_usage_limit_error_help_text(self):
         """Test AllowanceLimitExceededError help text."""
-        error = AllowanceLimitExceededError("ibkr", 200, 200)
+        error = AllowanceLimitExceededError("barchart", 200, 250)
         
-        assert "Wait for allowance reset or upgrade your ibkr subscription" in error.help_text
+        assert "Wait for daily reset (midnight) or upgrade your barchart subscription" in error.help_text
 
-    def test_allowance_limit_error_code(self):
+    def test_usage_limit_error_code(self):
         """Test AllowanceLimitExceededError has correct error code."""
-        error = AllowanceLimitExceededError("barchart", 100, 100)
+        error = AllowanceLimitExceededError("barchart", 100, 250)
         
-        assert error.error_code == "ALLOWANCE_EXCEEDED"
+        assert error.error_code == "USAGE_LIMIT_EXCEEDED"
 
-    def test_allowance_limit_error_attributes(self):
+    def test_usage_limit_error_attributes(self):
         """Test AllowanceLimitExceededError stores attributes correctly."""
-        error = AllowanceLimitExceededError("yahoo", 75, 100)
+        error = AllowanceLimitExceededError("barchart", 75, 250)
         
-        assert error.current_allowance == 75
-        assert error.max_allowance == 100
-        assert error.provider == "yahoo"
+        assert error.current_usage == 75
+        assert error.daily_limit == 250
+        assert error.provider == "barchart"
 
 
 class TestProviderErrorInheritance:

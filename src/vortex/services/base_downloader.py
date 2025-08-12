@@ -2,13 +2,14 @@ import logging
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
 from itertools import cycle
-from typing import List, Dict
+from typing import List, Dict, Optional, Union, Tuple
 
 from .download_job import DownloadJob
 from vortex.infrastructure.providers.base import DataProvider, HistoricalDataResult
 from vortex.exceptions.providers import AllowanceLimitExceededError, DataNotFoundError
 from vortex.infrastructure.storage.data_storage import DataStorage
 from vortex.core.instruments import InstrumentConfig, InstrumentType
+from vortex.models.instrument import Instrument
 from vortex.models.forex import Forex
 from vortex.models.future import Future
 from vortex.models.price_series import LOW_DATA_THRESHOLD
@@ -23,19 +24,19 @@ from vortex.utils.utils import (
 
 class BaseDownloader(ABC):
 
-    def __init__(self, data_storage, data_provider, backup_data_storage=None, force_backup=False):
+    def __init__(self, data_storage: DataStorage, data_provider: DataProvider, backup_data_storage: Optional[DataStorage] = None, force_backup: bool = False) -> None:
         self.data_storage: DataStorage = data_storage
         self.data_provider: DataProvider = data_provider
         self.backup_data_storage = backup_data_storage
         self.force_backup = force_backup
 
-    def login(self):
+    def login(self) -> None:
         self.data_provider.login()
 
-    def logout(self):
+    def logout(self) -> None:
         self.data_provider.logout()
 
-    def download(self, instr_configs_or_market_metadata_files, start_year, end_year):
+    def download(self, instr_configs_or_market_metadata_files: Union[str, List[str], Dict], start_year: int, end_year: int) -> None:
         logging.info(f"Download from {start_year} to {end_year} ...")
         try:
             if is_list_of_strings(instr_configs_or_market_metadata_files):
@@ -71,10 +72,10 @@ class BaseDownloader(ABC):
         return self._schedule_jobs(configs, jobs_per_instrument)
 
     def _create_instrument_jobs(self,
-                                instr,
+                                instr: str,
                                 config: InstrumentConfig,
-                                start,
-                                end) -> List[DownloadJob]:
+                                start: datetime,
+                                end: datetime) -> List[DownloadJob]:
 
         logging.debug(f"Creating jobs for {instr}")
 
@@ -107,8 +108,8 @@ class BaseDownloader(ABC):
         logging.debug(f"Created {len(jobs)} jobs for {instr}")
         return jobs
 
-    def _create_future_jobs(self, futures_code, instr, start: datetime, end: datetime, periods,
-                            tick_date, roll_cycle, days_count, tz) -> List[DownloadJob]:
+    def _create_future_jobs(self, futures_code: str, instr: str, start: datetime, end: datetime, periods: List,
+                            tick_date: Optional[datetime], roll_cycle: List[str], days_count: int, tz) -> List[DownloadJob]:
         if not roll_cycle:
             raise ValueError(f"{instr} does not have a roll_cycle. "
                              f"Futures are dated instruments and require roll cycle.")
@@ -132,7 +133,7 @@ class BaseDownloader(ABC):
 
         return jobs
 
-    def filter_periods(self, instrument, periods):
+    def filter_periods(self, instrument: Instrument, periods: List) -> List:
         supported_periods = self.data_provider.get_supported_timeframes()
         filtered_periods = []
         for period in periods:
@@ -143,7 +144,7 @@ class BaseDownloader(ABC):
                 filtered_periods.append(period)
         return filtered_periods
 
-    def create_jobs_for_dated_instrument(self, future: Future, periods, start, end, tz):
+    def create_jobs_for_dated_instrument(self, future: Future, periods: List, start: datetime, end: datetime, tz) -> List[DownloadJob]:
         _jobs = []
         contract_start_date, contract_end_date = future.get_date_range(tz)
         start = max(start, contract_start_date)
@@ -172,7 +173,7 @@ class BaseDownloader(ABC):
 
         return _jobs
 
-    def create_jobs_for_undated_instrument(self, instrument, start, end, periods, tick_date):
+    def create_jobs_for_undated_instrument(self, instrument: Instrument, start: datetime, end: datetime, periods: Optional[List], tick_date: Optional[datetime]) -> List[DownloadJob]:
 
         jobs = []
         supported_periods = self.data_provider.get_supported_timeframes()
@@ -246,7 +247,7 @@ class BaseDownloader(ABC):
 
         return scheduled
 
-    def _process_jobs(self, job_list: list[DownloadJob]) -> None:
+    def _process_jobs(self, job_list: List[DownloadJob]) -> None:
 
         not_found = []
         jobs_processed = 0
@@ -276,5 +277,5 @@ class BaseDownloader(ABC):
                 logging.warning(f"Data not found for: {formatted_jobs}, maybe check config")
 
     @abstractmethod
-    def _process_job(self, job):
+    def _process_job(self, job: DownloadJob) -> HistoricalDataResult:
         pass

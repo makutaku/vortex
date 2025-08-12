@@ -1,21 +1,22 @@
 import logging
 import os
 import time
-from datetime import timezone, datetime, date
+from datetime import timezone, datetime, date, timedelta
 from random import randint
+from typing import Dict, Any, List, Optional, Tuple, Union, Generator
 
 from dateutil import parser
 
 from vortex.models.period import Period
 
 
-def random_sleep(n=15):
+def random_sleep(n: int = 15) -> None:
     secs = randint(1, 1 + n)
     logging.info(f"Waiting for {secs}s to avoid bot detection ...")
     time.sleep(secs)
 
 
-def create_full_path(file_path):
+def create_full_path(file_path: str) -> str:
     # Get the directory part of the file path
     directory = os.path.dirname(file_path)
 
@@ -27,14 +28,14 @@ def create_full_path(file_path):
     return file_path
 
 
-def get_first_and_last_day_of_years(start_year, end_year, tz=timezone.utc):
+def get_first_and_last_day_of_years(start_year: int, end_year: int, tz: timezone = timezone.utc) -> Tuple[datetime, datetime]:
     start_date = datetime(start_year, 1, 1, tzinfo=tz)
     end_date = datetime(end_year, 12, 31, 23, 59, 59, tzinfo=tz)
 
     return start_date, end_date
 
 
-def date_range_generator(start_date, end_date, delta):
+def date_range_generator(start_date: datetime, end_date: datetime, delta: Optional[timedelta]) -> Generator[Tuple[datetime, datetime], None, None]:
 
     if start_date > end_date:
         raise ValueError(f"start_date must come before end_date")
@@ -49,7 +50,7 @@ def date_range_generator(start_date, end_date, delta):
         current_date += delta
 
 
-def reverse_date_range_generator(start_date, end_date, delta):
+def reverse_date_range_generator(start_date: datetime, end_date: datetime, delta: Optional[timedelta]) -> Generator[Tuple[datetime, datetime], None, None]:
 
     if delta is None:
         yield start_date, end_date
@@ -79,7 +80,7 @@ def reverse_date_range_generator(start_date, end_date, delta):
 #     return start, end
 
 
-def convert_date_strings_to_datetime(input_dict):
+def convert_date_strings_to_datetime(input_dict: Dict[str, Any]) -> Dict[str, Any]:
     output_dict = {}
 
     for key, value in input_dict.items():
@@ -103,13 +104,13 @@ def convert_date_strings_to_datetime(input_dict):
     return output_dict
 
 
-def is_list_of_strings(variable):
+def is_list_of_strings(variable: Any) -> bool:
     if isinstance(variable, list):
         return all(isinstance(item, str) for item in variable)
     return False
 
 
-def merge_dicts(list_of_dicts):
+def merge_dicts(list_of_dicts: List[Dict[str, Any]]) -> Dict[str, Any]:
     merged_dict = {}
     for d in list_of_dicts:
         for key, value in d.items():
@@ -123,7 +124,7 @@ def get_absolute_path(directory: str) -> str:
     return os.path.abspath(os.path.expanduser(directory))
 
 
-def total_elements_in_dict_of_lists(dictionary):
+def total_elements_in_dict_of_lists(dictionary: Dict[str, List[Any]]) -> int:
     if not dictionary:
         return 0
 
@@ -137,7 +138,7 @@ def total_elements_in_dict_of_lists(dictionary):
     return total_elements
 
 
-def generate_year_month_tuples(start_date, end_date):
+def generate_year_month_tuples(start_date: Union[datetime, date], end_date: Union[datetime, date]) -> Generator[Tuple[int, int], None, None]:
     # Ensure both start_date and end_date are of type datetime.date
     if isinstance(start_date, datetime):
         start_date = start_date.date()

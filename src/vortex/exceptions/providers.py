@@ -110,12 +110,12 @@ class DataNotFoundError(DataProviderError):
 
 
 class AllowanceLimitExceededError(DataProviderError):
-    """Raised when API allowance/quota limits are exceeded."""
+    """Raised when API usage/quota limits are exceeded."""
     
-    def __init__(self, provider: str, current_allowance: int, max_allowance: int):
-        self.current_allowance = current_allowance
-        self.max_allowance = max_allowance
+    def __init__(self, provider: str, current_usage: int, daily_limit: int):
+        self.current_usage = current_usage
+        self.daily_limit = daily_limit
         
-        message = f"Allowance limit exceeded: {current_allowance}/{max_allowance}"
-        help_text = f"Wait for allowance reset or upgrade your {provider} subscription"
-        super().__init__(provider, message, help_text=help_text, error_code="ALLOWANCE_EXCEEDED")
+        message = f"Daily usage limit exceeded: {current_usage}/{daily_limit} downloads used"
+        help_text = f"Wait for daily reset (midnight) or upgrade your {provider} subscription"
+        super().__init__(provider, message, help_text=help_text, error_code="USAGE_LIMIT_EXCEEDED")

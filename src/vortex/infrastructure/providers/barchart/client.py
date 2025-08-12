@@ -1,7 +1,7 @@
 """
 Barchart HTTP client and request handling.
 
-Handles all HTTP requests, downloads, and allowance checking for Barchart data.
+Handles all HTTP requests, downloads, and usage checking for Barchart data.
 """
 
 import json
@@ -20,18 +20,18 @@ class BarchartClient:
     
     BARCHART_URL = 'https://www.barchart.com'
     BARCHART_DOWNLOAD_URL = BARCHART_URL + '/my/download'
-    BARCHART_ALLOWANCE_URL = BARCHART_DOWNLOAD_URL
+    BARCHART_USAGE_URL = BARCHART_DOWNLOAD_URL
     
     def __init__(self, auth: BarchartAuth):
         self.auth = auth
         self.session = auth.session
     
-    def request_download(self, xsrf_token: str, hist_csrf_token: str, symbol: str,
-                        freq_attrs: FrequencyAttributes, url: str,
+    def request_download(self, xsrf_token: str, history_csrf_token: str, symbol: str,
+                        frequency_attributes: FrequencyAttributes, url: str,
                         start_date: datetime, end_date: datetime) -> requests.Response:
         """Request data download from Barchart."""
         headers = self._build_download_request_headers(xsrf_token, url)
-        payload = self._build_download_request_payload(hist_csrf_token, symbol, freq_attrs,
+        payload = self._build_download_request_payload(history_csrf_token, symbol, frequency_attributes,
                                                       start_date, end_date)
         resp = self.session.post(self.BARCHART_DOWNLOAD_URL, headers=headers, data=payload)
         logging.debug(f"POST {self.BARCHART_DOWNLOAD_URL}, "
@@ -39,31 +39,31 @@ class BarchartClient:
                      f"data length: {len(resp.content)}")
         return resp
     
-    def fetch_allowance(self, url: str, xsf_token: str) -> tuple[dict, str]:
-        """Check download allowance remaining."""
-        with LoggingContext(entry_msg="Checking allowance", 
-                           success_msg="Checked allowance"):
-            headers = self._build_allowance_request_headers(url, xsf_token)
-            payload = self._build_allowance_payload()
-            resp = self.session.post(self.BARCHART_ALLOWANCE_URL, headers=headers, data=payload)
-            xsf_token = self.auth.get_xsrf_token()
-            allowance = json.loads(resp.text)
-            logging.debug(f"allowance: {allowance}")
-            return allowance, xsf_token
+    def fetch_usage(self, url: str, xsrf_token: str) -> tuple[dict, str]:
+        """Check download usage count."""
+        with LoggingContext(entry_msg="Checking usage", 
+                           success_msg="Checked usage"):
+            headers = self._build_usage_request_headers(url, xsrf_token)
+            payload = self._build_usage_payload()
+            resp = self.session.post(self.BARCHART_USAGE_URL, headers=headers, data=payload)
+            xsrf_token = self.auth.get_xsrf_token()
+            usage_data = json.loads(resp.text)
+            logging.debug(f"usage data: {usage_data}")
+            return usage_data, xsrf_token
     
     @staticmethod
-    def _build_download_request_payload(hist_csrf_token: str, symbol: str, 
-                                       freq_attrs: FrequencyAttributes, 
+    def _build_download_request_payload(history_csrf_token: str, symbol: str, 
+                                       frequency_attributes: FrequencyAttributes, 
                                        start_date: datetime, end_date: datetime) -> dict:
         """Build payload for download request."""
         return {
-            '_token': hist_csrf_token,
+            '_token': history_csrf_token,
             'fileName': symbol,
             'symbol': symbol,
             'startDate': start_date.strftime("%m/%d/%Y"),
             'endDate': end_date.strftime("%m/%d/%Y"),
-            'period': freq_attrs.name.lower(),
-            'maxRecords': freq_attrs.max_records_per_download,
+            'period': frequency_attributes.name.lower(),
+            'maxRecords': frequency_attributes.max_records_per_download,
             'order': 'asc',
             'dividends': 'false',
             'backadjust': 'false',
@@ -85,18 +85,18 @@ class BarchartClient:
         }
     
     @staticmethod  
-    def _build_allowance_request_headers(url: str, xsf_token: str) -> dict:
-        """Build headers for allowance request."""
+    def _build_usage_request_headers(url: str, xsrf_token: str) -> dict:
+        """Build headers for usage request."""
         return {
             'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-            'X-CSRF-TOKEN': xsf_token,
+            'X-CSRF-TOKEN': xsrf_token,
             'X-Requested-With': 'XMLHttpRequest',
             'Referer': url
         }
     
     @staticmethod
-    def _build_allowance_payload() -> dict:
-        """Build payload for allowance request."""
+    def _build_usage_payload() -> dict:
+        """Build payload for usage request."""
         return {
             'type': 'quotes'
         }

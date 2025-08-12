@@ -1,5 +1,6 @@
 import logging
 from datetime import timedelta
+from typing import Optional
 
 from vortex.infrastructure.providers.base import HistoricalDataResult
 from .base_downloader import BaseDownloader
@@ -11,13 +12,13 @@ from vortex.utils.utils import random_sleep
 
 class UpdatingDownloader(BaseDownloader):
 
-    def __init__(self, data_storage, data_provider, backup_data_storage=None, force_backup=False,
-                 random_sleep_in_sec=None, dry_run=False):
+    def __init__(self, data_storage, data_provider, backup_data_storage=None, force_backup: bool = False,
+                 random_sleep_in_sec: Optional[float] = None, dry_run: bool = False) -> None:
         super().__init__(data_storage, data_provider, backup_data_storage, force_backup)
         self.dry_run = dry_run
         self.random_sleep_in_sec = random_sleep_in_sec if random_sleep_in_sec is not None and random_sleep_in_sec > 0 else None
 
-    def _process_job(self, job: DownloadJob):
+    def _process_job(self, job: DownloadJob) -> HistoricalDataResult:
         with LoggingContext(
                 entry_msg=f"Processing {job}",
                 entry_level=logging.INFO,
@@ -69,7 +70,7 @@ class UpdatingDownloader(BaseDownloader):
             logging.info(f"Persisted data: {merged_download}")
             return HistoricalDataResult.OK
 
-    def pretend_not_a_bot(self):
+    def pretend_not_a_bot(self) -> None:
         if self.random_sleep_in_sec is not None:
             # cursory attempt to not appear like a bot
             random_sleep(self.random_sleep_in_sec)

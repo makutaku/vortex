@@ -2,6 +2,7 @@ import enum
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from typing import Optional, List
 
 from pandas import DataFrame
 
@@ -25,7 +26,7 @@ class HistoricalDataResult(enum.Enum):
     LOW = 5
 
 
-def should_retry(exception):
+def should_retry(exception: Exception) -> bool:
     """Determine if an exception should trigger a retry.
     
     Do not retry for:
@@ -47,28 +48,28 @@ def should_retry(exception):
 
 class DataProvider(ABC):
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.get_name()
 
     @abstractmethod
     def get_name(self) -> str:
         pass
 
-    def login(self):
+    def login(self) -> None:
         pass
 
-    def logout(self):
+    def logout(self) -> None:
         pass
 
-    def get_supported_timeframes(self) -> list[Period]:
+    def get_supported_timeframes(self) -> List[Period]:
         freq_dict = self._get_frequency_attr_dict()
         return list(freq_dict.keys())
 
-    def get_max_range(self, period: Period) -> timedelta | None:
+    def get_max_range(self, period: Period) -> Optional[timedelta]:
         freq_dict = self._get_frequency_attr_dict()
         return freq_dict.get(period).max_window
 
-    def get_min_start(self, period: Period) -> datetime | None:
+    def get_min_start(self, period: Period) -> Optional[datetime]:
         freq_dict = self._get_frequency_attr_dict()
         return freq_dict.get(period).get_min_start()
 
@@ -77,23 +78,23 @@ class DataProvider(ABC):
            retry_on_exception=should_retry)
     def fetch_historical_data(self,
                               instrument: Instrument,
-                              period,
-                              start_date, end_date) -> DataFrame | None:
+                              period: Period,
+                              start_date: datetime, end_date: datetime) -> Optional[DataFrame]:
         freq_dict = self._get_frequency_attr_dict()
         freq_attr = freq_dict.get(period)
         return self._fetch_historical_data(instrument, freq_attr, start_date, end_date)
 
-    def _get_frequency_attr_dict(self):
+    def _get_frequency_attr_dict(self) -> dict:
         freq_dict = {attr.frequency: attr for attr in self._get_frequency_attributes()}
         return freq_dict
 
     @abstractmethod
-    def _get_frequency_attributes(self) -> list[FrequencyAttributes]:
+    def _get_frequency_attributes(self) -> List[FrequencyAttributes]:
         pass
 
     @abstractmethod
     def _fetch_historical_data(self,
                                instrument: Instrument,
                                frequency_attributes: FrequencyAttributes,
-                               start_date, end_date) -> DataFrame | None:
+                               start_date: datetime, end_date: datetime) -> Optional[DataFrame]:
         pass

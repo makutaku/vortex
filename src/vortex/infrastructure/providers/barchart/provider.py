@@ -47,6 +47,32 @@ class BarchartDataProvider(DataProvider):
         
         # Login on initialization
         self.auth.login()
+    
+    def _extract_csrf_token(self, home_response) -> Optional[str]:
+        """Extract CSRF token from Barchart home page response.
+        
+        Args:
+            home_response: HTTP response from Barchart home page
+            
+        Returns:
+            CSRF token string if found, None otherwise
+        """
+        import logging
+        from bs4 import BeautifulSoup
+        
+        logger = logging.getLogger(__name__)
+        
+        soup = BeautifulSoup(home_response.text, 'html.parser')
+        
+        # Look for meta CSRF token (the correct token type)
+        meta_token = soup.find('meta', {'name': 'csrf-token'})
+        if meta_token:
+            csrf_token = meta_token.get('content')
+            logger.debug(f"Found meta CSRF token: {csrf_token[:20]}...")
+            return csrf_token
+        else:
+            logger.debug("No meta CSRF token found")
+            return None
 
     def get_name(self) -> str:
         return self.PROVIDER_NAME
@@ -59,16 +85,16 @@ class BarchartDataProvider(DataProvider):
         """Logout from Barchart (delegated to auth module)."""
         self.auth.logout()
 
-    def _fetch_allowance(self, url: str, xsf_token: str) -> tuple[dict, str]:
-        """Check download allowance remaining (delegated to client)."""
-        return self.client.fetch_allowance(url, xsf_token)
+    def _fetch_usage(self, url: str, xsrf_token: str) -> tuple[dict, str]:
+        """Check download usage count (delegated to client)."""
+        return self.client.fetch_usage(url, xsrf_token)
 
     def get_daily_limit(self) -> int:
         """Get the configured daily download limit for informational purposes."""
         return self.daily_limit
 
-    def _check_server_allowance(self) -> Optional[int]:
-        """Check current download allowance using exact bc-utils methodology."""
+    def _check_server_usage(self) -> Optional[int]:
+        """Check current download usage count using exact bc-utils methodology."""
         import logging
         import json
         logger = logging.getLogger(__name__)
@@ -78,23 +104,16 @@ class BarchartDataProvider(DataProvider):
             home_response = self.auth.session.get(self.BARCHART_URL)
             
             if home_response.status_code != 200:
-                logger.debug(f"Cannot access home page for allowance check: {home_response.status_code}")
+                logger.debug(f"Cannot access home page for usage check: {home_response.status_code}")
                 return None
             
-            # Extract meta CSRF token (same as working download)
-            from bs4 import BeautifulSoup
-            soup = BeautifulSoup(home_response.text, 'html.parser')
-            csrf_token = None
-            
-            meta_token = soup.find('meta', {'name': 'csrf-token'})
-            if meta_token:
-                csrf_token = meta_token.get('content')
-                logger.debug(f"Found meta CSRF token for allowance check: {csrf_token[:20]}...")
-            else:
-                logger.debug("No meta CSRF token found for allowance check")
+            # Extract CSRF token using shared method
+            csrf_token = self._extract_csrf_token(home_response)
+            if not csrf_token:
+                logger.debug("No CSRF token found for usage check")
                 return None
             
-            # Prepare bc-utils allowance check payload
+            # Prepare bc-utils usage check payload
             payload = {
                 'onlyCheckPermissions': 'true'  # This is the bc-utils secret!
             }
@@ -111,40 +130,40 @@ class BarchartDataProvider(DataProvider):
             
             # Use bc-utils /my/download endpoint with onlyCheckPermissions
             download_url = f"{self.BARCHART_URL}/my/download"
-            logger.debug(f"bc-utils allowance check payload: {payload}")
+            logger.debug(f"bc-utils usage check payload: {payload}")
             response = self.auth.session.post(download_url, data=payload, headers=headers)
             
-            logger.debug(f"Allowance check response status: {response.status_code}")
-            logger.debug(f"Allowance check response: {response.text[:200]}...")
+            logger.debug(f"Usage check response status: {response.status_code}")
+            logger.debug(f"Usage check response: {response.text[:200]}...")
             
             if response.status_code == 200:
                 try:
-                    allowance = json.loads(response.text)
-                    logger.debug(f"Parsed allowance: {allowance}")
+                    usage_data = json.loads(response.text)
+                    logger.debug(f"Parsed usage data: {usage_data}")
                     
                     # Check for error (bc-utils approach)
-                    if allowance.get("error") is not None:
-                        logger.debug(f"Allowance check error: {allowance.get('error')}")
+                    if usage_data.get("error") is not None:
+                        logger.debug(f"Usage check error: {usage_data.get('error')}")
                         return None
                     
                     # Check for success and count (bc-utils approach)
-                    if allowance.get("success"):
-                        current_count = int(allowance.get('count', '0'))
-                        logger.debug(f"bc-utils allowance success: {allowance['success']}, count: {current_count}")
+                    if usage_data.get("success"):
+                        current_count = int(usage_data.get('count', '0'))
+                        logger.debug(f"bc-utils usage success: {usage_data['success']}, count: {current_count}")
                         return current_count
                     else:
-                        logger.debug(f"Allowance check unsuccessful: {allowance}")
+                        logger.debug(f"Usage check unsuccessful: {usage_data}")
                         return None
                         
                 except (json.JSONDecodeError, ValueError) as e:
-                    logger.debug(f"Failed to parse allowance response: {e}")
+                    logger.debug(f"Failed to parse usage response: {e}")
                     return None
             else:
-                logger.debug(f"Allowance check failed with status: {response.status_code}")
+                logger.debug(f"Usage check failed with status: {response.status_code}")
                 return None
                 
         except Exception as e:
-            logger.debug(f"Allowance check error: {e}")
+            logger.debug(f"Usage check error: {e}")
             return None
 
     def _get_frequency_attributes(self) -> list[FrequencyAttributes]:
@@ -214,33 +233,33 @@ class BarchartDataProvider(DataProvider):
         return self._fetch_historical_data_(instrument.get_symbol(), frequency_attributes,
                                            start_date, end_date, url, FUTURES_SOURCE_TIME_ZONE)
 
-    def _fetch_historical_data_(self, instrument: str, freq_attrs: FrequencyAttributes,
+    def _fetch_historical_data_(self, instrument: str, frequency_attributes: FrequencyAttributes,
                                start_date, end_date, url: str, tz: str) -> Optional[DataFrame]:
         """Internal method to fetch historical data using exact bc-utils methodology."""
         import logging
         logger = logging.getLogger(__name__)
         
         try:
-            # Check server allowance using exact bc-utils methodology
-            current_allowance = self._check_server_allowance()
-            if current_allowance is not None:
-                logger.info(f"bc-utils server allowance: {current_allowance} downloads used today (configured limit: {self.daily_limit})")
+            # Check server usage using exact bc-utils methodology
+            current_usage = self._check_server_usage()
+            if current_usage is not None:
+                logger.info(f"bc-utils server usage: {current_usage} downloads used today (configured limit: {self.daily_limit})")
             else:
-                logger.info(f"bc-utils allowance check unavailable (configured limit: {self.daily_limit})")
+                logger.info(f"bc-utils usage check unavailable (configured limit: {self.daily_limit})")
             
             # Use exact bc-utils approach: /my/download endpoint
-            # Note: bc-utils relies on server-side allowance enforcement (250 paid/5 free per day)
+            # Note: bc-utils relies on server-side usage enforcement (250 paid/5 free per day)
             logger.info(f"Attempting bc-utils download for {instrument}")
-            df = self._fetch_via_bc_utils_download(instrument, freq_attrs, start_date, end_date, tz)
+            df = self._fetch_via_bc_utils_download(instrument, frequency_attributes, start_date, end_date, tz)
             if df is not None:
-                return self._validate_data_availability(df, instrument, freq_attrs, start_date, end_date)
+                return self._validate_data_availability(df, instrument, frequency_attributes, start_date, end_date)
             
             # No data found
             from vortex.exceptions.providers import DataNotFoundError
             raise DataNotFoundError(
                 provider="barchart",
                 symbol=instrument,
-                period=freq_attrs.frequency,
+                period=frequency_attributes.frequency,
                 start_date=start_date,
                 end_date=end_date
             )
@@ -249,7 +268,7 @@ class BarchartDataProvider(DataProvider):
             logger.error(f"bc-utils download failed for {instrument}: {e}")
             raise
 
-    def _fetch_via_bc_utils_download(self, instrument: str, freq_attrs: FrequencyAttributes,
+    def _fetch_via_bc_utils_download(self, instrument: str, frequency_attributes: FrequencyAttributes,
                                     start_date, end_date, tz: str) -> Optional[DataFrame]:
         """Fetch data using exact bc-utils /my/download methodology."""
         import logging
@@ -270,18 +289,10 @@ class BarchartDataProvider(DataProvider):
                 logger.error(f"Cannot access home page for CSRF token: {home_response.status_code}")
                 return None
             
-            # Extract meta CSRF token (this is the key fix!)
-            from bs4 import BeautifulSoup
-            soup = BeautifulSoup(home_response.text, 'html.parser')
-            csrf_token = None
-            
-            # Look for meta CSRF token (the correct token type)
-            meta_token = soup.find('meta', {'name': 'csrf-token'})
-            if meta_token:
-                csrf_token = meta_token.get('content')
-                logger.debug(f"Found meta CSRF token: {csrf_token[:20]}...")
-            else:
-                logger.error("No meta CSRF token found on home page")
+            # Extract CSRF token using shared method
+            csrf_token = self._extract_csrf_token(home_response)
+            if not csrf_token:
+                logger.error("No CSRF token found on home page")
                 return None
             
             # Prepare payload using actual working format from network capture
@@ -297,7 +308,7 @@ class BarchartDataProvider(DataProvider):
                 'orderDir': 'desc',
                 'method': 'historical',  # This is crucial!
                 'limit': '10000',
-                'period': self._get_barchart_period(freq_attrs.frequency),
+                'period': self._get_barchart_period(frequency_attributes.frequency),
                 'customView': 'true',
                 'exclude': '',
                 'customGetParameters': '',
@@ -305,7 +316,7 @@ class BarchartDataProvider(DataProvider):
             }
             
             # For intraday data, update the type parameter
-            if freq_attrs.frequency != Period('1d'):
+            if frequency_attributes.frequency != Period('1d'):
                 payload['type'] = 'minutes'  # Override type for intraday
             
             logger.debug(f"bc-utils payload: {payload}")
@@ -341,7 +352,7 @@ class BarchartDataProvider(DataProvider):
             
             if response.text and has_csv_data:
                 logger.info(f"bc-utils download successful for {instrument}")
-                return self._process_bc_utils_csv_response(response.text, freq_attrs.frequency, tz)
+                return self._process_bc_utils_csv_response(response.text, frequency_attributes.frequency, tz)
             else:
                 logger.warning(f"bc-utils download returned no CSV data for {instrument}")
                 logger.debug(f"Full response content: {response.text}")
@@ -428,16 +439,16 @@ class BarchartDataProvider(DataProvider):
             logger.error(f"Failed to process bc-utils CSV response: {e}")
             return None
 
-    def _validate_data_availability(self, df: DataFrame, symbol: str, freq_attrs: FrequencyAttributes = None, 
+    def _validate_data_availability(self, df: DataFrame, symbol: str, frequency_attributes: FrequencyAttributes = None, 
                                    start_date=None, end_date=None) -> DataFrame:
         """Validate downloaded data meets minimum requirements."""
         if df is None or df.empty:
             from vortex.exceptions.providers import DataNotFoundError
-            if freq_attrs and start_date and end_date:
+            if frequency_attributes and start_date and end_date:
                 raise DataNotFoundError(
                     provider="barchart",
                     symbol=symbol,
-                    period=freq_attrs.frequency,
+                    period=frequency_attributes.frequency,
                     start_date=start_date,
                     end_date=end_date
                 )

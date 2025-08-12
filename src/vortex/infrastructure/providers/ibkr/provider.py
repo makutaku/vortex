@@ -28,9 +28,9 @@ TIMEOUT_SECONDS_ON_HISTORICAL_DATA = 120
 class IbkrDataProvider(DataProvider):
     PROVIDER_NAME = "InteractiveBrokers"
 
-    def __init__(self, ipaddress, port):
+    def __init__(self, ip_address, port):
         self.ib = IB()
-        self.ipaddress = ipaddress
+        self.ip_address = ip_address
         self.port = port
         self.login()
 
@@ -41,7 +41,7 @@ class IbkrDataProvider(DataProvider):
            stop_max_attempt_number=5)
     def login(self):
         client_id = 998
-        self.ib.connect(self.ipaddress, self.port, clientId=client_id, readonly=True, timeout=20)
+        self.ib.connect(self.ip_address, self.port, clientId=client_id, readonly=True, timeout=20)
         # Sometimes takes a few seconds to resolve... only have to do this once per process so no biggie
         time.sleep(10)
 
@@ -82,12 +82,12 @@ class IbkrDataProvider(DataProvider):
         ]
 
     @singledispatchmethod
-    def _fetch_historical_data(self, stock: Stock, freq_attrs: FrequencyAttributes, start, end) -> DataFrame:
+    def _fetch_historical_data(self, stock: Stock, frequency_attributes: FrequencyAttributes, start, end) -> DataFrame:
         ib_contract = IB_Stock(stock.get_symbol(), 'SMART', 'USD')
-        return self.fetch_historical_data_for_symbol(ib_contract, freq_attrs)
+        return self.fetch_historical_data_for_symbol(ib_contract, frequency_attributes)
 
     @_fetch_historical_data.register
-    def _(self, future: Future, freq_attrs: FrequencyAttributes, start, end) -> DataFrame:
+    def _(self, future: Future, frequency_attributes: FrequencyAttributes, start, end) -> DataFrame:
         tokens = future.futures_code.split(".")
         exchange = tokens[0]
         symbol = tokens[1]
@@ -102,14 +102,14 @@ class IbkrDataProvider(DataProvider):
         # COTTON, TT, NYMEX, USD, 50000, 1, FALSE
         # COFFEE, KC, NYBOT, USD, 37500, 100, FALSE
 
-        return self.fetch_historical_data_for_symbol(ib_contract, freq_attrs)
+        return self.fetch_historical_data_for_symbol(ib_contract, frequency_attributes)
 
     @_fetch_historical_data.register
-    def _(self, forex: Forex, freq_attrs: FrequencyAttributes, start, end) -> DataFrame:
+    def _(self, forex: Forex, frequency_attributes: FrequencyAttributes, start, end) -> DataFrame:
         ib_contract = IB_Forex(pair=forex.get_symbol())
-        return self.fetch_historical_data_for_symbol(ib_contract, freq_attrs, "MIDPOINT")
+        return self.fetch_historical_data_for_symbol(ib_contract, frequency_attributes, "MIDPOINT")
 
-    def fetch_historical_data_for_symbol(self, contract, freq_attrs: FrequencyAttributes,
+    def fetch_historical_data_for_symbol(self, contract, frequency_attributes: FrequencyAttributes,
                                          what_to_show="TRADES") -> DataFrame:
         # If live data is available a request for delayed data would be ignored by TWS.
         self.ib.reqMarketDataType(3)
@@ -117,8 +117,8 @@ class IbkrDataProvider(DataProvider):
         bars = self.ib.reqHistoricalData(
             contract,
             endDateTime="",
-            durationStr=freq_attrs.properties['duration'],
-            barSizeSetting=freq_attrs.properties['bar_size'],
+            durationStr=frequency_attributes.properties['duration'],
+            barSizeSetting=frequency_attributes.properties['bar_size'],
             whatToShow=what_to_show,
             useRTH=True,
             formatDate=2,
@@ -140,7 +140,7 @@ class IbkrDataProvider(DataProvider):
             if datetime_candidates:
                 datetime_col = datetime_candidates[0]
         
-        if datetime_col and not freq_attrs.frequency.is_intraday():
+        if datetime_col and not frequency_attributes.frequency.is_intraday():
             df[datetime_col] = (pd.to_datetime(df[datetime_col], format='%Y-%m-%d', errors='coerce')
                                .dt.tz_localize(FUTURES_SOURCE_TIME_ZONE).dt.tz_convert('UTC'))
 

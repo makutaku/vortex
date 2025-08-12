@@ -128,11 +128,11 @@ class TestDataProviders:
         mock_login.return_value = None  # Mock successful login
         
         provider = IbkrDataProvider(
-            ipaddress="localhost",
+            ip_address="localhost",
             port="7497"
         )
         assert provider is not None
-        assert provider.ipaddress == "localhost"
+        assert provider.ip_address == "localhost"
         assert provider.port == "7497"
         mock_login.assert_called_once()
 

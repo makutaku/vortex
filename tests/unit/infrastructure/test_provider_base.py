@@ -53,9 +53,9 @@ class TestShouldRetry:
         )
         assert should_retry(error) is False
 
-    def test_should_retry_allowance_limit_exceeded_error(self):
+    def test_should_retry_usage_limit_exceeded_error(self):
         """Test that AllowanceLimitExceededError should not be retried."""
-        error = AllowanceLimitExceededError(provider="test", current_allowance=100, max_allowance=100)
+        error = AllowanceLimitExceededError(provider="test", current_usage=100, daily_limit=100)
         assert should_retry(error) is False
 
     def test_should_retry_authentication_error(self):

@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from typing import Any
 
 
 @dataclass
@@ -11,13 +12,13 @@ class Instrument(ABC):
         return f"{self.id}"
 
     @abstractmethod
-    def get_code(self):
+    def get_code(self) -> str:
         pass
 
     @abstractmethod
-    def get_symbol(self):
+    def get_symbol(self) -> str:
         pass
 
     @abstractmethod
-    def is_dated(self):
+    def is_dated(self) -> bool:
         pass

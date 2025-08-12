@@ -1,6 +1,7 @@
 import os
 import tempfile
-from datetime import timedelta
+from datetime import timedelta, datetime
+from typing import List, Optional
 
 import pandas as pd
 import yfinance as yf
@@ -18,13 +19,13 @@ class YahooDataProvider(DataProvider):
     YAHOO_DATE_TIME_COLUMN = "Date"
     PROVIDER_NAME = "YahooFinance"
 
-    def __init__(self):
+    def __init__(self) -> None:
         YahooDataProvider.set_yf_tz_cache()
 
     def get_name(self) -> str:
         return YahooDataProvider.PROVIDER_NAME
 
-    def _get_frequency_attributes(self) -> list[FrequencyAttributes]:
+    def _get_frequency_attributes(self) -> List[FrequencyAttributes]:
 
         return [
             FrequencyAttributes(Period.Monthly,
@@ -54,14 +55,14 @@ class YahooDataProvider(DataProvider):
         ]
 
     def _fetch_historical_data(self, instrument: Instrument,
-                               freq_attrs: FrequencyAttributes,
-                               start, end) -> DataFrame:
-        interval = freq_attrs.properties.get('interval')
+                               frequency_attributes: FrequencyAttributes,
+                               start: datetime, end: datetime) -> Optional[DataFrame]:
+        interval = frequency_attributes.properties.get('interval')
         df = YahooDataProvider.fetch_historical_data_for_symbol(instrument.get_symbol(), interval, start, end)
         return df
 
     @staticmethod
-    def fetch_historical_data_for_symbol(symbol: str, interval: str, start_date, end_date) -> DataFrame:
+    def fetch_historical_data_for_symbol(symbol: str, interval: str, start_date: datetime, end_date: datetime) -> DataFrame:
         ticker = yf.Ticker(symbol)
         df = ticker.history(
             start=start_date.strftime("%Y-%m-%d"),
@@ -87,7 +88,7 @@ class YahooDataProvider(DataProvider):
         return df
 
     @staticmethod
-    def set_yf_tz_cache():
+    def set_yf_tz_cache() -> None:
         # Get the temporary folder for the current user
         temp_folder = tempfile.gettempdir()
 

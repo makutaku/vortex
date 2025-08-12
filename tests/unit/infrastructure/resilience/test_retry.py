@@ -234,7 +234,7 @@ class TestRetryManager:
                 provider="test", symbol="TEST", period="1d",
                 start_date=datetime.now(), end_date=datetime.now()
             ),
-            AllowanceLimitExceededError("test", current_allowance=0, max_allowance=100)
+            AllowanceLimitExceededError("test", current_usage=0, daily_limit=100)
         ]
         
         for exception in non_retryable_exceptions:

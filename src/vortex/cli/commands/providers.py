@@ -378,7 +378,7 @@ def check_single_provider(config_manager: ConfigManager, provider: str) -> dict:
         if not provider_config.get("username") or not provider_config.get("password"):
             return {"success": False, "message": "No credentials configured"}
         
-        # Test Barchart connectivity by attempting login and checking allowance
+        # Test Barchart connectivity by attempting login and checking usage
         try:
             from vortex.infrastructure.providers.bc_data_provider import BarchartDataProvider
             
@@ -388,22 +388,22 @@ def check_single_provider(config_manager: ConfigManager, provider: str) -> dict:
             # Create provider instance which will attempt login
             bc_provider = BarchartDataProvider(username, password, daily_download_limit=1)
             
-            # Check allowance to verify full connectivity
+            # Check usage to verify full connectivity
             url = "https://www.barchart.com/my/download"
             session = bc_provider.session
             resp = session.get(url)
             
             if resp.status_code == 200:
-                # Extract XSRF token and check allowance
-                # Get XSRF token for allowance check
-                xsf_token = bc_provider.auth.get_xsrf_token()
-                allowance, _ = bc_provider._fetch_allowance(url, xsf_token)
+                # Extract XSRF token and check usage
+                # Get XSRF token for usage check
+                xsrf_token = bc_provider.auth.get_xsrf_token()
+                usage_data, _ = bc_provider._fetch_usage(url, xsrf_token)
                 
-                if allowance.get('success'):
-                    current_allowance = int(allowance.get('count', '0'))
-                    return {"success": True, "message": f"Connected - {current_allowance} downloads used today"}
+                if usage_data.get('success'):
+                    current_usage = int(usage_data.get('count', '0'))
+                    return {"success": True, "message": f"Connected - {current_usage} downloads used today"}
                 else:
-                    return {"success": False, "message": "Allowance check failed"}
+                    return {"success": False, "message": "Usage check failed"}
             else:
                 return {"success": False, "message": f"Connection failed - HTTP {resp.status_code}"}
                 

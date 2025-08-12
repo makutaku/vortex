@@ -853,7 +853,7 @@ class TestBaseDownloader:
                 downloader.download("test.json", 2024, 2025)
                 mock_create.assert_called_once_with(mock_config_data, 2024, 2025)
 
-    def test_download_with_allowance_limit_exceeded_error_logging(self, mock_data_storage, mock_data_provider, caplog):
+    def test_download_with_usage_limit_exceeded_error_logging(self, mock_data_storage, mock_data_provider, caplog):
         """Test that AllowanceLimitExceededError is logged properly."""
         downloader = ConcreteDownloader(mock_data_storage, mock_data_provider)
         
@@ -863,7 +863,7 @@ class TestBaseDownloader:
                 downloader.download({}, 2024, 2024)
                 
         # Verify error was logged
-        assert "Allowance limit exceeded: 100/150" in caplog.text
+        assert "Daily usage limit exceeded: 100/150" in caplog.text
 
     def test_create_instrument_jobs_debug_logging(self, downloader, caplog):
         """Test debug logging in _create_instrument_jobs method."""
