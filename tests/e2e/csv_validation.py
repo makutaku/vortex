@@ -12,7 +12,7 @@ from typing import Dict, List, Optional, Tuple
 import logging
 
 from vortex.models.columns import (
-    DATE_TIME_COLUMN, OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, 
+    DATETIME_COLUMN_NAME, OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, 
     CLOSE_COLUMN, VOLUME_COLUMN
 )
 

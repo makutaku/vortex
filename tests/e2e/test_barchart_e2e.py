@@ -18,7 +18,7 @@ from click.testing import CliRunner
 from datetime import datetime, timedelta
 
 from vortex.cli.main import cli
-from vortex.models.columns import DATE_TIME_COLUMN, OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, CLOSE_COLUMN, VOLUME_COLUMN
+from vortex.models.columns import DATETIME_COLUMN_NAME, OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, CLOSE_COLUMN, VOLUME_COLUMN
 
 
 def check_barchart_connectivity(host="www.barchart.com", port=443, timeout=5):

@@ -6,7 +6,7 @@ from unittest.mock import Mock, patch, MagicMock
 from datetime import datetime
 
 from vortex.infrastructure.storage.csv_storage import CsvStorage
-from vortex.models.columns import DATE_TIME_COLUMN
+from vortex.models.columns import DATETIME_COLUMN_NAME
 from vortex.models.period import Period
 from vortex.models.future import Future
 from vortex.models.stock import Stock
@@ -40,7 +40,7 @@ class TestCsvStorage:
             'Close': [104, 105, 106, 107, 108],
             'Volume': [1000, 1100, 1200, 1300, 1400]
         }, index=dates)
-        df.index.name = DATE_TIME_COLUMN
+        df.index.name = DATETIME_COLUMN_NAME
         return df
 
     @pytest.fixture
@@ -165,7 +165,7 @@ class TestCsvStorage:
         assert list(loaded_df.columns) == list(sample_dataframe.columns)
         
         # Index should be datetime and properly named
-        assert loaded_df.index.name == DATE_TIME_COLUMN
+        assert loaded_df.index.name == DATETIME_COLUMN_NAME
         assert pd.api.types.is_datetime64_any_dtype(loaded_df.index)
         
         # Should be sorted by index
@@ -176,7 +176,7 @@ class TestCsvStorage:
         file_path = os.path.join(temp_dir, 'datetime_test.csv')
         
         # Create CSV content with specific datetime format
-        csv_content = f"""{DATE_TIME_COLUMN},Open,Close
+        csv_content = f"""{DATETIME_COLUMN_NAME},Open,Close
 2024-01-01T00:00:00+00:00,100,104
 2024-01-02T00:00:00+00:00,101,105
 2024-01-03T00:00:00+00:00,102,106"""
@@ -229,7 +229,7 @@ class TestCsvStorage:
         df = pd.DataFrame({
             'Value': [3, 1, 2]
         }, index=pd.to_datetime(dates, utc=True))
-        df.index.name = DATE_TIME_COLUMN
+        df.index.name = DATETIME_COLUMN_NAME
         
         file_path = os.path.join(temp_dir, 'sorting_test.csv')
         
@@ -251,7 +251,7 @@ class TestCsvStorage:
         file_path = os.path.join(temp_dir, 'load_sorting_test.csv')
         
         # Create CSV with unsorted dates
-        csv_content = f"""{DATE_TIME_COLUMN},Value
+        csv_content = f"""{DATETIME_COLUMN_NAME},Value
 2024-01-03T00:00:00+00:00,3
 2024-01-01T00:00:00+00:00,1
 2024-01-02T00:00:00+00:00,2"""

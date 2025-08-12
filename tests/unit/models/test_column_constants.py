@@ -10,9 +10,9 @@ import pandas as pd
 from unittest.mock import Mock
 
 from vortex.models.columns import (
-    DATETIME_INDEX_NAME, DATE_TIME_COLUMN, OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, 
+    DATETIME_INDEX_NAME, DATETIME_COLUMN_NAME, OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, 
     CLOSE_COLUMN, VOLUME_COLUMN,
-    STANDARD_OHLCV_COLUMNS, REQUIRED_DATA_COLUMNS, REQUIRED_PRICE_COLUMNS,
+    STANDARD_OHLCV_COLUMNS, REQUIRED_DATA_COLUMNS, CSV_REQUIRED_COLUMNS,
     validate_required_columns, get_provider_expected_columns,
     get_column_mapping, standardize_dataframe_columns, validate_column_data_types
 )
@@ -47,7 +47,7 @@ class TestColumnConstants:
     
     def test_basic_column_constants(self):
         """Test that basic column constants are properly defined."""
-        assert DATE_TIME_COLUMN == 'Datetime'
+        assert DATETIME_COLUMN_NAME == 'Datetime'
         assert OPEN_COLUMN == "Open"
         assert HIGH_COLUMN == "High"
         assert LOW_COLUMN == "Low"
@@ -72,8 +72,8 @@ class TestColumnConstants:
         assert REQUIRED_DATA_COLUMNS == expected_ohlcv
         
         # Test legacy required price columns constant (with index for backward compatibility)
-        expected_required = [DATE_TIME_COLUMN] + expected_ohlcv
-        assert REQUIRED_PRICE_COLUMNS == expected_required
+        expected_required = [DATETIME_COLUMN_NAME] + expected_ohlcv
+        assert CSV_REQUIRED_COLUMNS == expected_required
         
         assert YAHOO_SPECIFIC_COLUMNS == [ADJ_CLOSE_COLUMN, DIVIDENDS_COLUMN, STOCK_SPLITS_COLUMN]
         assert BARCHART_SPECIFIC_COLUMNS == [OPEN_INTEREST_COLUMN]
@@ -87,11 +87,11 @@ class TestColumnValidation:
     def test_validate_required_columns_case_sensitive(self):
         """Test case-sensitive column validation."""
         df_columns = ["Date", "Open", "High", "Low", "Close", "Volume"]
-        required = [DATE_TIME_COLUMN, OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, CLOSE_COLUMN]
+        required = [DATETIME_COLUMN_NAME, OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, CLOSE_COLUMN]
         
         missing, found = validate_required_columns(df_columns, required, case_insensitive=False)
         
-        assert DATE_TIME_COLUMN in missing  # 'DATETIME' not in df_columns
+        assert DATETIME_COLUMN_NAME in missing  # 'DATETIME' not in df_columns
         assert OPEN_COLUMN in found
         assert HIGH_COLUMN in found
         assert LOW_COLUMN in found
@@ -100,18 +100,18 @@ class TestColumnValidation:
     def test_validate_required_columns_case_insensitive(self):
         """Test case-insensitive column validation."""
         df_columns = ["date", "open", "high", "low", "close", "volume"]
-        required = [DATE_TIME_COLUMN, OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, CLOSE_COLUMN, VOLUME_COLUMN]
+        required = [DATETIME_COLUMN_NAME, OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, CLOSE_COLUMN, VOLUME_COLUMN]
         
         missing, found = validate_required_columns(df_columns, required, case_insensitive=True)
         
         assert len(missing) == 1  # Only DATETIME should be missing (date != DATETIME)
-        assert DATE_TIME_COLUMN in missing
+        assert DATETIME_COLUMN_NAME in missing
         assert len(found) == 5  # All OHLCV should be found
     
     def test_validate_required_columns_exact_match(self):
         """Test validation with exact column matches."""
-        df_columns = [DATE_TIME_COLUMN, OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, CLOSE_COLUMN, VOLUME_COLUMN]
-        required = REQUIRED_PRICE_COLUMNS
+        df_columns = [DATETIME_COLUMN_NAME, OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, CLOSE_COLUMN, VOLUME_COLUMN]
+        required = CSV_REQUIRED_COLUMNS
         
         missing, found = validate_required_columns(df_columns, required, case_insensitive=False)
         
@@ -166,7 +166,7 @@ class TestColumnMapping:
         df_columns = ["Time", "Open", "High", "Low", "Last", "Volume", "Open Interest"]
         mapping = get_column_mapping('barchart', df_columns)
         
-        assert mapping["Time"] == DATE_TIME_COLUMN
+        assert mapping["Time"] == DATETIME_COLUMN_NAME
         assert mapping["Last"] == CLOSE_COLUMN
         assert mapping["Open Interest"] == OPEN_INTEREST_COLUMN
         assert mapping["Open"] == OPEN_COLUMN
@@ -179,7 +179,7 @@ class TestColumnMapping:
         df_columns = ["Date", "Open", "High", "Low", "Close", "Volume", "Adj Close", "Dividends"]
         mapping = get_column_mapping('yahoo', df_columns)
         
-        assert mapping["Date"] == DATE_TIME_COLUMN
+        assert mapping["Date"] == DATETIME_COLUMN_NAME
         assert mapping["Adj Close"] == ADJ_CLOSE_COLUMN
         assert mapping["Dividends"] == DIVIDENDS_COLUMN
         assert mapping["Open"] == OPEN_COLUMN
@@ -193,7 +193,7 @@ class TestColumnMapping:
         df_columns = ["date", "open", "high", "low", "close", "volume", "wap", "count"]
         mapping = get_column_mapping('ibkr', df_columns)
         
-        assert mapping["date"] == DATE_TIME_COLUMN
+        assert mapping["date"] == DATETIME_COLUMN_NAME
         assert mapping["wap"] == WAP_COLUMN
         assert mapping["count"] == COUNT_COLUMN
         assert mapping["open"] == OPEN_COLUMN
@@ -207,7 +207,7 @@ class TestColumnMapping:
         df_columns = ["TIME", "OPEN", "HIGH", "LOW", "LAST", "VOLUME"]
         mapping = get_column_mapping('barchart', df_columns)
         
-        assert mapping["TIME"] == DATE_TIME_COLUMN
+        assert mapping["TIME"] == DATETIME_COLUMN_NAME
         assert mapping["LAST"] == CLOSE_COLUMN
         assert mapping["OPEN"] == OPEN_COLUMN
         assert mapping["HIGH"] == HIGH_COLUMN
@@ -245,7 +245,7 @@ class TestColumnMapping:
         standardized_df = standardize_dataframe_columns(df, 'barchart')
         
         # Check that columns were renamed correctly
-        assert DATE_TIME_COLUMN in standardized_df.columns
+        assert DATETIME_COLUMN_NAME in standardized_df.columns
         assert CLOSE_COLUMN in standardized_df.columns
         assert "Time" not in standardized_df.columns
         assert "Last" not in standardized_df.columns
@@ -258,7 +258,7 @@ class TestColumnMapping:
         """Test DataFrame standardization when no mapping is needed."""
         # Create DataFrame with already-standard columns
         df = pd.DataFrame({
-            DATE_TIME_COLUMN: ["2024-01-01", "2024-01-02"],
+            DATETIME_COLUMN_NAME: ["2024-01-01", "2024-01-02"],
             OPEN_COLUMN: [100, 101],
             CLOSE_COLUMN: [102, 103]
         })
@@ -283,7 +283,7 @@ class TestColumnMappingEdgeCases:
         df_columns = ["Time", "Price", "SomeOtherColumn"]
         mapping = get_column_mapping('barchart', df_columns)
         
-        assert mapping["Time"] == DATE_TIME_COLUMN
+        assert mapping["Time"] == DATETIME_COLUMN_NAME
         assert "Price" not in mapping  # Should not match anything
         assert "SomeOtherColumn" not in mapping
     
@@ -303,7 +303,7 @@ class TestColumnMappingEdgeCases:
         
         for provider in ["BARCHART", "Barchart", "barchart", "BarChart"]:
             mapping = get_column_mapping(provider, df_columns)
-            assert mapping["Time"] == DATE_TIME_COLUMN
+            assert mapping["Time"] == DATETIME_COLUMN_NAME
             assert mapping["Last"] == CLOSE_COLUMN
 
 
@@ -341,7 +341,7 @@ class TestAdvancedColumnFunctions:
     def test_standardize_dataframe_columns_no_mapping_needed(self):
         """Test standardization when no mapping is needed."""
         df = pd.DataFrame({
-            DATE_TIME_COLUMN: ["2024-01-01", "2024-01-02"],
+            DATETIME_COLUMN_NAME: ["2024-01-01", "2024-01-02"],
             OPEN_COLUMN: [100, 101],
             CLOSE_COLUMN: [102, 103]
         })
@@ -364,7 +364,7 @@ class TestColumnDataTypeValidation:
             VOLUME_COLUMN: [1000, 1100, 1200]
         })
         df.index = pd.to_datetime(["2024-01-01", "2024-01-02", "2024-01-03"])
-        df.index.name = DATE_TIME_COLUMN
+        df.index.name = DATETIME_COLUMN_NAME
         
         is_valid, issues = validate_column_data_types(df)
         assert is_valid
@@ -377,7 +377,7 @@ class TestColumnDataTypeValidation:
             CLOSE_COLUMN: [102.0, 103.0]
         })
         df.index = ["not_datetime", "also_not_datetime"]
-        df.index.name = DATE_TIME_COLUMN
+        df.index.name = DATETIME_COLUMN_NAME
         
         is_valid, issues = validate_column_data_types(df)
         assert not is_valid

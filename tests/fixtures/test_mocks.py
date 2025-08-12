@@ -12,7 +12,7 @@ from vortex.infrastructure.providers.base import DataProvider
 from vortex.infrastructure.storage.file_storage import FileStorage
 from vortex.models.instrument import Instrument
 from vortex.models.columns import (
-    DATE_TIME_COLUMN, OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, 
+    DATETIME_COLUMN_NAME, OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, 
     CLOSE_COLUMN, VOLUME_COLUMN
 )
 
@@ -55,8 +55,8 @@ class MockDataProvider(DataProvider):
         
         # Convert to DataFrame
         df = pd.DataFrame(data_list)
-        df[DATE_TIME_COLUMN] = pd.to_datetime(df[DATE_TIME_COLUMN])
-        return df.set_index(DATE_TIME_COLUMN)
+        df[DATETIME_COLUMN_NAME] = pd.to_datetime(df[DATETIME_COLUMN_NAME])
+        return df.set_index(DATETIME_COLUMN_NAME)
     
     def download_data(self, instrument: Instrument, start_date: datetime, end_date: datetime) -> List[Dict[str, Any]]:
         """Mock download data implementation."""
@@ -83,7 +83,7 @@ class MockDataProvider(DataProvider):
             price = max(price + price_change, 1.0)
             
             data.append({
-                DATE_TIME_COLUMN: current_date.strftime("%Y-%m-%d"),
+                DATETIME_COLUMN_NAME: current_date.strftime("%Y-%m-%d"),
                 OPEN_COLUMN: round(price * 0.99, 2),
                 HIGH_COLUMN: round(price * 1.02, 2),
                 LOW_COLUMN: round(price * 0.97, 2),
@@ -250,7 +250,7 @@ class TestMockDataProvider:
         
         # Check data structure
         for record in data:
-            assert DATE_TIME_COLUMN in record
+            assert DATETIME_COLUMN_NAME in record
             assert OPEN_COLUMN in record
             assert HIGH_COLUMN in record
             assert LOW_COLUMN in record
@@ -310,8 +310,8 @@ class TestMockFileStorage:
         start_date = datetime(2024, 1, 1)
         end_date = datetime(2024, 1, 2)
         test_data = [
-            {DATE_TIME_COLUMN: "2024-01-01", CLOSE_COLUMN: 100.0},
-            {DATE_TIME_COLUMN: "2024-01-02", CLOSE_COLUMN: 101.0}
+            {DATETIME_COLUMN_NAME: "2024-01-01", CLOSE_COLUMN: 100.0},
+            {DATETIME_COLUMN_NAME: "2024-01-02", CLOSE_COLUMN: 101.0}
         ]
         
         # Save data
@@ -331,7 +331,7 @@ class TestMockFileStorage:
         """Test save failure simulation."""
         start_date = datetime(2024, 1, 1)
         end_date = datetime(2024, 1, 1)
-        test_data = [{DATE_TIME_COLUMN: "2024-01-01", CLOSE_COLUMN: 100.0}]
+        test_data = [{DATETIME_COLUMN_NAME: "2024-01-01", CLOSE_COLUMN: 100.0}]
         
         with pytest.raises(Exception, match="Mock save failure"):
             mock_failing_storage.save(test_data, mock_instrument, start_date, end_date)
@@ -362,7 +362,7 @@ class TestMockFileStorage:
         """Test storage statistics tracking."""
         start_date = datetime(2024, 1, 1)
         end_date = datetime(2024, 1, 1)
-        test_data = [{DATE_TIME_COLUMN: "2024-01-01", CLOSE_COLUMN: 100.0}]
+        test_data = [{DATETIME_COLUMN_NAME: "2024-01-01", CLOSE_COLUMN: 100.0}]
         
         # Save data for multiple instruments
         for instrument in sample_instruments:

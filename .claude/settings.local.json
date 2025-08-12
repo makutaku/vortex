@@ -259,7 +259,17 @@
       "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/cli/commands/test_download.py::TestGetDefaultAssetsFile::test_get_default_assets_file_no_files_exist -v --tb=short)",
       "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/cli/commands/test_config.py::TestShowConfiguration::test_show_configuration_basic -v --tb=short)",
       "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/cli/commands/test_config.py -v --tb=short)",
-      "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/cli/commands/test_validate.py::TestValidateSingleFile::test_provider_validation -v --tb=short)"
+      "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/cli/commands/test_validate.py::TestValidateSingleFile::test_provider_validation -v --tb=short)",
+      "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/infrastructure/providers/test_barchart_client.py -v --tb=short -k \"test_fetch_allowance_success\")",
+      "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/infrastructure/providers/test_barchart_client.py tests/unit/infrastructure/providers/test_barchart_auth.py -v --tb=short -q)",
+      "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/core/error_handling/ -v --tb=short)",
+      "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/cli/commands/test_validate.py -v --tb=short -q)",
+      "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/infrastructure/providers/test_barchart_client.py tests/unit/infrastructure/providers/test_barchart_auth.py tests/unit/cli/commands/test_validate.py tests/unit/cli/commands/test_download.py -x --tb=short -q)",
+      "Bash(for file in tests/unit/models/test_price_series.py tests/unit/models/test_overlapping_downloads.py tests/e2e/test_cli_workflows.py tests/e2e/test_barchart_e2e.py tests/e2e/csv_validation.py tests/fixtures/test_mocks.py tests/fixtures/mock_data.py tests/integration/test_provider_downloader_integration.py)",
+      "Bash(do)",
+      "Bash(echo:*)",
+      "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/infrastructure/providers/test_barchart_parser.py::TestBarchartParser::test_column_constants -v)",
+      "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/integration/ --tb=short -q)"
     ],
     "deny": []
   }

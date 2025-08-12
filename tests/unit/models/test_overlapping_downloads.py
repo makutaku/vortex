@@ -16,7 +16,7 @@ import os
 from src.vortex.models.price_series import PriceSeries
 from src.vortex.models.metadata import Metadata
 from src.vortex.models.columns import (
-    DATE_TIME_COLUMN, OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, CLOSE_COLUMN, VOLUME_COLUMN
+    DATETIME_COLUMN_NAME, OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, CLOSE_COLUMN, VOLUME_COLUMN
 )
 from src.vortex.models.period import Period
 
@@ -48,7 +48,7 @@ class TestOverlappingDownloads:
             })
         
         df = pd.DataFrame(data, index=dates)
-        df.index.name = DATE_TIME_COLUMN
+        df.index.name = DATETIME_COLUMN_NAME
         return df
 
     def create_price_series(self, df, symbol='TEST', data_provider='test_provider', period=None):

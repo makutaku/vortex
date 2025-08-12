@@ -15,7 +15,7 @@ from vortex.models.price_series import (
 )
 from vortex.models.metadata import Metadata
 from vortex.models.columns import (
-    DATE_TIME_COLUMN, OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, CLOSE_COLUMN, VOLUME_COLUMN
+    DATETIME_COLUMN_NAME, OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, CLOSE_COLUMN, VOLUME_COLUMN
 )
 from vortex.models.period import Period
 
@@ -190,7 +190,7 @@ class TestUtilityFunctions:
         """Test is_placeholder_for_no_data with placeholder data."""
         # Create DataFrame with two 1970-01-01 rows
         placeholder_df = pd.DataFrame({
-            DATE_TIME_COLUMN: ['1970-01-01T00:00:00+00:00', '1970-01-01T00:00:00+00:00'],
+            DATETIME_COLUMN_NAME: ['1970-01-01T00:00:00+00:00', '1970-01-01T00:00:00+00:00'],
             OPEN_COLUMN: [0, 0],
             CLOSE_COLUMN: [0, 0]
         })
@@ -202,7 +202,7 @@ class TestUtilityFunctions:
         """Test is_placeholder_for_no_data with wrong number of rows."""
         # Create DataFrame with three rows
         df = pd.DataFrame({
-            DATE_TIME_COLUMN: ['1970-01-01T00:00:00+00:00', '1970-01-01T00:00:00+00:00', '1970-01-01T00:00:00+00:00'],
+            DATETIME_COLUMN_NAME: ['1970-01-01T00:00:00+00:00', '1970-01-01T00:00:00+00:00', '1970-01-01T00:00:00+00:00'],
             OPEN_COLUMN: [0, 0, 0],
             CLOSE_COLUMN: [0, 0, 0]
         })
@@ -214,7 +214,7 @@ class TestUtilityFunctions:
         """Test is_placeholder_for_no_data with non-placeholder dates."""
         # Create DataFrame with two non-1970 rows
         df = pd.DataFrame({
-            DATE_TIME_COLUMN: ['2024-01-01T00:00:00+00:00', '2024-01-02T00:00:00+00:00'],
+            DATETIME_COLUMN_NAME: ['2024-01-01T00:00:00+00:00', '2024-01-02T00:00:00+00:00'],
             OPEN_COLUMN: [100, 101],
             CLOSE_COLUMN: [104, 105]
         })
@@ -231,7 +231,7 @@ class TestUtilityFunctions:
     def test_file_is_placeholder_for_no_hourly_data_true(self, temp_csv_file):
         """Test file_is_placeholder_for_no_hourly_data with small placeholder file."""
         # Create small CSV file with placeholder data
-        placeholder_content = f"{DATE_TIME_COLUMN},Open,Close\n1970-01-01T00:00:00+00:00,0,0\n1970-01-01T00:00:00+00:00,0,0\n"
+        placeholder_content = f"{DATETIME_COLUMN_NAME},Open,Close\n1970-01-01T00:00:00+00:00,0,0\n1970-01-01T00:00:00+00:00,0,0\n"
         
         with open(temp_csv_file, 'w') as f:
             f.write(placeholder_content)
@@ -242,7 +242,7 @@ class TestUtilityFunctions:
     def test_file_is_placeholder_for_no_hourly_data_false_large_file(self, temp_csv_file):
         """Test file_is_placeholder_for_no_hourly_data with large file."""
         # Create large CSV file (over 150 bytes)
-        large_content = f"{DATE_TIME_COLUMN},Open,High,Low,Close,Volume\n"
+        large_content = f"{DATETIME_COLUMN_NAME},Open,High,Low,Close,Volume\n"
         for i in range(10):
             large_content += f"2024-01-{i+1:02d}T00:00:00+00:00,100,105,95,104,1000\n"
         
@@ -255,7 +255,7 @@ class TestUtilityFunctions:
     def test_file_is_placeholder_for_no_hourly_data_false_real_data(self, temp_csv_file):
         """Test file_is_placeholder_for_no_hourly_data with real data in small file."""
         # Create small CSV file with real data (not placeholder)
-        real_content = f"{DATE_TIME_COLUMN},Open,Close\n2024-01-01T00:00:00+00:00,100,104\n2024-01-02T00:00:00+00:00,101,105\n"
+        real_content = f"{DATETIME_COLUMN_NAME},Open,Close\n2024-01-01T00:00:00+00:00,100,104\n2024-01-02T00:00:00+00:00,101,105\n"
         
         with open(temp_csv_file, 'w') as f:
             f.write(real_content)

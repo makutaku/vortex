@@ -13,7 +13,7 @@ from datetime import datetime
 
 from vortex.infrastructure.providers.barchart.parser import BarchartParser
 from vortex.models.period import Period
-from vortex.models.columns import CLOSE_COLUMN, DATE_TIME_COLUMN
+from vortex.models.columns import CLOSE_COLUMN, DATETIME_COLUMN_NAME
 
 
 @pytest.mark.unit
@@ -44,7 +44,7 @@ Footer data to skip
         
         # Verify shape and structure
         assert len(df) == 3
-        assert DATE_TIME_COLUMN == df.index.name  # DATE_TIME_COLUMN becomes the index
+        assert DATETIME_COLUMN_NAME == df.index.name  # DATETIME_COLUMN_NAME becomes the index
         assert CLOSE_COLUMN in df.columns
         # Should have called debug 3 times: raw data, received data, columns
         # The column mapping debug is from the ColumnStandardizer which has its own logger
@@ -55,7 +55,7 @@ Footer data to skip
         assert "from Barchart" in first_call
         
         # Verify data types and timezone
-        assert df.index.name == DATE_TIME_COLUMN
+        assert df.index.name == DATETIME_COLUMN_NAME
         assert df.index.dtype.name.startswith('datetime64[ns')
         assert str(df.index.tz) == 'UTC'
         
@@ -99,7 +99,7 @@ Footer line
         df = BarchartParser.convert_downloaded_csv_to_df(period, csv_data, 'UTC')
         
         # Verify standard column names
-        assert DATE_TIME_COLUMN == df.index.name
+        assert DATETIME_COLUMN_NAME == df.index.name
         assert CLOSE_COLUMN in df.columns
         assert 'Last' not in df.columns  # Original name should be renamed
         assert 'Time' not in df.columns  # Time becomes index
@@ -154,7 +154,7 @@ Footer line
         
         # Should return empty DataFrame
         assert len(df) == 0
-        assert DATE_TIME_COLUMN == df.index.name
+        assert DATETIME_COLUMN_NAME == df.index.name
     
     def test_date_format_detection(self):
         """Test proper date format detection for daily vs intraday."""
@@ -275,7 +275,7 @@ Footer
         
         # Should handle large datasets efficiently
         assert len(df) == 1000
-        assert DATE_TIME_COLUMN == df.index.name
+        assert DATETIME_COLUMN_NAME == df.index.name
         assert CLOSE_COLUMN in df.columns
     
     def test_class_method_usage(self):

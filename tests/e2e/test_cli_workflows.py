@@ -13,7 +13,7 @@ from click.testing import CliRunner
 from datetime import datetime, timedelta
 
 from vortex.cli.main import cli
-from vortex.models.columns import DATE_TIME_COLUMN
+from vortex.models.columns import DATETIME_COLUMN_NAME
 
 
 def check_network_connectivity(host="finance.yahoo.com", port=443, timeout=5):
