@@ -2,6 +2,14 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+# 🚨 CRITICAL WARNING: NO COMMITS WITHOUT PASSING TESTS
+**BEFORE doing ANYTHING else in this repository, understand this absolute rule:**
+- ⛔ **NEVER commit code unless ALL tests pass**
+- ✅ **ALWAYS run `./run-all-tests.sh --skip-docker` before ANY commit**  
+- 🛑 **If ANY test fails, fix it FIRST before committing**
+
+See the "🚨 CRITICAL: Commit Requirements" section below for complete details.
+
 ## Overview
 
 Vortex is a Python automation library for downloading historic futures contract prices from Barchart.com. It automates the manual process of downloading individual contracts and supports multiple data providers including Barchart, Yahoo Finance, and Interactive Brokers.
@@ -112,47 +120,91 @@ isort src/vortex/
 
 ### 🚨 CRITICAL: Commit Requirements
 
-**⚠️ NEVER commit code unless ALL tests pass:**
+# ⛔ ABSOLUTE REQUIREMENT: NO COMMITS WITHOUT PASSING TESTS
 
-Before committing any changes, you MUST ensure all tests pass by running:
+**🚫 NEVER, EVER commit code unless ALL tests pass:**
 
+## MANDATORY Pre-Commit Checklist
+
+Before ANY commit, you MUST:
+
+1. **✅ Run the full test suite:**
 ```bash
-# MANDATORY: Run this command before any commit
+# MANDATORY: Run this command before EVERY commit
 ./run-all-tests.sh --skip-docker
 
-# Alternative for development workflow (same requirement)
+# Alternative for development workflow (same requirement)  
 ./run-all-tests.sh --python-only
 ```
 
-**Commit Rules:**
-1. **All unit tests must pass** - No exceptions
-2. **All integration tests must pass** - No exceptions  
-3. **All end-to-end tests must pass** - No exceptions
-4. **Code quality checks must pass** - Run linting and formatting before commit
-5. **Docker tests can be skipped** during development (use `--skip-docker` flag)
+2. **✅ Verify ALL test categories pass:**
+   - Unit tests (1338+ tests) - **MUST be 100% PASSING**
+   - Integration tests (24+ tests) - **MUST be 100% PASSING** 
+   - End-to-end tests (15+ tests) - **MUST be 100% PASSING**
+
+3. **✅ Check test output shows:**
+   - "✅ Unit Tests PASSED" 
+   - "✅ Integration Tests PASSED"
+   - "✅ E2E Tests PASSED"
+
+## ⛔ Commit Prohibition Rules
+
+**ABSOLUTELY FORBIDDEN to commit if:**
+- ❌ ANY test fails (even 1 test out of 1000+)
+- ❌ Test suite shows "FAILED" status
+- ❌ You see error messages or stack traces
+- ❌ Tests timeout or are interrupted
+- ❌ You haven't run the test suite at all
 
 **If ANY test fails:**
-- ❌ **DO NOT COMMIT** - Fix the failing tests first
-- 🔍 **Debug the issue** - Use verbose output (`-v`) to understand failures
-- ✅ **Re-run tests** - Ensure all tests pass before proceeding
-- 📝 **Commit only** when test suite is green
+- 🛑 **STOP IMMEDIATELY** - Do not proceed with commit
+- 🔧 **Fix ALL failing tests first** - No exceptions, no shortcuts
+- 🔍 **Debug thoroughly** - Use verbose output (`-v`) to understand failures
+- ✅ **Re-run tests** - Ensure 100% pass rate before proceeding
+- 📝 **Only commit** when test suite is completely green
 
-**Example workflow:**
+## ✅ Correct Commit Workflow
+
+**ALWAYS follow this exact sequence:**
+
 ```bash
-# 1. Make your changes
-# 2. Run tests to ensure nothing is broken
+# 1. Make your changes to the codebase
+# 2. Run the mandatory test suite
 ./run-all-tests.sh --skip-docker
 
-# 3. If tests fail, fix them first
-# 4. Re-run tests until they all pass
+# 3. VERIFY all tests pass - look for these exact messages:
+#    "✅ Unit Tests PASSED"
+#    "✅ Integration Tests PASSED" 
+#    "✅ E2E Tests PASSED"
+
+# 4. If ANY test fails - STOP and fix them first
+# 5. Re-run tests until 100% pass rate achieved
 ./run-all-tests.sh --skip-docker
 
-# 5. Only then commit your changes
+# 6. ONLY AFTER all tests pass - commit your changes
 git add .
 git commit -m "Your commit message"
 ```
 
-**Docker tests are optional during development** but required for deployment validation. Use `--skip-docker` to focus on Python test suite during active development.
+## 🚫 What NOT to Do
+
+**These actions are STRICTLY PROHIBITED:**
+
+```bash
+# ❌ NEVER do this - committing without testing
+git add .
+git commit -m "Quick fix"  # FORBIDDEN!
+
+# ❌ NEVER do this - committing with known failures  
+./run-all-tests.sh --skip-docker  # Shows 1 FAILED test
+git commit -m "Will fix later"    # ABSOLUTELY FORBIDDEN!
+
+# ❌ NEVER do this - partial testing
+pytest tests/unit/  # Only unit tests
+git commit -m "Unit tests pass"   # FORBIDDEN - must run ALL tests!
+```
+
+**Docker tests are optional during development** but required for deployment validation. Use `--skip-docker` to focus on Python test suite during active development, but ALL Python tests must still pass.
 
 ### Building and Packaging
 
