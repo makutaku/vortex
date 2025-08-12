@@ -148,12 +148,7 @@ class TimeConstants:
     RATE_LIMIT_WINDOW_SECONDS = 60
 
 
-# Legacy constants for backward compatibility
-# TODO: Phase these out in favor of the structured constants above
-
-DEFAULT_SELF_IMPOSED_DOWNLOAD_DAILY_LIMIT = ProviderConstants.Barchart.DEFAULT_DAILY_DOWNLOAD_LIMIT
-MAX_BARS_PER_DOWNLOAD = ProviderConstants.Barchart.MAX_BARS_PER_DOWNLOAD
-MIN_REQUIRED_DATA_POINTS = ProviderConstants.Barchart.MIN_REQUIRED_DATA_POINTS
+# Legacy constants removed - use ProviderConstants instead
 
 
 def get_provider_constants(provider_name: str) -> Dict[str, Any]:

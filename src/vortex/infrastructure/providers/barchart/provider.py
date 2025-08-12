@@ -37,12 +37,10 @@ class BarchartDataProvider(DataProvider):
     """Barchart data provider with modular architecture."""
     
     PROVIDER_NAME = "Barchart"
-    DEFAULT_SELF_IMPOSED_DOWNLOAD_DAILY_LIMIT = ProviderConstants.Barchart.DEFAULT_DAILY_DOWNLOAD_LIMIT
-    MAX_BARS_PER_DOWNLOAD: int = ProviderConstants.Barchart.MAX_BARS_PER_DOWNLOAD
     BARCHART_URL = ProviderConstants.Barchart.BASE_URL
     
     def __init__(self, username: str, password: str, 
-                 daily_download_limit: int = DEFAULT_SELF_IMPOSED_DOWNLOAD_DAILY_LIMIT):
+                 daily_download_limit: int = ProviderConstants.Barchart.DEFAULT_DAILY_DOWNLOAD_LIMIT):
         
         # Store daily limit for informational purposes (not enforced client-side)
         # bc-utils relies on server-side enforcement: 250 for paid, 5 for free users
@@ -191,22 +189,22 @@ class BarchartDataProvider(DataProvider):
         return [
             FrequencyAttributes(Period('1d'), get_min_start_date(Period('1d')), 
                               get_max_range(Period('1d')), 
-                              {'max_bars': self.MAX_BARS_PER_DOWNLOAD, 'frequency_name': 'daily'}),
+                              {'max_bars': ProviderConstants.Barchart.MAX_BARS_PER_DOWNLOAD, 'frequency_name': 'daily'}),
             FrequencyAttributes(Period('1h'), get_min_start_date(Period('1h')), 
                               get_max_range(Period('1h')), 
-                              {'max_bars': self.MAX_BARS_PER_DOWNLOAD, 'frequency_name': 'hourly'}),
+                              {'max_bars': ProviderConstants.Barchart.MAX_BARS_PER_DOWNLOAD, 'frequency_name': 'hourly'}),
             FrequencyAttributes(Period('30m'), get_min_start_date(Period('30m')), 
                               get_max_range(Period('30m')), 
-                              {'max_bars': self.MAX_BARS_PER_DOWNLOAD, 'frequency_name': '30minute'}),
+                              {'max_bars': ProviderConstants.Barchart.MAX_BARS_PER_DOWNLOAD, 'frequency_name': '30minute'}),
             FrequencyAttributes(Period('15m'), get_min_start_date(Period('15m')), 
                               get_max_range(Period('15m')), 
-                              {'max_bars': self.MAX_BARS_PER_DOWNLOAD, 'frequency_name': '15minute'}),
+                              {'max_bars': ProviderConstants.Barchart.MAX_BARS_PER_DOWNLOAD, 'frequency_name': '15minute'}),
             FrequencyAttributes(Period('5m'), get_min_start_date(Period('5m')), 
                               get_max_range(Period('5m')), 
-                              {'max_bars': self.MAX_BARS_PER_DOWNLOAD, 'frequency_name': '5minute'}),
+                              {'max_bars': ProviderConstants.Barchart.MAX_BARS_PER_DOWNLOAD, 'frequency_name': '5minute'}),
             FrequencyAttributes(Period('1m'), get_min_start_date(Period('1m')), 
                               get_max_range(Period('1m')), 
-                              {'max_bars': self.MAX_BARS_PER_DOWNLOAD, 'frequency_name': 'minute'}),
+                              {'max_bars': ProviderConstants.Barchart.MAX_BARS_PER_DOWNLOAD, 'frequency_name': 'minute'}),
         ]
 
     @singledispatchmethod

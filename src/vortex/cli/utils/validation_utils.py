@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Dict, List, Tuple, Optional, Any
 
 from vortex.models.columns import (
-    DATE_TIME_COLUMN, OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, 
+    DATETIME_COLUMN_NAME, OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, 
     CLOSE_COLUMN, VOLUME_COLUMN, validate_required_columns,
     validate_column_data_types
 )

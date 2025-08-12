@@ -20,9 +20,7 @@ REQUIRED_DATA_COLUMNS = STANDARD_OHLCV_COLUMNS  # Only actual data columns, not 
 # CSV file column sets (includes datetime column since it's stored as a column in CSV)
 CSV_REQUIRED_COLUMNS = [DATETIME_COLUMN_NAME] + REQUIRED_DATA_COLUMNS
 
-# Legacy support (for backward compatibility only)
-DATE_TIME_COLUMN = DATETIME_COLUMN_NAME  # For backward compatibility only
-REQUIRED_PRICE_COLUMNS = CSV_REQUIRED_COLUMNS  # For backward compatibility with CSV format
+# Legacy column aliases removed - use standard column names instead
 
 # Structured error classes for column validation
 from dataclasses import dataclass

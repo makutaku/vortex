@@ -10,7 +10,7 @@ from rich.table import Table
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn
 
 from vortex.models.columns import (
-    DATE_TIME_COLUMN, OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, CLOSE_COLUMN, VOLUME_COLUMN
+    DATETIME_COLUMN_NAME, OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, CLOSE_COLUMN, VOLUME_COLUMN
 )
 from vortex.constants import BYTES_PER_KB, BYTES_PER_MB
 from ..utils.validation_utils import (
@@ -235,7 +235,7 @@ def validate_csv_file(path: Path, provider: Optional[str]) -> dict:
             return result
         
         # Check for common financial data columns (using constants for consistency)
-        expected_columns_constants = [DATE_TIME_COLUMN, OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, CLOSE_COLUMN]
+        expected_columns_constants = [DATETIME_COLUMN_NAME, OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, CLOSE_COLUMN]
         expected_columns = [col.lower() for col in expected_columns_constants]
         df_columns_lower = [col.lower() for col in df.columns]
         
@@ -309,7 +309,7 @@ def validate_parquet_file(path: Path, provider: Optional[str]) -> dict:
             return result
         
         # Check for common financial data columns (using constants for consistency)
-        expected_columns_constants = [DATE_TIME_COLUMN, OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, CLOSE_COLUMN]
+        expected_columns_constants = [DATETIME_COLUMN_NAME, OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, CLOSE_COLUMN]
         expected_columns = [col.lower() for col in expected_columns_constants]
         df_columns_lower = [col.lower() for col in df.columns]
         
