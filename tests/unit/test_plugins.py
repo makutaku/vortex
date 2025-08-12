@@ -9,6 +9,14 @@ from vortex.infrastructure.plugins import ProviderRegistry, get_provider_registr
 class TestProviderRegistry:
     """Test the ProviderRegistry class."""
     
+    @pytest.fixture(autouse=True)
+    def mock_provider_factory(self):
+        """Automatically mock ProviderFactory for all tests."""
+        with patch('vortex.infrastructure.plugins.ProviderFactory') as mock_factory_class:
+            mock_factory = Mock()
+            mock_factory_class.return_value = mock_factory
+            yield mock_factory
+    
     def test_registry_initialization(self):
         """Test registry initializes with expected plugins."""
         registry = ProviderRegistry()
@@ -50,53 +58,52 @@ class TestProviderRegistry:
         assert 'test_provider' in registry.list_plugins()
         assert registry.get_plugin('test_provider') == mock_plugin
     
-    @patch('vortex.infrastructure.plugins.YahooDataProvider')
-    def test_create_yahoo_provider(self, mock_yahoo_class):
+    def test_create_yahoo_provider(self, mock_provider_factory):
         """Test creating Yahoo provider instance."""
-        registry = ProviderRegistry()
-        mock_instance = Mock()
-        mock_yahoo_class.return_value = mock_instance
+        # Set up the mock to return a provider
+        mock_provider = Mock()
+        mock_provider_factory.create_provider.return_value = mock_provider
         
+        registry = ProviderRegistry()
         provider = registry.create_provider('yahoo', {})
         
-        # Yahoo provider should be created without config
-        mock_yahoo_class.assert_called_once_with()
-        assert provider == mock_instance
+        # Should use factory to create provider
+        mock_provider_factory.create_provider.assert_called_once_with('yahoo', {})
+        assert provider == mock_provider
     
-    @patch('vortex.infrastructure.plugins.BarchartDataProvider')
-    def test_create_barchart_provider(self, mock_barchart_class):
+    def test_create_barchart_provider(self, mock_provider_factory):
         """Test creating Barchart provider instance."""
-        registry = ProviderRegistry()
-        mock_instance = Mock()
-        mock_barchart_class.return_value = mock_instance
-        config = {'username': 'test', 'password': 'secret'}
+        # Set up the mock to return a provider
+        mock_provider = Mock()
+        mock_provider_factory.create_provider.return_value = mock_provider
         
+        registry = ProviderRegistry()
+        config = {'username': 'test', 'password': 'secret'}
         provider = registry.create_provider('barchart', config)
         
-        # Barchart provider should be created with individual keyword arguments including defaults
-        mock_barchart_class.assert_called_once_with(
-            username='test', 
-            password='secret', 
-            daily_download_limit=150
-        )
-        assert provider == mock_instance
+        # Should use factory to create provider
+        mock_provider_factory.create_provider.assert_called_once_with('barchart', config)
+        assert provider == mock_provider
     
-    @patch('vortex.infrastructure.plugins.IbkrDataProvider')
-    def test_create_ibkr_provider(self, mock_ibkr_class):
+    def test_create_ibkr_provider(self, mock_provider_factory):
         """Test creating IBKR provider instance."""
-        registry = ProviderRegistry()
-        mock_instance = Mock()
-        mock_ibkr_class.return_value = mock_instance
-        config = {'host': 'localhost', 'port': 7497}
+        # Set up the mock to return a provider
+        mock_provider = Mock()
+        mock_provider_factory.create_provider.return_value = mock_provider
         
+        registry = ProviderRegistry()
+        config = {'host': 'localhost', 'port': 7497}
         provider = registry.create_provider('ibkr', config)
         
-        # IBKR provider should be created with config
-        mock_ibkr_class.assert_called_once_with(config)
-        assert provider == mock_instance
+        # Should use factory to create provider
+        mock_provider_factory.create_provider.assert_called_once_with('ibkr', config)
+        assert provider == mock_provider
     
-    def test_create_provider_not_found(self):
+    def test_create_provider_not_found(self, mock_provider_factory):
         """Test creating provider for non-existent plugin."""
+        # Mock the factory to raise PluginNotFoundError
+        mock_provider_factory.create_provider.side_effect = PluginNotFoundError("Plugin 'nonexistent' not found")
+        
         registry = ProviderRegistry()
         
         with pytest.raises(PluginNotFoundError) as exc_info:

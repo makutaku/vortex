@@ -243,7 +243,15 @@
       "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/infrastructure/providers/test_barchart_client.py tests/unit/exceptions/test_providers.py -x --tb=line -q)",
       "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/exceptions/test_providers.py -v --tb=short)",
       "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/exceptions/test_providers.py::TestAllowanceLimitExceededError::test_usage_limit_error_attributes -v)",
-      "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/infrastructure/test_provider_base.py tests/unit/infrastructure/resilience/test_retry.py -v --tb=short -q)"
+      "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/infrastructure/test_provider_base.py tests/unit/infrastructure/resilience/test_retry.py -v --tb=short -q)",
+      "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/models/test_column_constants.py -v --tb=short -q)",
+      "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/models/test_column_constants.py tests/unit/cli/commands/test_download.py tests/unit/cli/commands/test_validate.py tests/unit/test_config.py -v --tb=short)",
+      "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/models/test_column_constants.py tests/unit/cli/commands/test_validate.py tests/unit/cli/commands/test_download.py tests/unit/test_config.py --tb=line -q)",
+      "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/infrastructure/providers/test_factory.py -v)",
+      "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/infrastructure/providers/test_factory.py -v --tb=short)",
+      "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/infrastructure/config/test_service.py tests/unit/infrastructure/http/test_client.py -v --tb=short)",
+      "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/infrastructure/config/test_service.py tests/unit/infrastructure/http/test_client.py -v --tb=short -x)",
+      "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/infrastructure/ -v --tb=short)"
     ],
     "deny": []
   }
