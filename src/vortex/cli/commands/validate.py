@@ -13,6 +13,11 @@ from vortex.models.columns import (
     DATE_TIME_COLUMN, OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, CLOSE_COLUMN, VOLUME_COLUMN
 )
 from vortex.constants import BYTES_PER_KB, BYTES_PER_MB
+from ..utils.validation_utils import (
+    validate_csv_file as validate_csv_file_util,
+    validate_provider_specific_format,
+    get_validation_summary
+)
 
 # Import provider-specific constants from their respective providers
 from vortex.infrastructure.providers.yahoo.column_mapping import YahooColumnMapping
@@ -190,7 +195,8 @@ def validate_single_file(path: Path, provider: Optional[str], fix: bool) -> dict
         
         # Provider-specific validation
         if provider:
-            provider_result = validate_provider_format(path, provider)
+            validator = ProviderFormatValidator()
+            provider_result = validator.validate(path, provider)
             result["errors"].extend(provider_result.get("errors", []))
             result["warnings"].extend(provider_result.get("warnings", []))
             if provider_result.get("errors"):
@@ -496,10 +502,6 @@ class IbkrFormatValidator(BaseFormatValidator):
         if COUNT_COLUMN.lower() not in df_columns:
             result["warnings"].append(f"IBKR format typically includes '{COUNT_COLUMN}' (trade count) column")
 
-def validate_provider_format(path: Path, provider: str) -> dict:
-    """Validate provider-specific format requirements."""
-    validator = ProviderFormatValidator()
-    return validator.validate(path, provider)
 
 def attempt_fixes(path: Path, errors: List[str]) -> bool:
     """Attempt to fix common validation issues."""

@@ -12,9 +12,10 @@ import pandas as pd
 from vortex.cli.commands.validate import (
     validate, get_files_to_validate, run_validation, 
     validate_single_file, validate_csv_file, validate_parquet_file,
-    validate_provider_format, attempt_fixes, display_results,
+    attempt_fixes, display_results,
     display_table_results, display_json_results, display_csv_results,
-    show_validation_summary, show_detailed_issues, format_file_size
+    show_validation_summary, show_detailed_issues, format_file_size,
+    ProviderFormatValidator
 )
 from vortex.models.columns import (
     DATE_TIME_COLUMN, OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, 
@@ -285,10 +286,10 @@ class TestValidateSingleFile:
             finally:
                 temp_path.unlink()
     
-    @patch('vortex.cli.commands.validate.validate_provider_format')
-    def test_provider_validation(self, mock_validate_provider):
+    @patch.object(ProviderFormatValidator, 'validate')
+    def test_provider_validation(self, mock_validate):
         """Test provider-specific validation."""
-        mock_validate_provider.return_value = {
+        mock_validate.return_value = {
             "errors": ["Wrong column order"],
             "warnings": []
         }
@@ -300,7 +301,7 @@ class TestValidateSingleFile:
                 result = validate_single_file(temp_path, "barchart", False)
                 assert "Wrong column order" in result["errors"]
                 assert result["valid"] == False
-                mock_validate_provider.assert_called_once_with(temp_path, "barchart")
+                mock_validate.assert_called_once_with(temp_path, "barchart")
             finally:
                 temp_path.unlink()
     
@@ -531,8 +532,8 @@ class TestValidateParquetFile:
         assert "File not found" in result["errors"]
 
 
-class TestValidateProviderFormat:
-    """Test the validate_provider_format function."""
+class TestProviderFormatValidator:
+    """Test the ProviderFormatValidator class."""
     
     @patch('pandas.read_csv')
     def test_barchart_provider_validation(self, mock_read_csv):
@@ -554,7 +555,8 @@ class TestValidateProviderFormat:
         with tempfile.NamedTemporaryFile(suffix='.csv', delete=False) as temp_file:
             temp_path = Path(temp_file.name)
             try:
-                result = validate_provider_format(temp_path, "barchart")
+                validator = ProviderFormatValidator()
+                result = validator.validate(temp_path, "barchart")
                 # Should not have warnings for complete Barchart format
                 assert len(result["warnings"]) == 0
             finally:
@@ -579,7 +581,8 @@ class TestValidateProviderFormat:
         with tempfile.NamedTemporaryFile(suffix='.csv', delete=False) as temp_file:
             temp_path = Path(temp_file.name)
             try:
-                result = validate_provider_format(temp_path, "yahoo")
+                validator = ProviderFormatValidator()
+                result = validator.validate(temp_path, "yahoo")
                 # Should not warn about missing Adj Close
                 assert not any("Adj Close" in warning for warning in result["warnings"])
             finally:
@@ -605,7 +608,8 @@ class TestValidateProviderFormat:
         with tempfile.NamedTemporaryFile(suffix='.csv', delete=False) as temp_file:
             temp_path = Path(temp_file.name)
             try:
-                result = validate_provider_format(temp_path, "ibkr")
+                validator = ProviderFormatValidator()
+                result = validator.validate(temp_path, "ibkr")
                 # Should not warn about missing WAP or Count
                 assert not any("WAP" in warning for warning in result["warnings"])
                 assert not any("Count" in warning for warning in result["warnings"])
@@ -623,7 +627,8 @@ class TestValidateProviderFormat:
         with tempfile.NamedTemporaryFile(suffix='.csv', delete=False) as temp_file:
             temp_path = Path(temp_file.name)
             try:
-                result = validate_provider_format(temp_path, "unknown_provider")
+                validator = ProviderFormatValidator()
+                result = validator.validate(temp_path, "unknown_provider")
                 assert any("Unknown provider" in warning for warning in result["warnings"])
             finally:
                 temp_path.unlink()
@@ -633,7 +638,8 @@ class TestValidateProviderFormat:
         with tempfile.NamedTemporaryFile(suffix='.txt', delete=False) as temp_file:
             temp_path = Path(temp_file.name)
             try:
-                result = validate_provider_format(temp_path, "yahoo")
+                validator = ProviderFormatValidator()
+                result = validator.validate(temp_path, "yahoo")
                 assert any("Unsupported file format" in error for error in result["errors"])
             finally:
                 temp_path.unlink()

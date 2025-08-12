@@ -12,6 +12,21 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 
 # Local imports (organized by hierarchy)
 from vortex.core.config import ConfigManager
+from ..utils.config_utils import (
+    get_or_create_config_manager, 
+    ensure_provider_configured,
+    get_default_date_range,
+    get_provider_config_with_defaults
+)
+from ..utils.download_utils import (
+    load_assets_from_file,
+    get_default_assets_file,
+    create_downloader_components,
+    parse_date_range,
+    parse_symbols_list,
+    count_download_jobs,
+    format_download_summary
+)
 from vortex.infrastructure.storage.csv_storage import CsvStorage
 from vortex.infrastructure.storage.parquet_storage import ParquetStorage
 from vortex.services.updating_downloader import UpdatingDownloader
@@ -75,26 +90,6 @@ def load_config_instruments(assets_file_path: Path) -> dict:
     except Exception as e:
         console.print(f"[red]Error loading assets file '{assets_file_path}': {e}[/red]")
         raise click.Abort()
-
-
-def get_default_assets_file(provider: str) -> Path:
-    """Get the default assets file for the given provider.
-    
-    This returns the default assets that ship with Vortex.
-    Users can override by specifying --assets with their own file.
-    """
-    # Try provider-specific default file first
-    provider_file = Path(f"config/assets/{provider}.json")
-    if provider_file.exists():
-        return provider_file
-    
-    # Fall back to general default
-    default_file = Path("config/assets/default.json")
-    if default_file.exists():
-        return default_file
-    
-    # If nothing exists, return the expected provider file (will cause error with helpful message)
-    return provider_file
 
 @click.command()
 @enhanced_error_handler
@@ -372,6 +367,8 @@ class DefaultAssetsHandler(SymbolResolutionHandler):
     def _try_resolve(self, context: SymbolResolutionContext) -> tuple[List[str], dict]:
         try:
             default_assets_file = get_default_assets_file(self.provider)
+            if default_assets_file is None:
+                return None
             instrument_configs = load_config_instruments(default_assets_file)
             symbols = list(instrument_configs.keys())
             ux.print_success(f"Loaded {len(symbols)} instruments from default {default_assets_file}")

@@ -13,6 +13,11 @@ from vortex.core.config import ConfigManager
 from vortex.constants import DEFAULT_IBKR_PORT
 from vortex.core.constants import ProviderConstants
 from vortex.core.logging_integration import get_module_logger
+from ..utils.config_utils import (
+    validate_provider_configuration,
+    format_provider_status,
+    ensure_provider_configured
+)
 
 console = Console()
 logger = get_module_logger()
@@ -173,18 +178,12 @@ def show_configuration(config_manager: ConfigManager) -> None:
     providers_table.add_column("Notes")
     
     for provider in ["barchart", "yahoo", "ibkr"]:
-        if provider == "barchart":
-            has_creds = config_manager.validate_provider_credentials(provider)
-            status = "✓ Configured" if has_creds else "✗ No credentials"
-            notes = f"Daily limit: {config.providers.barchart.daily_limit}" if has_creds else "Use --set-credentials"
-        elif provider == "yahoo":
-            status = "✓ Ready"
-            notes = "No credentials required"
-        elif provider == "ibkr":
-            status = "✓ Configured"  # IBKR always has default config
-            notes = f"Host: {config.providers.ibkr.host}:{config.providers.ibkr.port}"
-        
-        providers_table.add_row(provider.upper(), status, notes)
+        provider_status = format_provider_status(config_manager, provider, config)
+        providers_table.add_row(
+            provider_status['provider'].upper(),
+            provider_status['status'],
+            provider_status['notes']
+        )
     
     console.print(providers_table)
 

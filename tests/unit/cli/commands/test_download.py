@@ -72,14 +72,13 @@ class TestGetDefaultAssetsFile:
         assert 'assets' in str(result)
     
     def test_get_default_assets_file_no_files_exist(self):
-        """Test when no assets files exist - returns provider file path anyway."""
-        with patch('vortex.cli.commands.download.Path.exists') as mock_exists:
+        """Test when no assets files exist - returns None."""
+        with patch('vortex.cli.utils.download_utils.Path.exists') as mock_exists:
             mock_exists.return_value = False
             
             result = get_default_assets_file('nonexistent')
             
-            assert result.name == 'nonexistent.json'
-            assert 'assets' in str(result)
+            assert result is None
 
 
 class TestDownloadMain:
