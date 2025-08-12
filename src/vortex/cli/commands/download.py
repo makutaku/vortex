@@ -12,6 +12,7 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 
 # Local imports (organized by hierarchy)
 from vortex.core.config import ConfigManager
+from vortex.core.error_handling import return_none_on_error
 from ..utils.config_utils import (
     get_or_create_config_manager, 
     ensure_provider_configured,
@@ -339,9 +340,10 @@ class SymbolResolutionHandler:
 class AssetsFileHandler(SymbolResolutionHandler):
     """Handle symbol resolution from user-specified assets file."""
     
+    @return_none_on_error("resolve_assets_file", "SymbolResolver")
     def _try_resolve(self, context: SymbolResolutionContext) -> tuple[List[str], dict]:
         if not context.assets:
-            return None
+            raise Exception("No assets file provided")
         
         instrument_configs = load_config_instruments(context.assets)
         symbols = list(instrument_configs.keys())
@@ -351,11 +353,12 @@ class AssetsFileHandler(SymbolResolutionHandler):
 class DirectSymbolsHandler(SymbolResolutionHandler):
     """Handle symbol resolution from direct symbol input or symbols file."""
     
+    @return_none_on_error("resolve_direct_symbols", "SymbolResolver")
     def _try_resolve(self, context: SymbolResolutionContext) -> tuple[List[str], dict]:
         symbols = parse_instruments(context.symbol, context.symbols_file)
         if symbols:
             return symbols, None
-        return None
+        raise Exception("No symbols provided from direct input or symbols file")
 
 class DefaultAssetsHandler(SymbolResolutionHandler):
     """Handle symbol resolution from default provider assets."""
@@ -364,17 +367,16 @@ class DefaultAssetsHandler(SymbolResolutionHandler):
         super().__init__()
         self.provider = provider
     
+    @return_none_on_error("resolve_default_assets", "SymbolResolver")
     def _try_resolve(self, context: SymbolResolutionContext) -> tuple[List[str], dict]:
-        try:
-            default_assets_file = get_default_assets_file(self.provider)
-            if default_assets_file is None:
-                return None
-            instrument_configs = load_config_instruments(default_assets_file)
-            symbols = list(instrument_configs.keys())
-            ux.print_success(f"Loaded {len(symbols)} instruments from default {default_assets_file}")
-            return symbols, instrument_configs
-        except (FileNotFoundError, PermissionError, ValueError, KeyError):
-            return None
+        default_assets_file = get_default_assets_file(self.provider)
+        if default_assets_file is None:
+            raise Exception(f"No default assets file found for provider {self.provider}")
+        
+        instrument_configs = load_config_instruments(default_assets_file)
+        symbols = list(instrument_configs.keys())
+        ux.print_success(f"Loaded {len(symbols)} instruments from default {default_assets_file}")
+        return symbols, instrument_configs
 
 def _resolve_symbols_and_configs(
     provider: str, symbol: tuple, symbols_file: Optional[Path], assets: Optional[Path]

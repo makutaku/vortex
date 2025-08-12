@@ -13,6 +13,12 @@ import pandas as pd
 from pandas import DataFrame
 
 from ..base import DataProvider
+from vortex.core.error_handling import (
+    return_none_on_error,
+    fail_fast,
+    return_default_on_error,
+    log_and_continue
+)
 from vortex.exceptions.providers import DataNotFoundError, AllowanceLimitExceededError
 from vortex.exceptions.providers import DataProviderError
 from vortex.models.forex import Forex
@@ -48,6 +54,7 @@ class BarchartDataProvider(DataProvider):
         # Login on initialization
         self.auth.login()
     
+    @return_none_on_error("extract_csrf_token", "BarchartProvider")
     def _extract_csrf_token(self, home_response) -> Optional[str]:
         """Extract CSRF token from Barchart home page response.
         
@@ -77,6 +84,7 @@ class BarchartDataProvider(DataProvider):
     def get_name(self) -> str:
         return self.PROVIDER_NAME
 
+    @fail_fast("login", "BarchartProvider")
     def login(self):
         """Login to Barchart (delegated to auth module)."""
         self.auth.login()
@@ -89,81 +97,73 @@ class BarchartDataProvider(DataProvider):
         """Check download usage count (delegated to client)."""
         return self.client.fetch_usage(url, xsrf_token)
 
+    @return_default_on_error("get_daily_limit", "BarchartProvider", default_value=100)
     def get_daily_limit(self) -> int:
         """Get the configured daily download limit for informational purposes."""
         return self.daily_limit
 
+    @return_none_on_error("check_server_usage", "BarchartProvider")
     def _check_server_usage(self) -> Optional[int]:
         """Check current download usage count using exact bc-utils methodology."""
         import logging
         import json
         logger = logging.getLogger(__name__)
         
-        try:
-            # Use exact bc-utils approach: GET home page for CSRF token, then POST with onlyCheckPermissions
-            home_response = self.auth.session.get(self.BARCHART_URL)
+        # Use exact bc-utils approach: GET home page for CSRF token, then POST with onlyCheckPermissions
+        home_response = self.auth.session.get(self.BARCHART_URL)
+        
+        if home_response.status_code != 200:
+            logger.debug(f"Cannot access home page for usage check: {home_response.status_code}")
+            return None
+        
+        # Extract CSRF token using shared method
+        csrf_token = self._extract_csrf_token(home_response)
+        if not csrf_token:
+            logger.debug("No CSRF token found for usage check")
+            return None
+        
+        # Prepare bc-utils usage check payload
+        payload = {
+            'onlyCheckPermissions': 'true'  # This is the bc-utils secret!
+        }
+        
+        # Prepare headers (same as working download)
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:86.0) Gecko/20100101 Firefox/86.0',
+            'Accept': 'application/json, text/javascript, */*; q=0.01',
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Origin': self.BARCHART_URL,
+            'Referer': self.BARCHART_URL,
+            'X-CSRF-TOKEN': csrf_token
+        }
+        
+        # Use bc-utils /my/download endpoint with onlyCheckPermissions
+        download_url = f"{self.BARCHART_URL}/my/download"
+        logger.debug(f"bc-utils usage check payload: {payload}")
+        response = self.auth.session.post(download_url, data=payload, headers=headers)
+        
+        logger.debug(f"Usage check response status: {response.status_code}")
+        logger.debug(f"Usage check response: {response.text[:200]}...")
+        
+        if response.status_code == 200:
+            usage_data = json.loads(response.text)
+            logger.debug(f"Parsed usage data: {usage_data}")
             
-            if home_response.status_code != 200:
-                logger.debug(f"Cannot access home page for usage check: {home_response.status_code}")
+            # Check for error (bc-utils approach)
+            if usage_data.get("error") is not None:
+                logger.debug(f"Usage check error: {usage_data.get('error')}")
                 return None
             
-            # Extract CSRF token using shared method
-            csrf_token = self._extract_csrf_token(home_response)
-            if not csrf_token:
-                logger.debug("No CSRF token found for usage check")
-                return None
-            
-            # Prepare bc-utils usage check payload
-            payload = {
-                'onlyCheckPermissions': 'true'  # This is the bc-utils secret!
-            }
-            
-            # Prepare headers (same as working download)
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:86.0) Gecko/20100101 Firefox/86.0',
-                'Accept': 'application/json, text/javascript, */*; q=0.01',
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'Origin': self.BARCHART_URL,
-                'Referer': self.BARCHART_URL,
-                'X-CSRF-TOKEN': csrf_token
-            }
-            
-            # Use bc-utils /my/download endpoint with onlyCheckPermissions
-            download_url = f"{self.BARCHART_URL}/my/download"
-            logger.debug(f"bc-utils usage check payload: {payload}")
-            response = self.auth.session.post(download_url, data=payload, headers=headers)
-            
-            logger.debug(f"Usage check response status: {response.status_code}")
-            logger.debug(f"Usage check response: {response.text[:200]}...")
-            
-            if response.status_code == 200:
-                try:
-                    usage_data = json.loads(response.text)
-                    logger.debug(f"Parsed usage data: {usage_data}")
-                    
-                    # Check for error (bc-utils approach)
-                    if usage_data.get("error") is not None:
-                        logger.debug(f"Usage check error: {usage_data.get('error')}")
-                        return None
-                    
-                    # Check for success and count (bc-utils approach)
-                    if usage_data.get("success"):
-                        current_count = int(usage_data.get('count', '0'))
-                        logger.debug(f"bc-utils usage success: {usage_data['success']}, count: {current_count}")
-                        return current_count
-                    else:
-                        logger.debug(f"Usage check unsuccessful: {usage_data}")
-                        return None
-                        
-                except (json.JSONDecodeError, ValueError) as e:
-                    logger.debug(f"Failed to parse usage response: {e}")
-                    return None
+            # Check for success and count (bc-utils approach)
+            if usage_data.get("success"):
+                current_count = int(usage_data.get('count', '0'))
+                logger.debug(f"bc-utils usage success: {usage_data['success']}, count: {current_count}")
+                return current_count
             else:
-                logger.debug(f"Usage check failed with status: {response.status_code}")
+                logger.debug(f"Usage check unsuccessful: {usage_data}")
                 return None
-                
-        except Exception as e:
-            logger.debug(f"Usage check error: {e}")
+        else:
+            logger.debug(f"Usage check failed with status: {response.status_code}")
             return None
 
     def _get_frequency_attributes(self) -> list[FrequencyAttributes]:
@@ -268,6 +268,7 @@ class BarchartDataProvider(DataProvider):
             logger.error(f"bc-utils download failed for {instrument}: {e}")
             raise
 
+    @return_none_on_error("fetch_via_bc_utils_download", "BarchartProvider") 
     def _fetch_via_bc_utils_download(self, instrument: str, frequency_attributes: FrequencyAttributes,
                                     start_date, end_date, tz: str) -> Optional[DataFrame]:
         """Fetch data using exact bc-utils /my/download methodology."""
@@ -279,90 +280,78 @@ class BarchartDataProvider(DataProvider):
         # Use the /my/download endpoint directly
         download_url = f"{self.BARCHART_URL}/my/download"
         
-        try:
-            logger.info(f"Using bc-utils /my/download endpoint for {instrument}")
-            
-            # Get CSRF token from home page (the only request we actually need)
-            home_response = self.auth.session.get(self.BARCHART_URL)
-            
-            if home_response.status_code != 200:
-                logger.error(f"Cannot access home page for CSRF token: {home_response.status_code}")
-                return None
-            
-            # Extract CSRF token using shared method
-            csrf_token = self._extract_csrf_token(home_response)
-            if not csrf_token:
-                logger.error("No CSRF token found on home page")
-                return None
-            
-            # Prepare payload using actual working format from network capture
-            payload = {
-                '_token': csrf_token,
-                'fileName': f'{instrument}_Daily_Historical+Data',
-                'symbol': instrument,
-                'fields': 'tradeTime.format(m/d/Y),openPrice,highPrice,lowPrice,lastPrice,priceChange,percentChange,volume',
-                'startDate': start_date.strftime('%Y-%m-%d'),  # ISO format: 2025-01-01
-                'endDate': end_date.strftime('%Y-%m-%d'),      # ISO format: 2025-06-30
-                'type': 'eod',  # end of day (not 'daily')
-                'orderBy': 'tradeTime',
-                'orderDir': 'desc',
-                'method': 'historical',  # This is crucial!
-                'limit': '10000',
-                'period': self._get_barchart_period(frequency_attributes.frequency),
-                'customView': 'true',
-                'exclude': '',
-                'customGetParameters': '',
-                'pageTitle': 'Historical+Data'
-            }
-            
-            # For intraday data, update the type parameter
-            if frequency_attributes.frequency != Period('1d'):
-                payload['type'] = 'minutes'  # Override type for intraday
-            
-            logger.debug(f"bc-utils payload: {payload}")
-            
-            # Prepare headers for POST request  
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:86.0) Gecko/20100101 Firefox/86.0',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'Origin': self.BARCHART_URL,
-                'Referer': self.BARCHART_URL,
-                'X-CSRF-TOKEN': csrf_token
-            }
-            
-            # Use the /my/download endpoint directly (this is what works!)
-            logger.info(f"Using /my/download endpoint with meta CSRF token for {instrument}")
-            response = self.auth.session.post(download_url, data=payload, headers=headers)
-            
-            logger.debug(f"Download response status: {response.status_code}")
-            logger.debug(f"Download response headers: {dict(response.headers)}")
-            
-            if response.status_code != 200:
-                logger.error(f"Download failed with status: {response.status_code}")
-                logger.debug(f"Response content: {response.text[:300]}...")
-                return None
-            
-            # Check if response contains CSV data
-            logger.debug(f"Response content preview: {response.text[:300]}...")
-            
-            # Barchart CSV may use 'Time' instead of 'tradeTime'
-            csv_indicators = ['tradeTime', 'Time', 'Open,High,Low', 'Last']
-            has_csv_data = any(indicator in response.text for indicator in csv_indicators)
-            
-            if response.text and has_csv_data:
-                logger.info(f"bc-utils download successful for {instrument}")
-                return self._process_bc_utils_csv_response(response.text, frequency_attributes.frequency, tz)
-            else:
-                logger.warning(f"bc-utils download returned no CSV data for {instrument}")
-                logger.debug(f"Full response content: {response.text}")
-                return None
-                
-        except Exception as e:
-            logger.error(f"bc-utils download failed for {instrument}: {e}")
-            return None
+        logger.info(f"Using bc-utils /my/download endpoint for {instrument}")
+        
+        # Get CSRF token from home page (the only request we actually need)
+        home_response = self.auth.session.get(self.BARCHART_URL)
+        
+        if home_response.status_code != 200:
+            raise Exception(f"Cannot access home page for CSRF token: {home_response.status_code}")
+        
+        # Extract CSRF token using shared method
+        csrf_token = self._extract_csrf_token(home_response)
+        if not csrf_token:
+            raise Exception("No CSRF token found on home page")
+        
+        # Prepare payload using actual working format from network capture
+        payload = {
+            '_token': csrf_token,
+            'fileName': f'{instrument}_Daily_Historical+Data',
+            'symbol': instrument,
+            'fields': 'tradeTime.format(m/d/Y),openPrice,highPrice,lowPrice,lastPrice,priceChange,percentChange,volume',
+            'startDate': start_date.strftime('%Y-%m-%d'),  # ISO format: 2025-01-01
+            'endDate': end_date.strftime('%Y-%m-%d'),      # ISO format: 2025-06-30
+            'type': 'eod',  # end of day (not 'daily')
+            'orderBy': 'tradeTime',
+            'orderDir': 'desc',
+            'method': 'historical',  # This is crucial!
+            'limit': '10000',
+            'period': self._get_barchart_period(frequency_attributes.frequency),
+            'customView': 'true',
+            'exclude': '',
+            'customGetParameters': '',
+            'pageTitle': 'Historical+Data'
+        }
+        
+        # For intraday data, update the type parameter
+        if frequency_attributes.frequency != Period('1d'):
+            payload['type'] = 'minutes'  # Override type for intraday
+        
+        logger.debug(f"bc-utils payload: {payload}")
+        
+        # Prepare headers for POST request  
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:86.0) Gecko/20100101 Firefox/86.0',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Origin': self.BARCHART_URL,
+            'Referer': self.BARCHART_URL,
+            'X-CSRF-TOKEN': csrf_token
+        }
+        
+        # Use the /my/download endpoint directly (this is what works!)
+        logger.info(f"Using /my/download endpoint with meta CSRF token for {instrument}")
+        response = self.auth.session.post(download_url, data=payload, headers=headers)
+        
+        logger.debug(f"Download response status: {response.status_code}")
+        logger.debug(f"Download response headers: {dict(response.headers)}")
+        
+        if response.status_code != 200:
+            raise Exception(f"Download failed with status: {response.status_code}. Response: {response.text[:300]}...")
+        
+        # Check if response contains CSV data
+        logger.debug(f"Response content preview: {response.text[:300]}...")
+        
+        # Barchart CSV may use 'Time' instead of 'tradeTime'
+        csv_indicators = ['tradeTime', 'Time', 'Open,High,Low', 'Last']
+        has_csv_data = any(indicator in response.text for indicator in csv_indicators)
+        
+        if response.text and has_csv_data:
+            logger.info(f"bc-utils download successful for {instrument}")
+            return self._process_bc_utils_csv_response(response.text, frequency_attributes.frequency, tz)
+        else:
+            raise Exception(f"bc-utils download returned no CSV data for {instrument}. Response: {response.text}")
 
-    
     def _get_bc_utils_frequency(self, period) -> str:
         """Convert Period to bc-utils frequency parameter."""
         from vortex.models.period import Period
@@ -389,6 +378,7 @@ class BarchartDataProvider(DataProvider):
         
         return period_mapping.get(period, 'daily')
 
+    @return_none_on_error("process_bc_utils_csv_response", "BarchartProvider")
     def _process_bc_utils_csv_response(self, csv_data: str, frequency, tz: str) -> Optional[DataFrame]:
         """Process CSV response from bc-utils /my/download endpoint."""
         import pandas as pd
@@ -396,48 +386,42 @@ class BarchartDataProvider(DataProvider):
         import logging
         logger = logging.getLogger(__name__)
         
-        try:
-            # bc-utils CSV format has different column names
-            iostr = io.StringIO(csv_data)
+        # bc-utils CSV format has different column names
+        iostr = io.StringIO(csv_data)
+        
+        # Read CSV and check if it has data
+        df = pd.read_csv(iostr)
+        
+        if df.empty:
+            raise Exception("bc-utils returned empty CSV")
             
-            # Read CSV and check if it has data
-            df = pd.read_csv(iostr)
-            
-            if df.empty:
-                logger.warning("bc-utils returned empty CSV")
-                return None
-                
-            logger.debug(f"bc-utils CSV columns: {list(df.columns)}")
-            logger.debug(f"bc-utils CSV shape: {df.shape}")
-            
-            # Map bc-utils columns to standard format
-            column_mapping = {
-                'tradeTime': 'Time',
-                'openPrice': 'Open', 
-                'highPrice': 'High',
-                'lowPrice': 'Low',
-                'lastPrice': 'Last',
-                'volume': 'Volume',
-                'openInterest': 'Open Interest'
-            }
-            
-            # Rename columns
-            df.rename(columns=column_mapping, inplace=True)
-            
-            # Process with our standard parser (which expects Time, Last, etc.)
-            from .parser import BarchartParser
-            
-            # Convert back to CSV string for parser
-            csv_output = io.StringIO()
-            df.to_csv(csv_output, index=False)
-            csv_string = csv_output.getvalue()
-            
-            # Use our standard parser
-            return BarchartParser.convert_downloaded_csv_to_df(frequency, csv_string, tz)
-            
-        except Exception as e:
-            logger.error(f"Failed to process bc-utils CSV response: {e}")
-            return None
+        logger.debug(f"bc-utils CSV columns: {list(df.columns)}")
+        logger.debug(f"bc-utils CSV shape: {df.shape}")
+        
+        # Map bc-utils columns to standard format
+        column_mapping = {
+            'tradeTime': 'Time',
+            'openPrice': 'Open', 
+            'highPrice': 'High',
+            'lowPrice': 'Low',
+            'lastPrice': 'Last',
+            'volume': 'Volume',
+            'openInterest': 'Open Interest'
+        }
+        
+        # Rename columns
+        df.rename(columns=column_mapping, inplace=True)
+        
+        # Process with our standard parser (which expects Time, Last, etc.)
+        from .parser import BarchartParser
+        
+        # Convert back to CSV string for parser
+        csv_output = io.StringIO()
+        df.to_csv(csv_output, index=False)
+        csv_string = csv_output.getvalue()
+        
+        # Use our standard parser
+        return BarchartParser.convert_downloaded_csv_to_df(frequency, csv_string, tz)
 
     def _validate_data_availability(self, df: DataFrame, symbol: str, frequency_attributes: FrequencyAttributes = None, 
                                    start_date=None, end_date=None) -> DataFrame:

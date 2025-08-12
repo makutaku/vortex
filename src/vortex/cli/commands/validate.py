@@ -18,6 +18,7 @@ from ..utils.validation_utils import (
     validate_provider_specific_format,
     get_validation_summary
 )
+from vortex.core.error_handling import return_none_on_error
 
 # Import provider-specific constants from their respective providers
 from vortex.infrastructure.providers.yahoo.column_mapping import YahooColumnMapping
@@ -365,6 +366,7 @@ class ProviderFormatValidator:
         
         return result
     
+    @return_none_on_error("load_dataframe", "ValidationCommand") 
     def _load_dataframe(self, path: Path, result: dict):
         """Load DataFrame from file."""
         import pandas as pd
@@ -375,7 +377,7 @@ class ProviderFormatValidator:
             return pd.read_parquet(path)
         else:
             result["errors"].append(f"Unsupported file format for provider validation: {path.suffix}")
-            return None
+            raise Exception(f"Unsupported file format for provider validation: {path.suffix}")
 
 class BaseFormatValidator:
     """Base class for provider format validators."""
