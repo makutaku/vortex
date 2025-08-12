@@ -110,6 +110,50 @@ black src/vortex/
 isort src/vortex/
 ```
 
+### 🚨 CRITICAL: Commit Requirements
+
+**⚠️ NEVER commit code unless ALL tests pass:**
+
+Before committing any changes, you MUST ensure all tests pass by running:
+
+```bash
+# MANDATORY: Run this command before any commit
+./run-all-tests.sh --skip-docker
+
+# Alternative for development workflow (same requirement)
+./run-all-tests.sh --python-only
+```
+
+**Commit Rules:**
+1. **All unit tests must pass** - No exceptions
+2. **All integration tests must pass** - No exceptions  
+3. **All end-to-end tests must pass** - No exceptions
+4. **Code quality checks must pass** - Run linting and formatting before commit
+5. **Docker tests can be skipped** during development (use `--skip-docker` flag)
+
+**If ANY test fails:**
+- ❌ **DO NOT COMMIT** - Fix the failing tests first
+- 🔍 **Debug the issue** - Use verbose output (`-v`) to understand failures
+- ✅ **Re-run tests** - Ensure all tests pass before proceeding
+- 📝 **Commit only** when test suite is green
+
+**Example workflow:**
+```bash
+# 1. Make your changes
+# 2. Run tests to ensure nothing is broken
+./run-all-tests.sh --skip-docker
+
+# 3. If tests fail, fix them first
+# 4. Re-run tests until they all pass
+./run-all-tests.sh --skip-docker
+
+# 5. Only then commit your changes
+git add .
+git commit -m "Your commit message"
+```
+
+**Docker tests are optional during development** but required for deployment validation. Use `--skip-docker` to focus on Python test suite during active development.
+
 ### Building and Packaging
 
 **🚀 Modern Python Packaging (Recommended):**
