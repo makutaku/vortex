@@ -38,6 +38,7 @@ Footer data to skip
         period = Period('1d')
         tz = 'America/New_York'
         
+        # Mock all logging calls from both the parser and the column standardizer
         with patch('logging.debug') as mock_debug:
             df = BarchartParser.convert_downloaded_csv_to_df(period, csv_data, tz)
         
@@ -45,8 +46,9 @@ Footer data to skip
         assert len(df) == 3
         assert DATE_TIME_COLUMN == df.index.name  # DATE_TIME_COLUMN becomes the index
         assert CLOSE_COLUMN in df.columns
-        # Should have called debug 4 times: raw data, received data, columns, and column mapping
-        assert mock_debug.call_count == 4
+        # Should have called debug 3 times: raw data, received data, columns
+        # The column mapping debug is from the ColumnStandardizer which has its own logger
+        assert mock_debug.call_count == 3
         # Verify the first call is about raw CSV data
         first_call = mock_debug.call_args_list[0][0][0]
         assert "Raw CSV data" in first_call
@@ -182,9 +184,9 @@ Footer
     
     def test_logging_integration(self):
         """Test that parsing logs appropriate debug information."""
-        csv_data = """Time,Open,High,Low,Last,Volume
-2024-01-01,100,105,99,104,1000
-2024-01-02,104,107,103,106,1200
+        csv_data = """Time,Open,High,Low,Last,Volume,Open Interest
+2024-01-01,100,105,99,104,1000,500
+2024-01-02,104,107,103,106,1200,510
 Footer
 """
         
@@ -192,8 +194,9 @@ Footer
             period = Period('1d')
             df = BarchartParser.convert_downloaded_csv_to_df(period, csv_data, 'UTC')
             
-            # Should log 4 times: raw data, received data, columns, and column mapping
-            assert mock_debug.call_count == 4
+            # Should log 3 times: raw data, received data, columns
+            # The column mapping debug is from ColumnStandardizer which has its own logger
+            assert mock_debug.call_count == 3
             # Check first call (raw CSV data)
             first_call_args = mock_debug.call_args_list[0][0][0]
             assert "Raw CSV data" in first_call_args
@@ -201,7 +204,7 @@ Footer
             # Check second call (received data)
             second_call_args = mock_debug.call_args_list[1][0][0]
             assert "Received data" in second_call_args
-            assert "(2, 6)" in second_call_args  # Shape should be (2, 6)
+            assert "(2, 7)" in second_call_args  # Shape should be (2, 7) after parsing
             assert "from Barchart" in second_call_args
 
 

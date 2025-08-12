@@ -141,6 +141,95 @@ def get_column_mapping(provider_name, df_columns):
     from .column_registry import get_column_mapping as registry_get_mapping
     return registry_get_mapping(provider_name, df_columns)
 
+class ColumnStandardizer:
+    """Handles column standardization for different providers."""
+    
+    def __init__(self, provider_name: str, strict: bool = False):
+        self.provider_name = provider_name
+        self.strict = strict
+        import logging
+        self.logger = logging.getLogger(__name__)
+    
+    def standardize(self, df):
+        """Standardize DataFrame column names."""
+        try:
+            mapping = get_column_mapping(self.provider_name, df.columns)
+            if not mapping:
+                return df
+            
+            validated_mapping = self._validate_mapping(mapping)
+            return self._apply_mapping(df, validated_mapping)
+        
+        except Exception as e:
+            return self._handle_error(e, df)
+    
+    def _validate_mapping(self, mapping: dict) -> dict:
+        """Validate column mapping for conflicts."""
+        conflicts = self._detect_conflicts(mapping)
+        
+        if not conflicts:
+            return mapping
+        
+        if self.strict:
+            error_msg = f"Column mapping conflicts for provider '{self.provider_name}': {'; '.join(conflicts)}"
+            raise ValueError(error_msg)
+        
+        return self._resolve_conflicts(mapping, conflicts)
+    
+    def _detect_conflicts(self, mapping: dict) -> list:
+        """Detect mapping conflicts where multiple sources map to same target."""
+        reverse_mapping = {}
+        conflicts = []
+        
+        for source_col, target_col in mapping.items():
+            if target_col in reverse_mapping:
+                conflicts.append(f"Multiple columns map to '{target_col}': {reverse_mapping[target_col]} and {source_col}")
+            else:
+                reverse_mapping[target_col] = source_col
+        
+        return conflicts
+    
+    def _resolve_conflicts(self, mapping: dict, conflicts: list) -> dict:
+        """Resolve mapping conflicts by keeping first occurrence."""
+        self._log_conflicts(conflicts)
+        
+        cleaned_mapping = {}
+        seen_targets = set()
+        ignored_mappings = []
+        
+        for source_col, target_col in mapping.items():
+            if target_col not in seen_targets:
+                cleaned_mapping[source_col] = target_col
+                seen_targets.add(target_col)
+            else:
+                ignored_mappings.append(f"'{source_col}' -> '{target_col}' (target already mapped)")
+        
+        if ignored_mappings:
+            self.logger.warning(f"Ignored conflicting mappings: {'; '.join(ignored_mappings)}")
+        
+        return cleaned_mapping
+    
+    def _log_conflicts(self, conflicts: list):
+        """Log detailed conflict information."""
+        self.logger.warning(f"Column mapping conflicts detected for provider '{self.provider_name}':")
+        for conflict in conflicts:
+            self.logger.warning(f"  - {conflict}")
+    
+    def _apply_mapping(self, df, mapping: dict):
+        """Apply validated mapping to DataFrame."""
+        df = df.rename(columns=mapping)
+        self.logger.debug(f"Column mapping for {self.provider_name}: {len(mapping)} columns renamed")
+        return df
+    
+    def _handle_error(self, error: Exception, df):
+        """Handle errors during standardization."""
+        error_msg = f"Error in column standardization for provider '{self.provider_name}': {error}"
+        if self.strict:
+            raise ValueError(error_msg) from error
+        else:
+            self.logger.error(error_msg)
+            return df
+
 def standardize_dataframe_columns(df, provider_name, strict=False):
     """
     Standardize DataFrame column names for a specific provider.
@@ -156,65 +245,166 @@ def standardize_dataframe_columns(df, provider_name, strict=False):
     Raises:
         ValueError: If strict=True and column mapping conflicts are detected
     """
-    import logging
+    standardizer = ColumnStandardizer(provider_name, strict)
+    return standardizer.standardize(df)
+
+class DataTypeValidator:
+    """Handles data type validation for DataFrame columns."""
     
-    try:
-        mapping = get_column_mapping(provider_name, df.columns)
-        if mapping:
-            # Check for potential conflicts (multiple source columns mapping to same target)
-            reverse_mapping = {}
-            conflicts = []
-            
-            for source_col, target_col in mapping.items():
-                if target_col in reverse_mapping:
-                    conflicts.append(f"Multiple columns map to '{target_col}': {reverse_mapping[target_col]} and {source_col}")
-                else:
-                    reverse_mapping[target_col] = source_col
-            
-            if conflicts:
-                error_msg = f"Column mapping conflicts for provider '{provider_name}': {'; '.join(conflicts)}"
-                if strict:
-                    raise ValueError(error_msg)
-                else:
-                    # Log detailed conflict information for better visibility
-                    logging.warning(f"Column mapping conflicts detected for provider '{provider_name}':")
-                    for conflict in conflicts:
-                        logging.warning(f"  - {conflict}")
-                    
-                    # Resolve conflicts by keeping the first mapping encountered
-                    # and warn about which columns are being ignored
-                    cleaned_mapping = {}
-                    seen_targets = set()
-                    ignored_mappings = []
-                    
-                    for source_col, target_col in mapping.items():
-                        if target_col not in seen_targets:
-                            cleaned_mapping[source_col] = target_col
-                            seen_targets.add(target_col)
-                        else:
-                            ignored_mappings.append(f"'{source_col}' -> '{target_col}' (target already mapped)")
-                    
-                    if ignored_mappings:
-                        logging.warning(f"Ignored conflicting mappings: {'; '.join(ignored_mappings)}")
-                    
-                    mapping = cleaned_mapping
-            
-            # Check for missing columns after mapping
-            original_cols = set(df.columns)
-            df = df.rename(columns=mapping)
-            mapped_cols = set(mapping.values())
-            
-            logging.debug(f"Column mapping for {provider_name}: {len(mapping)} columns renamed")
-            
-        return df
+    def __init__(self, df, strict: bool = False):
+        self.df = df
+        self.strict = strict
+        self.issues = []
+        import pandas as pd
+        self.pd = pd
+    
+    def validate(self) -> tuple:
+        """Perform complete data type validation."""
+        self._validate_index_type()
+        self._validate_price_columns()
+        self._validate_volume_column()
+        self._validate_nan_values()
+        self._validate_ohlc_relationships()
         
-    except Exception as e:
-        error_msg = f"Error in column standardization for provider '{provider_name}': {e}"
-        if strict:
-            raise ValueError(error_msg) from e
+        is_valid = len(self.issues) == 0
+        
+        if self.strict and not is_valid:
+            error_messages = [str(issue) for issue in self.issues]
+            raise ValueError(f"Column data type validation failed: {'; '.join(error_messages)}")
+        
+        return is_valid, self.issues
+    
+    def _validate_index_type(self):
+        """Validate that index is datetime with correct name."""
+        if self.pd.api.types.is_datetime64_any_dtype(self.df.index):
+            self._check_index_name()
         else:
-            logging.error(error_msg)
-            return df  # Return original DataFrame on error
+            self._add_issue(
+                ValidationIssueType.INDEX_TYPE_MISMATCH,
+                None,
+                f"DataFrame index should be datetime64, got {self.df.index.dtype}",
+                expected_type="datetime64",
+                actual_type=str(self.df.index.dtype)
+            )
+    
+    def _check_index_name(self):
+        """Check if datetime index has correct name."""
+        if self.df.index.name is not None and self.df.index.name != DATETIME_INDEX_NAME:
+            self._add_issue(
+                ValidationIssueType.INDEX_NAME_MISMATCH,
+                None,
+                f"DataFrame datetime index name should be '{DATETIME_INDEX_NAME}', got '{self.df.index.name}'",
+                expected_type=DATETIME_INDEX_NAME,
+                actual_type=str(self.df.index.name)
+            )
+    
+    def _validate_price_columns(self):
+        """Validate price columns are numeric and non-negative."""
+        price_columns = [OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, CLOSE_COLUMN]
+        for col in price_columns:
+            if col in self.df.columns:
+                self._validate_column_numeric(col, "Price")
+                if self.pd.api.types.is_numeric_dtype(self.df[col]):
+                    self._validate_column_non_negative(col, "Price")
+    
+    def _validate_volume_column(self):
+        """Validate volume column is numeric and non-negative."""
+        if VOLUME_COLUMN in self.df.columns:
+            self._validate_column_numeric(VOLUME_COLUMN, "Volume")
+            if self.pd.api.types.is_numeric_dtype(self.df[VOLUME_COLUMN]):
+                self._validate_column_non_negative(VOLUME_COLUMN, "Volume")
+    
+    def _validate_column_numeric(self, column: str, column_type: str):
+        """Validate that a column is numeric."""
+        if not self.pd.api.types.is_numeric_dtype(self.df[column]):
+            self._add_issue(
+                ValidationIssueType.COLUMN_TYPE_MISMATCH,
+                column,
+                f"{column_type} column '{column}' should be numeric, got {self.df[column].dtype}",
+                expected_type="numeric",
+                actual_type=str(self.df[column].dtype)
+            )
+    
+    def _validate_column_non_negative(self, column: str, column_type: str):
+        """Validate that a column has no negative values."""
+        if (self.df[column] < 0).any():
+            neg_count = (self.df[column] < 0).sum()
+            self._add_issue(
+                ValidationIssueType.NEGATIVE_VALUES,
+                column,
+                f"{column_type} column '{column}' contains {neg_count} negative values",
+                count=neg_count
+            )
+    
+    def _validate_nan_values(self):
+        """Validate critical columns don't contain NaN values."""
+        critical_columns = [col for col in [OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, CLOSE_COLUMN] 
+                          if col in self.df.columns]
+        
+        for col in critical_columns:
+            nan_count = self.df[col].isna().sum()
+            if nan_count > 0:
+                self._add_issue(
+                    ValidationIssueType.NAN_VALUES,
+                    col,
+                    f"Critical column '{col}' contains {nan_count} NaN values",
+                    count=nan_count
+                )
+    
+    def _validate_ohlc_relationships(self):
+        """Validate OHLC price relationships."""
+        ohlc_cols = [OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, CLOSE_COLUMN]
+        
+        if not self._all_ohlc_columns_present_and_numeric(ohlc_cols):
+            return
+        
+        self._validate_high_column_relationships()
+        self._validate_low_column_relationships()
+    
+    def _all_ohlc_columns_present_and_numeric(self, ohlc_cols: list) -> bool:
+        """Check if all OHLC columns are present and numeric."""
+        return (all(col in self.df.columns for col in ohlc_cols) and 
+                all(self.pd.api.types.is_numeric_dtype(self.df[col]) for col in ohlc_cols))
+    
+    def _validate_high_column_relationships(self):
+        """Validate High column relationships."""
+        invalid_high = ((self.df[HIGH_COLUMN] < self.df[LOW_COLUMN]) | 
+                       (self.df[HIGH_COLUMN] < self.df[OPEN_COLUMN]) | 
+                       (self.df[HIGH_COLUMN] < self.df[CLOSE_COLUMN])).sum()
+        
+        if invalid_high > 0:
+            self._add_issue(
+                ValidationIssueType.OHLC_RELATIONSHIP_VIOLATION,
+                HIGH_COLUMN,
+                f"Found {invalid_high} rows where High < (Low, Open, or Close)",
+                count=invalid_high
+            )
+    
+    def _validate_low_column_relationships(self):
+        """Validate Low column relationships."""
+        invalid_low = ((self.df[LOW_COLUMN] > self.df[HIGH_COLUMN]) | 
+                      (self.df[LOW_COLUMN] > self.df[OPEN_COLUMN]) | 
+                      (self.df[LOW_COLUMN] > self.df[CLOSE_COLUMN])).sum()
+        
+        if invalid_low > 0:
+            self._add_issue(
+                ValidationIssueType.OHLC_RELATIONSHIP_VIOLATION,
+                LOW_COLUMN,
+                f"Found {invalid_low} rows where Low > (High, Open, or Close)",
+                count=invalid_low
+            )
+    
+    def _add_issue(self, issue_type: ValidationIssueType, column_name: str, message: str, 
+                   count: int = None, expected_type: str = None, actual_type: str = None):
+        """Add a validation issue to the issues list."""
+        self.issues.append(ValidationIssue(
+            type=issue_type,
+            column_name=column_name,
+            message=message,
+            count=count,
+            expected_type=expected_type,
+            actual_type=actual_type
+        ))
 
 def validate_column_data_types(df, strict=False):
     """
@@ -227,119 +417,5 @@ def validate_column_data_types(df, strict=False):
     Returns:
         tuple: (is_valid: bool, issues: List[ValidationIssue])
     """
-    import pandas as pd
-    import numpy as np
-    
-    issues = []
-    
-    # Check if index is datetime (be flexible about the name - it might be None for freshly loaded data)
-    if pd.api.types.is_datetime64_any_dtype(df.index):
-        # Index is datetime - good. Check if name needs to be set or is correct
-        if df.index.name is not None and df.index.name != DATETIME_INDEX_NAME:
-            issues.append(ValidationIssue(
-                type=ValidationIssueType.INDEX_NAME_MISMATCH,
-                column_name=None,
-                message=f"DataFrame datetime index name should be '{DATETIME_INDEX_NAME}', got '{df.index.name}'",
-                expected_type=DATETIME_INDEX_NAME,
-                actual_type=str(df.index.name)
-            ))
-    else:
-        issues.append(ValidationIssue(
-            type=ValidationIssueType.INDEX_TYPE_MISMATCH,
-            column_name=None,
-            message=f"DataFrame index should be datetime64, got {df.index.dtype}",
-            expected_type="datetime64",
-            actual_type=str(df.index.dtype)
-        ))
-    
-    # Check price columns should be numeric
-    price_columns = [OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, CLOSE_COLUMN]
-    for col in price_columns:
-        if col in df.columns:
-            if not pd.api.types.is_numeric_dtype(df[col]):
-                issues.append(ValidationIssue(
-                    type=ValidationIssueType.COLUMN_TYPE_MISMATCH,
-                    column_name=col,
-                    message=f"Price column '{col}' should be numeric, got {df[col].dtype}",
-                    expected_type="numeric",
-                    actual_type=str(df[col].dtype)
-                ))
-            else:
-                # Check for negative prices (usually invalid)
-                if (df[col] < 0).any():
-                    neg_count = (df[col] < 0).sum()
-                    issues.append(ValidationIssue(
-                        type=ValidationIssueType.NEGATIVE_VALUES,
-                        column_name=col,
-                        message=f"Price column '{col}' contains {neg_count} negative values",
-                        count=neg_count
-                    ))
-    
-    # Check volume column should be numeric and non-negative
-    if VOLUME_COLUMN in df.columns:
-        if not pd.api.types.is_numeric_dtype(df[VOLUME_COLUMN]):
-            issues.append(ValidationIssue(
-                type=ValidationIssueType.COLUMN_TYPE_MISMATCH,
-                column_name=VOLUME_COLUMN,
-                message=f"Volume column '{VOLUME_COLUMN}' should be numeric, got {df[VOLUME_COLUMN].dtype}",
-                expected_type="numeric",
-                actual_type=str(df[VOLUME_COLUMN].dtype)
-            ))
-        else:
-            # Check for negative volumes
-            if (df[VOLUME_COLUMN] < 0).any():
-                neg_count = (df[VOLUME_COLUMN] < 0).sum()
-                issues.append(ValidationIssue(
-                    type=ValidationIssueType.NEGATIVE_VALUES,
-                    column_name=VOLUME_COLUMN,
-                    message=f"Volume column '{VOLUME_COLUMN}' contains {neg_count} negative values",
-                    count=neg_count
-                ))
-    
-    # Check for NaN values in critical columns
-    critical_columns = [col for col in [OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, CLOSE_COLUMN] if col in df.columns]
-    for col in critical_columns:
-        nan_count = df[col].isna().sum()
-        if nan_count > 0:
-            issues.append(ValidationIssue(
-                type=ValidationIssueType.NAN_VALUES,
-                column_name=col,
-                message=f"Critical column '{col}' contains {nan_count} NaN values",
-                count=nan_count
-            ))
-    
-    # Validate OHLC relationships if all OHLC columns are present AND all are numeric
-    ohlc_cols = [OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, CLOSE_COLUMN]
-    if (all(col in df.columns for col in ohlc_cols) and 
-        all(pd.api.types.is_numeric_dtype(df[col]) for col in ohlc_cols)):
-        # High should be >= Low, Open, Close
-        invalid_high = ((df[HIGH_COLUMN] < df[LOW_COLUMN]) | 
-                       (df[HIGH_COLUMN] < df[OPEN_COLUMN]) | 
-                       (df[HIGH_COLUMN] < df[CLOSE_COLUMN])).sum()
-        if invalid_high > 0:
-            issues.append(ValidationIssue(
-                type=ValidationIssueType.OHLC_RELATIONSHIP_VIOLATION,
-                column_name=HIGH_COLUMN,
-                message=f"Found {invalid_high} rows where High < (Low, Open, or Close)",
-                count=invalid_high
-            ))
-        
-        # Low should be <= High, Open, Close  
-        invalid_low = ((df[LOW_COLUMN] > df[HIGH_COLUMN]) | 
-                      (df[LOW_COLUMN] > df[OPEN_COLUMN]) | 
-                      (df[LOW_COLUMN] > df[CLOSE_COLUMN])).sum()
-        if invalid_low > 0:
-            issues.append(ValidationIssue(
-                type=ValidationIssueType.OHLC_RELATIONSHIP_VIOLATION,
-                column_name=LOW_COLUMN,
-                message=f"Found {invalid_low} rows where Low > (High, Open, or Close)",
-                count=invalid_low
-            ))
-    
-    is_valid = len(issues) == 0
-    
-    if strict and not is_valid:
-        error_messages = [str(issue) for issue in issues]
-        raise ValueError(f"Column data type validation failed: {'; '.join(error_messages)}")
-    
-    return is_valid, issues
+    validator = DataTypeValidator(df, strict)
+    return validator.validate()

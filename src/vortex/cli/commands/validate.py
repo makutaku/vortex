@@ -329,95 +329,177 @@ def validate_parquet_file(path: Path, provider: Optional[str]) -> dict:
     
     return result
 
-def validate_provider_format(path: Path, provider: str) -> dict:
-    """Validate provider-specific format requirements."""
-    result = {"errors": [], "warnings": []}
+class ProviderFormatValidator:
+    """Strategy pattern for provider-specific format validation."""
     
-    try:
+    def __init__(self):
+        self.validators = {
+            "barchart": BarchartFormatValidator(),
+            "yahoo": YahooFormatValidator(),
+            "ibkr": IbkrFormatValidator()
+        }
+    
+    def validate(self, path: Path, provider: str) -> dict:
+        """Validate provider-specific format requirements."""
+        result = {"errors": [], "warnings": []}
+        
+        try:
+            df = self._load_dataframe(path, result)
+            if df is None:
+                return result
+            
+            validator = self.validators.get(provider)
+            if validator:
+                validator.validate_format(df, result)
+            else:
+                result["warnings"].append(f"Unknown provider '{provider}' - skipping provider-specific validation")
+                
+        except Exception as e:
+            result["errors"].append(f"Provider format validation error: {e}")
+        
+        return result
+    
+    def _load_dataframe(self, path: Path, result: dict):
+        """Load DataFrame from file."""
         import pandas as pd
         
         if path.suffix.lower() == '.csv':
-            df = pd.read_csv(path)
+            return pd.read_csv(path)
         elif path.suffix.lower() == '.parquet':
-            df = pd.read_parquet(path)
+            return pd.read_parquet(path)
         else:
             result["errors"].append(f"Unsupported file format for provider validation: {path.suffix}")
-            return result
-        
-        if provider == "barchart":
-            # Barchart validation - handle both raw format and processed format
-            df_columns_lower = [col.lower().replace(' ', '') for col in df.columns]
-            
-            # Check for date/time column (can be Date, Time, or DATETIME)
-            has_date_time = any(col in df_columns_lower for col in ['date', 'time', 'datetime'])
-            if not has_date_time:
-                result["warnings"].append("Barchart format missing date/time column (Date, Time, or DATETIME)")
-            
-            # Check for OHLCV columns using constants
-            required_ohlcv_constants = [OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, VOLUME_COLUMN]
-            required_ohlcv = [col.lower() for col in required_ohlcv_constants]
-            # For close, accept either 'close' or 'last' (Barchart uses 'Last')
-            has_close = any(col in df_columns_lower for col in [CLOSE_COLUMN.lower(), 'last'])
-            if not has_close:
-                result["warnings"].append("Barchart format missing close/last price column")
-                
-            for col_const, col_lower in zip(required_ohlcv_constants, required_ohlcv):
-                if col_lower not in df_columns_lower:
-                    result["warnings"].append(f"Barchart format missing '{col_const}' column")
-            
-            # Check for open interest (optional for Barchart futures)
-            has_open_interest = any(col in df_columns_lower for col in ['openinterest', 'open_interest'])
-            # Don't warn about missing open interest as it's optional
-                
-        elif provider == "yahoo":
-            # Yahoo Finance validation - flexible column checking
-            df_columns_lower = [col.lower().replace(' ', '_') for col in df.columns]
-            
-            # Check for required OHLCV columns using constants
-            required_cols_constants = [OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, CLOSE_COLUMN, VOLUME_COLUMN]
-            required_cols = [col.lower() for col in required_cols_constants]
-            for col_const, col_lower in zip(required_cols_constants, required_cols):
-                if col_lower not in df_columns_lower:
-                    result["warnings"].append(f"Yahoo format missing '{col_const}' column")
-            
-            # Check for date column (can be Date or DATETIME)
-            has_date = any(col in df_columns_lower for col in ['date', 'datetime'])
-            if not has_date:
-                result["warnings"].append("Yahoo format missing date column")
-            
-            # Check for Yahoo's specific "Adj Close" column (optional)
-            has_adj_close = any(col in df_columns_lower for col in ['adj_close', 'adjclose'])
-            if not has_adj_close:
-                result["warnings"].append(f"Yahoo format typically includes '{ADJ_CLOSE_COLUMN}' column")
-                
-        elif provider == "ibkr":
-            # IBKR validation - handle lowercase column names
-            df_columns_lower = [col.lower() for col in df.columns]
-            
-            # Check for required OHLCV columns using constants
-            required_cols_constants = [OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, CLOSE_COLUMN, VOLUME_COLUMN]
-            required_cols = [col.lower() for col in required_cols_constants]
-            for col_const, col_lower in zip(required_cols_constants, required_cols):
-                if col_lower not in df_columns_lower:
-                    result["warnings"].append(f"IBKR format missing '{col_const}' column")
-            
-            # Check for date column
-            if 'date' not in df_columns_lower and 'datetime' not in df_columns_lower:
-                result["warnings"].append("IBKR format missing date column")
-            
-            # Check for IBKR specific columns (optional)
-            if WAP_COLUMN.lower() not in df_columns_lower:  # Weighted Average Price
-                result["warnings"].append(f"IBKR format typically includes '{WAP_COLUMN}' (Weighted Average Price) column")
-            if COUNT_COLUMN.lower() not in df_columns_lower:  # Trade count
-                result["warnings"].append(f"IBKR format typically includes '{COUNT_COLUMN}' (trade count) column")
-        
-        else:
-            result["warnings"].append(f"Unknown provider '{provider}' - skipping provider-specific validation")
-            
-    except Exception as e:
-        result["errors"].append(f"Provider format validation error: {e}")
+            return None
+
+class BaseFormatValidator:
+    """Base class for provider format validators."""
     
-    return result
+    def validate_format(self, df, result: dict):
+        """Validate format for specific provider."""
+        raise NotImplementedError
+    
+    def _normalize_columns(self, df, replacement: str = '') -> list:
+        """Normalize column names for comparison."""
+        return [col.lower().replace(' ', replacement) for col in df.columns]
+    
+    def _check_required_columns(self, df_columns: list, required_columns: list, 
+                              column_constants: list, provider_name: str, result: dict):
+        """Check for required columns and add warnings for missing ones."""
+        for col_const, col_lower in zip(column_constants, required_columns):
+            if col_lower not in df_columns:
+                result["warnings"].append(f"{provider_name} format missing '{col_const}' column")
+    
+    def _check_date_columns(self, df_columns: list, date_variants: list, 
+                          provider_name: str, result: dict):
+        """Check for date/time columns."""
+        has_date = any(col in df_columns for col in date_variants)
+        if not has_date:
+            result["warnings"].append(f"{provider_name} format missing date/time column")
+
+class BarchartFormatValidator(BaseFormatValidator):
+    """Validator for Barchart format."""
+    
+    def validate_format(self, df, result: dict):
+        """Validate Barchart-specific format requirements."""
+        df_columns_lower = self._normalize_columns(df, '')
+        
+        # Check date/time columns
+        self._check_date_columns(
+            df_columns_lower, 
+            ['date', 'time', 'datetime'], 
+            "Barchart", 
+            result
+        )
+        
+        # Check OHLCV columns
+        self._check_ohlcv_columns(df_columns_lower, result)
+        
+        # Check close/last column (Barchart uses 'Last')
+        self._check_close_column(df_columns_lower, result)
+    
+    def _check_ohlcv_columns(self, df_columns: list, result: dict):
+        """Check OHLCV columns for Barchart."""
+        required_constants = [OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, VOLUME_COLUMN]
+        required_columns = [col.lower() for col in required_constants]
+        self._check_required_columns(df_columns, required_columns, required_constants, "Barchart", result)
+    
+    def _check_close_column(self, df_columns: list, result: dict):
+        """Check for close/last price column."""
+        has_close = any(col in df_columns for col in [CLOSE_COLUMN.lower(), 'last'])
+        if not has_close:
+            result["warnings"].append("Barchart format missing close/last price column")
+
+class YahooFormatValidator(BaseFormatValidator):
+    """Validator for Yahoo Finance format."""
+    
+    def validate_format(self, df, result: dict):
+        """Validate Yahoo Finance-specific format requirements."""
+        df_columns_lower = self._normalize_columns(df, '_')
+        
+        # Check date columns
+        self._check_date_columns(
+            df_columns_lower, 
+            ['date', 'datetime'], 
+            "Yahoo", 
+            result
+        )
+        
+        # Check OHLCV columns
+        self._check_standard_ohlcv_columns(df_columns_lower, result, "Yahoo")
+        
+        # Check Yahoo-specific columns
+        self._check_adj_close_column(df_columns_lower, result)
+    
+    def _check_standard_ohlcv_columns(self, df_columns: list, result: dict, provider: str):
+        """Check standard OHLCV columns."""
+        required_constants = [OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, CLOSE_COLUMN, VOLUME_COLUMN]
+        required_columns = [col.lower() for col in required_constants]
+        self._check_required_columns(df_columns, required_columns, required_constants, provider, result)
+    
+    def _check_adj_close_column(self, df_columns: list, result: dict):
+        """Check for Yahoo's Adj Close column."""
+        has_adj_close = any(col in df_columns for col in ['adj_close', 'adjclose'])
+        if not has_adj_close:
+            result["warnings"].append(f"Yahoo format typically includes '{ADJ_CLOSE_COLUMN}' column")
+
+class IbkrFormatValidator(BaseFormatValidator):
+    """Validator for IBKR format."""
+    
+    def validate_format(self, df, result: dict):
+        """Validate IBKR-specific format requirements."""
+        df_columns_lower = self._normalize_columns(df, '')
+        
+        # Check date columns
+        self._check_date_columns(
+            df_columns_lower, 
+            ['date', 'datetime'], 
+            "IBKR", 
+            result
+        )
+        
+        # Check OHLCV columns
+        self._check_standard_ohlcv_columns(df_columns_lower, result, "IBKR")
+        
+        # Check IBKR-specific columns
+        self._check_ibkr_specific_columns(df_columns_lower, result)
+    
+    def _check_standard_ohlcv_columns(self, df_columns: list, result: dict, provider: str):
+        """Check standard OHLCV columns."""
+        required_constants = [OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, CLOSE_COLUMN, VOLUME_COLUMN]
+        required_columns = [col.lower() for col in required_constants]
+        self._check_required_columns(df_columns, required_columns, required_constants, provider, result)
+    
+    def _check_ibkr_specific_columns(self, df_columns: list, result: dict):
+        """Check IBKR-specific columns."""
+        if WAP_COLUMN.lower() not in df_columns:
+            result["warnings"].append(f"IBKR format typically includes '{WAP_COLUMN}' (Weighted Average Price) column")
+        if COUNT_COLUMN.lower() not in df_columns:
+            result["warnings"].append(f"IBKR format typically includes '{COUNT_COLUMN}' (trade count) column")
+
+def validate_provider_format(path: Path, provider: str) -> dict:
+    """Validate provider-specific format requirements."""
+    validator = ProviderFormatValidator()
+    return validator.validate(path, provider)
 
 def attempt_fixes(path: Path, errors: List[str]) -> bool:
     """Attempt to fix common validation issues."""

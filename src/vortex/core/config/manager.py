@@ -251,13 +251,15 @@ class ConfigManager:
     def get_provider_config(self, provider: str) -> Dict[str, Any]:
         """Get configuration for a specific provider."""
         config = self.load_config()
+        provider_configs = {
+            "barchart": config.providers.barchart,
+            "yahoo": config.providers.yahoo,
+            "ibkr": config.providers.ibkr
+        }
         
-        if provider == "barchart":
-            return config.providers.barchart.model_dump()
-        elif provider == "yahoo":
-            return config.providers.yahoo.model_dump()
-        elif provider == "ibkr":
-            return config.providers.ibkr.model_dump()
+        provider_config = provider_configs.get(provider)
+        if provider_config:
+            return provider_config.model_dump()
         else:
             raise InvalidConfigurationError("provider", provider, "barchart, yahoo, or ibkr")
     

@@ -275,34 +275,116 @@ def _set_defaults(start_date: Optional[datetime], end_date: Optional[datetime],
     return start_date, end_date, output_dir
 
 
+class SymbolResolver:
+    """Handles symbol and configuration resolution using Chain of Responsibility pattern."""
+    
+    def __init__(self, provider: str):
+        self.provider = provider
+        self._setup_chain()
+    
+    def _setup_chain(self):
+        """Setup the chain of responsibility for symbol resolution."""
+        self.assets_handler = AssetsFileHandler()
+        self.direct_symbols_handler = DirectSymbolsHandler()
+        self.default_assets_handler = DefaultAssetsHandler(self.provider)
+        
+        # Chain the handlers
+        self.assets_handler.set_next(self.direct_symbols_handler)
+        self.direct_symbols_handler.set_next(self.default_assets_handler)
+    
+    def resolve(self, symbol: tuple, symbols_file: Optional[Path], assets: Optional[Path]) -> tuple[List[str], dict]:
+        """Resolve symbols and configurations using the handler chain."""
+        context = SymbolResolutionContext(
+            symbol=symbol,
+            symbols_file=symbols_file,
+            assets=assets,
+            provider=self.provider
+        )
+        
+        return self.assets_handler.handle(context)
+
+class SymbolResolutionContext:
+    """Context object for symbol resolution."""
+    
+    def __init__(self, symbol: tuple, symbols_file: Optional[Path], assets: Optional[Path], provider: str):
+        self.symbol = symbol
+        self.symbols_file = symbols_file
+        self.assets = assets
+        self.provider = provider
+
+class SymbolResolutionHandler:
+    """Base handler for symbol resolution chain."""
+    
+    def __init__(self):
+        self.next_handler = None
+    
+    def set_next(self, handler):
+        """Set the next handler in the chain."""
+        self.next_handler = handler
+        return handler
+    
+    def handle(self, context: SymbolResolutionContext) -> tuple[List[str], dict]:
+        """Handle symbol resolution or pass to next handler."""
+        result = self._try_resolve(context)
+        if result is not None:
+            return result
+        
+        if self.next_handler:
+            return self.next_handler.handle(context)
+        
+        # Final fallback - raise error
+        ux.print_error(f"No symbols specified and no default assets found for {context.provider}")
+        ux.print_info("💡 Try: vortex download -p yahoo -s AAPL")
+        raise MissingArgumentError("symbol", "download")
+    
+    def _try_resolve(self, context: SymbolResolutionContext) -> tuple[List[str], dict]:
+        """Try to resolve symbols. Return None if this handler can't handle the request."""
+        raise NotImplementedError
+
+class AssetsFileHandler(SymbolResolutionHandler):
+    """Handle symbol resolution from user-specified assets file."""
+    
+    def _try_resolve(self, context: SymbolResolutionContext) -> tuple[List[str], dict]:
+        if not context.assets:
+            return None
+        
+        instrument_configs = load_config_instruments(context.assets)
+        symbols = list(instrument_configs.keys())
+        ux.print_success(f"Loaded {len(symbols)} instruments from {context.assets}")
+        return symbols, instrument_configs
+
+class DirectSymbolsHandler(SymbolResolutionHandler):
+    """Handle symbol resolution from direct symbol input or symbols file."""
+    
+    def _try_resolve(self, context: SymbolResolutionContext) -> tuple[List[str], dict]:
+        symbols = parse_instruments(context.symbol, context.symbols_file)
+        if symbols:
+            return symbols, None
+        return None
+
+class DefaultAssetsHandler(SymbolResolutionHandler):
+    """Handle symbol resolution from default provider assets."""
+    
+    def __init__(self, provider: str):
+        super().__init__()
+        self.provider = provider
+    
+    def _try_resolve(self, context: SymbolResolutionContext) -> tuple[List[str], dict]:
+        try:
+            default_assets_file = get_default_assets_file(self.provider)
+            instrument_configs = load_config_instruments(default_assets_file)
+            symbols = list(instrument_configs.keys())
+            ux.print_success(f"Loaded {len(symbols)} instruments from default {default_assets_file}")
+            return symbols, instrument_configs
+        except (FileNotFoundError, PermissionError, ValueError, KeyError):
+            return None
+
 def _resolve_symbols_and_configs(
     provider: str, symbol: tuple, symbols_file: Optional[Path], assets: Optional[Path]
 ) -> tuple[List[str], dict]:
     """Parse and validate symbols and instrument configurations."""
-    instrument_configs = None
-    symbols = None
-    
-    if assets:
-        # Load instruments from user-specified assets file
-        instrument_configs = load_config_instruments(assets)
-        symbols = list(instrument_configs.keys())
-        ux.print_success(f"Loaded {len(symbols)} instruments from {assets}")
-    else:
-        symbols = parse_instruments(symbol, symbols_file)
-        if not symbols:
-            # No symbols specified - try to load default assets for this provider
-            try:
-                default_assets_file = get_default_assets_file(provider)
-                instrument_configs = load_config_instruments(default_assets_file)
-                symbols = list(instrument_configs.keys())
-                ux.print_success(f"Loaded {len(symbols)} instruments from default {default_assets_file}")
-            except (FileNotFoundError, PermissionError, ValueError, KeyError) as e:
-                # Specific exceptions for common file/parsing errors
-                ux.print_error(f"No symbols specified and no default assets found for {provider}")
-                ux.print_info("💡 Try: vortex download -p yahoo -s AAPL")
-                raise MissingArgumentError("symbol", "download") from e
-    
-    return symbols, instrument_configs
+    resolver = SymbolResolver(provider)
+    return resolver.resolve(symbol, symbols_file, assets)
 
 
 def _validate_inputs(symbols: List[str], start_date: datetime, end_date: datetime, 
@@ -472,36 +554,107 @@ def _get_periods_for_symbol(config) -> List:
         return [Period.Daily]
 
 
+class InstrumentFactory:
+    """Factory for creating instrument objects from configuration using Strategy pattern."""
+    
+    _creators = {
+        'stock': lambda symbol, config: StockInstrumentCreator.create(symbol, config),
+        'forex': lambda symbol, config: ForexInstrumentCreator.create(symbol, config),
+        'future': lambda symbol, config: FutureInstrumentCreator.create(symbol, config)
+    }
+    
+    @classmethod
+    def create_instrument(cls, symbol: str, config):
+        """Create the appropriate instrument object from configuration."""
+        if config and hasattr(config, 'asset_class'):
+            creator = cls._creators.get(config.asset_class.value)
+            if creator:
+                return creator(symbol, config)
+        
+        # Default fallback to stock
+        return StockInstrumentCreator.create_default(symbol)
+
+class InstrumentCreator:
+    """Base class for instrument creators."""
+    
+    @staticmethod
+    def create(symbol: str, config):
+        raise NotImplementedError
+    
+    @staticmethod
+    def create_default(symbol: str):
+        """Create default instrument when no config is available."""
+        return Stock(id=symbol, symbol=symbol)
+
+class StockInstrumentCreator(InstrumentCreator):
+    """Creator for stock instruments."""
+    
+    @staticmethod
+    def create(symbol: str, config):
+        return Stock(id=symbol, symbol=config.code)
+
+class ForexInstrumentCreator(InstrumentCreator):
+    """Creator for forex instruments."""
+    
+    @staticmethod
+    def create(symbol: str, config):
+        from vortex.models.forex import Forex
+        return Forex(id=symbol, symbol=config.code)
+
+class FutureInstrumentCreator(InstrumentCreator):
+    """Creator for future instruments."""
+    
+    @staticmethod
+    def create(symbol: str, config):
+        from vortex.models.future import Future
+        
+        parameters = FutureParameterExtractor.extract_parameters(config)
+        
+        return Future(
+            id=symbol,
+            futures_code=config.code,
+            year=parameters['year'],
+            month_code=parameters['month_code'],
+            tick_date=parameters['tick_date'],
+            days_count=parameters['days_count']
+        )
+
+class FutureParameterExtractor:
+    """Extract and validate parameters for future instruments."""
+    
+    @staticmethod
+    def extract_parameters(config) -> dict:
+        """Extract all required parameters for future creation."""
+        return {
+            'year': FutureParameterExtractor._get_year(),
+            'month_code': FutureParameterExtractor._get_month_code(config),
+            'tick_date': FutureParameterExtractor._get_tick_date(config),
+            'days_count': FutureParameterExtractor._get_days_count(config)
+        }
+    
+    @staticmethod
+    def _get_year() -> int:
+        """Get current year for active contract."""
+        return datetime.now().year
+    
+    @staticmethod
+    def _get_month_code(config) -> str:
+        """Get month code from cycle or default."""
+        return config.cycle[0] if config.cycle else 'M'
+    
+    @staticmethod
+    def _get_tick_date(config):
+        """Get tick date from config or default to now."""
+        return config.tick_date if config.tick_date else datetime.now()
+    
+    @staticmethod
+    def _get_days_count(config) -> int:
+        """Get days count from config or default."""
+        return config.days_count if config.days_count else DEFAULT_CONTRACT_DURATION_IN_DAYS
+
 def _create_instrument_from_config(symbol: str, config):
     """Create the appropriate instrument object from configuration."""
-    if config and hasattr(config, 'asset_class'):
-        if config.asset_class.value == 'stock':
-            return Stock(id=symbol, symbol=config.code)
-        elif config.asset_class.value == 'forex':
-            from vortex.models.forex import Forex
-            return Forex(id=symbol, symbol=config.code)
-        elif config.asset_class.value == 'future':
-            from vortex.models.future import Future
-            # Create Future with proper parameters from config
-            # For now, use current year and first month from cycle for active contract
-            current_year = datetime.now().year
-            # Get the first month code from cycle or default to 'M' (June)
-            month_code = config.cycle[0] if config.cycle else 'M'
-            
-            return Future(
-                id=symbol,
-                futures_code=config.code,
-                year=current_year,
-                month_code=month_code,
-                tick_date=config.tick_date if config.tick_date else datetime.now(),
-                days_count=config.days_count if config.days_count else DEFAULT_CONTRACT_DURATION_IN_DAYS
-            )
-        else:
-            # Default to stock if unknown type
-            return Stock(id=symbol, symbol=symbol)
-    else:
-        # Default to stock for direct symbol downloads
-        return Stock(id=symbol, symbol=symbol)
+    return InstrumentFactory.create_instrument(symbol, config)
 
 
 def _process_single_job(context: JobExecutionContext) -> bool:
