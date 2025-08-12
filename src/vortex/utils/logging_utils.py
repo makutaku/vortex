@@ -43,13 +43,8 @@ class ErrorLoggingContext:
 
 class LoggingContext:
 
-    def __init__(self, config: Optional[LoggingConfiguration] = None, 
-                 # Legacy parameters for backward compatibility
-                 entry_msg=None, success_msg=None, failure_msg=None, exit_msg=None, logger=None,
-                 entry_level=logging.DEBUG, exit_level=logging.DEBUG,
-                 success_level=logging.INFO, failure_level=logging.ERROR):
+    def __init__(self, config: Optional[LoggingConfiguration] = None):
         
-        # Handle both new config object and legacy parameters
         if config is not None:
             self.entry_msg = config.entry_msg
             self.success_msg = config.success_msg
@@ -61,16 +56,15 @@ class LoggingContext:
             self.success_level = config.success_level
             self.failure_level = config.failure_level
         else:
-            # Legacy parameter handling
-            self.entry_msg = entry_msg
-            self.success_msg = success_msg
-            self.failure_msg = failure_msg
-            self.exit_msg = exit_msg
-            self.logger = logger or logging.getLogger(__name__)
-            self.entry_level = entry_level
-            self.exit_level = exit_level
-            self.success_level = success_level
-            self.failure_level = failure_level
+            self.entry_msg = None
+            self.success_msg = None
+            self.failure_msg = None
+            self.exit_msg = None
+            self.logger = logging.getLogger(__name__)
+            self.entry_level = logging.DEBUG
+            self.exit_level = logging.DEBUG
+            self.success_level = logging.INFO
+            self.failure_level = logging.ERROR
 
     def __enter__(self):
         self.log(self.entry_msg, level=self.entry_level)
@@ -99,53 +93,23 @@ class StructuredErrorLogger:
         """
         self.logger = logging.getLogger(logger_name)
     
-    def log_error(self, 
-                  error_context: Optional[ErrorLoggingContext] = None,
-                  # Legacy parameters for backward compatibility
-                  error: Optional[Exception] = None,
-                  message: Optional[str] = None,
-                  correlation_id: Optional[str] = None,
-                  context: Optional[Dict[str, Any]] = None,
-                  user_id: Optional[str] = None,
-                  operation: Optional[str] = None,
-                  provider: Optional[str] = None,
-                  include_traceback: bool = True) -> str:
+    def log_error(self, error_context: ErrorLoggingContext) -> str:
         """Log an error with structured context.
         
         Args:
             error_context: Context object containing error and related information
-            error: The exception that occurred (legacy parameter)
-            message: Human-readable error message (legacy parameter)
-            correlation_id: Unique ID to track related operations (legacy parameter)
-            context: Additional context data (legacy parameter)
-            user_id: User identifier if available (legacy parameter)
-            operation: Operation being performed when error occurred (legacy parameter)
-            provider: Data provider involved in the error (legacy parameter)
-            include_traceback: Whether to include full traceback (legacy parameter)
             
         Returns:
             The correlation ID used for this error
         """
-        # Handle both new context object and legacy parameters
-        if error_context is not None:
-            actual_error = error_context.error
-            actual_message = error_context.message
-            actual_correlation_id = error_context.correlation_id
-            actual_context = error_context.context
-            actual_user_id = error_context.user_id
-            actual_operation = error_context.operation
-            actual_provider = error_context.provider
-            actual_include_traceback = error_context.include_traceback
-        else:
-            # Legacy parameter handling
-            actual_error = error
-            actual_message = message
-            actual_correlation_id = correlation_id
-            actual_context = context
-            actual_user_id = user_id
-            actual_operation = operation
-            actual_provider = provider
-            actual_include_traceback = include_traceback
+        actual_error = error_context.error
+        actual_message = error_context.message
+        actual_correlation_id = error_context.correlation_id
+        actual_context = error_context.context
+        actual_user_id = error_context.user_id
+        actual_operation = error_context.operation
+        actual_provider = error_context.provider
+        actual_include_traceback = error_context.include_traceback
         
         if actual_correlation_id is None:
             actual_correlation_id = self.generate_correlation_id()

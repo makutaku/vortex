@@ -101,7 +101,7 @@ def show_providers_list(config_manager: ConfigManager) -> None:
                 # Access provider config from Pydantic model
                 provider_config = getattr(config.providers, provider_name, {})
                 if not isinstance(provider_config, dict):
-                    # Convert Pydantic model to dict for compatibility
+                    # Convert Pydantic model to dict
                     provider_config = provider_config.model_dump() if hasattr(provider_config, 'model_dump') else {}
                 
                 # Check if configured using dynamic plugin-based validation
@@ -175,91 +175,8 @@ def show_providers_list(config_manager: ConfigManager) -> None:
     except Exception as e:
         logger.error(f"Failed to load provider registry: {e}")
         console.print(f"[red]Error loading providers: {e}[/red]")
-        console.print("[yellow]Falling back to built-in provider list...[/yellow]")
-        
-        # Fallback to hardcoded list if plugin system fails
-        _show_fallback_providers_list(config_manager)
+        console.print("[red]Unable to display providers. Please check your configuration.[/red]")
 
-
-def _show_fallback_providers_list(config_manager: ConfigManager) -> None:
-    """Fallback provider list when plugin system fails."""
-    table = Table(title="Available Data Providers (Fallback)")
-    table.add_column("Provider", style="cyan")
-    table.add_column("Status", style="green")
-    table.add_column("Data Types", style="blue")
-    table.add_column("Authentication")
-    table.add_column("Rate Limits")
-    
-    # Get available providers dynamically, but with fallback info
-    available_providers = get_available_providers()
-    config = config_manager.load_config()
-    
-    # Default info for common providers if registry fails
-    fallback_info = {
-        "barchart": {
-            "data_types": "Futures, Stocks, Options",
-            "auth": "Username/Password",
-            "limits": "150/day",
-            "requires_auth": True,
-            "auth_fields": ["username"]
-        },
-        "yahoo": {
-            "data_types": "Stocks, ETFs, Indices",
-            "auth": "None required",
-            "limits": "Unlimited",
-            "requires_auth": False,
-            "auth_fields": []
-        },
-        "ibkr": {
-            "data_types": "All asset classes",
-            "auth": "TWS/Gateway",
-            "limits": "Real-time connection",
-            "requires_auth": True,
-            "auth_fields": ["host"]
-        }
-    }
-    
-    for provider in available_providers:
-        # Access provider config from Pydantic model
-        provider_config = getattr(config.providers, provider, {})
-        if not isinstance(provider_config, dict):
-            # Convert Pydantic model to dict for compatibility
-            provider_config = provider_config.model_dump() if hasattr(provider_config, 'model_dump') else {}
-        info = fallback_info.get(provider, {
-            "data_types": "Unknown",
-            "auth": "Unknown",
-            "limits": "Unknown",
-            "requires_auth": True,
-            "auth_fields": []
-        })
-        
-        # Check if configured dynamically
-        if not info["requires_auth"]:
-            configured = True
-        elif info["auth_fields"]:
-            configured = any(provider_config.get(field) for field in info["auth_fields"])
-        else:
-            configured = len(provider_config) > 0
-        
-        status = "✓ Available" if configured else "⚠ Not configured"
-        
-        # Highlight default provider
-        provider_display = provider.upper()
-        if provider == "yahoo":
-            provider_display = f"{provider.upper()} [DEFAULT]"
-            if status == "✓ Available":
-                status = "✓ Ready (Free)"
-        
-        table.add_row(
-            provider_display,
-            status,
-            info["data_types"],
-            info["auth"],
-            info["limits"]
-        )
-    
-    console.print(table)
-    console.print("\n[dim]Use 'vortex config --provider PROVIDER --set-credentials' to configure[/dim]")
 
 
 def check_providers(config_manager: ConfigManager, provider: str) -> None:
@@ -297,8 +214,7 @@ def check_providers(config_manager: ConfigManager, provider: str) -> None:
     except Exception as e:
         logger.error(f"Failed to load plugin registry for testing: {e}")
         console.print(f"[red]Error loading plugin registry: {e}[/red]")
-        console.print("[yellow]Falling back to legacy testing...[/yellow]")
-        _test_providers_fallback(config_manager, provider)
+        console.print("[red]Provider testing failed. Please check your configuration.[/red]")
 
 
 def check_single_provider_via_plugin(config_manager: ConfigManager, provider: str, registry) -> dict:
@@ -344,31 +260,6 @@ def check_single_provider_via_plugin(config_manager: ConfigManager, provider: st
         }
 
 
-def _test_providers_fallback(config_manager: ConfigManager, provider: str) -> None:
-    """Fallback testing when plugins fail."""
-    providers_to_test = get_available_providers() if provider == "all" else [provider]
-    
-    console.print(f"[bold]Testing provider connectivity (fallback)...[/bold]")
-    
-    with Progress(
-        SpinnerColumn(),
-        TextColumn("[progress.description]{task.description}"),
-        console=console
-    ) as progress:
-        
-        for prov in providers_to_test:
-            task = progress.add_task(f"Testing {prov.upper()}...", total=None)
-            
-            try:
-                result = test_single_provider(config_manager, prov)
-                
-                if result["success"]:
-                    progress.update(task, description=f"✓ {prov.upper()} - {result['message']}")
-                else:
-                    progress.update(task, description=f"✗ {prov.upper()} - {result['message']}")
-                    
-            except Exception as e:
-                progress.update(task, description=f"✗ {prov.upper()} - Error: {e}")
 
 def check_single_provider(config_manager: ConfigManager, provider: str) -> dict:
     """Test connectivity to a single provider."""

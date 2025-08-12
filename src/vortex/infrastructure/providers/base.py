@@ -15,7 +15,6 @@ from vortex.exceptions.providers import (
 from retrying import retry
 
 
-# Legacy exception aliases removed - use direct imports from vortex.exceptions instead
 
 
 class HistoricalDataResult(enum.Enum):

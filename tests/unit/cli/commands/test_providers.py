@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from vortex.cli.commands.providers import (
     providers, show_providers_list, check_providers, check_single_provider_via_plugin,
     check_single_provider, show_provider_info, show_barchart_info, show_yahoo_info,
-    show_ibkr_info, _show_fallback_providers_list, _test_providers_fallback
+    show_ibkr_info
 )
 from vortex.core.config import ConfigManager
 from vortex.infrastructure.plugins import ProviderRegistry

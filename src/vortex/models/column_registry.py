@@ -73,10 +73,10 @@ def register_provider_column_mapping(mapping: ProviderColumnMapping) -> None:
 
 
 def get_column_mapping(provider_name: str, df_columns: List[str]) -> Dict[str, str]:
-    """Get column mapping for a provider (backward compatible API)."""
+    """Get column mapping for a provider."""
     return _column_registry.get_column_mapping(provider_name, df_columns)
 
 
 def get_provider_expected_columns(provider_name: str) -> Tuple[List[str], List[str]]:
-    """Get expected columns for a provider (backward compatible API)."""
+    """Get expected columns for a provider."""
     return _column_registry.get_provider_expected_columns(provider_name)

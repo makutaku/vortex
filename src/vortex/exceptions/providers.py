@@ -20,9 +20,14 @@ class DataProviderError(VortexError):
     """Base class for data provider-related errors."""
     
     def __init__(self, provider: str, message: str, help_text: Optional[str] = None, error_code: Optional[str] = None):
+        from .base import ExceptionContext
         self.provider = provider
         full_message = ErrorMessageTemplates.PROVIDER_ERROR.format(provider=provider, message=message)
-        super().__init__(full_message, help_text=help_text, error_code=error_code)
+        context = ExceptionContext(
+            help_text=help_text,
+            error_code=error_code
+        ) if help_text or error_code else None
+        super().__init__(full_message, context)
 
 
 class AuthenticationError(DataProviderError):
@@ -71,7 +76,7 @@ class RateLimitError(DataProviderError):
             help_text += f" (suggested wait: {wait_time} seconds)"
         help_text += f" or check your {provider} subscription limits"
         
-        super().__init__(provider, message, help_text=help_text, error_code="RATE_LIMIT")
+        super().__init__(provider, message, help_text, "RATE_LIMIT")
 
 
 class VortexConnectionError(DataProviderError):
@@ -83,7 +88,7 @@ class VortexConnectionError(DataProviderError):
             message += f": {details}"
         
         help_text = f"Check your internet connection and {provider} service status"
-        super().__init__(provider, message, help_text=help_text, error_code="CONNECTION_FAILED")
+        super().__init__(provider, message, help_text, "CONNECTION_FAILED")
 
 
 @dataclass
@@ -106,7 +111,7 @@ class DataNotFoundError(DataProviderError):
             message += f" (HTTP {http_code})"
         
         help_text = f"Verify that {symbol} is valid and data exists for the requested date range on {provider}"
-        super().__init__(provider, message, help_text=help_text, error_code="DATA_NOT_FOUND")
+        super().__init__(provider, message, help_text, "DATA_NOT_FOUND")
 
 
 class AllowanceLimitExceededError(DataProviderError):
@@ -118,4 +123,4 @@ class AllowanceLimitExceededError(DataProviderError):
         
         message = f"Daily usage limit exceeded: {current_usage}/{daily_limit} downloads used"
         help_text = f"Wait for daily reset (midnight) or upgrade your {provider} subscription"
-        super().__init__(provider, message, help_text=help_text, error_code="USAGE_LIMIT_EXCEEDED")
+        super().__init__(provider, message, help_text, "USAGE_LIMIT_EXCEEDED")

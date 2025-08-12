@@ -388,19 +388,3 @@ class ConfigManager:
         self._config = VortexConfig()
         self.save_config()
     
-    # Additional methods from CLI ConfigManager for compatibility
-    def _get_default_config(self) -> Dict[str, Any]:
-        """Get default configuration (legacy CLI compatibility)."""
-        return VortexConfig().model_dump(mode='json')
-    
-    def _merge_config(self, base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
-        """Merge two configuration dictionaries (legacy CLI compatibility)."""
-        result = base.copy()
-        
-        for key, value in override.items():
-            if key in result and isinstance(result[key], dict) and isinstance(value, dict):
-                result[key] = self._merge_config(result[key], value)
-            else:
-                result[key] = value
-        
-        return result

@@ -6,7 +6,6 @@ Now enhanced with dependency injection support through ProviderFactory.
 """
 
 from typing import Dict, List, Any, Type, Optional
-import warnings
 
 from vortex.exceptions.plugins import PluginNotFoundError
 from vortex.infrastructure.providers import BarchartDataProvider, YahooDataProvider, IbkrDataProvider
@@ -41,39 +40,8 @@ class ProviderRegistry:
         self._plugins[name] = plugin_class
     
     def create_provider(self, name: str, config: Dict[str, Any]) -> Any:
-        """Create a provider instance with the given configuration.
-        
-        This method now delegates to ProviderFactory for better dependency injection.
-        The old direct instantiation is deprecated but maintained for compatibility.
-        """
-        try:
-            # Use the new factory pattern
-            return self._factory.create_provider(name, config)
-        except Exception as e:
-            # Fallback to legacy behavior if factory fails
-            warnings.warn(
-                f"Using legacy provider instantiation for {name}. "
-                "Consider updating to use ProviderFactory directly.",
-                DeprecationWarning,
-                stacklevel=2
-            )
-            
-            if name not in self._plugins:
-                raise PluginNotFoundError(f"Plugin '{name}' not found")
-            
-            provider_class = self._plugins[name]
-            
-            # Handle different provider constructor signatures (legacy)
-            if name == 'yahoo':
-                return provider_class()
-            elif name == 'barchart':
-                return provider_class(
-                    username=config.get('username'),
-                    password=config.get('password'),
-                    daily_download_limit=config.get('daily_limit', 150)
-                )
-            else:
-                return provider_class(config)
+        """Create a provider instance with the given configuration."""
+        return self._factory.create_provider(name, config)
     
     def get_plugin_info(self, name: str) -> Dict[str, Any]:
         """Get plugin information."""

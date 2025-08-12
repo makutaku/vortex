@@ -40,17 +40,10 @@ class VortexError(Exception):
     def __init__(
         self, 
         message: str, 
-        context: Optional[ExceptionContext] = None,
-        # Legacy parameters for backward compatibility
-        help_text: Optional[str] = None, 
-        error_code: Optional[str] = None,
-        user_action: Optional[str] = None,
-        technical_details: Optional[str] = None,
-        correlation_id: Optional[str] = None
+        context: Optional[ExceptionContext] = None
     ):
         self.message = message
         
-        # Handle both new context object and legacy parameters for backward compatibility
         if context is not None:
             self.help_text = context.help_text
             self.error_code = context.error_code
@@ -59,13 +52,12 @@ class VortexError(Exception):
             self.technical_details = context.technical_details
             self.correlation_id = context.correlation_id or str(uuid.uuid4())[:8]
         else:
-            # Legacy parameter handling
-            self.help_text = help_text
-            self.error_code = error_code
-            self.context = {}  # No context dict in legacy mode
-            self.user_action = user_action
-            self.technical_details = technical_details
-            self.correlation_id = correlation_id or str(uuid.uuid4())[:8]
+            self.help_text = None
+            self.error_code = None
+            self.context = {}
+            self.user_action = None
+            self.technical_details = None
+            self.correlation_id = str(uuid.uuid4())[:8]
         
         self.timestamp = datetime.now()
         super().__init__(message)

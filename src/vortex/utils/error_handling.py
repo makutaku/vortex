@@ -162,21 +162,19 @@ class ProviderOperationHandler:
     """Handles common provider operation error patterns."""
     
     @staticmethod
-    def with_registry_fallback(
+    def with_registry_operation(
         operation_func: Callable[[Any], T], 
-        fallback_func: Optional[Callable[[], T]] = None,
         error_context: str = "plugin operation"
     ) -> Optional[T]:
         """
-        Execute operation with registry, falling back if registry fails.
+        Execute operation with registry.
         
         Args:
             operation_func: Function that takes registry as argument
-            fallback_func: Optional fallback function if registry fails
             error_context: Context description for error messages
             
         Returns:
-            Operation result or fallback result, or None if both fail
+            Operation result or None if operation fails
         """
         try:
             # Avoid circular import by importing here
@@ -188,15 +186,6 @@ class ProviderOperationHandler:
                 context=error_context,
                 error=e
             ))
-            
-            # Try fallback function if provided
-            if fallback_func:
-                try:
-                    logger.info(f"Falling back to legacy implementation for {error_context}")
-                    return fallback_func()
-                except Exception as fallback_error:
-                    logger.error(f"Fallback also failed for {error_context}: {fallback_error}")
-            
             return None
     
     @staticmethod

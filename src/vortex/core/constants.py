@@ -148,7 +148,6 @@ class TimeConstants:
     RATE_LIMIT_WINDOW_SECONDS = 60
 
 
-# Legacy constants removed - use ProviderConstants instead
 
 
 def get_provider_constants(provider_name: str) -> Dict[str, Any]:

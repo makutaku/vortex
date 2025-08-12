@@ -269,7 +269,9 @@
       "Bash(do)",
       "Bash(echo:*)",
       "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/infrastructure/providers/test_barchart_parser.py::TestBarchartParser::test_column_constants -v)",
-      "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/integration/ --tb=short -q)"
+      "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/integration/ --tb=short -q)",
+      "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/ --tb=line -x -q)",
+      "Bash(PYTHONWARNINGS=\"ignore::pytest.PytestCollectionWarning\" uv run pytest tests/unit/cli/commands/test_providers.py -v --tb=short)"
     ],
     "deny": []
   }
