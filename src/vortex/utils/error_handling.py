@@ -132,15 +132,23 @@ class FileOperationHandler:
         except FileNotFoundError:
             if 'r' in mode and default_on_missing is not None:
                 return default_on_missing
+            from vortex.exceptions.base import ExceptionContext
+            context = ExceptionContext(
+                help_text=f"Create the {file_type} or check the file path"
+            )
             raise ConfigurationError(
                 ERROR_TEMPLATES["file_not_found"].format(
                     operation=operation_name,
                     file_type=file_type,
                     file_path=file_path
                 ),
-                help_text=f"Create the {file_type} or check the file path"
+                context
             )
         except PermissionError as e:
+            from vortex.exceptions.base import ExceptionContext
+            context = ExceptionContext(
+                help_text=f"Check file permissions for {file_path}"
+            )
             raise ConfigurationError(
                 ERROR_TEMPLATES["file_permission"].format(
                     operation=operation_name,
@@ -148,7 +156,7 @@ class FileOperationHandler:
                     error=e,
                     file_path=file_path
                 ),
-                help_text=f"Check file permissions for {file_path}"
+                context
             )
         except Exception as e:
             raise InvalidConfigurationError(
@@ -254,12 +262,16 @@ class ConfigurationErrorHandler:
                     "barchart, yahoo, or ibkr"
                 )
         except Exception as e:
+            from vortex.exceptions.base import ExceptionContext
+            context = ExceptionContext(
+                help_text=f"Check the {provider} configuration format and required fields"
+            )
             raise ConfigurationError(
                 ERROR_TEMPLATES["configuration_validation"].format(
                     provider=provider,
                     error=e
                 ),
-                help_text=f"Check the {provider} configuration format and required fields"
+                context
             )
 
 
