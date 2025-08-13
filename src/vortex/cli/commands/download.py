@@ -515,21 +515,24 @@ def _process_all_downloads(
         for symbol in symbols:
             config = instrument_configs.get(symbol)
             periods = _get_periods_for_symbol(config)
-            instrument = _create_instrument_from_config(symbol, config)
             
             logger.info(f"Processing {symbol} with {len(periods)} period(s): {[p.value for p in periods]}", 
                        symbol=symbol, provider=provider)
             
-            # Process each period for this symbol
-            for period in periods:
+            # Use BaseDownloader's proper job creation logic instead of manual instrument creation
+            # This fixes the critical bug where futures contracts were selected incorrectly
+            jobs = _create_jobs_using_downloader_logic(downloader, symbol, config, periods, start_date, end_date)
+            
+            # Process each job created by the downloader (may be multiple jobs for futures)
+            for job in jobs:
                 job_count += 1
                 
                 job_context = JobExecutionContext(
                     downloader=downloader,
-                    instrument=instrument,
-                    period=period,
-                    start_date=start_date,
-                    end_date=end_date,
+                    instrument=job.instrument,
+                    period=job.period,
+                    start_date=job.start_date,
+                    end_date=job.end_date,
                     symbol=symbol,
                     provider=provider,
                     job_count=job_count,
@@ -553,107 +556,109 @@ def _get_periods_for_symbol(config) -> List:
         return [Period.Daily]
 
 
-class InstrumentFactory:
-    """Factory for creating instrument objects from configuration using Strategy pattern."""
+def _create_jobs_using_downloader_logic(downloader, symbol: str, config, periods: List, start_date: datetime, end_date: datetime):
+    """Create download jobs using BaseDownloader's proper logic instead of manual instrument creation.
     
-    _creators = {
-        'stock': lambda symbol, config: StockInstrumentCreator.create(symbol, config),
-        'forex': lambda symbol, config: ForexInstrumentCreator.create(symbol, config),
-        'future': lambda symbol, config: FutureInstrumentCreator.create(symbol, config)
-    }
+    This ensures futures contracts are selected correctly using the same logic as BaseDownloader,
+    avoiding the bug where CLI manually creates Future objects with hardcoded current year.
+    """
+    import pytz
+    from vortex.services.download_job import DownloadJob
     
-    @classmethod
-    def create_instrument(cls, symbol: str, config):
-        """Create the appropriate instrument object from configuration."""
-        if config and hasattr(config, 'asset_class'):
-            creator = cls._creators.get(config.asset_class.value)
-            if creator:
-                return creator(symbol, config)
+    jobs = []
+    tz = pytz.UTC  # Use UTC timezone for consistency
+    
+    # Check if this is a futures contract (has cycle attribute)
+    if config and hasattr(config, 'cycle') and config.cycle:
+        # Use BaseDownloader's _create_future_jobs method - the CORRECT logic
+        futures_code = config.code if hasattr(config, 'code') else symbol
+        roll_cycle = config.cycle
+        tick_date = config.tick_date if hasattr(config, 'tick_date') else None
+        days_count = config.days_count if hasattr(config, 'days_count') else 360
         
-        # Default fallback to stock
-        return StockInstrumentCreator.create_default(symbol)
-
-class InstrumentCreator:
-    """Base class for instrument creators."""
-    
-    @staticmethod
-    def create(symbol: str, config):
-        raise NotImplementedError
-    
-    @staticmethod
-    def create_default(symbol: str):
-        """Create default instrument when no config is available."""
-        return Stock(id=symbol, symbol=symbol)
-
-class StockInstrumentCreator(InstrumentCreator):
-    """Creator for stock instruments."""
-    
-    @staticmethod
-    def create(symbol: str, config):
-        return Stock(id=symbol, symbol=config.code)
-
-class ForexInstrumentCreator(InstrumentCreator):
-    """Creator for forex instruments."""
-    
-    @staticmethod
-    def create(symbol: str, config):
-        from vortex.models.forex import Forex
-        return Forex(id=symbol, symbol=config.code)
-
-class FutureInstrumentCreator(InstrumentCreator):
-    """Creator for future instruments."""
-    
-    @staticmethod
-    def create(symbol: str, config):
-        from vortex.models.future import Future
+        # CRITICAL FIX: BaseDownloader expects timezone-aware datetime objects that match
+        # the timezone used by Future.get_date_range(). Future.get_date_range() always
+        # returns timezone-aware dates using tz.localize(), so we must pass timezone-aware
+        # dates that use the same timezone to avoid comparison errors.
         
-        parameters = FutureParameterExtractor.extract_parameters(config)
+        # Convert to timezone-aware using the same timezone that Future.get_date_range() uses
+        tz_aware_start = tz.localize(start_date.replace(tzinfo=None)) if start_date.tzinfo is None else start_date.astimezone(tz)
+        tz_aware_end = tz.localize(end_date.replace(tzinfo=None)) if end_date.tzinfo is None else end_date.astimezone(tz)
         
-        return Future(
-            id=symbol,
-            futures_code=config.code,
-            year=parameters['year'],
-            month_code=parameters['month_code'],
-            tick_date=parameters['tick_date'],
-            days_count=parameters['days_count']
+        # Also convert tick_date to timezone-aware if needed
+        if tick_date:
+            if tick_date.tzinfo is None:
+                tick_date = tz.localize(tick_date)
+            else:
+                tick_date = tick_date.astimezone(tz)
+        
+        jobs = downloader._create_future_jobs(
+            futures_code=futures_code,
+            instr=symbol,
+            start=tz_aware_start,
+            end=tz_aware_end,
+            periods=periods,
+            tick_date=tick_date,
+            roll_cycle=roll_cycle,
+            days_count=days_count,
+            tz=tz
         )
+    else:
+        # For stocks and forex, create simple jobs (single instrument, no complex contract logic)
+        if config and hasattr(config, 'asset_class'):
+            # Determine instrument type from asset_class set during JSON parsing
+            asset_class = config.asset_class.lower()
+            instrument_code = config.code if hasattr(config, 'code') else symbol
+            
+            if asset_class == 'forex':
+                from vortex.models.forex import Forex
+                instrument = Forex(id=symbol, symbol=instrument_code)
+            elif asset_class == 'stock':
+                from vortex.models.stock import Stock
+                instrument = Stock(id=symbol, symbol=instrument_code)
+            else:
+                # Fallback to stock for unknown asset classes
+                from vortex.models.stock import Stock
+                instrument = Stock(id=symbol, symbol=instrument_code)
+        else:
+            # Default to stock when no asset_class is available
+            from vortex.models.stock import Stock
+            instrument_code = config.code if config and hasattr(config, 'code') else symbol
+            instrument = Stock(id=symbol, symbol=instrument_code)
+        
+        # Create jobs for each period
+        for period in periods:
+            # Use timezone-aware dates for consistency with Future contract handling
+            tz_aware_start_date = tz.localize(start_date.replace(tzinfo=None)) if start_date.tzinfo is None else start_date.astimezone(tz)
+            tz_aware_end_date = tz.localize(end_date.replace(tzinfo=None)) if end_date.tzinfo is None else end_date.astimezone(tz)
+            
+            job = DownloadJob(
+                data_provider=downloader.data_provider,
+                data_storage=downloader.data_storage,
+                instrument=instrument,
+                period=period,
+                start_date=tz_aware_start_date,
+                end_date=tz_aware_end_date
+            )
+            jobs.append(job)
+    
+    return jobs
 
-class FutureParameterExtractor:
-    """Extract and validate parameters for future instruments."""
-    
-    @staticmethod
-    def extract_parameters(config) -> dict:
-        """Extract all required parameters for future creation."""
-        return {
-            'year': FutureParameterExtractor._get_year(),
-            'month_code': FutureParameterExtractor._get_month_code(config),
-            'tick_date': FutureParameterExtractor._get_tick_date(config),
-            'days_count': FutureParameterExtractor._get_days_count(config)
-        }
-    
-    @staticmethod
-    def _get_year() -> int:
-        """Get current year for active contract."""
-        return datetime.now().year
-    
-    @staticmethod
-    def _get_month_code(config) -> str:
-        """Get month code from cycle or default."""
-        return config.cycle[0] if config.cycle else 'M'
-    
-    @staticmethod
-    def _get_tick_date(config):
-        """Get tick date from config or default to now."""
-        return config.tick_date if config.tick_date else datetime.now()
-    
-    @staticmethod
-    def _get_days_count(config) -> int:
-        """Get days count from config or default."""
-        return config.days_count if config.days_count else DEFAULT_CONTRACT_DURATION_IN_DAYS
 
-def _create_instrument_from_config(symbol: str, config):
-    """Create the appropriate instrument object from configuration."""
-    return InstrumentFactory.create_instrument(symbol, config)
+# DEPRECATED: The old manual instrument creation logic has been replaced
+# with proper BaseDownloader._create_future_jobs() method to fix critical
+# futures contract selection bug. See _create_jobs_using_downloader_logic() above.
+
+# REMOVED: All the manual instrument creation classes (InstrumentCreator, 
+# FutureInstrumentCreator, FutureParameterExtractor, etc.) have been removed 
+# because they contained critical bugs:
+#
+# 1. FutureParameterExtractor._get_year() hardcoded datetime.now().year (2025)
+# 2. This caused selection of expired contracts (GCG25 instead of GCG26)
+# 3. Violated DRY principle by duplicating BaseDownloader logic incorrectly
+#
+# The new _create_jobs_using_downloader_logic() function above uses the 
+# correct BaseDownloader._create_future_jobs() method instead.
 
 
 def _process_single_job(context: JobExecutionContext) -> bool:
@@ -665,17 +670,14 @@ def _process_single_job(context: JobExecutionContext) -> bool:
         logger.info(f"Processing {str(context.instrument)}|{context.period.value}|{context.start_date.strftime('%Y-%m-%d')}|{context.end_date.strftime('%Y-%m-%d')}", 
                    symbol=context.symbol, period=context.period.value, provider=context.provider)
         
-        # Ensure dates are timezone-aware (use UTC if naive) 
-        safe_start_date = context.start_date.replace(tzinfo=timezone.utc) if context.start_date.tzinfo is None else context.start_date
-        safe_end_date = context.end_date.replace(tzinfo=timezone.utc) if context.end_date.tzinfo is None else context.end_date
-        
+        # Use timezone-aware dates consistently throughout the pipeline
         job = DownloadJob(
             data_provider=context.downloader.data_provider,
             data_storage=context.downloader.data_storage,
             instrument=context.instrument,
             period=context.period,  # Use the actual period from config
-            start_date=safe_start_date,
-            end_date=safe_end_date
+            start_date=context.start_date,
+            end_date=context.end_date
         )
         
         # Process the download job

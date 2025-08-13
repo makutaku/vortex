@@ -27,7 +27,8 @@ class BarchartParser:
         
         iostr = io.StringIO(data)
         date_format = '%Y-%m-%d %H:%M' if period.is_intraday() else '%Y-%m-%d'
-        df = pd.read_csv(iostr, skipfooter=1, engine='python')
+        # Handle quoted timestamps in CSV by specifying quote character
+        df = pd.read_csv(iostr, skipfooter=1, engine='python', quotechar='"')
         logging.debug(f"Received data {df.shape} from Barchart")
         logging.debug(f"CSV columns: {list(df.columns)}")
         

@@ -126,6 +126,47 @@ def validate_market_data_csv(
         if not has_date_column:
             errors.append(f"Missing date/datetime column. Found columns: {columns}")
         
+        # Enhanced validation for hourly data - check that datetime column exists and contains proper hourly data
+        if has_date_column and 'hourly' in str(file_path).lower() or '1h' in str(file_path).lower():
+            date_col = None
+            for col in columns:
+                if col.lower() in date_columns:
+                    date_col = col
+                    break
+            
+            if date_col:
+                try:
+                    # Parse dates and check for hourly patterns
+                    dates = pd.to_datetime(df[date_col], errors='coerce')
+                    valid_dates = dates.dropna()
+                    
+                    if len(valid_dates) > 1:
+                        # Check if timestamps have minute precision (hourly data should be on the hour)
+                        time_diffs = valid_dates.diff().dropna()
+                        if len(time_diffs) > 0:
+                            # Check if most intervals are around 1 hour (3600 seconds)
+                            hourly_intervals = time_diffs[
+                                (time_diffs >= pd.Timedelta(minutes=50)) & 
+                                (time_diffs <= pd.Timedelta(minutes=70))
+                            ]
+                            hourly_ratio = len(hourly_intervals) / len(time_diffs)
+                            
+                            if hourly_ratio < 0.5:  # Less than 50% hourly intervals
+                                warnings.append(f"Hourly data validation: Only {hourly_ratio:.1%} of intervals appear to be hourly")
+                            else:
+                                # Success case - log for debugging
+                                logger.debug(f"Hourly validation passed: {hourly_ratio:.1%} of {len(time_diffs)} intervals are hourly")
+                    
+                    # Check that we have actual datetime values, not just empty/null
+                    valid_datetime_count = len(valid_dates)
+                    if valid_datetime_count == 0:
+                        errors.append("Hourly data file contains no valid datetime values")
+                    elif valid_datetime_count < effective_row_count * 0.8:
+                        warnings.append(f"Many datetime values missing in hourly data: {valid_datetime_count}/{effective_row_count} valid")
+                        
+                except Exception as e:
+                    warnings.append(f"Hourly data datetime validation failed: {e}")
+        
         # Check for required market data columns
         for required_col in required_columns:
             if required_col.lower() not in columns_lower:
@@ -160,7 +201,28 @@ def validate_market_data_csv(
             
             # Adjust null tolerance based on provider and data characteristics
             if provider.lower() == 'barchart':
-                if datetime_null_count > 0:
+                # Special handling for intraday data: %Chg column often has many nulls
+                if 'hourly' in str(file_path).lower() or '1h' in str(file_path).lower():
+                    # For intraday/hourly Barchart data, exclude %Chg nulls from strict validation
+                    chg_columns = [col for col in columns if '%chg' in col.lower() or 'chg' in col.lower()]
+                    if chg_columns:
+                        chg_nulls = sum(null_counts.get(col, 0) for col in chg_columns)
+                        non_chg_nulls = total_nulls - chg_nulls - datetime_null_count
+                        
+                        if chg_nulls > row_count * 0.8:  # Most %Chg values are null - this is normal for intraday
+                            warnings.append(f"Many null %Chg values in intraday data: {chg_nulls}/{row_count} (normal for minute-level data)")
+                            # Use non-%Chg nulls for validation
+                            if non_chg_nulls > row_count * 0.1:  # 10% tolerance for non-%Chg columns
+                                errors.append(f"High null values in non-%Chg columns: {non_chg_nulls} nulls")
+                            elif non_chg_nulls > 0:
+                                warnings.append(f"Some null values in non-%Chg columns: {non_chg_nulls} nulls")
+                        else:
+                            # Normal validation if %Chg isn't mostly null
+                            if total_nulls > row_count * 0.1:
+                                errors.append(f"High null value count: {total_nulls} nulls in {null_columns}")
+                            else:
+                                warnings.append(f"Some null values found: {null_columns}")
+                elif datetime_null_count > 0:
                     # For Barchart, if most nulls are in datetime column, this might be trailing empty rows
                     if datetime_null_count > row_count * 0.8:  # More than 80% of rows have null datetime
                         warnings.append(f"Many null datetime values (possibly trailing empty rows): {datetime_null_count}/{row_count} in {datetime_col_name}")
@@ -360,6 +422,113 @@ def validate_multiple_csvs(
         results[csv_file.name] = result
     
     return results
+
+
+def validate_hourly_datetime_structure(file_path: Path) -> Tuple[bool, List[str], List[str]]:
+    """
+    Specifically validate that hourly data has proper datetime structure.
+    
+    Args:
+        file_path: Path to hourly CSV file
+        
+    Returns:
+        Tuple of (is_valid, errors, info_messages)
+    """
+    errors = []
+    info_messages = []
+    
+    try:
+        if not file_path.exists():
+            errors.append(f"File does not exist: {file_path}")
+            return False, errors, info_messages
+        
+        # Read CSV
+        df = pd.read_csv(file_path)
+        
+        if df.empty:
+            errors.append("CSV file is empty")
+            return False, errors, info_messages
+        
+        columns = list(df.columns)
+        columns_lower = [col.lower() for col in columns]
+        
+        # Check for datetime column
+        date_columns = ['datetime', 'date', 'time', 'timestamp']
+        datetime_col = None
+        for col in columns:
+            if col.lower() in date_columns:
+                datetime_col = col
+                break
+        
+        if not datetime_col:
+            errors.append(f"No datetime column found. Columns: {columns}")
+            return False, errors, info_messages
+        
+        info_messages.append(f"Found datetime column: '{datetime_col}'")
+        
+        # Check if datetime column has actual values
+        datetime_values = df[datetime_col]
+        non_null_count = datetime_values.notna().sum()
+        total_count = len(datetime_values)
+        
+        if non_null_count == 0:
+            errors.append("Datetime column contains no valid values")
+            return False, errors, info_messages
+        
+        if non_null_count < total_count:
+            info_messages.append(f"Datetime column: {non_null_count}/{total_count} non-null values")
+        else:
+            info_messages.append(f"Datetime column: All {total_count} values are non-null")
+        
+        # Parse datetime values
+        try:
+            parsed_datetimes = pd.to_datetime(datetime_values, errors='coerce')
+            valid_datetimes = parsed_datetimes.dropna()
+            
+            if len(valid_datetimes) == 0:
+                errors.append("No parseable datetime values found")
+                return False, errors, info_messages
+            
+            info_messages.append(f"Parsed {len(valid_datetimes)} valid datetime values")
+            info_messages.append(f"Date range: {valid_datetimes.min()} to {valid_datetimes.max()}")
+            
+            # Check for hourly patterns if we have multiple values
+            if len(valid_datetimes) > 1:
+                time_diffs = valid_datetimes.diff().dropna()
+                
+                # Count intervals that are approximately 1 hour
+                hourly_intervals = time_diffs[
+                    (time_diffs >= pd.Timedelta(minutes=50)) & 
+                    (time_diffs <= pd.Timedelta(minutes=70))
+                ]
+                minute_intervals = time_diffs[
+                    (time_diffs >= pd.Timedelta(seconds=50)) & 
+                    (time_diffs <= pd.Timedelta(seconds=70))
+                ]
+                
+                total_intervals = len(time_diffs)
+                hourly_count = len(hourly_intervals)
+                minute_count = len(minute_intervals)
+                
+                info_messages.append(f"Time intervals: {hourly_count}/{total_intervals} appear hourly, {minute_count}/{total_intervals} appear minute-level")
+                
+                if minute_count > hourly_count:
+                    errors.append(f"Data appears to be minute-level ({minute_count} minute intervals) rather than hourly ({hourly_count} hourly intervals)")
+                    return False, errors, info_messages
+                elif hourly_count > 0:
+                    info_messages.append(f"✅ Data appears to be properly hourly: {hourly_count}/{total_intervals} intervals are ~1 hour")
+                else:
+                    info_messages.append("⚠️ No clear hourly pattern detected in time intervals")
+            
+        except Exception as e:
+            errors.append(f"Failed to parse datetime values: {e}")
+            return False, errors, info_messages
+        
+        return True, errors, info_messages
+        
+    except Exception as e:
+        errors.append(f"Validation failed: {e}")
+        return False, errors, info_messages
 
 
 def print_validation_summary(results: Dict[str, CSVValidationResult]) -> None:

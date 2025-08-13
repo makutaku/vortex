@@ -292,14 +292,16 @@ class BarchartDataProvider(DataProvider):
             raise Exception("No CSRF token found on home page")
         
         # Prepare payload using actual working format from network capture
+        # Determine appropriate file name based on frequency
+        file_suffix = "Daily_Historical+Data" if frequency_attributes.frequency == Period('1d') else "Intraday_Historical+Data"
+        
         payload = {
             '_token': csrf_token,
-            'fileName': f'{instrument}_Daily_Historical+Data',
+            'fileName': f'{instrument}_{file_suffix}',
             'symbol': instrument,
-            'fields': 'tradeTime.format(m/d/Y),openPrice,highPrice,lowPrice,lastPrice,priceChange,percentChange,volume',
             'startDate': start_date.strftime('%Y-%m-%d'),  # ISO format: 2025-01-01
             'endDate': end_date.strftime('%Y-%m-%d'),      # ISO format: 2025-06-30
-            'type': 'eod',  # end of day (not 'daily')
+            'type': 'eod',  # end of day (will be overridden for intraday)
             'orderBy': 'tradeTime',
             'orderDir': 'desc',
             'method': 'historical',  # This is crucial!
@@ -311,9 +313,30 @@ class BarchartDataProvider(DataProvider):
             'pageTitle': 'Historical+Data'
         }
         
-        # For intraday data, update the type parameter
-        if frequency_attributes.frequency != Period('1d'):
-            payload['type'] = 'minutes'  # Override type for intraday
+        # Configure fields and type based on frequency following bc-utils methodology
+        if frequency_attributes.frequency == Period('1d'):
+            # Daily data: Use bc-utils daily format (date only)
+            payload['fields'] = 'tradeTime.format(Y-m-d),openPrice,highPrice,lowPrice,lastPrice,volume'
+            payload['type'] = 'eod'
+            payload['period'] = 'daily'
+        else:
+            # Intraday data: Use bc-utils minute/hourly format (date and time)
+            payload['fields'] = 'tradeTime.format(Y-m-d H:i),openPrice,highPrice,lowPrice,lastPrice,volume'
+            payload['type'] = 'minutes'
+            
+            # Set interval based on frequency (bc-utils approach)
+            if frequency_attributes.frequency == Period('1h'):
+                payload['interval'] = 60  # 60 minutes = 1 hour
+            elif frequency_attributes.frequency == Period('30m'):
+                payload['interval'] = 30  # 30 minutes
+            elif frequency_attributes.frequency == Period('15m'):
+                payload['interval'] = 15  # 15 minutes
+            elif frequency_attributes.frequency == Period('5m'):
+                payload['interval'] = 5   # 5 minutes
+            elif frequency_attributes.frequency == Period('1m'):
+                payload['interval'] = 1   # 1 minute
+            else:
+                payload['interval'] = 60  # Default to hourly
         
         logger.debug(f"bc-utils payload: {payload}")
         
@@ -388,7 +411,8 @@ class BarchartDataProvider(DataProvider):
         iostr = io.StringIO(csv_data)
         
         # Read CSV and check if it has data
-        df = pd.read_csv(iostr)
+        # Handle quoted timestamps in CSV by specifying quote character
+        df = pd.read_csv(iostr, quotechar='"')
         
         if df.empty:
             raise Exception("bc-utils returned empty CSV")

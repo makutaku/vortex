@@ -283,7 +283,7 @@ end_year = 2025
         )
         
         # Comprehensive validation for each successful file
-        from .csv_validation import validate_market_data_csv, validate_business_day_count
+        from .csv_validation import validate_market_data_csv, validate_business_day_count, validate_hourly_datetime_structure
         
         validation_results = []
         date_range = (start_date, end_date)
@@ -305,6 +305,28 @@ end_year = 2025
                     f"{validation_result.errors}"
                 )
                 
+                # ENHANCED: Specific validation for hourly data structure
+                if period == "1h":
+                    print(f"🕐 Performing enhanced hourly validation for {asset_type}/{period}/{filename}...")
+                    hourly_valid, hourly_errors, hourly_info = validate_hourly_datetime_structure(file_path)
+                    
+                    # Print detailed hourly validation results
+                    for info_msg in hourly_info:
+                        print(f"    📊 {info_msg}")
+                    
+                    if not hourly_valid:
+                        for error_msg in hourly_errors:
+                            print(f"    ❌ {error_msg}")
+                        assert False, (
+                            f"HOURLY DATA VALIDATION FAILED for {asset_type}/{period}/{filename}: "
+                            f"Errors: {hourly_errors}. "
+                            f"This indicates the fix for hourly data is not working properly. "
+                            f"Expected: Datetime column with hourly intervals. "
+                            f"Check that both the payload fix (type='intraday') and CSV parsing fix (quotechar='\"') are working."
+                        )
+                    else:
+                        print(f"    ✅ Hourly datetime structure validation PASSED")
+                
                 # Validate business day count with tolerance for Barchart
                 is_valid, expected_days, message = validate_business_day_count(
                     start_date, end_date, validation_result.row_count, 
@@ -317,7 +339,8 @@ end_year = 2025
                     "columns": validation_result.columns,
                     "size": validation_result.file_size,
                     "valid": validation_result.is_valid,
-                    "business_days": message
+                    "business_days": message,
+                    "period": period
                 })
                 
                 print(f"✅ CSV validation passed for {asset_type}/{period}/{filename}:")
@@ -338,11 +361,23 @@ end_year = 2025
         total_downloads = len(successful_files)
         assert total_downloads >= 2, f"Expected at least 2 downloads for meaningful test, got {total_downloads}"
         
+        # Count hourly vs daily validations
+        hourly_files = [r for r in validation_results if r.get('period') == '1h']
+        daily_files = [r for r in validation_results if r.get('period') == '1d']
+        
         print(f"\n🎯 Barchart E2E Test Summary:")
         print(f"  Authentication: ✅ SUCCESS")
         print(f"  Downloads: {total_downloads}/6 successful")
         print(f"  Validation: {len(validation_results)} files validated")
+        print(f"    - Daily (1d): {len(daily_files)} files")
+        print(f"    - Hourly (1h): {len(hourly_files)} files")
         print(f"  Asset types: {len(set(r['file'].split('/')[0] for r in validation_results))} types covered")
+        
+        if hourly_files:
+            print(f"  🕐 HOURLY DATA VALIDATION: ✅ {len(hourly_files)} hourly files passed enhanced validation")
+            print("     This confirms both fixes are working:")
+            print("     - Payload fix: type='intraday' for 1h requests") 
+            print("     - CSV parsing fix: quotechar='\"' for quoted timestamps")
 
     # REMOVED: test_barchart_stocks_download_workflow
     # Reason: Integrated into comprehensive download workflow test with assets file.
