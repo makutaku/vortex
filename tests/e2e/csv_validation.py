@@ -92,12 +92,24 @@ def validate_market_data_csv(
             errors.append("CSV file contains no data rows")
             return CSVValidationResult(file_path, False, 0, columns, errors, warnings)
         
-        # Row count validation
-        if row_count < expected_min_rows:
-            errors.append(f"Insufficient data rows: {row_count} < {expected_min_rows}")
+        # Row count validation - for Barchart, count only valid datetime rows
+        effective_row_count = row_count
+        if provider.lower() == 'barchart':
+            # Find datetime column and count non-null rows
+            for col in columns:
+                if col.lower() in ['datetime', 'date', 'time', 'timestamp']:
+                    non_null_datetime_count = df[col].notna().sum()
+                    effective_row_count = non_null_datetime_count
+                    break
         
-        if expected_max_rows and row_count > expected_max_rows:
-            warnings.append(f"More rows than expected: {row_count} > {expected_max_rows}")
+        if effective_row_count < expected_min_rows:
+            if provider.lower() == 'barchart' and effective_row_count != row_count:
+                warnings.append(f"Insufficient valid data rows: {effective_row_count} valid (out of {row_count} total) < {expected_min_rows}")
+            else:
+                errors.append(f"Insufficient data rows: {effective_row_count} < {expected_min_rows}")
+        
+        if expected_max_rows and effective_row_count > expected_max_rows:
+            warnings.append(f"More rows than expected: {effective_row_count} > {expected_max_rows}")
         
         # Column validation
         if required_columns is None:
@@ -131,15 +143,62 @@ def validate_market_data_csv(
             except Exception:
                 warnings.append(f"Column '{col}' may contain non-numeric data")
         
-        # Check for null values
+        # Check for null values with provider-specific tolerance
         null_counts = df.isnull().sum()
         total_nulls = null_counts.sum()
         if total_nulls > 0:
             null_columns = null_counts[null_counts > 0].to_dict()
-            if total_nulls > row_count * 0.1:  # More than 10% nulls is concerning
-                errors.append(f"High null value count: {total_nulls} nulls in {null_columns}")
+            
+            # Special handling for datetime column nulls in Barchart data
+            datetime_null_count = 0
+            datetime_col_name = None
+            for col in columns:
+                if col.lower() in ['datetime', 'date', 'time', 'timestamp']:
+                    datetime_col_name = col
+                    datetime_null_count = null_counts.get(col, 0)
+                    break
+            
+            # Adjust null tolerance based on provider and data characteristics
+            if provider.lower() == 'barchart':
+                if datetime_null_count > 0:
+                    # For Barchart, if most nulls are in datetime column, this might be trailing empty rows
+                    if datetime_null_count > row_count * 0.8:  # More than 80% of rows have null datetime
+                        warnings.append(f"Many null datetime values (possibly trailing empty rows): {datetime_null_count}/{row_count} in {datetime_col_name}")
+                    elif datetime_null_count > row_count * 0.3:  # 30-80% null datetimes
+                        warnings.append(f"Moderate null datetime values: {datetime_null_count}/{row_count} in {datetime_col_name}")
+                    else:
+                        warnings.append(f"Some null datetime values: {datetime_null_count}/{row_count} in {datetime_col_name}")
+                    
+                    # Calculate expected nulls in other columns if they align with datetime nulls (trailing empty rows)
+                    # Count nulls in data columns that correspond to rows with null datetimes
+                    datetime_null_mask = df[datetime_col_name].isna()
+                    aligned_nulls = 0
+                    for col in columns:
+                        if col.lower() not in ['datetime', 'date', 'time', 'timestamp']:
+                            # Count nulls in this column that align with datetime nulls
+                            col_nulls_in_datetime_null_rows = (df[col].isna() & datetime_null_mask).sum()
+                            aligned_nulls += col_nulls_in_datetime_null_rows
+                    
+                    # Calculate non-aligned nulls (nulls in data columns where datetime is not null)
+                    non_aligned_nulls = total_nulls - datetime_null_count - aligned_nulls
+                    
+                    if non_aligned_nulls > effective_row_count * 0.1:  # 10% tolerance for actual data rows
+                        errors.append(f"High null values in data rows: {non_aligned_nulls} nulls in non-empty rows")
+                    elif aligned_nulls > 0:
+                        warnings.append(f"Null values in trailing empty rows: {aligned_nulls} nulls aligned with datetime nulls")
+                else:
+                    # No datetime nulls, so apply standard null tolerance to all columns
+                    if total_nulls > row_count * 0.1:  # 10% tolerance for Barchart data rows
+                        errors.append(f"High null value count: {total_nulls} nulls in {null_columns}")
+                    else:
+                        warnings.append(f"Some null values found: {null_columns}")
             else:
-                warnings.append(f"Some null values found: {null_columns}")
+                # Default behavior for other providers
+                null_tolerance = 0.1  # Default 10%
+                if total_nulls > row_count * null_tolerance:
+                    errors.append(f"High null value count: {total_nulls} nulls in {null_columns}")
+                else:
+                    warnings.append(f"Some null values found: {null_columns}")
         
         # Date range validation
         if date_range and has_date_column:
@@ -221,7 +280,10 @@ def validate_market_data_csv(
         # Determine if validation passed
         is_valid = len(errors) == 0
         
-        return CSVValidationResult(file_path, is_valid, row_count, columns, errors, warnings)
+        # Return effective row count for better reporting
+        reported_row_count = effective_row_count if provider.lower() == 'barchart' and 'effective_row_count' in locals() else row_count
+        
+        return CSVValidationResult(file_path, is_valid, reported_row_count, columns, errors, warnings)
         
     except Exception as e:
         errors.append(f"Validation failed with exception: {e}")

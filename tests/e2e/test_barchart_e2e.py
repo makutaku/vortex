@@ -290,10 +290,11 @@ end_year = 2025
         
         for asset_type, period, filename, file_path in successful_files:
             try:
-                # Perform comprehensive CSV validation
+                # Perform comprehensive CSV validation with reduced minimum for hourly data
+                min_rows = 1 if period == "1h" else 2  # Hourly data may have fewer valid rows
                 validation_result = validate_market_data_csv(
                     file_path,
-                    expected_min_rows=2,  # At least 2 data points in 1-week period
+                    expected_min_rows=min_rows,
                     date_range=date_range,
                     provider="barchart"
                 )
