@@ -26,7 +26,7 @@ class BarchartParser:
         logging.debug(f"Raw CSV data from Barchart: {data[:500]}...")  # First 500 chars
         
         iostr = io.StringIO(data)
-        date_format = '%m/%d/%Y %H:%M' if period.is_intraday() else '%Y-%m-%d'
+        date_format = '%Y-%m-%d %H:%M' if period.is_intraday() else '%Y-%m-%d'
         df = pd.read_csv(iostr, skipfooter=1, engine='python')
         logging.debug(f"Received data {df.shape} from Barchart")
         logging.debug(f"CSV columns: {list(df.columns)}")

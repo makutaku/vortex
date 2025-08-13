@@ -66,11 +66,11 @@ Footer data to skip
     
     def test_convert_intraday_csv_to_df(self):
         """Test conversion of intraday CSV data to DataFrame."""
-        # Sample intraday CSV data with different date format
+        # Sample intraday CSV data with new YYYY-MM-DD HH:MM format (bc-utils v0.1.7+)
         csv_data = """Time,Open,High,Low,Last,Volume,Open Interest
-01/01/2024 09:30,100.00,100.50,99.50,100.25,500,100
-01/01/2024 10:00,100.25,101.00,100.00,100.75,600,105
-01/01/2024 10:30,100.75,101.50,100.50,101.25,550,110
+2024-01-01 09:30,100.00,100.50,99.50,100.25,500,100
+2024-01-01 10:00,100.25,101.00,100.00,100.75,600,105
+2024-01-01 10:30,100.75,101.50,100.50,101.25,550,110
 Footer line
 """
         
@@ -166,9 +166,9 @@ Footer
         daily_period = Period('1d')
         daily_df = BarchartParser.convert_downloaded_csv_to_df(daily_period, daily_csv, 'UTC')
         
-        # Test intraday format (MM/DD/YYYY HH:MM)  
+        # Test intraday format (YYYY-MM-DD HH:MM) - bc-utils v0.1.7+
         intraday_csv = """Time,Open,High,Low,Last,Volume
-01/01/2024 09:30,100,105,99,104,1000
+2024-01-01 09:30,100,105,99,104,1000
 Footer
 """
         intraday_period = Period('1h')
