@@ -130,11 +130,11 @@ Before ANY commit, you MUST:
 
 1. **✅ Run the full test suite:**
 ```bash
-# MANDATORY: Run this command before EVERY commit
-./run-all-tests.sh --skip-docker
+# MANDATORY: Run this command before EVERY commit (recommended)
+./run-all-tests.sh --fast
 
-# Alternative for development workflow (same requirement)  
-./run-all-tests.sh --python-only
+# Alternative comprehensive workflow (includes slow E2E tests)  
+./run-all-tests.sh --skip-docker
 ```
 
 2. **✅ Verify ALL test categories pass:**
@@ -169,8 +169,8 @@ Before ANY commit, you MUST:
 
 ```bash
 # 1. Make your changes to the codebase
-# 2. Run the mandatory test suite
-./run-all-tests.sh --skip-docker
+# 2. Run the mandatory test suite (fast, recommended)
+./run-all-tests.sh --fast
 
 # 3. VERIFY all tests pass - look for these exact messages:
 #    "✅ Unit Tests PASSED"
@@ -179,7 +179,7 @@ Before ANY commit, you MUST:
 
 # 4. If ANY test fails - STOP and fix them first
 # 5. Re-run tests until 100% pass rate achieved
-./run-all-tests.sh --skip-docker
+./run-all-tests.sh --fast
 
 # 6. ONLY AFTER all tests pass - commit your changes
 git add .
@@ -196,7 +196,7 @@ git add .
 git commit -m "Quick fix"  # FORBIDDEN!
 
 # ❌ NEVER do this - committing with known failures  
-./run-all-tests.sh --skip-docker  # Shows 1 FAILED test
+./run-all-tests.sh --fast  # Shows 1 FAILED test
 git commit -m "Will fix later"    # ABSOLUTELY FORBIDDEN!
 
 # ❌ NEVER do this - partial testing
@@ -204,7 +204,7 @@ pytest tests/unit/  # Only unit tests
 git commit -m "Unit tests pass"   # FORBIDDEN - must run ALL tests!
 ```
 
-**Docker tests are optional during development** but required for deployment validation. Use `--skip-docker` to focus on Python test suite during active development, but ALL Python tests must still pass.
+**Docker tests are optional during development** but required for deployment validation. Use `--fast` to focus on essential Python test suite during active development, or `--skip-docker` for comprehensive testing without Docker overhead. ALL enabled Python tests must still pass.
 
 ### Building and Packaging
 

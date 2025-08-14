@@ -12,6 +12,7 @@ import requests
 
 from vortex.models.period import FrequencyAttributes
 from vortex.utils.logging_utils import LoggingContext, LoggingConfiguration
+from vortex.core.constants import ProviderConstants
 from .auth import BarchartAuth
 
 
@@ -65,14 +66,14 @@ class BarchartClient:
             'endDate': end_date.strftime("%m/%d/%Y"),
             'period': frequency_attributes.name.lower(),
             'maxRecords': frequency_attributes.max_records_per_download,
-            'order': 'asc',
-            'dividends': 'false',
-            'backadjust': 'false',
-            'dbar': 1,
-            'custombar': '',
-            'volume': 'true',
-            'openInterest': 'true',
-            'splits': 'true'
+            'order': ProviderConstants.Barchart.DEFAULT_ORDER,
+            'dividends': ProviderConstants.Barchart.DEFAULT_DIVIDENDS,
+            'backadjust': ProviderConstants.Barchart.DEFAULT_BACKADJUST,
+            'dbar': ProviderConstants.Barchart.DEFAULT_DBAR,
+            'custombar': ProviderConstants.Barchart.DEFAULT_CUSTOMBAR,
+            'volume': ProviderConstants.Barchart.DEFAULT_VOLUME,
+            'openInterest': ProviderConstants.Barchart.DEFAULT_OPEN_INTEREST,
+            'splits': ProviderConstants.Barchart.DEFAULT_SPLITS
         }
     
     @staticmethod
@@ -99,5 +100,5 @@ class BarchartClient:
     def _build_usage_payload() -> dict:
         """Build payload for usage request."""
         return {
-            'type': 'quotes'
+            'type': ProviderConstants.Barchart.DEFAULT_USAGE_TYPE
         }

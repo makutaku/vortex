@@ -21,17 +21,17 @@ from vortex.models.future import Future
 from vortex.models.period import Period, FrequencyAttributes
 from vortex.models.price_series import FUTURES_SOURCE_TIME_ZONE
 from vortex.models.stock import Stock
-
-TIMEOUT_SECONDS_ON_HISTORICAL_DATA = 120
+from vortex.core.constants import ProviderConstants
 
 
 class IbkrDataProvider(DataProvider):
     PROVIDER_NAME = "InteractiveBrokers"
 
-    def __init__(self, ip_address, port):
+    def __init__(self, ip_address, port, client_id=None):
         self.ib = IB()
         self.ip_address = ip_address
         self.port = port
+        self.client_id = client_id or ProviderConstants.IBKR.DEFAULT_CLIENT_ID
         self.login()
 
     def get_name(self) -> str:
@@ -40,10 +40,10 @@ class IbkrDataProvider(DataProvider):
     @retry(wait_exponential_multiplier=2000,
            stop_max_attempt_number=5)
     def login(self):
-        client_id = 998
-        self.ib.connect(self.ip_address, self.port, clientId=client_id, readonly=True, timeout=20)
+        self.ib.connect(self.ip_address, self.port, clientId=self.client_id, readonly=True, 
+                       timeout=ProviderConstants.IBKR.CONNECTION_TIMEOUT_SECONDS)
         # Sometimes takes a few seconds to resolve... only have to do this once per process so no biggie
-        time.sleep(10)
+        time.sleep(ProviderConstants.IBKR.CONNECTION_TIMEOUT_SECONDS)
 
     def logout(self):
         try:
@@ -151,7 +151,7 @@ class IbkrDataProvider(DataProvider):
             whatToShow=what_to_show,
             useRTH=True,
             formatDate=2,
-            timeout=TIMEOUT_SECONDS_ON_HISTORICAL_DATA,
+            timeout=ProviderConstants.IBKR.HISTORICAL_DATA_TIMEOUT_SECONDS,
         )
         df = util.df(bars)
         logging.debug(f"Received data {df.shape} from {self.get_name()}")

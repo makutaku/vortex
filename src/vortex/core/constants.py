@@ -31,6 +31,17 @@ class ProviderConstants:
         BASE_URL = 'https://www.barchart.com'
         DOWNLOAD_ENDPOINT = '/my/download'
         
+        # Download request payload defaults
+        DEFAULT_ORDER = 'asc'
+        DEFAULT_DIVIDENDS = 'false'
+        DEFAULT_BACKADJUST = 'false'
+        DEFAULT_DBAR = 1
+        DEFAULT_CUSTOMBAR = ''
+        DEFAULT_VOLUME = 'true'
+        DEFAULT_OPEN_INTEREST = 'true'
+        DEFAULT_SPLITS = 'true'
+        DEFAULT_USAGE_TYPE = 'quotes'
+        
     class Yahoo:
         """Yahoo Finance provider constants."""
         
@@ -56,6 +67,7 @@ class ProviderConstants:
         DEFAULT_PORT = 7497
         DEFAULT_CLIENT_ID = 1
         CONNECTION_TIMEOUT_SECONDS = 10
+        HISTORICAL_DATA_TIMEOUT_SECONDS = 120
         
         # Request limits
         MAX_BARS_PER_DOWNLOAD = 10000

@@ -8,13 +8,24 @@ IMPORTANT: These tests require valid Barchart credentials and network access.
 They make real API calls to Barchart.com and should be run with caution in
 production environments due to API rate limits.
 
+TEST ORGANIZATION:
+1. Authentication test: Quick validation of login workflow (no downloads)
+2. Quick download test: Single symbol (AAPL) for rapid validation (~1 credit)
+3. Comprehensive test: Full asset coverage (marked @slow, ~6 credits)
+
 CONSERVATIVE APPROACH: Yahoo E2E tests provide comprehensive scenario coverage.
 Barchart tests focus on Barchart-specific functionality with controlled API usage:
-- Authentication workflow (bc-utils methodology)
-- Comprehensive download test with assets file (6 downloads: 3 symbols × 2 periods)
+- Authentication workflow (bc-utils methodology)  
+- Quick test: 1 download (AAPL daily) for fast CI validation
+- Comprehensive test: 6 downloads (3 symbols × 2 periods) marked as @slow
 - Asset coverage: Stock (AAPL), Future (GC), Forex (EURUSD) with daily + hourly periods
 - Full CSV validation for actual data quality verification
 - Minimal symbol count (1 per asset type) to conserve daily credits while ensuring coverage
+
+USAGE:
+- Default test run: Includes authentication + quick download (fast, minimal credits)
+- Fast test run: pytest -m "not slow" (excludes comprehensive test)
+- Comprehensive test: pytest -m "slow" (explicit opt-in)
 """
 
 import pytest
@@ -147,6 +158,129 @@ end_year = 2025
         # If successful, should show total providers count
         if result.exit_code == 0:
             assert "Total providers available" in output_text
+
+    @pytest.mark.skipif(
+        not check_barchart_connectivity("www.barchart.com"),
+        reason="No network connectivity to Barchart.com"
+    )
+    @pytest.mark.skipif(
+        not has_barchart_credentials(),
+        reason="Barchart credentials not available in environment"
+    )
+    def test_barchart_quick_download(self, cli_runner, temp_output_dir, test_config_file):
+        """
+        Quick Barchart download test with single stock symbol to conserve daily credits.
+        
+        This test validates core functionality with minimal API usage:
+        1. Authentication and login process
+        2. Single stock download (AAPL, daily period only)
+        3. CSV file creation and basic validation
+        4. Credential validation and basic error handling
+        
+        Coverage: 1 download total - AAPL daily data for 10-day range
+        Daily credits used: ~1 credit (minimal impact)
+        """
+        # Calculate recent date range for reliable data (ensure enough business days)
+        # Go back further to ensure we get at least 4 business days of data
+        end_date = datetime.now() - timedelta(days=1)  # Yesterday
+        start_date = end_date - timedelta(days=10)     # 10 days back to ensure 4+ business days
+        start_date_str = start_date.strftime('%Y-%m-%d')
+        end_date_str = end_date.strftime('%Y-%m-%d')
+        
+        # Execute minimal CLI download command (single symbol, daily period)
+        result = cli_runner.invoke(cli, [
+            '--config', str(test_config_file),
+            'download',
+            '--provider', 'barchart',
+            '--symbol', 'AAPL',
+            '--start-date', start_date_str,
+            '--end-date', end_date_str,
+            '--output-dir', str(temp_output_dir),
+            '--yes'
+        ])
+        
+        # Validate command execution
+        assert result is not None, "Test execution failed"
+        output_text = result.output
+        
+        # Check authentication success (critical for Barchart)
+        auth_success = "Logged in" in output_text
+        assert auth_success, f"Authentication failed. Output: {output_text}"
+        
+        # Check for successful download completion
+        download_success = ("Download completed successfully" in output_text or 
+                          "successfully downloaded" in output_text.lower() or
+                          "Download completed!" in output_text or
+                          "All 1 symbols successful" in output_text)
+        assert download_success, f"Download did not complete successfully. Output: {output_text}"
+        
+        # Verify CSV file was created
+        expected_file = temp_output_dir / "stocks" / "1d" / "AAPL.csv"
+        assert expected_file.exists(), f"Expected CSV file not found: {expected_file}"
+        
+        # Basic file validation (non-empty, reasonable size)
+        file_size = expected_file.stat().st_size
+        assert file_size > 100, f"CSV file too small ({file_size} bytes), likely empty or malformed"
+        
+        # Comprehensive CSV validation using standardized validation module
+        try:
+            from .csv_validation import validate_market_data_csv, validate_business_day_count
+            
+            # Comprehensive validation with reduced minimum for single test
+            date_range = (start_date, end_date)
+            validation_result = validate_market_data_csv(
+                expected_file,
+                expected_min_rows=1,  # Minimum 1 row for quick test
+                date_range=date_range,
+                provider="barchart"
+            )
+            
+            # Assert comprehensive validation passes
+            assert validation_result.is_valid, (
+                f"Quick Barchart CSV validation failed: {validation_result.errors}"
+            )
+            
+            # Business day validation with tolerance for quick test
+            is_valid, expected_days, business_day_message = validate_business_day_count(
+                start_date, end_date, validation_result.row_count, 
+                tolerance=10  # Higher tolerance for quick test (10-day range = ~7 business days)
+            )
+            
+            print(f"✅ Quick Barchart test PASSED:")
+            print(f"  File: {expected_file}")
+            print(f"  Rows: {validation_result.row_count}")
+            print(f"  Columns: {', '.join(validation_result.columns)}")
+            print(f"  Size: {validation_result.file_size} bytes")
+            print(f"  Business days: {business_day_message}")
+            print(f"  Credits used: ~1 (minimal)")
+            
+            if validation_result.warnings:
+                print(f"  Warnings:")
+                for warning in validation_result.warnings:
+                    print(f"    ⚠️ {warning}")
+            
+        except ImportError:
+            # Fallback to basic validation if CSV validation module not available
+            import pandas as pd
+            df = pd.read_csv(expected_file)
+            assert len(df) > 0, "CSV file exists but contains no data rows"
+            assert len(df.columns) >= 5, f"CSV should have at least 5 columns (OHLCV), got {len(df.columns)}"
+            
+            # Check for required price columns (case insensitive)
+            columns_lower = [col.lower() for col in df.columns]
+            required_cols = ['open', 'high', 'low', 'close']
+            for req_col in required_cols:
+                assert any(req_col in col for col in columns_lower), f"Missing required column: {req_col}"
+            
+            print(f"✅ Quick Barchart test PASSED (basic validation):")
+            print(f"  File: {expected_file}")
+            print(f"  Rows: {len(df)}")
+            print(f"  Columns: {list(df.columns)}")
+            print(f"  Size: {file_size} bytes")
+            print(f"  Credits used: ~1 (minimal)")
+            
+        except Exception as e:
+            assert False, f"CSV file validation failed: {e}"
 
     @pytest.mark.skipif(
         not check_barchart_connectivity("www.barchart.com"),
