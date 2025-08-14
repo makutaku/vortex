@@ -19,7 +19,7 @@ class BarchartAuth:
     
     def __init__(self, username: str, password: str):
         if not username or not password:
-            raise Exception('Barchart credentials are required')
+            raise ValueError('Barchart credentials are required')
         
         self.username = username
         self.password = password
@@ -38,8 +38,8 @@ class BarchartAuth:
         """Authenticate with Barchart using credentials (bc-utils methodology)."""
         config = LoggingConfiguration(entry_msg="Logging in ...", success_msg="Logged in.")
         with LoggingContext(config):
-            # First, get the login page to establish session
-            resp = self.session.get(self.BARCHART_LOGIN_URL)
+            # First, get the login page to establish session (with timeout to prevent hanging)
+            resp = self.session.get(self.BARCHART_LOGIN_URL, timeout=30)
             
             # Extract CSRF token from the page using bc-utils approach
             soup = BeautifulSoup(resp.text, 'html.parser')
@@ -66,16 +66,18 @@ class BarchartAuth:
                 'remember': '1'  # bc-utils uses '1' instead of 'on'
             }
             
-            # Post login credentials
-            resp = self.session.post(self.BARCHART_LOGIN_URL, data=payload, allow_redirects=True)
+            # Post login credentials (with timeout to prevent hanging)
+            resp = self.session.post(self.BARCHART_LOGIN_URL, data=payload, allow_redirects=True, timeout=30)
             
             # Check if login was successful (bc-utils approach)
             if 'login' in resp.url.lower():
-                raise Exception('Invalid Barchart credentials or login failed')
+                from vortex.exceptions.providers import AuthenticationError
+                raise AuthenticationError('barchart', 'Invalid Barchart credentials or login failed')
             
             # Verify status code is OK
             if resp.status_code != 200:
-                raise Exception('Invalid Barchart credentials or login failed')
+                from vortex.exceptions.providers import AuthenticationError
+                raise AuthenticationError('barchart', f'Login failed with status code: {resp.status_code}')
                 
             # Verify we have necessary cookies for API access (optional check for testing)
             if hasattr(self.session, 'cookies') and 'laravel_session' not in self.session.cookies:
@@ -118,7 +120,7 @@ class BarchartAuth:
         logger.info("No XSRF token in cookies, attempting to obtain one")
         
         # Visit main page to get XSRF token
-        resp = self.session.get(self.BARCHART_URL)
+        resp = self.session.get(self.BARCHART_URL, timeout=30)
         
         if 'XSRF-TOKEN' in self.session.cookies:
             return unquote(self.session.cookies['XSRF-TOKEN'])
@@ -135,9 +137,9 @@ class BarchartAuth:
         
         try:
             if params:
-                response = self.session.get(url, headers=headers, params=params)
+                response = self.session.get(url, headers=headers, params=params, timeout=30)
             else:
-                response = self.session.get(url, headers=headers)
+                response = self.session.get(url, headers=headers, timeout=30)
             
             response.raise_for_status()
             

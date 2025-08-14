@@ -80,8 +80,13 @@ class TestShouldRetry:
 
     def test_should_retry_generic_exception(self):
         """Test that generic exceptions should be retried."""
-        error = ValueError("Some error")
+        error = RuntimeError("Some transient error")
         assert should_retry(error) is True
+    
+    def test_should_not_retry_value_error(self):
+        """Test that ValueError (configuration/validation errors) should not be retried."""
+        error = ValueError("Invalid configuration")
+        assert should_retry(error) is False
 
     def test_should_retry_multiple_inheritance(self):
         """Test exception inheritance edge cases."""
@@ -202,10 +207,10 @@ class TestDataProvider:
         """Test get_max_range with non-existent period."""
         provider.set_frequency_attributes(sample_frequency_attributes)
         
-        # Test non-existent period - current implementation doesn't handle gracefully
-        # This would need to be fixed in the actual implementation
-        with pytest.raises(AttributeError):
-            provider.get_max_range(Period.Weekly)
+        # Test non-existent period - improved implementation returns None gracefully
+        # instead of raising AttributeError
+        result = provider.get_max_range(Period.Weekly)
+        assert result is None
 
     def test_get_min_start(self, provider):
         """Test get_min_start method."""
@@ -251,9 +256,10 @@ class TestDataProvider:
         """Test get_min_start with non-existent period."""
         provider.set_frequency_attributes(sample_frequency_attributes)
         
-        # Current implementation doesn't handle gracefully
-        with pytest.raises(AttributeError):
-            provider.get_min_start(Period.Weekly)
+        # Improved implementation returns None gracefully
+        # instead of raising AttributeError
+        result = provider.get_min_start(Period.Weekly)
+        assert result is None
 
     def test_fetch_historical_data_success(self, provider, sample_instrument):
         """Test successful fetch_historical_data."""
@@ -344,16 +350,15 @@ class TestDataProvider:
         """Test fetch_historical_data with non-existent period."""
         provider.set_frequency_attributes([])
         
-        # Should handle gracefully when period is not supported
-        result = provider.fetch_historical_data(
-            sample_instrument,
-            Period.Daily,
-            datetime(2024, 1, 1),
-            datetime(2024, 1, 3)
-        )
-        
-        # The behavior depends on implementation, but it should not crash
-        # Typically would return None or raise an appropriate exception
+        # Improved implementation raises a clear ValueError for unsupported periods
+        # instead of crashing with AttributeError deep in the implementation
+        with pytest.raises(ValueError, match="Period .* is not supported by provider"):
+            provider.fetch_historical_data(
+                sample_instrument,
+                Period.Daily,
+                datetime(2024, 1, 1),
+                datetime(2024, 1, 3)
+            )
 
     def test_abstract_methods_must_be_implemented(self):
         """Test that abstract methods must be implemented in concrete classes."""

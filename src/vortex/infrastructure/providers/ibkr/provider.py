@@ -52,6 +52,35 @@ class IbkrDataProvider(DataProvider):
         except BaseException:
             logging.warning("Trying to disconnect IB client failed... ensure process is killed")
         pass
+    
+    def validate_configuration(self) -> bool:
+        """Validate IBKR provider configuration.
+        
+        Checks that IP address and port are provided and valid.
+        
+        Returns:
+            True if configuration is valid, False otherwise
+        """
+        try:
+            # Validate IP address is not empty
+            if not self.ip_address or not str(self.ip_address).strip():
+                return False
+            
+            # Validate port is a valid integer in reasonable range
+            if not isinstance(self.port, int) or self.port <= 0 or self.port > 65535:
+                return False
+                
+            return True
+        except Exception:
+            return False
+    
+    def get_required_config_fields(self) -> list[str]:
+        """Get list of required configuration fields for IBKR provider.
+        
+        Returns:
+            List of required configuration field names
+        """
+        return ['host', 'port']
 
     def _get_frequency_attributes(self) -> list[FrequencyAttributes]:
         return [

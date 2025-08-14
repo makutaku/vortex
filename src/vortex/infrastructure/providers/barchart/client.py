@@ -33,7 +33,7 @@ class BarchartClient:
         headers = self._build_download_request_headers(xsrf_token, url)
         payload = self._build_download_request_payload(history_csrf_token, symbol, frequency_attributes,
                                                       start_date, end_date)
-        resp = self.session.post(self.BARCHART_DOWNLOAD_URL, headers=headers, data=payload)
+        resp = self.session.post(self.BARCHART_DOWNLOAD_URL, headers=headers, data=payload, timeout=60)
         logging.debug(f"POST {self.BARCHART_DOWNLOAD_URL}, "
                      f"status: {resp.status_code}, "
                      f"data length: {len(resp.content)}")
@@ -46,7 +46,7 @@ class BarchartClient:
         with LoggingContext(config):
             headers = self._build_usage_request_headers(url, xsrf_token)
             payload = self._build_usage_payload()
-            resp = self.session.post(self.BARCHART_USAGE_URL, headers=headers, data=payload)
+            resp = self.session.post(self.BARCHART_USAGE_URL, headers=headers, data=payload, timeout=30)
             xsrf_token = self.auth.get_xsrf_token()
             usage_data = json.loads(resp.text)
             logging.debug(f"usage data: {usage_data}")

@@ -34,13 +34,21 @@ from .parser import BarchartParser
 
 
 class BarchartDataProvider(DataProvider):
-    """Barchart data provider with modular architecture."""
+    """Barchart data provider with modular architecture.
+    
+    This provider requires authentication and implements the ConfigurableProviderProtocol
+    interface for proper configuration management.
+    """
     
     PROVIDER_NAME = "Barchart"
     BARCHART_URL = ProviderConstants.Barchart.BASE_URL
     
     def __init__(self, username: str, password: str, 
                  daily_download_limit: int = ProviderConstants.Barchart.DEFAULT_DAILY_DOWNLOAD_LIMIT):
+        
+        # Store credentials for validation
+        self.username = username
+        self.password = password
         
         # Store daily limit for informational purposes (not enforced client-side)
         # bc-utils relies on server-side enforcement: 250 for paid, 5 for free users
@@ -90,6 +98,27 @@ class BarchartDataProvider(DataProvider):
     def logout(self):
         """Logout from Barchart (delegated to auth module)."""
         self.auth.logout()
+    
+    def validate_configuration(self) -> bool:
+        """Validate Barchart provider configuration.
+        
+        Checks that required credentials are provided and non-empty.
+        
+        Returns:
+            True if configuration is valid, False otherwise
+        """
+        return (self.username is not None and 
+                self.password is not None and
+                len(self.username.strip()) > 0 and 
+                len(self.password.strip()) > 0)
+    
+    def get_required_config_fields(self) -> list[str]:
+        """Get list of required configuration fields for Barchart provider.
+        
+        Returns:
+            List of required configuration field names
+        """
+        return ['username', 'password']
 
     def _fetch_usage(self, url: str, xsrf_token: str) -> tuple[dict, str]:
         """Check download usage count (delegated to client)."""
@@ -108,7 +137,7 @@ class BarchartDataProvider(DataProvider):
         logger = logging.getLogger(__name__)
         
         # Use exact bc-utils approach: GET home page for CSRF token, then POST with onlyCheckPermissions
-        home_response = self.auth.session.get(self.BARCHART_URL)
+        home_response = self.auth.session.get(self.BARCHART_URL, timeout=30)
         
         if home_response.status_code != 200:
             logger.debug(f"Cannot access home page for usage check: {home_response.status_code}")
@@ -138,7 +167,7 @@ class BarchartDataProvider(DataProvider):
         # Use bc-utils /my/download endpoint with onlyCheckPermissions
         download_url = f"{self.BARCHART_URL}/my/download"
         logger.debug(f"bc-utils usage check payload: {payload}")
-        response = self.auth.session.post(download_url, data=payload, headers=headers)
+        response = self.auth.session.post(download_url, data=payload, headers=headers, timeout=30)
         
         logger.debug(f"Usage check response status: {response.status_code}")
         logger.debug(f"Usage check response: {response.text[:200]}...")
@@ -280,16 +309,18 @@ class BarchartDataProvider(DataProvider):
         
         logger.info(f"Using bc-utils /my/download endpoint for {instrument}")
         
-        # Get CSRF token from home page (the only request we actually need)
-        home_response = self.auth.session.get(self.BARCHART_URL)
+        # Get CSRF token from home page (the only request we actually need) with timeout to prevent hanging
+        home_response = self.auth.session.get(self.BARCHART_URL, timeout=30)
         
         if home_response.status_code != 200:
-            raise Exception(f"Cannot access home page for CSRF token: {home_response.status_code}")
+            from vortex.exceptions.providers import VortexConnectionError as ConnectionError
+            raise ConnectionError('barchart', f"Cannot access home page for CSRF token: {home_response.status_code}")
         
         # Extract CSRF token using shared method
         csrf_token = self._extract_csrf_token(home_response)
         if not csrf_token:
-            raise Exception("No CSRF token found on home page")
+            from vortex.exceptions.providers import AuthenticationError
+            raise AuthenticationError('barchart', "No CSRF token found on home page")
         
         # Prepare payload using actual working format from network capture
         # Determine appropriate file name based on frequency
@@ -352,13 +383,14 @@ class BarchartDataProvider(DataProvider):
         
         # Use the /my/download endpoint directly (this is what works!)
         logger.info(f"Using /my/download endpoint with meta CSRF token for {instrument}")
-        response = self.auth.session.post(download_url, data=payload, headers=headers)
+        response = self.auth.session.post(download_url, data=payload, headers=headers, timeout=60)
         
         logger.debug(f"Download response status: {response.status_code}")
         logger.debug(f"Download response headers: {dict(response.headers)}")
         
         if response.status_code != 200:
-            raise Exception(f"Download failed with status: {response.status_code}. Response: {response.text[:300]}...")
+            from vortex.exceptions.providers import VortexConnectionError as ConnectionError
+            raise ConnectionError('barchart', f"Download failed with status: {response.status_code}. Response: {response.text[:300]}...")
         
         # Check if response contains CSV data
         logger.debug(f"Response content preview: {response.text[:300]}...")
@@ -371,7 +403,7 @@ class BarchartDataProvider(DataProvider):
             logger.info(f"bc-utils download successful for {instrument}")
             return self._process_bc_utils_csv_response(response.text, frequency_attributes.frequency, tz)
         else:
-            raise Exception(f"bc-utils download returned no CSV data for {instrument}. Response: {response.text}")
+            raise DataNotFoundError('barchart', str(instrument), frequency_attributes.frequency, start_date, end_date)
 
     def _get_bc_utils_frequency(self, period) -> str:
         """Convert Period to bc-utils frequency parameter."""
@@ -415,7 +447,7 @@ class BarchartDataProvider(DataProvider):
         df = pd.read_csv(iostr, quotechar='"')
         
         if df.empty:
-            raise Exception("bc-utils returned empty CSV")
+            raise DataNotFoundError('barchart', 'unknown', frequency, None, None)
             
         logger.debug(f"bc-utils CSV columns: {list(df.columns)}")
         logger.debug(f"bc-utils CSV shape: {df.shape}")

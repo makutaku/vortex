@@ -83,7 +83,7 @@ class TestBarchartAuthLogin:
             self.auth.login()
             
             # Verify session calls
-            self.auth.session.get.assert_called_once_with(self.auth.BARCHART_LOGIN_URL)
+            self.auth.session.get.assert_called_once_with(self.auth.BARCHART_LOGIN_URL, timeout=30)
             self.auth.session.post.assert_called_once()
     
     def test_login_invalid_credentials(self):
@@ -264,7 +264,7 @@ class TestBarchartAuthIntegration:
             auth.login()
             
             # Verify the flow
-            auth.session.get.assert_called_once()
+            auth.session.get.assert_called_once_with('https://www.barchart.com/login', timeout=30)
             auth.session.post.assert_called_once()
             
             # Verify payload structure
