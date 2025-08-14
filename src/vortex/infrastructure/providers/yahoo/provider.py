@@ -8,6 +8,7 @@ import yfinance as yf
 from pandas import DataFrame
 
 from ..base import DataProvider
+from ..interfaces import CacheManagerProtocol, DataFetcherProtocol, YahooCacheManager, YahooDataFetcher
 from vortex.models.columns import DATETIME_INDEX_NAME, validate_required_columns, get_provider_expected_columns, standardize_dataframe_columns
 from vortex.exceptions.providers import DataNotFoundError, VortexConnectionError as ConnectionError
 from vortex.core.error_handling.strategies import ErrorHandlingStrategy
@@ -21,12 +22,38 @@ class YahooDataProvider(DataProvider):
     YAHOO_DATE_TIME_COLUMN = "Date"
     PROVIDER_NAME = "YahooFinance"
 
-    def __init__(self) -> None:
+    def __init__(self, cache_manager: Optional[CacheManagerProtocol] = None, 
+                 data_fetcher: Optional[DataFetcherProtocol] = None) -> None:
         super().__init__()  # Initialize standardized error handling
-        YahooDataProvider.set_yf_tz_cache()
+        
+        # Inject dependencies with sensible defaults
+        self._cache_manager = cache_manager or self._create_default_cache_manager()
+        self._data_fetcher = data_fetcher or YahooDataFetcher()
+        
+        # Initialize cache on first use, not in constructor
+        self._cache_initialized = False
 
     def get_name(self) -> str:
         return YahooDataProvider.PROVIDER_NAME
+    
+    def _create_default_cache_manager(self) -> YahooCacheManager:
+        """Create default cache manager with standard cache directory."""
+        cache_manager = YahooCacheManager()
+        
+        # Get the temporary folder for the current user
+        temp_folder = tempfile.gettempdir()
+        cache_folder = os.path.join(temp_folder, '.cache', 'py-yfinance')
+        cache_manager.configure_cache(cache_folder)
+        
+        return cache_manager
+    
+    def _ensure_cache_initialized(self) -> None:
+        """Ensure cache is initialized before data operations."""
+        if not self._cache_initialized:
+            self._cache_manager.configure_cache(
+                os.path.join(tempfile.gettempdir(), '.cache', 'py-yfinance')
+            )
+            self._cache_initialized = True
 
     def _get_frequency_attributes(self) -> List[FrequencyAttributes]:
 
@@ -62,8 +89,11 @@ class YahooDataProvider(DataProvider):
                                start: datetime, end: datetime) -> Optional[DataFrame]:
         """Fetch historical data with standardized error handling."""
         try:
+            # Ensure cache is initialized before data operations
+            self._ensure_cache_initialized()
+            
             interval = frequency_attributes.properties.get('interval')
-            df = YahooDataProvider.fetch_historical_data_for_symbol(
+            df = self._fetch_data_using_injected_fetcher(
                 instrument.get_symbol(), interval, start, end
             )
             
@@ -90,23 +120,15 @@ class YahooDataProvider(DataProvider):
                 start_date=start,
                 end_date=end
             )
-
-    @staticmethod
-    def fetch_historical_data_for_symbol(symbol: str, interval: str, start_date: datetime, end_date: datetime) -> DataFrame:
-        """Fetch data from Yahoo Finance with improved error handling."""
+    
+    def _fetch_data_using_injected_fetcher(self, symbol: str, interval: str, start_date: datetime, end_date: datetime) -> DataFrame:
+        """Fetch data using the injected data fetcher."""
         import logging
         logger = logging.getLogger(__name__)
         
         try:
-            ticker = yf.Ticker(symbol)
-            df = ticker.history(
-                start=start_date.strftime("%Y-%m-%d"),
-                end=end_date.strftime("%Y-%m-%d"),
-                interval=interval,
-                back_adjust=True,
-                repair=True,
-                raise_errors=True
-            )
+            # Use injected data fetcher
+            df = self._data_fetcher.fetch_historical_data(symbol, interval, start_date, end_date)
 
             # Check for empty data immediately
             if df.empty:
@@ -133,14 +155,3 @@ class YahooDataProvider(DataProvider):
             logger.error(f"Yahoo Finance API error for {symbol} ({interval}): {type(e).__name__}: {e}")
             raise ConnectionError("yahoo", f"Failed to fetch data for {symbol}: {e}") from e
 
-    @staticmethod
-    def set_yf_tz_cache() -> None:
-        # Get the temporary folder for the current user
-        temp_folder = tempfile.gettempdir()
-
-        # Create the subfolder "/.cache/py-yfinance" under the temporary folder
-        cache_folder = os.path.join(temp_folder, '.cache', 'py-yfinance')
-        os.makedirs(cache_folder, exist_ok=True)
-
-        # Set the cache location for timezone data
-        yf.set_tz_cache_location(cache_folder)

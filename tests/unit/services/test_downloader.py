@@ -120,6 +120,10 @@ class TestDataProviders:
         assert provider is not None
         assert provider.auth.username == "test@example.com"
         assert provider.daily_limit == 100
+        
+        # Login is no longer called in constructor - it's done explicitly by factory
+        # Call login explicitly to test the method works
+        provider.login()
         mock_login.assert_called_once()
     
     @patch('vortex.infrastructure.providers.ibkr.provider.IbkrDataProvider.login')
@@ -134,6 +138,10 @@ class TestDataProviders:
         assert provider is not None
         assert provider.ip_address == "localhost"
         assert provider.port == "7497"
+        
+        # Login is no longer called in constructor - it's done explicitly by factory
+        # Call login explicitly to test the method works
+        provider.login()
         mock_login.assert_called_once()
 
 

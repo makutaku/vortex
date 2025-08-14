@@ -19,21 +19,27 @@ class BarchartParser:
     BARCHART_DATE_TIME_COLUMN = 'Time'
     BARCHART_CLOSE_COLUMN = "Last"
     
-    @classmethod
-    def convert_downloaded_csv_to_df(cls, period: Period, data: str, tz: str) -> pd.DataFrame:
+    def convert_downloaded_csv_to_df(self, period: Period, data: str, tz: str) -> pd.DataFrame:
         """Convert downloaded CSV data to a standardized DataFrame."""
         # Debug: log raw CSV content to understand what we're receiving
-        logging.debug(f"Raw CSV data from Barchart: {data[:500]}...")  # First 500 chars
+        debug_length = getattr(self, 'debug_log_length', 500)
+        logging.debug(f"Raw CSV data from Barchart: {data[:debug_length]}...")  # First N chars
         
         iostr = io.StringIO(data)
         date_format = '%Y-%m-%d %H:%M' if period.is_intraday() else '%Y-%m-%d'
+        
         # Handle quoted timestamps in CSV by specifying quote character
-        df = pd.read_csv(iostr, skipfooter=1, engine='python', quotechar='"')
+        # Allow configurable CSV parsing options
+        skipfooter = getattr(self, 'csv_skipfooter', 1)
+        engine = getattr(self, 'csv_engine', 'python')
+        quotechar = getattr(self, 'csv_quotechar', '"')
+        
+        df = pd.read_csv(iostr, skipfooter=skipfooter, engine=engine, quotechar=quotechar)
         logging.debug(f"Received data {df.shape} from Barchart")
         logging.debug(f"CSV columns: {list(df.columns)}")
         
         # Validate required columns before processing
-        required_columns = [cls.BARCHART_DATE_TIME_COLUMN, cls.BARCHART_CLOSE_COLUMN]
+        required_columns = [self.BARCHART_DATE_TIME_COLUMN, self.BARCHART_CLOSE_COLUMN]
         missing_cols, found_cols = validate_required_columns(df.columns, required_columns, case_insensitive=False)
         if missing_cols:
             raise ValueError(f"Missing required Barchart columns: {missing_cols}. Found columns: {list(df.columns)}")

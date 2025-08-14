@@ -223,17 +223,17 @@ class TestBarchartClientUsage:
 
 
 @pytest.mark.unit
-class TestBarchartClientStaticMethods:
-    """Test static utility methods."""
+class TestBarchartClientInstanceMethods:
+    """Test instance utility methods (formerly static)."""
     
-    def test_build_download_request_payload(self, sample_frequency_attributes):
+    def test_build_download_request_payload(self, client, sample_frequency_attributes):
         """Test download request payload construction."""
         history_csrf_token = "test-csrf"
         symbol = "AAPL" 
         start_date = datetime(2024, 3, 15)
         end_date = datetime(2024, 3, 20)
         
-        payload = BarchartClient._build_download_request_payload(
+        payload = client._build_download_request_payload(
             history_csrf_token, symbol, sample_frequency_attributes, start_date, end_date
         )
         
@@ -257,12 +257,12 @@ class TestBarchartClientStaticMethods:
         
         assert payload == expected
     
-    def test_build_download_request_headers(self):
+    def test_build_download_request_headers(self, client):
         """Test download request headers construction."""
         xsrf_token = "test-xsrf-token"
         url = "https://www.barchart.com/test/url"
         
-        headers = BarchartClient._build_download_request_headers(xsrf_token, url)
+        headers = client._build_download_request_headers(xsrf_token, url)
         
         expected = {
             'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
@@ -273,12 +273,12 @@ class TestBarchartClientStaticMethods:
         
         assert headers == expected
     
-    def test_build_usage_request_headers(self):
+    def test_build_usage_request_headers(self, client):
         """Test usage request headers construction."""
         url = "https://www.barchart.com/usage"
         xsrf_token = "usage-token"
         
-        headers = BarchartClient._build_usage_request_headers(url, xsrf_token)
+        headers = client._build_usage_request_headers(url, xsrf_token)
         
         expected = {
             'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
@@ -289,9 +289,9 @@ class TestBarchartClientStaticMethods:
         
         assert headers == expected
     
-    def test_build_usage_payload(self):
+    def test_build_usage_payload(self, client):
         """Test usage request payload construction."""
-        payload = BarchartClient._build_usage_payload()
+        payload = client._build_usage_payload()
         
         assert payload == {'type': 'quotes'}
 

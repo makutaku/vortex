@@ -3,6 +3,7 @@ import time
 from datetime import timedelta, datetime
 from functools import singledispatchmethod
 from retrying import retry
+from typing import Optional
 
 import pandas as pd
 from ib_insync import IB, util
@@ -10,6 +11,7 @@ from ib_insync import Stock as IB_Stock, Future as IB_Future, Forex as IB_Forex
 from pandas import DataFrame
 
 from ..base import DataProvider
+from ..interfaces import ConnectionManagerProtocol, IBKRConnectionManager
 from vortex.models.columns import (
     DATETIME_INDEX_NAME, OPEN_COLUMN, HIGH_COLUMN, 
     LOW_COLUMN, CLOSE_COLUMN, VOLUME_COLUMN,
@@ -29,13 +31,19 @@ from vortex.core.constants import ProviderConstants
 class IbkrDataProvider(DataProvider):
     PROVIDER_NAME = "InteractiveBrokers"
 
-    def __init__(self, ip_address, port, client_id=None):
+    def __init__(self, ip_address, port, client_id=None, connection_manager: Optional[ConnectionManagerProtocol] = None):
         super().__init__()  # Initialize standardized error handling
         self.ib = IB()
         self.ip_address = ip_address
         self.port = port
         self.client_id = client_id or ProviderConstants.IBKR.DEFAULT_CLIENT_ID
-        self.login()
+        
+        # Inject connection manager with sensible default
+        self._connection_manager = connection_manager or IBKRConnectionManager(
+            self.ib, self.ip_address, self.port, self.client_id
+        )
+        
+        # Don't auto-connect in constructor - require explicit login call
 
     def get_name(self) -> str:
         return IbkrDataProvider.PROVIDER_NAME
@@ -44,12 +52,11 @@ class IbkrDataProvider(DataProvider):
            stop_max_attempt_number=5,
            retry_on_exception=lambda exc: not isinstance(exc, AuthenticationError))
     def login(self):
-        """Login to IBKR with standardized error handling and retry logic."""
+        """Login to IBKR using injected connection manager with standardized error handling."""
         try:
-            self.ib.connect(self.ip_address, self.port, clientId=self.client_id, readonly=True, 
-                           timeout=ProviderConstants.IBKR.CONNECTION_TIMEOUT_SECONDS)
-            # Sometimes takes a few seconds to resolve... only have to do this once per process so no biggie
-            time.sleep(ProviderConstants.IBKR.CONNECTION_TIMEOUT_SECONDS)
+            success = self._connection_manager.connect(timeout=ProviderConstants.IBKR.CONNECTION_TIMEOUT_SECONDS)
+            if not success:
+                raise ConnectionError("ibkr", f"Failed to establish connection to {self.ip_address}:{self.port}")
             
         except Exception as e:
             # Create standardized connection error
@@ -60,10 +67,10 @@ class IbkrDataProvider(DataProvider):
             raise connection_error from e
 
     def logout(self):
-        """Logout from IBKR with standardized error handling."""
+        """Logout from IBKR using injected connection manager with standardized error handling."""
         try:
-            # Try and disconnect IB client
-            self.ib.disconnect()
+            # Use injected connection manager
+            self._connection_manager.disconnect()
         except Exception as e:
             # Use standardized error handling for logout - log but continue
             self._handle_provider_error(
@@ -232,9 +239,9 @@ class IbkrDataProvider(DataProvider):
                 frequency=frequency_attributes.frequency
             )
 
-    @staticmethod
-    def to_ibkr_finance_bar_size(period: Period) -> str:
-        ibkr_intervals = {
+    def to_ibkr_finance_bar_size(self, period: Period) -> str:
+        """Convert period to IBKR bar size with configurable mappings."""
+        default_intervals = {
             Period.Minute_1: '1 min',
             Period.Minute_2: '2 mins',
             Period.Minute_5: '5 mins',
@@ -246,11 +253,13 @@ class IbkrDataProvider(DataProvider):
             Period.Monthly: '1 month',
             Period.Quarterly: '3 months'
         }
+        # Allow custom interval mappings via instance configuration
+        ibkr_intervals = getattr(self, 'custom_bar_sizes', default_intervals)
         return ibkr_intervals.get(period)
 
-    @staticmethod
-    def to_ibkr_finance_duration_str(period: Period) -> str:
-        duration_lookup = dict(
+    def to_ibkr_finance_duration_str(self, period: Period) -> str:
+        """Convert period to IBKR duration string with configurable mappings."""
+        default_duration_lookup = dict(
             [
                 (Period.Quarterly, "50 Y"),
                 (Period.Monthly, "50 Y"),
@@ -263,4 +272,6 @@ class IbkrDataProvider(DataProvider):
                 (Period.Minute_1, "7 D"),
             ]
         )
+        # Allow custom duration mappings via instance configuration
+        duration_lookup = getattr(self, 'custom_durations', default_duration_lookup)
         return duration_lookup.get(period)

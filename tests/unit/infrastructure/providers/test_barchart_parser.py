@@ -16,6 +16,12 @@ from vortex.models.period import Period
 from vortex.models.columns import CLOSE_COLUMN, DATETIME_COLUMN_NAME
 
 
+@pytest.fixture
+def parser():
+    """Create a BarchartParser instance for testing."""
+    return BarchartParser()
+
+
 @pytest.mark.unit
 class TestBarchartParser:
     """Test BarchartParser class functionality."""
@@ -25,7 +31,7 @@ class TestBarchartParser:
         assert BarchartParser.BARCHART_DATE_TIME_COLUMN == 'Time'
         assert BarchartParser.BARCHART_CLOSE_COLUMN == "Last"
     
-    def test_convert_daily_csv_to_df(self):
+    def test_convert_daily_csv_to_df(self, parser):
         """Test conversion of daily CSV data to DataFrame."""
         # Sample daily CSV data from Barchart
         csv_data = """Time,Open,High,Low,Last,Volume,Open Interest
@@ -40,7 +46,7 @@ Footer data to skip
         
         # Mock all logging calls from both the parser and the column standardizer
         with patch('logging.debug') as mock_debug:
-            df = BarchartParser.convert_downloaded_csv_to_df(period, csv_data, tz)
+            df = parser.convert_downloaded_csv_to_df(period, csv_data, tz)
         
         # Verify shape and structure
         assert len(df) == 3
@@ -64,7 +70,7 @@ Footer data to skip
         assert df[CLOSE_COLUMN].iloc[1] == 106.50
         assert df[CLOSE_COLUMN].iloc[2] == 107.25
     
-    def test_convert_intraday_csv_to_df(self):
+    def test_convert_intraday_csv_to_df(self, parser):
         """Test conversion of intraday CSV data to DataFrame."""
         # Sample intraday CSV data with new YYYY-MM-DD HH:MM format (bc-utils v0.1.7+)
         csv_data = """Time,Open,High,Low,Last,Volume,Open Interest
@@ -77,7 +83,7 @@ Footer line
         period = Period('30m')  # Intraday period
         tz = 'America/Chicago'
         
-        df = BarchartParser.convert_downloaded_csv_to_df(period, csv_data, tz)
+        df = parser.convert_downloaded_csv_to_df(period, csv_data, tz)
         
         # Verify intraday-specific processing
         assert len(df) == 3
@@ -89,14 +95,14 @@ Footer line
         assert df[CLOSE_COLUMN].iloc[1] == 100.75
         assert df[CLOSE_COLUMN].iloc[2] == 101.25
     
-    def test_column_renaming(self):
+    def test_column_renaming(self, parser):
         """Test that Barchart columns are renamed to standard format."""
         csv_data = """Time,Open,High,Low,Last,Volume
 2024-01-01,100,105,99,104,1000
 """
         
         period = Period('1d')
-        df = BarchartParser.convert_downloaded_csv_to_df(period, csv_data, 'UTC')
+        df = parser.convert_downloaded_csv_to_df(period, csv_data, 'UTC')
         
         # Verify standard column names
         assert DATETIME_COLUMN_NAME == df.index.name
@@ -104,7 +110,7 @@ Footer line
         assert 'Last' not in df.columns  # Original name should be renamed
         assert 'Time' not in df.columns  # Time becomes index
     
-    def test_footer_skipping(self):
+    def test_footer_skipping(self, parser):
         """Test that CSV footer is properly skipped."""
         csv_data = """Time,Open,High,Low,Last,Volume
 2024-01-01,100,105,99,104,1000
@@ -113,14 +119,14 @@ This is a footer line that should be skipped
 """
         
         period = Period('1d')
-        df = BarchartParser.convert_downloaded_csv_to_df(period, csv_data, 'UTC')
+        df = parser.convert_downloaded_csv_to_df(period, csv_data, 'UTC')
         
         # Should only have 2 data rows, footer skipped
         assert len(df) == 2
         assert df[CLOSE_COLUMN].iloc[0] == 104.0
         assert df[CLOSE_COLUMN].iloc[1] == 106.0
     
-    def test_timezone_conversion(self):
+    def test_timezone_conversion(self, parser):
         """Test timezone localization and conversion to UTC."""
         csv_data = """Time,Open,High,Low,Last,Volume
 2024-01-01,100,105,99,104,1000
@@ -130,7 +136,7 @@ Footer
         period = Period('1d')
         source_tz = 'America/New_York'
         
-        df = BarchartParser.convert_downloaded_csv_to_df(period, csv_data, source_tz)
+        df = parser.convert_downloaded_csv_to_df(period, csv_data, source_tz)
         
         # Verify timezone conversion
         assert str(df.index.tz) == 'UTC'
@@ -142,7 +148,7 @@ Footer
         first_timestamp = df.index[0]
         assert first_timestamp.tz is not None
     
-    def test_empty_csv_handling(self):
+    def test_empty_csv_handling(self, parser):
         """Test handling of empty or minimal CSV data."""
         # CSV with only headers
         csv_data = """Time,Open,High,Low,Last,Volume
@@ -150,13 +156,13 @@ Footer line
 """
         
         period = Period('1d')
-        df = BarchartParser.convert_downloaded_csv_to_df(period, csv_data, 'UTC')
+        df = parser.convert_downloaded_csv_to_df(period, csv_data, 'UTC')
         
         # Should return empty DataFrame
         assert len(df) == 0
         assert DATETIME_COLUMN_NAME == df.index.name
     
-    def test_date_format_detection(self):
+    def test_date_format_detection(self, parser):
         """Test proper date format detection for daily vs intraday."""
         # Test daily format (YYYY-MM-DD)
         daily_csv = """Time,Open,High,Low,Last,Volume
@@ -164,7 +170,7 @@ Footer line
 Footer
 """
         daily_period = Period('1d')
-        daily_df = BarchartParser.convert_downloaded_csv_to_df(daily_period, daily_csv, 'UTC')
+        daily_df = parser.convert_downloaded_csv_to_df(daily_period, daily_csv, 'UTC')
         
         # Test intraday format (YYYY-MM-DD HH:MM) - bc-utils v0.1.7+
         intraday_csv = """Time,Open,High,Low,Last,Volume
@@ -172,7 +178,7 @@ Footer
 Footer
 """
         intraday_period = Period('1h')
-        intraday_df = BarchartParser.convert_downloaded_csv_to_df(intraday_period, intraday_csv, 'UTC')
+        intraday_df = parser.convert_downloaded_csv_to_df(intraday_period, intraday_csv, 'UTC')
         
         # Both should parse successfully
         assert len(daily_df) == 1
@@ -182,7 +188,7 @@ Footer
         assert daily_df.index[0].tz is not None
         assert intraday_df.index[0].tz is not None
     
-    def test_logging_integration(self):
+    def test_logging_integration(self, parser):
         """Test that parsing logs appropriate debug information."""
         csv_data = """Time,Open,High,Low,Last,Volume,Open Interest
 2024-01-01,100,105,99,104,1000,500
@@ -192,7 +198,7 @@ Footer
         
         with patch('logging.debug') as mock_debug:
             period = Period('1d')
-            df = BarchartParser.convert_downloaded_csv_to_df(period, csv_data, 'UTC')
+            df = parser.convert_downloaded_csv_to_df(period, csv_data, 'UTC')
             
             # Should log 3 times: raw data, received data, columns
             # The column mapping debug is from ColumnStandardizer which has its own logger
@@ -212,7 +218,7 @@ Footer
 class TestBarchartParserEdgeCases:
     """Test edge cases and error scenarios."""
     
-    def test_malformed_csv_data(self):
+    def test_malformed_csv_data(self, parser):
         """Test handling of malformed CSV data."""
         malformed_csv = """Time,Open,High,Low,Last,Volume
 2024-01-01,100,105,99,104,1000
@@ -222,11 +228,11 @@ Footer
         
         period = Period('1d')
         # Should handle gracefully - using proper CSV data that won't break pandas
-        df = BarchartParser.convert_downloaded_csv_to_df(period, malformed_csv, 'UTC')
+        df = parser.convert_downloaded_csv_to_df(period, malformed_csv, 'UTC')
         assert len(df) >= 0  # Should not crash
         assert len(df) == 2  # Should process valid rows
     
-    def test_invalid_date_formats(self):
+    def test_invalid_date_formats(self, parser):
         """Test handling of invalid date formats."""
         invalid_csv = """Time,Open,High,Low,Last,Volume
 invalid-date,100,105,99,104,1000
@@ -235,14 +241,14 @@ Footer
 """
         
         period = Period('1d')
-        df = BarchartParser.convert_downloaded_csv_to_df(period, invalid_csv, 'UTC')
+        df = parser.convert_downloaded_csv_to_df(period, invalid_csv, 'UTC')
         
         # Should handle invalid dates with errors='coerce'
         # Valid row should still be processed
         valid_rows = df.dropna()
         assert len(valid_rows) >= 1
     
-    def test_different_timezones(self):
+    def test_different_timezones(self, parser):
         """Test parsing with different source timezones."""
         csv_data = """Time,Open,High,Low,Last,Volume
 2024-01-01,100,105,99,104,1000
@@ -253,13 +259,13 @@ Footer
         
         for tz in timezones:
             period = Period('1d')
-            df = BarchartParser.convert_downloaded_csv_to_df(period, csv_data, tz)
+            df = parser.convert_downloaded_csv_to_df(period, csv_data, tz)
             
             # All should convert to UTC
             assert str(df.index.tz) == 'UTC'
             assert len(df) == 1
     
-    def test_large_csv_data(self):
+    def test_large_csv_data(self, parser):
         """Test parsing performance with larger datasets."""
         # Generate larger CSV data
         header = "Time,Open,High,Low,Last,Volume\n"
@@ -271,28 +277,28 @@ Footer
         large_csv = header + "\n".join(rows) + "\nFooter"
         
         period = Period('1d')
-        df = BarchartParser.convert_downloaded_csv_to_df(period, large_csv, 'UTC')
+        df = parser.convert_downloaded_csv_to_df(period, large_csv, 'UTC')
         
         # Should handle large datasets efficiently
         assert len(df) == 1000
         assert DATETIME_COLUMN_NAME == df.index.name
         assert CLOSE_COLUMN in df.columns
     
-    def test_class_method_usage(self):
-        """Test that convert_downloaded_csv_to_df is a class method."""
-        # Should be callable on class without instance
+    def test_instance_method_usage(self, parser):
+        """Test that convert_downloaded_csv_to_df works as an instance method."""
+        # Should be callable on parser instance
         csv_data = """Time,Open,High,Low,Last,Volume
 2024-01-01,100,105,99,104,1000
 Footer
 """
         
         period = Period('1d')
-        df = BarchartParser.convert_downloaded_csv_to_df(period, csv_data, 'UTC')
+        df = parser.convert_downloaded_csv_to_df(period, csv_data, 'UTC')
         
         assert len(df) == 1
         assert isinstance(df, pd.DataFrame)
     
-    def test_memory_efficiency(self):
+    def test_memory_efficiency(self, parser):
         """Test that parser doesn't hold unnecessary references."""
         csv_data = """Time,Open,High,Low,Last,Volume
 2024-01-01,100,105,99,104,1000
@@ -300,7 +306,7 @@ Footer
 """
         
         period = Period('1d')
-        df = BarchartParser.convert_downloaded_csv_to_df(period, csv_data, 'UTC')
+        df = parser.convert_downloaded_csv_to_df(period, csv_data, 'UTC')
         
         # Verify the original string data isn't held in memory references
         import sys

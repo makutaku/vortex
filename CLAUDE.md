@@ -301,10 +301,12 @@ Vortex follows **Clean Architecture** principles with distinct separation of con
 - Business use cases and orchestration logic
 
 **Infrastructure Layer** (`vortex/infrastructure/`):
-- **Providers** (`providers/`): External data source integrations
-  - `BarchartDataProvider`: Premium web scraping with authentication
-  - `YahooDataProvider`: Free Yahoo Finance API integration
-  - `IbkrDataProvider`: Interactive Brokers TWS/Gateway connection
+- **Providers** (`providers/`): External data source integrations with dependency injection
+  - `BarchartDataProvider`: Premium web scraping with HTTP client abstraction
+  - `YahooDataProvider`: Free Yahoo Finance API with cache and data fetcher injection
+  - `IbkrDataProvider`: Interactive Brokers TWS/Gateway with connection manager injection
+  - `interfaces.py`: Dependency injection protocols and default implementations
+  - `factory.py`: Provider factory with dependency injection support
 - **Storage** (`storage/`): Data persistence implementations
   - `CsvStorage`: Primary CSV format storage
   - `ParquetStorage`: Backup Parquet format storage
@@ -340,6 +342,8 @@ Vortex follows **Clean Architecture** principles with distinct separation of con
 - `vortex/cli/main.py`: Modern CLI entry point using Click framework
 - `vortex/core/config/`: Consolidated configuration management system
 - `vortex/core/correlation/`: Unified correlation and request tracking system
+- `vortex/infrastructure/providers/interfaces.py`: Dependency injection protocols and default implementations
+- `vortex/infrastructure/providers/factory.py`: Provider factory with dependency injection support
 - `vortex/infrastructure/`: External integrations (providers, storage, resilience)
 - `config/assets/`: Default instrument definitions directory
 
@@ -535,6 +539,28 @@ Each environment maps essential directories:
 
 ### Recent Architectural Improvements
 
+**Dependency Injection Implementation (2025-08-14)**:
+- ✅ **Protocol-Based DI**: Created comprehensive dependency injection infrastructure with interfaces.py
+- ✅ **Constructor Refactoring**: Eliminated tight coupling in Yahoo, IBKR, and Barchart provider constructors
+- ✅ **Explicit Lifecycle Management**: Separated object construction from initialization (login/cache setup)
+- ✅ **Factory Enhancement**: Updated provider factory to support dependency injection with explicit initialization
+
+**Static Method Elimination (2025-08-14)**:
+- ✅ **Business Logic Refactoring**: Converted static methods to instance methods for better testability
+- ✅ **Configurable Parameters**: Enhanced methods to support instance-level configuration overrides
+- ✅ **Provider Improvements**: Refactored Barchart Client (4 methods), IBKR Provider (2 methods), Barchart Parser (1 method)
+- ✅ **Test Modernization**: Updated test suite to use instance methods and fixtures
+- ✅ **DI Compliance**: Eliminated violations of dependency injection principles
+
+**Key Improvements**:
+- **Yahoo Provider**: Removed `set_yf_tz_cache()` constructor call, added cache and data fetcher injection
+- **IBKR Provider**: Removed auto-login in constructor, added connection manager injection  
+- **Barchart Provider**: Removed auto-login, added HTTP client abstraction
+- **Provider Factory**: Enhanced to support dependency injection and explicit initialization
+- **Barchart Client**: Converted 4 static request builders to configurable instance methods
+- **IBKR Provider**: Converted 2 static period mappers to configurable instance methods
+- **Barchart Parser**: Converted CSV parser from class method to configurable instance method
+
 **Structural Refactoring (2025-08-05)**:
 - ✅ **Clean Architecture Implementation**: Reorganized codebase into distinct layers (domain, application, infrastructure, interface)
 - ✅ **Module Consolidation**: Eliminated duplicate implementations by creating unified `core/correlation/` and `core/config/` systems
@@ -543,11 +569,15 @@ Each environment maps essential directories:
 - ✅ **Test Compatibility**: Maintained 100% unit test pass rate (109 passed, 2 skipped) after structural changes
 
 **Benefits Achieved**:
+- Eliminated tight coupling and missing dependency injection violations
+- Improved testability and flexibility through instance method patterns
+- Enhanced configurability with parameter injection support
 - Reduced code duplication and improved maintainability
 - Clear separation of concerns following Clean Architecture principles  
 - Simplified dependency injection and plugin system
 - Enhanced correlation tracking and observability
 - Consolidated configuration management with better validation
+- Better separation of construction and initialization concerns
 
 ### Testing Strategy
 

@@ -14,6 +14,12 @@ from vortex.infrastructure.providers.protocol import DataProviderProtocol
 from .barchart import BarchartDataProvider
 from .yahoo import YahooDataProvider
 from .ibkr import IbkrDataProvider
+from .interfaces import (
+    CacheManagerProtocol, DataFetcherProtocol, ConnectionManagerProtocol, HTTPClientProtocol,
+    YahooCacheManager, YahooDataFetcher, IBKRConnectionManager, BarchartHTTPClient,
+    create_yahoo_cache_manager, create_yahoo_data_fetcher, 
+    create_ibkr_connection_manager, create_barchart_http_client
+)
 
 
 class ProviderFactory:
@@ -67,7 +73,7 @@ class ProviderFactory:
         return builder(config_override)
     
     def _build_barchart_provider(self, config_override: Optional[Dict[str, Any]] = None) -> BarchartDataProvider:
-        """Build Barchart provider with configuration."""
+        """Build Barchart provider with configuration and dependency injection."""
         # Get base configuration from config manager
         provider_config = self.config_manager.get_provider_config('barchart')
         
@@ -84,19 +90,40 @@ class ProviderFactory:
                 f"Missing required configuration for Barchart provider: {', '.join(missing_fields)}"
             )
         
+        # Create HTTP client dependency (if not provided in config)
+        http_client = config_override.get('http_client') if config_override else None
+        
         # Create provider with injected dependencies
-        return BarchartDataProvider(
+        provider = BarchartDataProvider(
             username=provider_config['username'],
             password=provider_config['password'],
-            daily_download_limit=provider_config.get('daily_limit', 150)
+            daily_download_limit=provider_config.get('daily_limit', 150),
+            http_client=http_client
         )
+        
+        # Perform explicit login now that provider is configured
+        provider.login()
+        
+        return provider
     
     def _build_yahoo_provider(self, config_override: Optional[Dict[str, Any]] = None) -> YahooDataProvider:
-        """Build Yahoo provider (no configuration required)."""
-        return YahooDataProvider()
+        """Build Yahoo provider with dependency injection support."""
+        # Create dependencies (if not provided in config)
+        cache_manager = None
+        data_fetcher = None
+        
+        if config_override:
+            cache_manager = config_override.get('cache_manager')
+            data_fetcher = config_override.get('data_fetcher')
+        
+        # If no custom dependencies provided, use defaults (which will be created lazily)
+        return YahooDataProvider(
+            cache_manager=cache_manager,
+            data_fetcher=data_fetcher
+        )
     
     def _build_ibkr_provider(self, config_override: Optional[Dict[str, Any]] = None) -> IbkrDataProvider:
-        """Build IBKR provider with configuration."""
+        """Build IBKR provider with configuration and dependency injection."""
         # Get base configuration from config manager
         provider_config = self.config_manager.get_provider_config('ibkr')
         
@@ -104,11 +131,21 @@ class ProviderFactory:
         if config_override:
             provider_config.update(config_override)
         
-        # IBKR takes individual parameters
-        return IbkrDataProvider(
+        # Create connection manager dependency (if not provided in config)
+        connection_manager = config_override.get('connection_manager') if config_override else None
+        
+        # Create provider with injected dependencies  
+        provider = IbkrDataProvider(
             ip_address=provider_config.get('host', 'localhost'),
-            port=provider_config.get('port', 7497)
+            port=provider_config.get('port', 7497),
+            client_id=provider_config.get('client_id'),
+            connection_manager=connection_manager
         )
+        
+        # Perform explicit login now that provider is configured
+        provider.login()
+        
+        return provider
     
     def register_provider(
         self, 

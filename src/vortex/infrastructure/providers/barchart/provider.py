@@ -13,6 +13,7 @@ import pandas as pd
 from pandas import DataFrame
 
 from ..base import DataProvider
+from ..interfaces import HTTPClientProtocol, BarchartHTTPClient
 from vortex.core.error_handling.strategies import ErrorHandlingStrategy
 from vortex.exceptions.providers import DataNotFoundError, AllowanceLimitExceededError
 from vortex.exceptions.providers import DataProviderError
@@ -39,7 +40,8 @@ class BarchartDataProvider(DataProvider):
     BARCHART_URL = ProviderConstants.Barchart.BASE_URL
     
     def __init__(self, username: str, password: str, 
-                 daily_download_limit: int = ProviderConstants.Barchart.DEFAULT_DAILY_DOWNLOAD_LIMIT):
+                 daily_download_limit: int = ProviderConstants.Barchart.DEFAULT_DAILY_DOWNLOAD_LIMIT,
+                 http_client: Optional[HTTPClientProtocol] = None):
         
         super().__init__()  # Initialize standardized error handling
         
@@ -54,8 +56,10 @@ class BarchartDataProvider(DataProvider):
         self.client = BarchartClient(self.auth)
         self.parser = BarchartParser()
         
-        # Login on initialization
-        self.auth.login()
+        # Inject HTTP client with sensible default
+        self._http_client = http_client or BarchartHTTPClient(self.auth.session)
+        
+        # Don't auto-login in constructor - require explicit login call
     
     def _extract_csrf_token(self, home_response) -> Optional[str]:
         """Extract CSRF token from Barchart home page response with standardized error handling.
@@ -519,8 +523,8 @@ class BarchartDataProvider(DataProvider):
             df.to_csv(csv_output, index=False)
             csv_string = csv_output.getvalue()
             
-            # Use our standard parser
-            return BarchartParser.convert_downloaded_csv_to_df(frequency, csv_string, tz)
+            # Use our standard parser instance
+            return self.parser.convert_downloaded_csv_to_df(frequency, csv_string, tz)
             
         except Exception as e:
             if isinstance(e, DataNotFoundError):

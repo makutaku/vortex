@@ -53,11 +53,10 @@ class BarchartClient:
             logging.debug(f"usage data: {usage_data}")
             return usage_data, xsrf_token
     
-    @staticmethod
-    def _build_download_request_payload(history_csrf_token: str, symbol: str, 
+    def _build_download_request_payload(self, history_csrf_token: str, symbol: str, 
                                        frequency_attributes: FrequencyAttributes, 
                                        start_date: datetime, end_date: datetime) -> dict:
-        """Build payload for download request."""
+        """Build payload for download request with configurable parameters."""
         return {
             '_token': history_csrf_token,
             'fileName': symbol,
@@ -66,39 +65,36 @@ class BarchartClient:
             'endDate': end_date.strftime("%m/%d/%Y"),
             'period': frequency_attributes.name.lower(),
             'maxRecords': frequency_attributes.max_records_per_download,
-            'order': ProviderConstants.Barchart.DEFAULT_ORDER,
-            'dividends': ProviderConstants.Barchart.DEFAULT_DIVIDENDS,
-            'backadjust': ProviderConstants.Barchart.DEFAULT_BACKADJUST,
-            'dbar': ProviderConstants.Barchart.DEFAULT_DBAR,
-            'custombar': ProviderConstants.Barchart.DEFAULT_CUSTOMBAR,
-            'volume': ProviderConstants.Barchart.DEFAULT_VOLUME,
-            'openInterest': ProviderConstants.Barchart.DEFAULT_OPEN_INTEREST,
-            'splits': ProviderConstants.Barchart.DEFAULT_SPLITS
+            'order': getattr(self, 'order', ProviderConstants.Barchart.DEFAULT_ORDER),
+            'dividends': getattr(self, 'dividends', ProviderConstants.Barchart.DEFAULT_DIVIDENDS),
+            'backadjust': getattr(self, 'backadjust', ProviderConstants.Barchart.DEFAULT_BACKADJUST),
+            'dbar': getattr(self, 'dbar', ProviderConstants.Barchart.DEFAULT_DBAR),
+            'custombar': getattr(self, 'custombar', ProviderConstants.Barchart.DEFAULT_CUSTOMBAR),
+            'volume': getattr(self, 'volume', ProviderConstants.Barchart.DEFAULT_VOLUME),
+            'openInterest': getattr(self, 'openInterest', ProviderConstants.Barchart.DEFAULT_OPEN_INTEREST),
+            'splits': getattr(self, 'splits', ProviderConstants.Barchart.DEFAULT_SPLITS)
         }
     
-    @staticmethod
-    def _build_download_request_headers(xsrf_token: str, url: str) -> dict:
-        """Build headers for download request."""
+    def _build_download_request_headers(self, xsrf_token: str, url: str) -> dict:
+        """Build headers for download request with configurable content type."""
         return {
-            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+            'Content-Type': getattr(self, 'content_type', 'application/x-www-form-urlencoded; charset=UTF-8'),
             'X-CSRF-TOKEN': xsrf_token,
-            'X-Requested-With': 'XMLHttpRequest',
+            'X-Requested-With': getattr(self, 'requested_with', 'XMLHttpRequest'),
             'Referer': url
         }
     
-    @staticmethod  
-    def _build_usage_request_headers(url: str, xsrf_token: str) -> dict:
-        """Build headers for usage request."""
+    def _build_usage_request_headers(self, url: str, xsrf_token: str) -> dict:
+        """Build headers for usage request with configurable content type."""
         return {
-            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+            'Content-Type': getattr(self, 'usage_content_type', 'application/x-www-form-urlencoded; charset=UTF-8'),
             'X-CSRF-TOKEN': xsrf_token,
-            'X-Requested-With': 'XMLHttpRequest',
+            'X-Requested-With': getattr(self, 'usage_requested_with', 'XMLHttpRequest'),
             'Referer': url
         }
     
-    @staticmethod
-    def _build_usage_payload() -> dict:
-        """Build payload for usage request."""
+    def _build_usage_payload(self) -> dict:
+        """Build payload for usage request with configurable type."""
         return {
-            'type': ProviderConstants.Barchart.DEFAULT_USAGE_TYPE
+            'type': getattr(self, 'usage_type', ProviderConstants.Barchart.DEFAULT_USAGE_TYPE)
         }
