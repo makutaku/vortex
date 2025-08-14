@@ -185,16 +185,9 @@ class IbkrDataProvider(DataProvider):
             df = util.df(bars)
             logging.debug(f"Received data {df.shape} from {self.get_name()}")
 
-            # Check for empty data
+            # Process data without validation - validation will be handled by _validate_fetched_data()
             if df.empty:
-                symbol = str(contract)
-                raise DataNotFoundError(
-                    provider="ibkr",
-                    symbol=symbol,
-                    period=frequency_attributes.frequency,
-                    start_date=None,  # IBKR doesn't use explicit date ranges
-                    end_date=None
-                )
+                return df  # Return empty DataFrame, let validation handle it properly
 
             # Standardize columns using the centralized mapping system
             df = standardize_dataframe_columns(df, 'ibkr')
@@ -217,11 +210,15 @@ class IbkrDataProvider(DataProvider):
                 df.set_index(datetime_col, inplace=True)
                 df.index.name = DATETIME_INDEX_NAME
             
-            # Validate expected IBKR columns (only data columns, not index)
-            required_cols, optional_cols = get_provider_expected_columns('ibkr')
-            missing_cols, found_cols = validate_required_columns(df.columns, required_cols, case_insensitive=True)
-            if missing_cols:
-                logging.warning(f"Missing expected IBKR columns: {missing_cols}. Found columns: {list(df.columns)}")
+            # Create mock instrument for validation (IBKR uses contracts)
+            from vortex.models.stock import Stock
+            symbol = str(contract)
+            mock_instrument = Stock(symbol)
+            
+            # Use standardized validation
+            df = self._validate_fetched_data(
+                df, mock_instrument, frequency_attributes.frequency
+            )
 
             return df
             

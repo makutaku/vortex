@@ -55,6 +55,47 @@ class YahooDataProvider(DataProvider):
             )
             self._cache_initialized = True
 
+    def validate_configuration(self) -> bool:
+        """Validate Yahoo Finance provider configuration.
+        
+        Validates that cache directory is accessible and writable.
+        
+        Returns:
+            True if configuration is valid, False otherwise
+        """
+        try:
+            # Ensure cache is initialized
+            self._ensure_cache_initialized()
+            
+            # Check if cache directory is accessible and writable
+            cache_dir = os.path.join(tempfile.gettempdir(), '.cache', 'py-yfinance')
+            
+            # Create directory if it doesn't exist
+            os.makedirs(cache_dir, exist_ok=True)
+            
+            # Test write access
+            test_file = os.path.join(cache_dir, '.vortex_test')
+            try:
+                with open(test_file, 'w') as f:
+                    f.write('test')
+                os.remove(test_file)
+                return True
+            except (OSError, IOError):
+                return False
+                
+        except Exception:
+            return False
+
+    def get_required_config_fields(self) -> list[str]:
+        """Get list of required configuration fields for Yahoo Finance provider.
+        
+        Yahoo Finance doesn't require explicit credentials but needs cache access.
+        
+        Returns:
+            List of required configuration field names (empty for Yahoo)
+        """
+        return []  # Yahoo Finance doesn't require explicit configuration fields
+
     def _get_frequency_attributes(self) -> List[FrequencyAttributes]:
 
         return [
@@ -97,12 +138,10 @@ class YahooDataProvider(DataProvider):
                 instrument.get_symbol(), interval, start, end
             )
             
-            # Check if data is empty and raise appropriate error
-            if df is None or df.empty:
-                raise self._create_data_not_found_error(
-                    instrument, frequency_attributes.frequency, start, end,
-                    "Yahoo Finance returned empty dataset"
-                )
+            # Use standardized validation instead of provider-specific logic
+            df = self._validate_fetched_data(
+                df, instrument, frequency_attributes.frequency, start, end
+            )
             
             return df
             
@@ -122,7 +161,7 @@ class YahooDataProvider(DataProvider):
             )
     
     def _fetch_data_using_injected_fetcher(self, symbol: str, interval: str, start_date: datetime, end_date: datetime) -> DataFrame:
-        """Fetch data using the injected data fetcher."""
+        """Fetch data using the injected data fetcher with basic processing."""
         import logging
         logger = logging.getLogger(__name__)
         
@@ -130,22 +169,16 @@ class YahooDataProvider(DataProvider):
             # Use injected data fetcher
             df = self._data_fetcher.fetch_historical_data(symbol, interval, start_date, end_date)
 
-            # Check for empty data immediately
+            # Return raw data - validation will be handled by _validate_fetched_data()
             if df.empty:
-                logger.warning(f"Yahoo Finance returned empty data for {symbol} ({interval}) from {start_date.date()} to {end_date.date()}")
-                return df  # Return empty DataFrame, let calling method handle
+                logger.debug(f"Yahoo Finance returned empty data for {symbol} ({interval}) from {start_date.date()} to {end_date.date()}")
+                return df  # Return empty DataFrame, let validation handle it properly
 
             # Standardize columns using the centralized mapping system (for consistency)
             df = standardize_dataframe_columns(df, 'yahoo')
             
             df.index.name = DATETIME_INDEX_NAME
             df.index = pd.to_datetime(df.index, utc=True)
-            
-            # Validate expected Yahoo Finance columns (only data columns, not index)
-            required_cols, optional_cols = get_provider_expected_columns('yahoo')
-            missing_cols, found_cols = validate_required_columns(df.columns, required_cols, case_insensitive=True)
-            if missing_cols:
-                logger.warning(f"Missing expected Yahoo Finance columns: {missing_cols}. Found columns: {list(df.columns)}")
             
             logger.debug(f"Successfully fetched {len(df)} rows for {symbol} ({interval})")
             return df

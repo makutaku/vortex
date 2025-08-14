@@ -186,6 +186,95 @@ class DataProvider(ABC):
         """
         return []
 
+    def _validate_fetched_data(
+        self, 
+        df: 'DataFrame', 
+        instrument: 'Instrument', 
+        period: 'Period',
+        start_date=None,
+        end_date=None
+    ) -> 'DataFrame':
+        """Standardized data validation for all providers.
+        
+        Performs consistent validation across all providers:
+        1. Empty data validation
+        2. Required column validation  
+        3. Data type validation
+        4. Data quality checks
+        
+        Args:
+            df: DataFrame to validate
+            instrument: Instrument that was fetched
+            period: Time period that was fetched
+            start_date: Optional start date for context
+            end_date: Optional end date for context
+            
+        Returns:
+            DataFrame: Validated DataFrame
+            
+        Raises:
+            DataNotFoundError: If data is empty or insufficient
+            DataProviderError: If validation fails with unrecoverable errors
+        """
+        import logging
+        from vortex.models.columns import (
+            validate_required_columns, get_provider_expected_columns,
+            validate_column_data_types, ValidationIssueType
+        )
+        
+        logger = logging.getLogger(__name__)
+        provider_name = self.get_name().lower()
+        
+        # 1. Check for empty data (critical - always fail fast)
+        if df is None or df.empty:
+            raise self._create_data_not_found_error(
+                instrument, period, start_date, end_date,
+                f"{self.get_name()} returned empty dataset"
+            )
+        
+        # 2. Validate required columns (critical - always fail fast)  
+        required_cols, optional_cols = get_provider_expected_columns(provider_name)
+        missing_cols, found_cols = validate_required_columns(df.columns, required_cols, case_insensitive=True)
+        if missing_cols:
+            from vortex.exceptions.providers import DataProviderError
+            symbol = instrument.get_symbol() if hasattr(instrument, 'get_symbol') else str(instrument)
+            raise DataProviderError(
+                provider=self.get_name().lower(),
+                message=f"Data validation failed: Missing required columns {missing_cols} "
+                        f"for {symbol}. Found columns: {list(df.columns)}"
+            )
+        
+        # 3. Log missing optional columns (informational only)
+        missing_optional = set(optional_cols) - set(df.columns)
+        if missing_optional:
+            logger.debug(f"{self.get_name()}: Missing optional columns {missing_optional}")
+        
+        # 4. Perform data type validation (quality - warn but continue)
+        try:
+            is_valid, issues = validate_column_data_types(df, strict=False)
+            if issues:
+                # Categorize issues by severity
+                critical_issues = [issue for issue in issues if issue.type in [
+                    ValidationIssueType.INDEX_TYPE_MISMATCH,
+                    ValidationIssueType.COLUMN_TYPE_MISMATCH
+                ]]
+                quality_issues = [issue for issue in issues if issue not in critical_issues]
+                
+                # Critical data type issues - log as warnings but continue
+                for issue in critical_issues:
+                    logger.warning(f"{self.get_name()} data type issue: {issue}")
+                
+                # Quality issues - log as debug
+                for issue in quality_issues:
+                    logger.debug(f"{self.get_name()} data quality issue: {issue}")
+                    
+        except Exception as validation_error:
+            # Don't fail the entire fetch due to validation infrastructure issues
+            logger.warning(f"{self.get_name()} data type validation failed: {validation_error}")
+        
+        logger.debug(f"{self.get_name()} data validation passed: {df.shape} rows, columns: {list(df.columns)}")
+        return df
+
     def _handle_provider_error(
         self, 
         error: Exception, 

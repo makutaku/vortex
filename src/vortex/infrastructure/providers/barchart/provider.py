@@ -311,7 +311,20 @@ class BarchartDataProvider(DataProvider):
             logger.info(f"Attempting bc-utils download for {instrument}")
             df = self._fetch_via_bc_utils_download(instrument, frequency_attributes, start_date, end_date, tz)
             if df is not None:
-                return self._validate_data_availability(df, instrument, frequency_attributes, start_date, end_date)
+                # Use standardized validation instead of provider-specific validation
+                df = self._validate_fetched_data(df, instrument, frequency_attributes.frequency, start_date, end_date)
+                
+                # Barchart-specific: Check minimum data points requirement
+                if len(df) < ProviderConstants.Barchart.MIN_REQUIRED_DATA_POINTS:
+                    from vortex.exceptions.providers import DataProviderError
+                    symbol = instrument.get_symbol() if hasattr(instrument, 'get_symbol') else str(instrument)
+                    raise DataProviderError(
+                        "barchart",
+                        f"Insufficient data for {symbol} - only {len(df)} records found",
+                        "This may indicate the symbol is delisted or has limited trading history"
+                    )
+                
+                return df
             
             # No data found - use standardized error creation
             raise self._create_data_not_found_error(
@@ -538,30 +551,6 @@ class BarchartDataProvider(DataProvider):
                 frequency=frequency
             )
 
-    def _validate_data_availability(self, df: DataFrame, symbol: str, frequency_attributes: FrequencyAttributes = None, 
-                                   start_date=None, end_date=None) -> DataFrame:
-        """Validate downloaded data meets minimum requirements with standardized error handling."""
-        if df is None or df.empty:
-            # Use standardized error creation
-            if frequency_attributes and start_date and end_date:
-                raise self._create_data_not_found_error(
-                    symbol, frequency_attributes.frequency, start_date, end_date,
-                    "Barchart validation failed - no data returned"
-                )
-            else:
-                # Fallback for cases where we don't have all parameters
-                from vortex.exceptions.providers import DataProviderError
-                raise DataProviderError("barchart", f"No data available for {symbol}")
-        
-        if len(df) < ProviderConstants.Barchart.MIN_REQUIRED_DATA_POINTS:
-            from vortex.exceptions.providers import DataProviderError
-            raise DataProviderError(
-                "barchart",
-                f"Insufficient data for {symbol} - only {len(df)} records found",
-                "This may indicate the symbol is delisted or has limited trading history"
-            )
-        
-        return df
 
     @singledispatchmethod
     def get_historical_quote_url(self, future: Future) -> str:

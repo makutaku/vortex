@@ -38,11 +38,13 @@ class BarchartParser:
         logging.debug(f"Received data {df.shape} from Barchart")
         logging.debug(f"CSV columns: {list(df.columns)}")
         
-        # Validate required columns before processing
+        # Basic column presence check - detailed validation will be handled by provider
         required_columns = [self.BARCHART_DATE_TIME_COLUMN, self.BARCHART_CLOSE_COLUMN]
-        missing_cols, found_cols = validate_required_columns(df.columns, required_columns, case_insensitive=False)
-        if missing_cols:
-            raise ValueError(f"Missing required Barchart columns: {missing_cols}. Found columns: {list(df.columns)}")
+        if not all(col in df.columns for col in required_columns):
+            # Log for debugging but don't fail - standardized validation will handle this
+            missing = [col for col in required_columns if col not in df.columns]
+            logging.debug(f"Barchart parser: Raw CSV missing expected columns {missing}. Found columns: {list(df.columns)}")
+            # Continue processing - the standardized validation will provide proper error handling
 
         # Standardize columns using the centralized mapping system
         df = standardize_dataframe_columns(df, 'barchart')
