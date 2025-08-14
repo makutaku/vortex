@@ -2,7 +2,7 @@ import enum
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Optional, List
+from typing import Optional, List, Any
 
 from pandas import DataFrame
 
@@ -12,7 +12,11 @@ from vortex.exceptions.providers import (
     DataProviderError, DataNotFoundError, AllowanceLimitExceededError,
     VortexConnectionError as ConnectionError, AuthenticationError, RateLimitError
 )
+from vortex.core.error_handling.strategies import (
+    StandardizedErrorHandler, ErrorContext, ErrorHandlingStrategy
+)
 from retrying import retry
+import logging
 
 
 
@@ -28,6 +32,8 @@ class HistoricalDataResult(enum.Enum):
 def should_retry(exception: Exception) -> bool:
     """Determine if an exception should trigger a retry.
     
+    Standardized retry logic for all providers:
+    
     Do not retry for:
     - Data not found (permanent condition)
     - Allowance limits exceeded (need to wait or upgrade)
@@ -39,12 +45,17 @@ def should_retry(exception: Exception) -> bool:
     - Rate limit errors (temporary API throttling)
     - General data provider errors (may be transient)
     """
-    return not isinstance(exception, (
+    # Never retry these permanent failures
+    permanent_failures = (
         DataNotFoundError, 
         AllowanceLimitExceededError, 
         AuthenticationError,
-        ValueError  # Configuration/validation errors should not be retried
-    ))
+        ValueError,  # Configuration/validation errors
+        TypeError,   # Programming errors
+        AttributeError,  # Programming errors
+    )
+    
+    return not isinstance(exception, permanent_failures)
 
 
 class DataProvider(ABC):
@@ -56,6 +67,10 @@ class DataProvider(ABC):
     Note: This class is aligned with the DataProviderProtocol to ensure
     consistency between interface definition and implementation.
     """
+
+    def __init__(self):
+        """Initialize the data provider with standardized error handling."""
+        self._error_handler = StandardizedErrorHandler(logging.getLogger(self.__class__.__module__))
 
     def __str__(self) -> str:
         """String representation of the provider."""
@@ -170,6 +185,89 @@ class DataProvider(ABC):
             List of required configuration field names
         """
         return []
+
+    def _handle_provider_error(
+        self, 
+        error: Exception, 
+        operation: str, 
+        strategy: ErrorHandlingStrategy = ErrorHandlingStrategy.FAIL_FAST,
+        **context_kwargs
+    ) -> Any:
+        """Standardized error handling for provider operations.
+        
+        Args:
+            error: The exception that occurred
+            operation: Name of the operation that failed
+            strategy: Error handling strategy to use
+            **context_kwargs: Additional context information
+            
+        Returns:
+            Result based on the error handling strategy
+        """
+        context = ErrorContext(
+            operation=operation,
+            component=self.get_name(),
+            **context_kwargs
+        )
+        return self._error_handler.handle_error(error, context, strategy)
+
+    def _create_data_not_found_error(
+        self, 
+        instrument: Instrument, 
+        period: Period, 
+        start_date: datetime, 
+        end_date: datetime,
+        details: Optional[str] = None
+    ) -> DataNotFoundError:
+        """Create a standardized DataNotFoundError with consistent context.
+        
+        Args:
+            instrument: The instrument for which data was not found
+            period: The period for which data was requested
+            start_date: Start date of the request
+            end_date: End date of the request
+            details: Optional additional details
+            
+        Returns:
+            DataNotFoundError with consistent formatting
+        """
+        symbol = instrument.get_symbol() if hasattr(instrument, 'get_symbol') else str(instrument)
+        error = DataNotFoundError(
+            provider=self.get_name().lower(),
+            symbol=symbol,
+            period=period,
+            start_date=start_date,
+            end_date=end_date
+        )
+        if details:
+            error.technical_details = details
+        return error
+
+    def _create_connection_error(self, details: str, operation: Optional[str] = None) -> ConnectionError:
+        """Create a standardized connection error.
+        
+        Args:
+            details: Details about the connection failure
+            operation: Optional operation that was being performed
+            
+        Returns:
+            ConnectionError with consistent formatting
+        """
+        if operation:
+            details = f"{operation}: {details}"
+        return ConnectionError(self.get_name().lower(), details)
+
+    def _create_auth_error(self, details: str, http_code: Optional[int] = None) -> AuthenticationError:
+        """Create a standardized authentication error.
+        
+        Args:
+            details: Details about the authentication failure
+            http_code: Optional HTTP status code
+            
+        Returns:
+            AuthenticationError with consistent formatting
+        """
+        return AuthenticationError(self.get_name().lower(), details, http_code)
 
     def _get_frequency_attr_dict(self) -> dict:
         """Build a dictionary mapping periods to their frequency attributes.

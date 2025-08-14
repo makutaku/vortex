@@ -16,6 +16,8 @@ from vortex.models.columns import (
     validate_required_columns, get_provider_expected_columns,
     standardize_dataframe_columns
 )
+from vortex.exceptions.providers import DataNotFoundError, VortexConnectionError as ConnectionError, AuthenticationError
+from vortex.core.error_handling.strategies import ErrorHandlingStrategy
 from vortex.models.forex import Forex
 from vortex.models.future import Future
 from vortex.models.period import Period, FrequencyAttributes
@@ -28,6 +30,7 @@ class IbkrDataProvider(DataProvider):
     PROVIDER_NAME = "InteractiveBrokers"
 
     def __init__(self, ip_address, port, client_id=None):
+        super().__init__()  # Initialize standardized error handling
         self.ib = IB()
         self.ip_address = ip_address
         self.port = port
@@ -38,20 +41,36 @@ class IbkrDataProvider(DataProvider):
         return IbkrDataProvider.PROVIDER_NAME
 
     @retry(wait_exponential_multiplier=2000,
-           stop_max_attempt_number=5)
+           stop_max_attempt_number=5,
+           retry_on_exception=lambda exc: not isinstance(exc, AuthenticationError))
     def login(self):
-        self.ib.connect(self.ip_address, self.port, clientId=self.client_id, readonly=True, 
-                       timeout=ProviderConstants.IBKR.CONNECTION_TIMEOUT_SECONDS)
-        # Sometimes takes a few seconds to resolve... only have to do this once per process so no biggie
-        time.sleep(ProviderConstants.IBKR.CONNECTION_TIMEOUT_SECONDS)
+        """Login to IBKR with standardized error handling and retry logic."""
+        try:
+            self.ib.connect(self.ip_address, self.port, clientId=self.client_id, readonly=True, 
+                           timeout=ProviderConstants.IBKR.CONNECTION_TIMEOUT_SECONDS)
+            # Sometimes takes a few seconds to resolve... only have to do this once per process so no biggie
+            time.sleep(ProviderConstants.IBKR.CONNECTION_TIMEOUT_SECONDS)
+            
+        except Exception as e:
+            # Create standardized connection error
+            connection_error = self._create_connection_error(
+                f"Failed to connect to IBKR at {self.ip_address}:{self.port} - {e}",
+                "login"
+            )
+            raise connection_error from e
 
     def logout(self):
+        """Logout from IBKR with standardized error handling."""
         try:
             # Try and disconnect IB client
             self.ib.disconnect()
-        except BaseException:
-            logging.warning("Trying to disconnect IB client failed... ensure process is killed")
-        pass
+        except Exception as e:
+            # Use standardized error handling for logout - log but continue
+            self._handle_provider_error(
+                e,
+                "logout",
+                strategy=ErrorHandlingStrategy.LOG_AND_CONTINUE
+            )
     
     def validate_configuration(self) -> bool:
         """Validate IBKR provider configuration.
@@ -140,50 +159,78 @@ class IbkrDataProvider(DataProvider):
 
     def fetch_historical_data_for_symbol(self, contract, frequency_attributes: FrequencyAttributes,
                                          what_to_show="TRADES") -> DataFrame:
-        # If live data is available a request for delayed data would be ignored by TWS.
-        self.ib.reqMarketDataType(3)
+        """Fetch historical data from IBKR with standardized error handling."""
+        try:
+            # If live data is available a request for delayed data would be ignored by TWS.
+            self.ib.reqMarketDataType(3)
 
-        bars = self.ib.reqHistoricalData(
-            contract,
-            endDateTime="",
-            durationStr=frequency_attributes.properties['duration'],
-            barSizeSetting=frequency_attributes.properties['bar_size'],
-            whatToShow=what_to_show,
-            useRTH=True,
-            formatDate=2,
-            timeout=ProviderConstants.IBKR.HISTORICAL_DATA_TIMEOUT_SECONDS,
-        )
-        df = util.df(bars)
-        logging.debug(f"Received data {df.shape} from {self.get_name()}")
+            bars = self.ib.reqHistoricalData(
+                contract,
+                endDateTime="",
+                durationStr=frequency_attributes.properties['duration'],
+                barSizeSetting=frequency_attributes.properties['bar_size'],
+                whatToShow=what_to_show,
+                useRTH=True,
+                formatDate=2,
+                timeout=ProviderConstants.IBKR.HISTORICAL_DATA_TIMEOUT_SECONDS,
+            )
+            
+            df = util.df(bars)
+            logging.debug(f"Received data {df.shape} from {self.get_name()}")
 
-        # Standardize columns using the centralized mapping system
-        df = standardize_dataframe_columns(df, 'ibkr')
+            # Check for empty data
+            if df.empty:
+                symbol = str(contract)
+                raise DataNotFoundError(
+                    provider="ibkr",
+                    symbol=symbol,
+                    period=frequency_attributes.frequency,
+                    start_date=None,  # IBKR doesn't use explicit date ranges
+                    end_date=None
+                )
 
-        # Handle datetime column - should be mapped to DATETIME_INDEX_NAME by standardize_dataframe_columns
-        datetime_col = None
-        if DATETIME_INDEX_NAME in df.columns:
-            datetime_col = DATETIME_INDEX_NAME
-        else:
-            # Fallback: try to find the datetime column that was mapped
-            datetime_candidates = [col for col in df.columns if 'date' in col.lower()]
-            if datetime_candidates:
-                datetime_col = datetime_candidates[0]
-        
-        if datetime_col and not frequency_attributes.frequency.is_intraday():
-            df[datetime_col] = (pd.to_datetime(df[datetime_col], format='%Y-%m-%d', errors='coerce')
-                               .dt.tz_localize(FUTURES_SOURCE_TIME_ZONE).dt.tz_convert('UTC'))
+            # Standardize columns using the centralized mapping system
+            df = standardize_dataframe_columns(df, 'ibkr')
 
-        if datetime_col:
-            df.set_index(datetime_col, inplace=True)
-            df.index.name = DATETIME_INDEX_NAME
-        
-        # Validate expected IBKR columns (only data columns, not index)
-        required_cols, optional_cols = get_provider_expected_columns('ibkr')
-        missing_cols, found_cols = validate_required_columns(df.columns, required_cols, case_insensitive=True)
-        if missing_cols:
-            logging.warning(f"Missing expected IBKR columns: {missing_cols}. Found columns: {list(df.columns)}")
+            # Handle datetime column - should be mapped to DATETIME_INDEX_NAME by standardize_dataframe_columns
+            datetime_col = None
+            if DATETIME_INDEX_NAME in df.columns:
+                datetime_col = DATETIME_INDEX_NAME
+            else:
+                # Fallback: try to find the datetime column that was mapped
+                datetime_candidates = [col for col in df.columns if 'date' in col.lower()]
+                if datetime_candidates:
+                    datetime_col = datetime_candidates[0]
+            
+            if datetime_col and not frequency_attributes.frequency.is_intraday():
+                df[datetime_col] = (pd.to_datetime(df[datetime_col], format='%Y-%m-%d', errors='coerce')
+                                   .dt.tz_localize(FUTURES_SOURCE_TIME_ZONE).dt.tz_convert('UTC'))
 
-        return df
+            if datetime_col:
+                df.set_index(datetime_col, inplace=True)
+                df.index.name = DATETIME_INDEX_NAME
+            
+            # Validate expected IBKR columns (only data columns, not index)
+            required_cols, optional_cols = get_provider_expected_columns('ibkr')
+            missing_cols, found_cols = validate_required_columns(df.columns, required_cols, case_insensitive=True)
+            if missing_cols:
+                logging.warning(f"Missing expected IBKR columns: {missing_cols}. Found columns: {list(df.columns)}")
+
+            return df
+            
+        except Exception as e:
+            if isinstance(e, DataNotFoundError):
+                raise  # Re-raise our standardized error
+                
+            # Handle IBKR-specific errors with standardized error handling
+            symbol = str(contract)
+            return self._handle_provider_error(
+                e,
+                "fetch_historical_data",
+                strategy=ErrorHandlingStrategy.FAIL_FAST,
+                symbol=symbol,
+                frequency=frequency_attributes.frequency
+            )
 
     @staticmethod
     def to_ibkr_finance_bar_size(period: Period) -> str:
