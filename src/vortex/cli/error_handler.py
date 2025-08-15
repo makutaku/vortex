@@ -235,13 +235,19 @@ class CLIErrorHandler:
                 "operation": getattr(error, 'operation', None),
             }
             
-            self.structured_logger.log_error(
-                error=error,
-                message=message,
-                correlation_id=getattr(error, 'correlation_id', None),
-                context=context,
-                operation="cli_operation"
-            )
+            try:
+                self.structured_logger.log_error(
+                    error=error,
+                    message=message,
+                    correlation_id=getattr(error, 'correlation_id', None),
+                    context=context,
+                    operation="cli_operation"
+                )
+            except Exception as structured_error:
+                # If structured logging fails, fall back to basic logging
+                logging.error(f"{message}: {getattr(error, 'message', str(error))}")
+                logging.debug(f"Structured logging failed: {structured_error}")
+                return
             
             # Also try advanced logging if available
             if self.config_available and self.get_logger:
@@ -251,8 +257,8 @@ class CLIErrorHandler:
                                error_dict=error.to_dict(),
                                correlation_id=error.correlation_id)
                 except (AttributeError, TypeError, ValueError) as logging_error:
-                    # If structured logging fails, fall back to basic logging
-                    logging.debug(f"Structured logging failed: {logging_error}")
+                    # If advanced logging fails, fall back to basic logging
+                    logging.debug(f"Advanced logging failed: {logging_error}")
         except (AttributeError, TypeError, ImportError) as fallback_error:
             # Ultimate fallback to basic logging
             logging.error(f"{message}: {getattr(error, 'message', str(error))}")

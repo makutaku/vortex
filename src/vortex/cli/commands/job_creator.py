@@ -6,7 +6,7 @@ Handles creation of download jobs for different instrument types and periods.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Dict, Any
 
 from vortex.models.future import Future
@@ -62,14 +62,17 @@ def _create_futures_jobs(downloader, symbol: str, config, periods: List,
         futures_code=getattr(config, 'code', symbol),
         year=getattr(config, 'year', datetime.now().year),
         month_code=getattr(config, 'month_code', 'M'),  # Default to June
-        tick_date=getattr(config, 'tick_date', datetime.now()),
+        tick_date=getattr(config, 'tick_date', datetime.now(tz)),
         days_count=getattr(config, 'days_count', 365)
     )
     
     for period in periods:
         try:
             # Use downloader's job creation logic for dated instruments (futures)
-            instrument_jobs = downloader.create_jobs_for_dated_instrument(future, [period], start_date, end_date, tz)
+            # Ensure dates are timezone-aware
+            tz_start_date = _to_timezone_aware(start_date, tz)
+            tz_end_date = _to_timezone_aware(end_date, tz)
+            instrument_jobs = downloader.create_jobs_for_dated_instrument(future, [period], tz_start_date, tz_end_date, tz)
             jobs.extend(instrument_jobs)
             logging.debug(f"Created {len(instrument_jobs)} futures jobs for {symbol} {period}")
         except Exception as e:
@@ -90,8 +93,11 @@ def _create_simple_instrument_jobs(downloader, symbol: str, config, periods: Lis
     for period in periods:
         try:
             # Use downloader's job creation logic for undated instruments
+            # Ensure dates are timezone-aware
+            tz_start_date = _to_timezone_aware(start_date, tz)
+            tz_end_date = _to_timezone_aware(end_date, tz)
             instrument_jobs = downloader.create_jobs_for_undated_instrument(
-                instrument, start_date, end_date, [period], None
+                instrument, tz_start_date, tz_end_date, [period], None
             )
             jobs.extend(instrument_jobs)
             logging.debug(f"Created {len(instrument_jobs)} jobs for {symbol} {period}")
@@ -124,7 +130,7 @@ def _create_instrument_from_config(symbol: str, config):
                 futures_code=getattr(config, 'code', symbol),
                 year=getattr(config, 'year', datetime.now().year),
                 month_code=getattr(config, 'month_code', 'M'),  # Default to June
-                tick_date=getattr(config, 'tick_date', datetime.now()),
+                tick_date=getattr(config, 'tick_date', datetime.now(timezone.utc)),
                 days_count=getattr(config, 'days_count', 365)
             )
     

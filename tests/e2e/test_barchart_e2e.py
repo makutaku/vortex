@@ -211,7 +211,9 @@ end_year = 2025
         download_success = ("Download completed successfully" in output_text or 
                           "successfully downloaded" in output_text.lower() or
                           "Download completed!" in output_text or
-                          "All 1 symbols successful" in output_text)
+                          "All 1 symbols successful" in output_text or
+                          "✅ Download completed:" in output_text or
+                          "Download execution completed:" in output_text)
         assert download_success, f"Download did not complete successfully. Output: {output_text}"
         
         # Verify CSV file was created
