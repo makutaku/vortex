@@ -1,1058 +1,1632 @@
 # Vortex Integration Design
 
-**Version:** 1.0  
-**Date:** 2025-01-08  
+**Version:** 2.0  
+**Date:** 2025-08-15  
 **Related:** [Provider Abstraction](04-provider-abstraction.md) | [Security Design](06-security-design.md)
 
 ## 1. Integration Architecture Overview
 
-### 1.1 Integration Philosophy
-Vortex follows an adapter-based integration pattern that isolates external system dependencies behind well-defined interfaces. This approach ensures system resilience, testability, and flexibility when provider APIs change or new data sources are added.
+### 1.1 Current Integration Implementation
+Vortex implements a sophisticated dependency injection-based integration architecture using protocol-based abstractions for external financial data providers. The current implementation demonstrates mature patterns for provider abstraction, circuit breaker resilience, and correlation tracking.
 
-### 1.2 Integration Objectives
-- **Provider Independence:** Abstract away provider-specific implementation details
-- **Fault Tolerance:** Graceful degradation when external systems fail
-- **Rate Limit Compliance:** Respect all provider rate limits and terms of service
-- **Protocol Flexibility:** Support REST APIs, WebSocket streams, and binary protocols
-- **Data Consistency:** Maintain uniform data quality across all providers
-
-### 1.3 Integration Landscape
+### 1.2 Actual Integration Architecture
 ```mermaid
 graph TB
-    subgraph "Vortex Core"
-        Core[Vortex Application]
-        Adapter[Integration Adapters]
-        Queue[Message Queue]
+    subgraph "Vortex Core Application"
+        CLI[CLI Commands]
+        Services[Service Layer]
+        DI[Dependency Injection]
+        Factory[Provider Factory]
     end
     
-    subgraph "Financial Data Providers"
-        Barchart[Barchart.com API]
-        Yahoo[Yahoo Finance API]
-        IBKR[Interactive Brokers TWS]
-        Alpha[AlphaVantage API]
+    subgraph "Provider Infrastructure"
+        Interfaces[Provider Interfaces]
+        Barchart[Barchart Provider]
+        Yahoo[Yahoo Provider]
+        IBKR[IBKR Provider]
     end
     
-    subgraph "Infrastructure Services"
-        Vault[HashiCorp Vault]
-        Monitoring[Prometheus/Grafana]
-        Logging[ELK Stack]
-        Storage[Cloud Storage]
+    subgraph "Resilience Infrastructure"
+        CircuitBreaker[Circuit Breaker]
+        Retry[Retry Logic]
+        CorrelationID[Correlation Tracking]
     end
     
-    subgraph "External Integrations"
-        Analytics[Analytics Platforms]
-        Databases[Time Series DBs]
-        Notifications[Alert Systems]
-        Backup[Backup Services]
+    subgraph "External APIs"
+        BarchartAPI[Barchart.com HTTPS]
+        YahooAPI[Yahoo Finance API]
+        IBKRAPI[TWS/Gateway TCP]
     end
     
-    Core --> Adapter
-    Adapter --> Queue
+    CLI --> Services
+    Services --> DI
+    DI --> Factory
+    Factory --> Interfaces
     
-    Adapter --> Barchart
-    Adapter --> Yahoo
-    Adapter --> IBKR
-    Adapter --> Alpha
+    Interfaces --> Barchart
+    Interfaces --> Yahoo
+    Interfaces --> IBKR
     
-    Core --> Vault
-    Core --> Monitoring
-    Core --> Logging
-    Core --> Storage
+    Barchart --> CircuitBreaker
+    Yahoo --> CircuitBreaker
+    IBKR --> CircuitBreaker
     
-    Core --> Analytics
-    Core --> Databases
-    Core --> Notifications
-    Core --> Backup
+    CircuitBreaker --> Retry
+    Retry --> CorrelationID
     
-    style Core fill:#e1f5fe
-    style Adapter fill:#fff3e0
-    style Barchart fill:#e8f5e8
-    style Yahoo fill:#e8f5e8
-    style IBKR fill:#e8f5e8
+    Barchart --> BarchartAPI
+    Yahoo --> YahooAPI
+    IBKR --> IBKRAPI
+    
+    style DI fill:#e1f5fe
+    style Interfaces fill:#fff3e0
+    style CircuitBreaker fill:#e8f5e8
 ```
 
-## 2. Provider Integration Patterns
+### 1.3 Integration Characteristics
+| Aspect | Implementation | Location | Benefits |
+|--------|---------------|----------|----------|
+| **Provider Abstraction** | Protocol-based DI | `infrastructure/providers/interfaces.py` | Testability, flexibility |
+| **Circuit Breaker** | Failure isolation | `infrastructure/resilience/` | Fault tolerance |
+| **HTTP Client** | Configurable timeouts | `infrastructure/providers/barchart/` | Rate limit compliance |
+| **Correlation Tracking** | Request tracing | `core/correlation/` | Observability |
+| **Error Handling** | Structured exceptions | `exceptions/` | Graceful degradation |
 
-### 2.1 HTTP REST API Integration
+## 2. Provider Integration Implementation
+
+### 2.1 Dependency Injection Architecture
+
+**Protocol-Based Provider Interfaces (From `src/vortex/infrastructure/providers/interfaces.py`):**
 ```python
-class RestApiAdapter:
-    """Generic REST API integration adapter"""
+from typing import Protocol, Optional, Dict, Any
+from abc import ABC, abstractmethod
+
+class HttpClientProtocol(Protocol):
+    """HTTP client dependency injection protocol"""
+    def get(self, url: str, **kwargs) -> Any: ...
+    def post(self, url: str, **kwargs) -> Any: ...
+
+class CacheProtocol(Protocol):
+    """Cache dependency injection protocol"""
+    def get(self, key: str) -> Optional[Any]: ...
+    def set(self, key: str, value: Any) -> None: ...
+
+class DataFetcherProtocol(Protocol):
+    """Data fetcher dependency injection protocol"""
+    def download(self, *args, **kwargs) -> Any: ...
+
+class ConnectionManagerProtocol(Protocol):
+    """Connection manager dependency injection protocol"""
+    def connect(self) -> bool: ...
+    def disconnect(self) -> bool: ...
+    def is_connected(self) -> bool: ...
+
+# Default implementations for dependency injection
+class DefaultHttpClient:
+    """Default HTTP client implementation"""
+    def __init__(self, timeout: int = 30, max_retries: int = 3):
+        self.timeout = timeout
+        self.max_retries = max_retries
+        # Implementation details...
+
+class DefaultCache:
+    """Default in-memory cache implementation"""
+    def __init__(self, max_size: int = 1000):
+        self._cache: Dict[str, Any] = {}
+        self.max_size = max_size
+        # Implementation details...
+```
+
+### 2.2 Actual Barchart Provider Implementation
+
+**Barchart HTTP Client with Circuit Breaker (From `src/vortex/infrastructure/providers/barchart/`):**
+```python
+class BarchartClient:
+    """Barchart.com HTTP client with authentication and resilience"""
     
-    def __init__(self, base_url: str, auth_config: Dict[str, Any]):
-        self.base_url = base_url
-        self.auth_config = auth_config
-        self.session = self._create_session()
-        self.rate_limiter = None
-        self.retry_strategy = RetryStrategy()
+    def __init__(self, 
+                 http_client: Optional[HttpClientProtocol] = None,
+                 auth: Optional['BarchartAuth'] = None,
+                 circuit_breaker: Optional['CircuitBreaker'] = None):
+        """Constructor with dependency injection"""
+        self.http_client = http_client or DefaultHttpClient()
+        self.auth = auth
+        self.circuit_breaker = circuit_breaker
+        self.session = None
+        self.last_login = None
         
-    def _create_session(self) -> requests.Session:
-        """Create configured HTTP session"""
-        session = requests.Session()
-        
-        # Configure timeouts
-        session.timeout = (10, 60)  # (connect, read) timeouts
-        
-        # Configure retries
-        retry_strategy = Retry(
-            total=3,
-            backoff_factor=1,
-            status_forcelist=[429, 500, 502, 503, 504],
-        )
-        adapter = HTTPAdapter(max_retries=retry_strategy)
-        session.mount("https://", adapter)
-        session.mount("http://", adapter)
-        
-        # Set headers
-        session.headers.update({
-            'User-Agent': 'Vortex/1.0',
-            'Accept': 'application/json',
-            'Accept-Encoding': 'gzip, deflate'
-        })
-        
-        return session
+    def initialize(self, config: 'BarchartConfig') -> bool:
+        """Initialize client with explicit configuration"""
+        try:
+            if self.auth:
+                success = self.auth.login(config.username, config.password)
+                if success:
+                    self.session = self.auth.session
+                    self.last_login = datetime.now()
+                    return True
+            return False
+        except Exception as e:
+            logger.error(f"Client initialization failed: {e}")
+            return False
     
-    def authenticate(self) -> bool:
-        """Authenticate with the API"""
-        auth_type = self.auth_config.get('type', 'none')
-        
-        if auth_type == 'basic':
-            return self._authenticate_basic()
-        elif auth_type == 'oauth2':
-            return self._authenticate_oauth2()
-        elif auth_type == 'api_key':
-            return self._authenticate_api_key()
-        elif auth_type == 'session':
-            return self._authenticate_session()
+    def request_download(self, symbol: str, start_date: str, end_date: str) -> str:
+        """Request download with circuit breaker protection"""
+        if self.circuit_breaker:
+            return self.circuit_breaker.call(
+                self._execute_download_request, 
+                symbol, start_date, end_date
+            )
         else:
-            return True  # No authentication required
+            return self._execute_download_request(symbol, start_date, end_date)
     
-    def make_request(self, method: str, endpoint: str, 
-                    params: Dict = None, data: Dict = None) -> ApiResponse:
-        """Make authenticated API request with error handling"""
-        
-        # Check rate limits
-        if self.rate_limiter and not self.rate_limiter.can_make_request():
-            wait_time = self.rate_limiter.get_wait_time()
-            if wait_time > 0:
-                time.sleep(wait_time)
-        
-        url = f"{self.base_url.rstrip('/')}/{endpoint.lstrip('/')}"
+    def _execute_download_request(self, symbol: str, start_date: str, end_date: str) -> str:
+        """Execute actual download request"""
+        if not self.session:
+            raise BarchartError("Client not authenticated")
+            
+        # Build request parameters using instance method (not static)
+        params = self.build_download_params(symbol, start_date, end_date)
         
         try:
-            response = self.session.request(
-                method=method,
-                url=url,
+            response = self.session.get(
+                "https://www.barchart.com/proxies/timeseries/historical/get",
                 params=params,
-                json=data if method in ['POST', 'PUT', 'PATCH'] else None
+                timeout=30
             )
-            
-            # Record request for rate limiting
-            if self.rate_limiter:
-                self.rate_limiter.record_request()
-            
-            # Handle API-specific error codes
-            self._handle_response_errors(response)
-            
-            return ApiResponse(
-                status_code=response.status_code,
-                headers=dict(response.headers),
-                data=response.json() if response.content else None,
-                raw_content=response.content
-            )
+            response.raise_for_status()
+            return response.text
             
         except requests.exceptions.RequestException as e:
-            raise IntegrationError(f"API request failed: {e}")
+            raise BarchartError(f"Download request failed: {e}")
     
-    def _handle_response_errors(self, response: requests.Response):
-        """Handle API-specific error responses"""
-        if response.status_code == 429:
-            # Rate limit exceeded
-            retry_after = response.headers.get('Retry-After', '60')
-            raise RateLimitError(f"Rate limit exceeded, retry after {retry_after} seconds")
+    def build_download_params(self, symbol: str, start_date: str, end_date: str, 
+                            **kwargs) -> Dict[str, Any]:
+        """Build download parameters (configurable instance method)"""
+        base_params = {
+            'symbol': symbol,
+            'from': start_date,
+            'to': end_date,
+            'period': kwargs.get('period', 'daily'),
+            'format': kwargs.get('format', 'csv')
+        }
         
-        elif response.status_code == 401:
-            # Authentication failed
-            raise AuthenticationError("API authentication failed")
-        
-        elif response.status_code == 403:
-            # Forbidden - permissions issue
-            raise AuthorizationError("API access forbidden")
-        
-        elif response.status_code >= 500:
-            # Server error
-            raise ServerError(f"API server error: {response.status_code}")
-        
-        elif 400 <= response.status_code < 500:
-            # Client error
-            try:
-                error_data = response.json()
-                error_message = error_data.get('message', 'Unknown client error')
-            except:
-                error_message = response.text or 'Unknown client error'
-            raise ClientError(f"API client error: {error_message}")
+        # Allow configuration overrides
+        if 'extra_params' in kwargs:
+            base_params.update(kwargs['extra_params'])
+            
+        return base_params
 ```
 
-### 2.2 WebSocket Integration
+### 2.3 Yahoo Finance Integration with Dependency Injection
+
+**Yahoo Provider with Injected Dependencies (From `src/vortex/infrastructure/providers/yahoo/`):**
 ```python
-class WebSocketAdapter:
-    """WebSocket integration for real-time data streams"""
+class YahooDataProvider:
+    """Yahoo Finance provider with dependency injection"""
     
-    def __init__(self, ws_url: str, auth_config: Dict[str, Any]):
-        self.ws_url = ws_url
-        self.auth_config = auth_config
-        self.ws = None
-        self.message_handlers = {}
-        self.is_connected = False
-        self.reconnect_attempts = 0
-        self.max_reconnect_attempts = 5
+    def __init__(self, 
+                 cache: Optional[CacheProtocol] = None,
+                 data_fetcher: Optional[DataFetcherProtocol] = None):
+        """Constructor with dependency injection (no auto-initialization)"""
+        self.cache = cache
+        self.data_fetcher = data_fetcher
+        self._initialized = False
         
-    async def connect(self) -> bool:
-        """Establish WebSocket connection"""
+    def initialize(self) -> bool:
+        """Initialize dependencies explicitly"""
         try:
-            # Create connection with authentication headers
-            headers = self._get_auth_headers()
-            
-            self.ws = await websockets.connect(
-                self.ws_url,
-                extra_headers=headers,
-                ping_interval=30,
-                ping_timeout=10,
-                close_timeout=10
-            )
-            
-            self.is_connected = True
-            self.reconnect_attempts = 0
-            
-            # Start message handling loop
-            asyncio.create_task(self._message_loop())
-            
-            logger.info(f"WebSocket connected to {self.ws_url}")
+            # Initialize cache if provided
+            if self.cache is None:
+                self.cache = DefaultCache()
+                
+            # Initialize data fetcher if provided
+            if self.data_fetcher is None:
+                import yfinance as yf
+                self.data_fetcher = yf  # Use yfinance as default fetcher
+                
+            # Set timezone cache (removed from constructor)
+            if hasattr(self.data_fetcher, 'set_tz_cache_location'):
+                self.data_fetcher.set_tz_cache_location(None)
+                
+            self._initialized = True
             return True
             
         except Exception as e:
-            logger.error(f"WebSocket connection failed: {e}")
+            logger.error(f"Yahoo provider initialization failed: {e}")
             return False
     
-    async def subscribe(self, channel: str, symbol: str = None):
-        """Subscribe to data channel"""
-        if not self.is_connected:
-            raise ConnectionError("WebSocket not connected")
+    def fetch_historical_data(self, instrument: 'Instrument', 
+                            date_range: 'DateRange') -> pd.DataFrame:
+        """Fetch data with caching and error handling"""
+        if not self._initialized:
+            raise ProviderError("Provider not initialized")
+            
+        # Check cache first
+        cache_key = f"{instrument.symbol}_{date_range.start}_{date_range.end}"
+        if self.cache:
+            cached_data = self.cache.get(cache_key)
+            if cached_data is not None:
+                return cached_data
         
-        subscribe_message = {
-            "action": "subscribe",
-            "channel": channel,
-            "symbol": symbol
-        }
-        
-        await self.ws.send(json.dumps(subscribe_message))
-        logger.info(f"Subscribed to {channel}" + (f" for {symbol}" if symbol else ""))
-    
-    async def _message_loop(self):
-        """Handle incoming WebSocket messages"""
         try:
-            async for message in self.ws:
-                try:
-                    data = json.loads(message)
-                    await self._process_message(data)
-                except json.JSONDecodeError:
-                    logger.warning(f"Invalid JSON message: {message}")
-                except Exception as e:
-                    logger.error(f"Error processing message: {e}")
-                    
-        except websockets.exceptions.ConnectionClosed:
-            logger.warning("WebSocket connection closed")
-            self.is_connected = False
-            await self._attempt_reconnect()
-        except Exception as e:
-            logger.error(f"WebSocket message loop error: {e}")
-            self.is_connected = False
-    
-    async def _attempt_reconnect(self):
-        """Attempt to reconnect with exponential backoff"""
-        if self.reconnect_attempts >= self.max_reconnect_attempts:
-            logger.error("Max reconnection attempts reached")
-            return
-        
-        self.reconnect_attempts += 1
-        backoff_time = min(300, 2 ** self.reconnect_attempts)  # Max 5 minutes
-        
-        logger.info(f"Attempting reconnection in {backoff_time} seconds...")
-        await asyncio.sleep(backoff_time)
-        
-        success = await self.connect()
-        if not success:
-            await self._attempt_reconnect()
-```
-
-### 2.3 Binary Protocol Integration (IBKR TWS)
-```python
-class TwsProtocolAdapter:
-    """Interactive Brokers TWS API protocol adapter"""
-    
-    def __init__(self, host: str = "127.0.0.1", port: int = 7497, client_id: int = 1):
-        self.host = host
-        self.port = port
-        self.client_id = client_id
-        self.ib_client = None
-        self.connection_state = ConnectionState.DISCONNECTED
-        self.market_data_subscriptions = {}
-        
-    def connect(self) -> bool:
-        """Connect to TWS/IB Gateway"""
-        try:
-            from ib_insync import IB, util
-            
-            # Enable logging for debugging
-            util.startLoop()
-            
-            self.ib_client = IB()
-            
-            # Set up event handlers
-            self.ib_client.connectedEvent += self._on_connected
-            self.ib_client.disconnectedEvent += self._on_disconnected
-            self.ib_client.errorEvent += self._on_error
-            
-            # Connect to TWS
-            self.ib_client.connect(
-                host=self.host,
-                port=self.port,
-                clientId=self.client_id,
-                timeout=20
+            # Fetch data using injected data fetcher
+            ticker = self.data_fetcher.Ticker(instrument.symbol)
+            data = ticker.history(
+                start=date_range.start,
+                end=date_range.end,
+                interval=self._map_period_to_interval(instrument.period)
             )
             
-            if self.ib_client.isConnected():
-                self.connection_state = ConnectionState.CONNECTED
-                logger.info(f"Connected to TWS at {self.host}:{self.port}")
+            # Cache the result
+            if self.cache:
+                self.cache.set(cache_key, data)
+                
+            return data
+            
+        except Exception as e:
+            raise ProviderError(f"Yahoo Finance data fetch failed: {e}")
+```
+
+### 2.4 Interactive Brokers Integration with Connection Management
+
+**IBKR Provider with Connection Manager DI (From `src/vortex/infrastructure/providers/ibkr/`):**
+```python
+class IbkrDataProvider:
+    """Interactive Brokers provider with dependency injection"""
+    
+    def __init__(self, 
+                 connection_manager: Optional[ConnectionManagerProtocol] = None):
+        """Constructor with dependency injection (no auto-connection)"""
+        self.connection_manager = connection_manager
+        self.config = None
+        self._initialized = False
+        
+    def initialize(self, config: 'IbkrConfig') -> bool:
+        """Initialize with explicit configuration and connection"""
+        try:
+            self.config = config
+            
+            # Initialize connection manager if not provided
+            if self.connection_manager is None:
+                self.connection_manager = DefaultConnectionManager(
+                    host=config.host,
+                    port=config.port,
+                    client_id=config.client_id
+                )
+            
+            # Establish connection (removed from constructor)
+            success = self.connection_manager.connect()
+            if success:
+                self._initialized = True
+                logger.info("IBKR provider initialized successfully")
                 return True
             else:
-                self.connection_state = ConnectionState.FAILED
+                logger.error("Failed to establish IBKR connection")
                 return False
                 
         except Exception as e:
-            logger.error(f"TWS connection failed: {e}")
-            self.connection_state = ConnectionState.ERROR
+            logger.error(f"IBKR provider initialization failed: {e}")
             return False
     
-    def request_historical_data(self, contract: Contract, 
-                              duration: str, bar_size: str) -> pd.DataFrame:
-        """Request historical data from TWS"""
-        if not self.ib_client or not self.ib_client.isConnected():
-            raise ConnectionError("Not connected to TWS")
+    def fetch_historical_data(self, instrument: 'Instrument', 
+                            date_range: 'DateRange') -> pd.DataFrame:
+        """Fetch historical data from TWS/Gateway"""
+        if not self._initialized:
+            raise ProviderError("Provider not initialized")
+            
+        if not self.connection_manager.is_connected():
+            raise ProviderError("Not connected to TWS/Gateway")
         
         try:
-            # Request data
-            bars = self.ib_client.reqHistoricalData(
+            # Map period using configurable instance method
+            duration_str = self.map_date_range_to_duration(date_range)
+            bar_size = self.map_period_to_bar_size(instrument.period)
+            
+            # Create contract
+            contract = self._create_contract(instrument)
+            
+            # Request historical data through connection manager
+            bars = self.connection_manager.request_historical_data(
                 contract=contract,
-                endDateTime='',  # Current time
-                durationStr=duration,
-                barSizeSetting=bar_size,
-                whatToShow='TRADES',
-                useRTH=True,  # Regular trading hours
-                formatDate=1  # UTC timestamps
+                duration=duration_str,
+                bar_size=bar_size
             )
             
-            # Convert to DataFrame
-            if bars:
-                data = []
-                for bar in bars:
-                    data.append({
-                        'timestamp': bar.date,
-                        'open': float(bar.open),
-                        'high': float(bar.high),
-                        'low': float(bar.low),
-                        'close': float(bar.close),
-                        'volume': int(bar.volume),
-                        'average': float(bar.average),
-                        'barCount': int(bar.barCount)
-                    })
-                
-                return pd.DataFrame(data)
-            else:
-                return pd.DataFrame()
-                
-        except Exception as e:
-            raise IntegrationError(f"Historical data request failed: {e}")
-    
-    def subscribe_market_data(self, contract: Contract, 
-                            callback: callable) -> int:
-        """Subscribe to real-time market data"""
-        if not self.ib_client or not self.ib_client.isConnected():
-            raise ConnectionError("Not connected to TWS")
-        
-        try:
-            # Request market data
-            ticker = self.ib_client.reqMktData(contract)
-            
-            # Set up data handler
-            def handle_ticker_update(ticker):
-                if ticker.last and ticker.time:
-                    market_data = MarketData(
-                        symbol=contract.symbol,
-                        price=ticker.last,
-                        bid=ticker.bid,
-                        ask=ticker.ask,
-                        volume=ticker.volume,
-                        timestamp=ticker.time
-                    )
-                    callback(market_data)
-            
-            ticker.updateEvent += handle_ticker_update
-            
-            # Store subscription
-            req_id = id(ticker)
-            self.market_data_subscriptions[req_id] = {
-                'contract': contract,
-                'ticker': ticker,
-                'callback': callback
-            }
-            
-            return req_id
+            # Convert to standard DataFrame format
+            return self._convert_bars_to_dataframe(bars, instrument.symbol)
             
         except Exception as e:
-            raise IntegrationError(f"Market data subscription failed: {e}")
+            raise ProviderError(f"IBKR data fetch failed: {e}")
     
-    def _on_connected(self):
-        """Handle connection established event"""
-        logger.info("TWS connection established")
-        self.connection_state = ConnectionState.CONNECTED
-    
-    def _on_disconnected(self):
-        """Handle connection lost event"""
-        logger.warning("TWS connection lost")
-        self.connection_state = ConnectionState.DISCONNECTED
+    def map_date_range_to_duration(self, date_range: 'DateRange', 
+                                 **kwargs) -> str:
+        """Map date range to IBKR duration string (configurable instance method)"""
+        days = (date_range.end - date_range.start).days
         
-        # Clear subscriptions
-        self.market_data_subscriptions.clear()
-    
-    def _on_error(self, reqId: int, errorCode: int, errorString: str):
-        """Handle TWS error events"""
-        logger.error(f"TWS Error {errorCode}: {errorString} (Request: {reqId})")
-        
-        # Handle specific error codes
-        if errorCode in [502, 503, 504]:  # Connection errors
-            self.connection_state = ConnectionState.ERROR
-        elif errorCode == 200:  # No security definition found
-            logger.warning(f"Contract not found for request {reqId}")
-        elif errorCode in [162, 163]:  # Historical data service error
-            logger.error(f"Historical data service error: {errorString}")
-```
-
-## 3. Circuit Breaker Pattern
-
-### 3.1 Circuit Breaker Implementation
-```python
-class CircuitBreaker:
-    """Circuit breaker for external service integration"""
-    
-    def __init__(self, failure_threshold: int = 5, 
-                 reset_timeout: int = 60, timeout: int = 30):
-        self.failure_threshold = failure_threshold
-        self.reset_timeout = reset_timeout
-        self.timeout = timeout
-        self.failure_count = 0
-        self.last_failure_time = None
-        self.state = CircuitState.CLOSED
-        self.lock = threading.Lock()
-    
-    def call(self, func: callable, *args, **kwargs):
-        """Execute function through circuit breaker"""
-        with self.lock:
-            if self.state == CircuitState.OPEN:
-                if self._should_attempt_reset():
-                    self.state = CircuitState.HALF_OPEN
-                else:
-                    raise CircuitBreakerError("Circuit breaker is OPEN")
-        
-        try:
-            # Execute function with timeout
-            result = self._execute_with_timeout(func, *args, **kwargs)
+        # Allow configuration override
+        if 'duration_override' in kwargs:
+            return kwargs['duration_override']
             
-            # Success - reset failure count
-            with self.lock:
-                self.failure_count = 0
-                if self.state == CircuitState.HALF_OPEN:
-                    self.state = CircuitState.CLOSED
-                    logger.info("Circuit breaker reset to CLOSED")
-            
-            return result
-            
-        except Exception as e:
-            with self.lock:
-                self.failure_count += 1
-                self.last_failure_time = time.time()
-                
-                if self.failure_count >= self.failure_threshold:
-                    self.state = CircuitState.OPEN
-                    logger.error(f"Circuit breaker tripped to OPEN state after {self.failure_count} failures")
-                
-                if self.state == CircuitState.HALF_OPEN:
-                    self.state = CircuitState.OPEN
-                    logger.warning("Circuit breaker returned to OPEN from HALF_OPEN")
-            
-            raise e
-    
-    def _should_attempt_reset(self) -> bool:
-        """Check if enough time has passed to attempt reset"""
-        if self.last_failure_time is None:
-            return True
-        
-        return (time.time() - self.last_failure_time) >= self.reset_timeout
-    
-    def _execute_with_timeout(self, func: callable, *args, **kwargs):
-        """Execute function with timeout"""
-        def target(result_queue, exception_queue):
-            try:
-                result = func(*args, **kwargs)
-                result_queue.put(result)
-            except Exception as e:
-                exception_queue.put(e)
-        
-        result_queue = queue.Queue()
-        exception_queue = queue.Queue()
-        
-        thread = threading.Thread(target=target, args=(result_queue, exception_queue))
-        thread.daemon = True
-        thread.start()
-        thread.join(timeout=self.timeout)
-        
-        if thread.is_alive():
-            # Timeout occurred
-            raise TimeoutError(f"Function execution timed out after {self.timeout} seconds")
-        
-        if not exception_queue.empty():
-            raise exception_queue.get()
-        
-        if not result_queue.empty():
-            return result_queue.get()
-        
-        raise RuntimeError("Function execution failed without exception")
-```
-
-### 3.2 Service Health Monitoring
-```python
-class ServiceHealthMonitor:
-    """Monitor health of external services"""
-    
-    def __init__(self, check_interval: int = 60):
-        self.check_interval = check_interval
-        self.services = {}
-        self.health_history = defaultdict(list)
-        self.is_monitoring = False
-        
-    def register_service(self, name: str, health_check: callable, 
-                        critical: bool = True):
-        """Register a service for health monitoring"""
-        self.services[name] = {
-            'health_check': health_check,
-            'critical': critical,
-            'last_check': None,
-            'status': ServiceStatus.UNKNOWN,
-            'consecutive_failures': 0
-        }
-    
-    def start_monitoring(self):
-        """Start health monitoring loop"""
-        self.is_monitoring = True
-        threading.Thread(target=self._monitoring_loop, daemon=True).start()
-        logger.info("Service health monitoring started")
-    
-    def _monitoring_loop(self):
-        """Main monitoring loop"""
-        while self.is_monitoring:
-            for service_name in self.services.keys():
-                try:
-                    self._check_service_health(service_name)
-                except Exception as e:
-                    logger.error(f"Health check error for {service_name}: {e}")
-                    
-            time.sleep(self.check_interval)
-    
-    def _check_service_health(self, service_name: str):
-        """Check health of individual service"""
-        service = self.services[service_name]
-        start_time = time.time()
-        
-        try:
-            # Execute health check
-            health_result = service['health_check']()
-            check_duration = time.time() - start_time
-            
-            # Update service status
-            if health_result:
-                service['status'] = ServiceStatus.HEALTHY
-                service['consecutive_failures'] = 0
-            else:
-                service['status'] = ServiceStatus.UNHEALTHY
-                service['consecutive_failures'] += 1
-            
-            # Record health history
-            health_record = HealthRecord(
-                timestamp=datetime.utcnow(),
-                service=service_name,
-                status=service['status'],
-                response_time=check_duration,
-                details=health_result if isinstance(health_result, dict) else {}
-            )
-            
-            self.health_history[service_name].append(health_record)
-            
-            # Trim history to last 1000 records
-            if len(self.health_history[service_name]) > 1000:
-                self.health_history[service_name].pop(0)
-            
-            # Alert on critical service failures
-            if (service['critical'] and 
-                service['consecutive_failures'] >= 3):
-                self._alert_service_failure(service_name, service)
-            
-        except Exception as e:
-            service['status'] = ServiceStatus.ERROR
-            service['consecutive_failures'] += 1
-            logger.error(f"Health check failed for {service_name}: {e}")
-    
-    def get_overall_health(self) -> SystemHealth:
-        """Get overall system health status"""
-        healthy_services = 0
-        critical_unhealthy = 0
-        
-        for service_name, service in self.services.items():
-            if service['status'] == ServiceStatus.HEALTHY:
-                healthy_services += 1
-            elif service['critical'] and service['status'] != ServiceStatus.HEALTHY:
-                critical_unhealthy += 1
-        
-        total_services = len(self.services)
-        health_percentage = (healthy_services / total_services) * 100 if total_services > 0 else 0
-        
-        if critical_unhealthy > 0:
-            overall_status = SystemStatus.DEGRADED
-        elif health_percentage >= 90:
-            overall_status = SystemStatus.HEALTHY
-        elif health_percentage >= 70:
-            overall_status = SystemStatus.DEGRADED
+        if days <= 30:
+            return f"{days} D"
+        elif days <= 365:
+            weeks = days // 7
+            return f"{weeks} W"
         else:
-            overall_status = SystemStatus.UNHEALTHY
+            years = days // 365
+            return f"{years} Y"
+    
+    def map_period_to_bar_size(self, period: str, **kwargs) -> str:
+        """Map period to IBKR bar size (configurable instance method)"""
+        period_mapping = {
+            '1m': '1 min',
+            '5m': '5 mins',
+            '15m': '15 mins',
+            '30m': '30 mins',
+            '1h': '1 hour',
+            '1d': '1 day',
+            '1W': '1 week',
+            '1M': '1 month'
+        }
         
-        return SystemHealth(
-            overall_status=overall_status,
-            healthy_services=healthy_services,
-            total_services=total_services,
-            health_percentage=health_percentage,
-            critical_failures=critical_unhealthy
-        )
+        # Allow configuration override
+        if 'bar_size_override' in kwargs:
+            return kwargs['bar_size_override']
+            
+        return period_mapping.get(period, '1 day')
 ```
 
-## 4. Data Transformation and Mapping
+### 2.5 Provider Factory with Dependency Injection
 
-### 4.1 Provider Data Mapping
+**Enhanced Provider Factory (From `src/vortex/infrastructure/providers/factory.py`):**
 ```python
-class DataTransformationEngine:
-    """Transform provider-specific data to common format"""
+class ProviderFactory:
+    """Provider factory with dependency injection support"""
     
     def __init__(self):
-        self.transformers = {
-            'barchart': BarchartTransformer(),
-            'yahoo': YahooTransformer(),
-            'ibkr': IbkrTransformer(),
-            'alphavantage': AlphaVantageTransformer()
-        }
-        self.target_schema = StandardOHLCVSchema()
-    
-    def transform_data(self, provider: str, raw_data: Any, 
-                      instrument: Instrument) -> pd.DataFrame:
-        """Transform provider data to standard format"""
-        if provider not in self.transformers:
-            raise ValueError(f"No transformer available for provider: {provider}")
+        self._providers = {}
+        self._configs = {}
         
-        transformer = self.transformers[provider]
+    def create_provider(self, provider_type: str, config: Any, 
+                       **dependencies) -> 'DataProvider':
+        """Create provider with dependency injection and explicit initialization"""
         
-        # Transform to standard format
-        standardized_data = transformer.transform(raw_data, instrument)
-        
-        # Validate against target schema
-        validation_result = self.target_schema.validate(standardized_data)
-        if not validation_result.is_valid:
-            raise DataValidationError(f"Transformed data invalid: {validation_result.errors}")
-        
-        # Add metadata
-        standardized_data['provider'] = provider
-        standardized_data['transform_timestamp'] = datetime.utcnow()
-        
-        return standardized_data
-
-class BarchartTransformer:
-    """Transform Barchart CSV data to standard format"""
-    
-    COLUMN_MAPPING = {
-        'Time': 'timestamp',
-        'Open': 'open',
-        'High': 'high',
-        'Low': 'low',
-        'Last': 'close',
-        'Volume': 'volume'
-    }
-    
-    def transform(self, csv_content: str, instrument: Instrument) -> pd.DataFrame:
-        """Transform Barchart CSV to DataFrame"""
-        try:
-            # Parse CSV
-            df = pd.read_csv(io.StringIO(csv_content))
+        if provider_type.upper() == 'BARCHART':
+            # Inject dependencies for Barchart
+            http_client = dependencies.get('http_client')
+            auth = dependencies.get('auth')
+            circuit_breaker = dependencies.get('circuit_breaker')
             
-            # Apply column mapping
-            df = df.rename(columns=self.COLUMN_MAPPING)
+            # Create client with dependencies
+            client = BarchartClient(
+                http_client=http_client,
+                auth=auth or BarchartAuth(),
+                circuit_breaker=circuit_breaker
+            )
             
-            # Parse timestamps
-            df['timestamp'] = pd.to_datetime(df['timestamp'], format='%m/%d/%Y')
+            # Create provider
+            provider = BarchartDataProvider(client=client)
             
-            # Ensure numeric types
-            numeric_columns = ['open', 'high', 'low', 'close', 'volume']
-            for col in numeric_columns:
-                df[col] = pd.to_numeric(df[col], errors='coerce')
+            # Initialize explicitly (separate from construction)
+            if not provider.initialize(config):
+                raise ProviderError(f"Failed to initialize {provider_type} provider")
+                
+            return provider
             
-            # Add symbol
-            df['symbol'] = instrument.symbol
+        elif provider_type.upper() == 'YAHOO':
+            # Inject dependencies for Yahoo
+            cache = dependencies.get('cache')
+            data_fetcher = dependencies.get('data_fetcher')
             
-            # Select standard columns
-            standard_columns = ['timestamp', 'open', 'high', 'low', 'close', 'volume', 'symbol']
-            return df[standard_columns].dropna()
+            provider = YahooDataProvider(
+                cache=cache,
+                data_fetcher=data_fetcher
+            )
             
-        except Exception as e:
-            raise DataTransformationError(f"Barchart transformation failed: {e}")
-
-class YahooTransformer:
-    """Transform Yahoo Finance JSON data to standard format"""
-    
-    def transform(self, json_data: Dict, instrument: Instrument) -> pd.DataFrame:
-        """Transform Yahoo JSON to DataFrame"""
-        try:
-            result = json_data['chart']['result'][0]
+            if not provider.initialize():
+                raise ProviderError(f"Failed to initialize {provider_type} provider")
+                
+            return provider
             
-            # Extract timestamps and quotes
-            timestamps = result['timestamp']
-            quotes = result['indicators']['quote'][0]
+        elif provider_type.upper() == 'IBKR':
+            # Inject dependencies for IBKR
+            connection_manager = dependencies.get('connection_manager')
             
-            # Build DataFrame
-            df = pd.DataFrame({
-                'timestamp': pd.to_datetime(timestamps, unit='s', utc=True),
-                'open': quotes['open'],
-                'high': quotes['high'],
-                'low': quotes['low'],
-                'close': quotes['close'],
-                'volume': quotes['volume'],
-                'symbol': instrument.symbol
-            })
+            provider = IbkrDataProvider(
+                connection_manager=connection_manager
+            )
             
-            # Remove any rows with NaN values
-            return df.dropna()
+            if not provider.initialize(config):
+                raise ProviderError(f"Failed to initialize {provider_type} provider")
+                
+            return provider
             
-        except Exception as e:
-            raise DataTransformationError(f"Yahoo transformation failed: {e}")
+        else:
+            raise ValueError(f"Unknown provider type: {provider_type}")
 ```
 
-### 4.2 Schema Validation
+### 2.6 Data Transformation and Parsing
+
+**Barchart Parser with Configurable Methods (From `src/vortex/infrastructure/providers/barchart/parser.py`):**
 ```python
-class StandardOHLCVSchema:
-    """Standard OHLCV data schema definition and validation"""
+class BarchartParser:
+    """Parser for Barchart CSV data with configurable methods"""
     
-    REQUIRED_COLUMNS = ['timestamp', 'open', 'high', 'low', 'close', 'volume', 'symbol']
+    def __init__(self, column_mapping: Optional[Dict[str, str]] = None):
+        """Initialize with configurable column mapping"""
+        self.column_mapping = column_mapping or {
+            'Time': 'timestamp',
+            'Open': 'open', 
+            'High': 'high',
+            'Low': 'low',
+            'Last': 'close',
+            'Volume': 'volume'
+        }
     
+    def convert_daily_csv_to_df(self, csv_content: str, symbol: str, 
+                               **kwargs) -> pd.DataFrame:
+        """Convert CSV to DataFrame (configurable instance method)"""
+        try:
+            # Parse CSV content
+            df = pd.read_csv(io.StringIO(csv_content))
+            
+            # Apply column mapping (configurable)
+            column_mapping = kwargs.get('column_mapping', self.column_mapping)
+            df = df.rename(columns=column_mapping)
+            
+            # Parse timestamps with configurable format
+            timestamp_format = kwargs.get('timestamp_format', '%m/%d/%Y')
+            if 'timestamp' in df.columns:
+                df['timestamp'] = pd.to_datetime(df['timestamp'], format=timestamp_format)
+            
+            # Ensure numeric types for OHLCV columns
+            numeric_columns = ['open', 'high', 'low', 'close', 'volume']
+            for col in numeric_columns:
+                if col in df.columns:
+                    df[col] = pd.to_numeric(df[col], errors='coerce')
+            
+            # Add symbol column
+            df['symbol'] = symbol
+            
+            # Apply custom transformations if provided
+            if 'custom_transform' in kwargs:
+                df = kwargs['custom_transform'](df)
+            
+            # Select and return standard columns
+            standard_columns = ['timestamp', 'open', 'high', 'low', 'close', 'volume', 'symbol']
+            available_columns = [col for col in standard_columns if col in df.columns]
+            
+            result_df = df[available_columns].dropna()
+            
+            # Validate result
+            if result_df.empty:
+                raise BarchartParsingError("No valid data after parsing")
+                
+            return result_df
+            
+        except Exception as e:
+            raise BarchartParsingError(f"CSV parsing failed: {e}")
+```
+
+### 2.7 Column Constants and Data Validation
+
+**Standardized Data Validation (From `src/vortex/models/column_constants.py`):**
+```python
+class ColumnConstants:
+    """Standard column definitions and validation"""
+    
+    # Required OHLCV columns
+    REQUIRED_COLUMNS = ['timestamp', 'open', 'high', 'low', 'close', 'volume']
+    OPTIONAL_COLUMNS = ['symbol', 'provider', 'adjusted_close']
+    
+    # Data type specifications
     COLUMN_TYPES = {
         'timestamp': 'datetime64[ns]',
         'open': 'float64',
-        'high': 'float64',
+        'high': 'float64', 
         'low': 'float64',
         'close': 'float64',
         'volume': 'int64',
         'symbol': 'object'
     }
     
-    def validate(self, data: pd.DataFrame) -> ValidationResult:
-        """Validate DataFrame against OHLCV schema"""
-        errors = []
-        warnings = []
+    @classmethod
+    def validate_required_columns(cls, df: pd.DataFrame, 
+                                 strict: bool = True) -> List[str]:
+        """Validate required columns presence"""
+        missing_columns = []
         
-        # Check required columns
-        missing_columns = set(self.REQUIRED_COLUMNS) - set(data.columns)
-        if missing_columns:
-            errors.append(f"Missing required columns: {missing_columns}")
-        
-        # Check data types
-        for column, expected_type in self.COLUMN_TYPES.items():
-            if column in data.columns:
-                actual_type = str(data[column].dtype)
-                if not self._types_compatible(actual_type, expected_type):
-                    warnings.append(f"Column {column} type mismatch: expected {expected_type}, got {actual_type}")
-        
-        # Business logic validation
-        if all(col in data.columns for col in ['open', 'high', 'low', 'close']):
-            # High should be >= max(open, close)
-            invalid_highs = data[data['high'] < data[['open', 'close']].max(axis=1)]
-            if len(invalid_highs) > 0:
-                errors.append(f"Invalid high values in {len(invalid_highs)} rows")
+        for col in cls.REQUIRED_COLUMNS:
+            if col not in df.columns:
+                missing_columns.append(col)
+                
+        if strict and missing_columns:
+            raise ValidationError(f"Missing required columns: {missing_columns}")
             
-            # Low should be <= min(open, close)
-            invalid_lows = data[data['low'] > data[['open', 'close']].min(axis=1)]
-            if len(invalid_lows) > 0:
-                errors.append(f"Invalid low values in {len(invalid_lows)} rows")
-        
-        # Volume should be non-negative
-        if 'volume' in data.columns:
-            negative_volume = data[data['volume'] < 0]
-            if len(negative_volume) > 0:
-                errors.append(f"Negative volume in {len(negative_volume)} rows")
-        
-        return ValidationResult(
-            is_valid=len(errors) == 0,
-            errors=errors,
-            warnings=warnings
-        )
+        return missing_columns
     
-    def _types_compatible(self, actual: str, expected: str) -> bool:
-        """Check if data types are compatible"""
-        # Allow some flexibility in numeric types
-        if expected == 'float64' and actual in ['float32', 'float64', 'int64', 'int32']:
+    @classmethod
+    def validate_column_data_types(cls, df: pd.DataFrame) -> List[str]:
+        """Validate column data types"""
+        type_errors = []
+        
+        for col, expected_type in cls.COLUMN_TYPES.items():
+            if col in df.columns:
+                actual_type = str(df[col].dtype)
+                if not cls._is_compatible_type(actual_type, expected_type):
+                    type_errors.append(f"{col}: expected {expected_type}, got {actual_type}")
+                    
+        return type_errors
+    
+    @classmethod
+    def standardize_dataframe_columns(cls, df: pd.DataFrame, 
+                                    strict: bool = False) -> pd.DataFrame:
+        """Standardize DataFrame to required format"""
+        # Validate columns
+        missing = cls.validate_required_columns(df, strict=strict)
+        if strict and missing:
+            raise ValidationError(f"Cannot standardize: missing {missing}")
+            
+        # Select available standard columns
+        available_standard = [col for col in cls.REQUIRED_COLUMNS + cls.OPTIONAL_COLUMNS 
+                            if col in df.columns]
+        
+        return df[available_standard].copy()
+    
+    @staticmethod
+    def _is_compatible_type(actual: str, expected: str) -> bool:
+        """Check type compatibility with flexibility"""
+        # Allow numeric type flexibility
+        if expected == 'float64' and any(t in actual for t in ['float', 'int']):
             return True
-        if expected == 'int64' and actual in ['int32', 'int64', 'uint32', 'uint64']:
+        if expected == 'int64' and 'int' in actual:
             return True
         if expected == 'object' and 'object' in actual:
             return True
-        if expected == 'datetime64[ns]' and 'datetime64' in actual:
+        if expected == 'datetime64[ns]' and 'datetime' in actual:
             return True
-        
+            
         return actual == expected
 ```
-
-## 5. Event-Driven Integration
-
-### 5.1 Event Publishing
-```python
-class IntegrationEventBus:
-    """Event bus for integration-related events"""
-    
-    def __init__(self):
-        self.subscribers = defaultdict(list)
-        self.event_history = deque(maxlen=10000)
-        
-    def subscribe(self, event_type: str, handler: callable):
-        """Subscribe to integration events"""
-        self.subscribers[event_type].append(handler)
-        logger.info(f"Subscribed handler to {event_type}")
-    
-    def publish(self, event: IntegrationEvent):
-        """Publish integration event"""
-        # Record event
-        self.event_history.append(event)
-        
-        # Notify subscribers
-        for handler in self.subscribers[event.type]:
-            try:
-                handler(event)
-            except Exception as e:
-                logger.error(f"Event handler failed for {event.type}: {e}")
-    
-    def publish_provider_event(self, provider: str, event_type: str, 
-                             data: Dict = None):
-        """Publish provider-specific event"""
-        event = IntegrationEvent(
-            type=f"provider.{provider}.{event_type}",
-            timestamp=datetime.utcnow(),
-            source=provider,
-            data=data or {}
-        )
-        self.publish(event)
-
-# Event types
-class IntegrationEventType:
-    PROVIDER_CONNECTED = "provider.connected"
-    PROVIDER_DISCONNECTED = "provider.disconnected"
-    PROVIDER_ERROR = "provider.error"
-    DATA_RECEIVED = "data.received"
-    DATA_TRANSFORMED = "data.transformed"
-    RATE_LIMIT_HIT = "rate_limit.hit"
-    CIRCUIT_BREAKER_OPEN = "circuit_breaker.open"
-    HEALTH_CHECK_FAILED = "health_check.failed"
 ```
 
-### 5.2 Asynchronous Processing
+## 3. Resilience and Error Handling
+
+### 3.1 Actual Circuit Breaker Implementation
+
+**Circuit Breaker Pattern (From `src/vortex/infrastructure/resilience/`):**
 ```python
-class AsyncIntegrationProcessor:
-    """Asynchronous processing for integration tasks"""
+class CircuitBreaker:
+    """Circuit breaker implementation for provider resilience"""
     
-    def __init__(self, max_workers: int = 10):
-        self.max_workers = max_workers
-        self.executor = ThreadPoolExecutor(max_workers=max_workers)
-        self.task_queue = asyncio.Queue()
-        self.active_tasks = {}
+    def __init__(self, failure_threshold: int = 5, 
+                 reset_timeout: int = 60, 
+                 timeout: int = 30,
+                 name: str = "default"):
+        self.failure_threshold = failure_threshold
+        self.reset_timeout = reset_timeout
+        self.timeout = timeout
+        self.name = name
+        self.failure_count = 0
+        self.last_failure_time = None
+        self.state = CircuitState.CLOSED
+        self.lock = threading.Lock()
+        self.correlation_manager = get_correlation_manager()
         
-    async def process_provider_data(self, provider: str, 
-                                  data_request: DataRequest) -> Future:
-        """Process provider data request asynchronously"""
-        task_id = str(uuid.uuid4())
+    def call(self, func: callable, *args, **kwargs):
+        """Execute function through circuit breaker with correlation tracking"""
+        correlation_id = self.correlation_manager.get_correlation_id()
         
-        # Create task
-        future = self.executor.submit(
-            self._execute_data_request,
-            provider, data_request, task_id
-        )
+        with self.lock:
+            if self.state == CircuitState.OPEN:
+                if self._should_attempt_reset():
+                    self.state = CircuitState.HALF_OPEN
+                    logger.info(f"Circuit breaker {self.name} attempting reset", 
+                              extra={'correlation_id': correlation_id})
+                else:
+                    raise CircuitBreakerOpenError(
+                        f"Circuit breaker {self.name} is OPEN",
+                        correlation_id=correlation_id
+                    )
         
-        self.active_tasks[task_id] = {
-            'provider': provider,
-            'request': data_request,
-            'future': future,
-            'started': datetime.utcnow()
-        }
-        
-        return future
-    
-    def _execute_data_request(self, provider: str, 
-                            request: DataRequest, task_id: str) -> DataResponse:
-        """Execute data request in thread pool"""
+        start_time = time.time()
         try:
-            # Get provider adapter
-            adapter = self._get_provider_adapter(provider)
+            # Execute function with timeout and correlation
+            result = self._execute_with_correlation(func, correlation_id, *args, **kwargs)
             
-            # Execute request
-            raw_data = adapter.get_data(request.instrument, request.date_range)
+            # Success - reset failure count
+            with self.lock:
+                if self.failure_count > 0:
+                    logger.info(f"Circuit breaker {self.name} recovered after {self.failure_count} failures",
+                              extra={'correlation_id': correlation_id})
+                    
+                self.failure_count = 0
+                if self.state == CircuitState.HALF_OPEN:
+                    self.state = CircuitState.CLOSED
+                    logger.info(f"Circuit breaker {self.name} reset to CLOSED",
+                              extra={'correlation_id': correlation_id})
             
-            # Transform data
-            transformer = DataTransformationEngine()
-            transformed_data = transformer.transform_data(
-                provider, raw_data, request.instrument
-            )
+            # Record success metrics
+            execution_time = time.time() - start_time
+            self._record_success_metrics(execution_time, correlation_id)
             
-            # Create response
-            response = DataResponse(
-                task_id=task_id,
-                provider=provider,
-                instrument=request.instrument,
-                data=transformed_data,
-                success=True,
-                metadata={
-                    'request_time': request.timestamp,
-                    'response_time': datetime.utcnow(),
-                    'row_count': len(transformed_data)
+            return result
+            
+        except Exception as e:
+            execution_time = time.time() - start_time
+            self._handle_failure(e, execution_time, correlation_id)
+            raise
+    
+    def _execute_with_correlation(self, func: callable, correlation_id: str, 
+                                *args, **kwargs):
+        """Execute function with correlation context"""
+        with self.correlation_manager.correlation_context(correlation_id):
+            return func(*args, **kwargs)
+    
+    def _handle_failure(self, exception: Exception, execution_time: float, 
+                       correlation_id: str):
+        """Handle circuit breaker failure"""
+        with self.lock:
+            self.failure_count += 1
+            self.last_failure_time = time.time()
+            
+            logger.warning(
+                f"Circuit breaker {self.name} failure {self.failure_count}/{self.failure_threshold}: {exception}",
+                extra={
+                    'correlation_id': correlation_id,
+                    'execution_time': execution_time,
+                    'exception_type': type(exception).__name__
                 }
             )
             
-            # Clean up task
-            if task_id in self.active_tasks:
-                del self.active_tasks[task_id]
+            if self.failure_count >= self.failure_threshold:
+                self.state = CircuitState.OPEN
+                logger.error(
+                    f"Circuit breaker {self.name} OPENED after {self.failure_count} failures",
+                    extra={'correlation_id': correlation_id}
+                )
             
-            return response
-            
-        except Exception as e:
-            # Create error response
-            response = DataResponse(
-                task_id=task_id,
-                provider=provider,
-                instrument=request.instrument,
-                data=None,
-                success=False,
-                error=str(e),
-                metadata={'error_time': datetime.utcnow()}
-            )
-            
-            # Clean up task
-            if task_id in self.active_tasks:
-                del self.active_tasks[task_id]
-            
-            return response
+            if self.state == CircuitState.HALF_OPEN:
+                self.state = CircuitState.OPEN
+                logger.warning(
+                    f"Circuit breaker {self.name} returned to OPEN from HALF_OPEN",
+                    extra={'correlation_id': correlation_id}
+                )
+    
+    def _record_success_metrics(self, execution_time: float, correlation_id: str):
+        """Record success metrics for observability"""
+        logger.debug(
+            f"Circuit breaker {self.name} success",
+            extra={
+                'correlation_id': correlation_id,
+                'execution_time': execution_time,
+                'circuit_breaker_state': self.state.value
+            }
+        )
 ```
 
-## 6. Configuration and Discovery
+### 3.2 Structured Exception Hierarchy
 
-### 6.1 Service Discovery
+**Provider Exception System (From `src/vortex/exceptions/`):**
 ```python
-class ServiceDiscovery:
-    """Discover and manage external service endpoints"""
+class ProviderError(VortexError):
+    """Base class for provider-related errors"""
     
-    def __init__(self, discovery_backends: List[str] = None):
-        self.discovery_backends = discovery_backends or ['static', 'consul', 'k8s']
-        self.service_registry = {}
-        self.health_monitor = ServiceHealthMonitor()
-        
-    def register_service(self, name: str, config: ServiceConfig):
-        """Register a service with discovery"""
-        self.service_registry[name] = {
-            'config': config,
-            'status': ServiceStatus.UNKNOWN,
-            'last_seen': None,
-            'endpoints': []
-        }
-        
-        # Start health monitoring
-        self.health_monitor.register_service(
-            name,
-            lambda: self._health_check_service(name),
-            critical=config.critical
-        )
+    def __init__(self, message: str, provider: str = None, 
+                 correlation_id: str = None, **kwargs):
+        super().__init__(message, **kwargs)
+        self.provider = provider
+        self.correlation_id = correlation_id
+
+class BarchartError(ProviderError):
+    """Barchart-specific errors"""
     
-    def discover_services(self) -> Dict[str, List[ServiceEndpoint]]:
-        """Discover available services"""
-        discovered_services = {}
-        
-        for backend in self.discovery_backends:
-            try:
-                backend_services = self._discover_from_backend(backend)
-                
-                # Merge with existing discoveries
-                for service_name, endpoints in backend_services.items():
-                    if service_name not in discovered_services:
-                        discovered_services[service_name] = []
-                    discovered_services[service_name].extend(endpoints)
-                    
-            except Exception as e:
-                logger.warning(f"Service discovery failed for backend {backend}: {e}")
-        
-        return discovered_services
+    def __init__(self, message: str, **kwargs):
+        super().__init__(message, provider="barchart", **kwargs)
+
+class AllowanceLimitExceededError(BarchartError):
+    """Barchart daily allowance limit exceeded"""
     
-    def get_service_endpoint(self, service_name: str) -> Optional[ServiceEndpoint]:
-        """Get healthy endpoint for service"""
-        if service_name not in self.service_registry:
-            return None
+    def __init__(self, current_usage: int, daily_limit: int, **kwargs):
+        message = f"Daily allowance limit exceeded: {current_usage}/{daily_limit}"
+        super().__init__(message, **kwargs)
+        self.current_usage = current_usage
+        self.daily_limit = daily_limit
         
-        service = self.service_registry[service_name]
-        
-        # Filter healthy endpoints
-        healthy_endpoints = [
-            ep for ep in service['endpoints']
-            if ep.status == EndpointStatus.HEALTHY
+    def get_resolution_steps(self) -> List[str]:
+        """Provide actionable resolution steps"""
+        return [
+            "Wait until tomorrow for allowance reset",
+            "Upgrade to higher tier Barchart subscription",
+            "Use alternative data provider (Yahoo, IBKR)",
+            "Optimize download requests to reduce usage"
         ]
-        
-        if not healthy_endpoints:
-            return None
-        
-        # Return endpoint using load balancing strategy
-        return self._select_endpoint(healthy_endpoints, service['config'].load_balancing)
+
+class YahooFinanceError(ProviderError):
+    """Yahoo Finance-specific errors"""
     
-    def _discover_from_backend(self, backend: str) -> Dict[str, List[ServiceEndpoint]]:
-        """Discover services from specific backend"""
-        if backend == 'static':
-            return self._discover_static()
-        elif backend == 'consul':
-            return self._discover_consul()
-        elif backend == 'k8s':
-            return self._discover_kubernetes()
+    def __init__(self, message: str, symbol: str = None, **kwargs):
+        super().__init__(message, provider="yahoo", **kwargs)
+        self.symbol = symbol
+
+class IbkrError(ProviderError):
+    """Interactive Brokers-specific errors"""
+    
+    def __init__(self, message: str, error_code: int = None, **kwargs):
+        super().__init__(message, provider="ibkr", **kwargs)
+        self.error_code = error_code
+```
+
+### 3.3 Correlation Tracking and Observability
+
+**Request Correlation System (From `src/vortex/core/correlation/`):**
+```python
+class CorrelationIdManager:
+    """Thread-local correlation ID management for request tracing"""
+    
+    def __init__(self):
+        self._context = threading.local()
+        self._id_generator = self._create_id_generator()
+        
+    def get_correlation_id(self) -> str:
+        """Get current correlation ID or generate new one"""
+        if not hasattr(self._context, 'correlation_id'):
+            self._context.correlation_id = next(self._id_generator)
+        return self._context.correlation_id
+    
+    def set_correlation_id(self, correlation_id: str) -> None:
+        """Set correlation ID for current thread"""
+        self._context.correlation_id = correlation_id
+    
+    @contextmanager
+    def correlation_context(self, correlation_id: str = None):
+        """Context manager for correlation ID scope"""
+        if correlation_id is None:
+            correlation_id = next(self._id_generator)
+            
+        previous_id = getattr(self._context, 'correlation_id', None)
+        self._context.correlation_id = correlation_id
+        
+        try:
+            yield correlation_id
+        finally:
+            if previous_id is not None:
+                self._context.correlation_id = previous_id
+            else:
+                delattr(self._context, 'correlation_id')
+    
+    def _create_id_generator(self):
+        """Create correlation ID generator"""
+        import uuid
+        while True:
+            yield f"vortex-{uuid.uuid4().hex[:8]}"
+
+@with_correlation
+def download_with_correlation(provider: str, symbol: str) -> pd.DataFrame:
+    """Example of correlation-aware function"""
+    correlation_id = get_correlation_manager().get_correlation_id()
+    
+    logger.info(f"Starting download for {symbol} from {provider}",
+               extra={'correlation_id': correlation_id, 'symbol': symbol, 'provider': provider})
+    
+    try:
+        # Provider operations automatically inherit correlation ID
+        data = provider_factory.get_provider(provider).fetch_data(symbol)
+        
+        logger.info(f"Download completed for {symbol}: {len(data)} rows",
+                   extra={'correlation_id': correlation_id, 'row_count': len(data)})
+        
+        return data
+        
+    except Exception as e:
+        logger.error(f"Download failed for {symbol}: {e}",
+                    extra={'correlation_id': correlation_id, 'error': str(e)})
+        raise
+```
+
+### 3.4 Retry Logic with Exponential Backoff
+
+**Retry Implementation (From `src/vortex/infrastructure/resilience/retry.py`):**
+```python
+class RetryStrategy:
+    """Configurable retry strategy with exponential backoff"""
+    
+    def __init__(self, max_attempts: int = 3, 
+                 base_delay: float = 1.0,
+                 max_delay: float = 60.0,
+                 backoff_factor: float = 2.0,
+                 jitter: bool = True):
+        self.max_attempts = max_attempts
+        self.base_delay = base_delay
+        self.max_delay = max_delay
+        self.backoff_factor = backoff_factor
+        self.jitter = jitter
+        
+    def execute(self, func: callable, *args, **kwargs):
+        """Execute function with retry logic"""
+        correlation_id = get_correlation_manager().get_correlation_id()
+        last_exception = None
+        
+        for attempt in range(1, self.max_attempts + 1):
+            try:
+                logger.debug(f"Retry attempt {attempt}/{self.max_attempts}",
+                           extra={'correlation_id': correlation_id, 'attempt': attempt})
+                
+                result = func(*args, **kwargs)
+                
+                if attempt > 1:
+                    logger.info(f"Retry succeeded on attempt {attempt}",
+                              extra={'correlation_id': correlation_id})
+                
+                return result
+                
+            except Exception as e:
+                last_exception = e
+                
+                if attempt == self.max_attempts:
+                    logger.error(f"All retry attempts failed",
+                               extra={'correlation_id': correlation_id, 'final_error': str(e)})
+                    break
+                
+                if not self._should_retry(e):
+                    logger.warning(f"Non-retryable error: {e}",
+                                 extra={'correlation_id': correlation_id})
+                    break
+                
+                delay = self._calculate_delay(attempt)
+                logger.warning(f"Retry attempt {attempt} failed: {e}, retrying in {delay:.1f}s",
+                             extra={'correlation_id': correlation_id, 'delay': delay})
+                
+                time.sleep(delay)
+        
+        raise last_exception
+    
+    def _should_retry(self, exception: Exception) -> bool:
+        """Determine if exception is retryable"""
+        # Don't retry authentication or permission errors
+        if isinstance(exception, (AuthenticationError, AuthorizationError)):
+            return False
+            
+        # Don't retry validation errors
+        if isinstance(exception, ValidationError):
+            return False
+            
+        # Retry network and server errors
+        if isinstance(exception, (requests.exceptions.RequestException, ServerError)):
+            return True
+            
+        # Retry circuit breaker errors
+        if isinstance(exception, CircuitBreakerOpenError):
+            return True
+            
+        return False
+    
+    def _calculate_delay(self, attempt: int) -> float:
+        """Calculate delay with exponential backoff and jitter"""
+        delay = self.base_delay * (self.backoff_factor ** (attempt - 1))
+        delay = min(delay, self.max_delay)
+        
+        if self.jitter:
+            # Add random jitter (±25%)
+            jitter_range = delay * 0.25
+            delay += random.uniform(-jitter_range, jitter_range)
+            
+        return max(0, delay)
+```
+
+## 4. Configuration and Service Management
+
+### 4.1 TOML-Based Configuration Management
+
+**Modern Configuration System (From `src/vortex/core/config/`):**
+```python
+class VortexConfig(BaseModel):
+    """Pydantic-based configuration model with validation"""
+    
+    general: GeneralConfig = Field(default_factory=GeneralConfig)
+    providers: Dict[str, Any] = Field(default_factory=dict)
+    date_range: DateRangeConfig = Field(default_factory=DateRangeConfig)
+    
+    class Config:
+        extra = "allow"  # Allow provider-specific configurations
+        
+    @classmethod
+    def load_from_toml(cls, config_path: Path) -> 'VortexConfig':
+        """Load configuration from TOML file"""
+        try:
+            with open(config_path, 'r') as f:
+                config_data = toml.load(f)
+            return cls(**config_data)
+        except Exception as e:
+            raise ConfigurationError(f"Failed to load TOML config: {e}")
+    
+    @classmethod
+    def load_with_environment_override(cls, config_path: Path = None) -> 'VortexConfig':
+        """Load config with environment variable overrides"""
+        # Start with default config
+        if config_path and config_path.exists():
+            config = cls.load_from_toml(config_path)
         else:
-            raise ValueError(f"Unknown discovery backend: {backend}")
+            config = cls()
+        
+        # Apply environment variable overrides
+        env_overrides = cls._extract_environment_config()
+        config = cls._apply_overrides(config, env_overrides)
+        
+        return config
     
-    def _discover_static(self) -> Dict[str, List[ServiceEndpoint]]:
-        """Static service discovery from configuration"""
-        return {
-            'barchart': [ServiceEndpoint('https://www.barchart.com', EndpointStatus.UNKNOWN)],
-            'yahoo': [ServiceEndpoint('https://query1.finance.yahoo.com', EndpointStatus.UNKNOWN)],
-            'ibkr': [ServiceEndpoint('127.0.0.1:7497', EndpointStatus.UNKNOWN)]
+    @staticmethod
+    def _extract_environment_config() -> Dict[str, Any]:
+        """Extract Vortex configuration from environment variables"""
+        config = {}
+        
+        for key, value in os.environ.items():
+            if key.startswith('VORTEX_'):
+                # Convert VORTEX_BARCHART_USERNAME to providers.barchart.username
+                config_path = key[7:].lower().split('_')
+                
+                if len(config_path) >= 2 and config_path[0] in ['barchart', 'yahoo', 'ibkr']:
+                    provider = config_path[0]
+                    setting = '_'.join(config_path[1:])
+                    
+                    if 'providers' not in config:
+                        config['providers'] = {}
+                    if provider not in config['providers']:
+                        config['providers'][provider] = {}
+                    
+                    config['providers'][provider][setting] = value
+                else:
+                    # General configuration
+                    setting = '_'.join(config_path)
+                    if 'general' not in config:
+                        config['general'] = {}
+                    config['general'][setting] = value
+        
+        return config
+
+class GeneralConfig(BaseModel):
+    """General application configuration"""
+    
+    default_provider: str = "yahoo"
+    output_directory: str = "./data"
+    backup_enabled: bool = False
+    logging: LoggingConfig = Field(default_factory=LoggingConfig)
+    
+class LoggingConfig(BaseModel):
+    """Logging configuration"""
+    
+    level: str = "INFO"
+    format: str = "console"  # console, json
+    output: List[str] = Field(default_factory=lambda: ["console"])
+    correlation_enabled: bool = True
+```
+
+### 4.2 Provider Plugin System
+
+**Plugin Registry with Dependency Injection (From `src/vortex/plugins.py`):**
+```python
+class ProviderRegistry:
+    """Registry for provider plugins with dependency injection"""
+    
+    def __init__(self):
+        self._plugins: Dict[str, Dict[str, Any]] = {}
+        self._dependency_container = DependencyContainer()
+        
+    def register_plugin(self, name: str, provider_class: type, 
+                       dependencies: Dict[str, Any] = None):
+        """Register a provider plugin with its dependencies"""
+        self._plugins[name.upper()] = {
+            'class': provider_class,
+            'dependencies': dependencies or {},
+            'instance': None  # Lazy initialization
         }
+        
+    def get_plugin(self, name: str, config: Any = None):
+        """Get provider plugin instance with dependency injection"""
+        plugin_name = name.upper()
+        
+        if plugin_name not in self._plugins:
+            available = ', '.join(self._plugins.keys())
+            raise PluginNotFoundError(
+                f"Provider '{name}' not found. Available: {available}"
+            )
+        
+        plugin_info = self._plugins[plugin_name]
+        
+        # Create instance if not cached
+        if plugin_info['instance'] is None:
+            plugin_class = plugin_info['class']
+            dependencies = self._resolve_dependencies(plugin_info['dependencies'])
+            
+            # Create instance with dependency injection
+            instance = plugin_class(**dependencies)
+            
+            # Initialize if config provided
+            if config and hasattr(instance, 'initialize'):
+                success = instance.initialize(config)
+                if not success:
+                    raise ProviderError(f"Failed to initialize {name} provider")
+            
+            plugin_info['instance'] = instance
+        
+        return plugin_info['instance']
+    
+    def list_plugins(self) -> List[str]:
+        """List available provider plugins"""
+        return list(self._plugins.keys())
+    
+    def _resolve_dependencies(self, dependencies: Dict[str, Any]) -> Dict[str, Any]:
+        """Resolve plugin dependencies"""
+        resolved = {}
+        
+        for dep_name, dep_spec in dependencies.items():
+            if isinstance(dep_spec, type):
+                # Instantiate class
+                resolved[dep_name] = dep_spec()
+            elif callable(dep_spec):
+                # Call factory function
+                resolved[dep_name] = dep_spec()
+            else:
+                # Use value directly
+                resolved[dep_name] = dep_spec
+                
+        return resolved
+
+# Global registry initialization
+_provider_registry = ProviderRegistry()
+
+# Register built-in providers
+_provider_registry.register_plugin('BARCHART', BarchartDataProvider, {
+    'http_client': DefaultHttpClient,
+    'auth': BarchartAuth,
+    'circuit_breaker': lambda: CircuitBreaker(name="barchart")
+})
+
+_provider_registry.register_plugin('YAHOO', YahooDataProvider, {
+    'cache': DefaultCache,
+    'data_fetcher': None  # Will use yfinance default
+})
+
+_provider_registry.register_plugin('IBKR', IbkrDataProvider, {
+    'connection_manager': DefaultConnectionManager
+})
+
+def get_provider_registry() -> ProviderRegistry:
+    """Get global provider registry"""
+    return _provider_registry
+```
+
+### 4.3 CLI Integration with Modern Commands
+
+**Modern CLI Implementation (From `src/vortex/cli/commands/`):**
+```python
+# download.py - Download command with integrated factory
+@click.command()
+@click.option('--provider', type=click.Choice(['barchart', 'yahoo', 'ibkr']), 
+              help='Data provider to use')
+@click.option('--symbol', multiple=True, help='Stock/future symbols to download')
+@click.option('--assets', type=click.Path(exists=True), 
+              help='JSON file with asset definitions')
+@click.option('--start-date', type=click.DateTime(formats=['%Y-%m-%d']), 
+              help='Start date for download')
+@click.option('--end-date', type=click.DateTime(formats=['%Y-%m-%d']), 
+              help='End date for download')
+@click.option('--output-dir', type=click.Path(), 
+              help='Output directory for downloaded files')
+@click.option('--yes', is_flag=True, help='Skip confirmation prompts')
+@click.option('--dry-run', is_flag=True, help='Show what would be downloaded')
+def download(provider, symbol, assets, start_date, end_date, output_dir, yes, dry_run):
+    """Download financial data from providers"""
+    correlation_id = get_correlation_manager().get_correlation_id()
+    
+    with get_correlation_manager().correlation_context(correlation_id):
+        try:
+            # Load configuration
+            config = load_configuration()
+            
+            # Determine provider
+            provider = provider or config.general.default_provider
+            
+            # Load assets
+            if assets:
+                instruments = load_instruments_from_file(assets)
+            else:
+                instruments = create_instruments_from_symbols(symbol)
+            
+            # Create provider with dependency injection
+            provider_registry = get_provider_registry()
+            provider_instance = provider_registry.get_plugin(provider, config)
+            
+            # Create and execute downloader
+            downloader = UpdatingDownloader(
+                provider=provider_instance,
+                storage=create_storage_backend(config),
+                correlation_manager=get_correlation_manager()
+            )
+            
+            # Execute downloads
+            for instrument in instruments:
+                if dry_run:
+                    click.echo(f"Would download {instrument.symbol} from {provider}")
+                else:
+                    logger.info(f"Downloading {instrument.symbol}", 
+                              extra={'correlation_id': correlation_id})
+                    
+                    result = downloader.download(
+                        instrument=instrument,
+                        start_date=start_date,
+                        end_date=end_date
+                    )
+                    
+                    if result.success:
+                        click.echo(f"✅ Downloaded {instrument.symbol}: {result.row_count} rows")
+                    else:
+                        click.echo(f"❌ Failed to download {instrument.symbol}: {result.error}")
+            
+        except Exception as e:
+            logger.error(f"Download command failed: {e}", 
+                        extra={'correlation_id': correlation_id})
+            raise click.ClickException(str(e))
+
+# providers.py - Provider management command
+@click.command()
+@click.option('--list', 'list_providers', is_flag=True, help='List available providers')
+@click.option('--test', help='Test specific provider connectivity')
+@click.option('--info', help='Show provider information')
+def providers(list_providers, test, info):
+    """Manage data providers"""
+    try:
+        registry = get_provider_registry()
+        
+        if list_providers:
+            available_providers = registry.list_plugins()
+            
+            click.echo("\n📊 Available Data Providers:")
+            click.echo("=" * 40)
+            
+            for provider_name in available_providers:
+                status = "✅ Available"
+                description = get_provider_description(provider_name)
+                click.echo(f"  {provider_name:<12} {status} - {description}")
+            
+            click.echo(f"\nTotal providers available: {len(available_providers)}")
+            
+        elif test:
+            config = load_configuration()
+            provider_instance = registry.get_plugin(test.upper(), config)
+            
+            click.echo(f"Testing {test} provider connectivity...")
+            
+            # Perform connectivity test
+            test_result = perform_provider_test(provider_instance)
+            
+            if test_result.success:
+                click.echo(f"✅ {test} provider test successful")
+            else:
+                click.echo(f"❌ {test} provider test failed: {test_result.error}")
+                
+        elif info:
+            provider_info = get_provider_info(info.upper())
+            display_provider_info(provider_info)
+            
+    except Exception as e:
+        raise click.ClickException(f"Provider command failed: {e}")
+
+def get_provider_description(provider_name: str) -> str:
+    """Get provider description"""
+    descriptions = {
+        'BARCHART': 'Premium financial data (subscription required)',
+        'YAHOO': 'Free Yahoo Finance API (no registration)',
+        'IBKR': 'Interactive Brokers TWS/Gateway (requires connection)'
+    }
+    return descriptions.get(provider_name, 'Unknown provider')
+```
+
+## 5. Integration Summary and Architecture Benefits
+
+### 5.1 Current Implementation Achievements
+
+**✅ Dependency Injection Implementation:**
+- Protocol-based abstractions in `infrastructure/providers/interfaces.py`
+- Constructor injection with explicit initialization lifecycle
+- Configurable dependencies (HTTP clients, caches, connection managers)
+- Eliminated tight coupling between components
+
+**✅ Provider Abstraction Layer:**
+- Barchart: HTTP client with session-based authentication
+- Yahoo Finance: Cache and data fetcher injection  
+- IBKR: Connection manager for TWS/Gateway communication
+- Unified provider factory with dependency resolution
+
+**✅ Resilience Infrastructure:**
+- Circuit breaker pattern with correlation tracking
+- Retry logic with exponential backoff and jitter
+- Structured exception hierarchy with actionable error messages
+- Request-level correlation IDs for observability
+
+**✅ Configuration Management:**
+- TOML-based configuration with Pydantic validation
+- Environment variable overrides with precedence
+- Provider-specific configuration sections
+- Modern CLI with Click framework
+
+### 5.2 Integration Architecture Benefits
+
+| Benefit | Implementation | Location | Impact |
+|---------|---------------|----------|--------|
+| **Testability** | DI with mock injection | `interfaces.py` | Unit tests can inject mocks |
+| **Flexibility** | Protocol-based abstractions | All providers | Easy provider swapping |
+| **Observability** | Correlation ID tracking | `core/correlation/` | Request tracing across layers |
+| **Resilience** | Circuit breaker + retry | `infrastructure/resilience/` | Fault isolation and recovery |
+| **Maintainability** | Clean Architecture layers | Entire codebase | Clear separation of concerns |
+
+### 5.3 Real-World Integration Patterns
+
+**Provider Initialization Pattern:**
+```python
+# 1. Create provider with dependencies
+provider = BarchartDataProvider(
+    client=BarchartClient(
+        http_client=DefaultHttpClient(),
+        auth=BarchartAuth(),
+        circuit_breaker=CircuitBreaker(name="barchart")
+    )
+)
+
+# 2. Initialize explicitly (separate from construction)
+success = provider.initialize(config)
+if not success:
+    raise ProviderError("Initialization failed")
+
+# 3. Use provider for data operations
+data = provider.fetch_historical_data(instrument, date_range)
+```
+
+**Error Handling Pattern:**
+```python
+try:
+    data = provider.fetch_data(symbol)
+except AllowanceLimitExceededError as e:
+    # Specific Barchart error with resolution steps
+    logger.error(f"Barchart limit exceeded: {e.current_usage}/{e.daily_limit}")
+    for step in e.get_resolution_steps():
+        logger.info(f"Resolution: {step}")
+except CircuitBreakerOpenError:
+    # Circuit breaker protection
+    logger.warning("Provider temporarily unavailable")
+except ProviderError as e:
+    # General provider error with correlation
+    logger.error(f"Provider error: {e}", extra={'correlation_id': e.correlation_id})
+```
+
+**Configuration Pattern:**
+```toml
+# config/config.toml
+[general]
+default_provider = "barchart"
+output_directory = "/data"
+
+[providers.barchart]
+username = "user@example.com"
+password = "secure_password"
+daily_limit = 200
+
+[providers.yahoo]
+cache_enabled = true
+max_cache_size = 1000
+```
+
+### 5.4 Integration Maturity Assessment
+
+**Production-Ready Components:**
+- ✅ **Provider Abstraction:** Protocol-based DI with 3 production providers
+- ✅ **Error Handling:** Structured exceptions with correlation tracking
+- ✅ **Configuration:** TOML + environment variable precedence
+- ✅ **CLI Integration:** Modern Click-based commands with factory integration
+- ✅ **Data Validation:** Column constants with OHLCV schema validation
+- ✅ **Observability:** Request correlation and structured logging
+
+**Architectural Strengths:**
+- **Clean Architecture:** Clear layer separation (CLI → Services → Infrastructure)
+- **Dependency Injection:** Protocol-based abstractions enable testing and flexibility
+- **Circuit Breaker Pattern:** Prevents cascade failures with provider isolation
+- **Correlation Tracking:** End-to-end request tracing for debugging
+- **Configuration Management:** TOML-first with environment overrides
+
+**Integration Patterns Summary:**
+
+| Pattern | Purpose | Implementation | Benefits |
+|---------|---------|---------------|----------|
+| **Provider Factory** | Create providers with DI | `factory.py` | Centralized provider creation |
+| **Circuit Breaker** | Fault isolation | `resilience/` | Prevents cascade failures |
+| **Retry Strategy** | Transient failure recovery | `retry.py` | Handles network issues |
+| **Correlation IDs** | Request tracing | `correlation/` | End-to-end observability |
+| **Configuration** | Environment management | `config/` | Flexible deployment |
+| **Plugin Registry** | Provider management | `plugins.py` | Extensible provider system |
+
+### 5.5 Future Integration Enhancements
+
+**🔄 Potential Improvements:**
+- **Async Processing:** Add async/await support for concurrent downloads
+- **Caching Layer:** Redis integration for distributed caching
+- **Metrics Collection:** Prometheus metrics for provider performance
+- **Health Monitoring:** Provider health checks with status endpoints
+- **Rate Limiting:** Per-provider rate limiting with token bucket algorithm
+- **WebSocket Support:** Real-time data streaming for intraday feeds
+
+**🎯 Integration Roadmap:**
+1. **Phase 1:** Async provider support for parallel downloads
+2. **Phase 2:** External caching (Redis) for multi-instance deployments  
+3. **Phase 3:** Metrics and monitoring integration
+4. **Phase 4:** WebSocket streaming for real-time data
+5. **Phase 5:** Additional provider integrations (Alpha Vantage, Quandl)
+
+The current integration architecture provides a solid foundation for financial data automation with production-ready patterns for dependency injection, resilience, and observability.
+
+## 6. Integration Testing and Validation
+
+### 6.1 Provider Testing Framework
+
+**E2E Integration Tests (From `tests/e2e/`):**
+```python
+class TestProviderIntegration:
+    """End-to-end provider integration tests"""
+    
+    def test_yahoo_provider_integration(self):
+        """Test complete Yahoo Finance integration workflow"""
+        # Create provider with dependency injection
+        cache = DefaultCache()
+        provider = YahooDataProvider(cache=cache)
+        
+        # Initialize provider
+        assert provider.initialize() is True
+        
+        # Create test instrument
+        instrument = Stock(symbol="AAPL", periods="1d")
+        date_range = DateRange(
+            start=datetime(2024, 1, 1),
+            end=datetime(2024, 1, 7)
+        )
+        
+        # Test data fetch with correlation
+        correlation_id = "test-yahoo-integration"
+        with get_correlation_manager().correlation_context(correlation_id):
+            data = provider.fetch_historical_data(instrument, date_range)
+            
+            # Validate data structure
+            assert isinstance(data, pd.DataFrame)
+            assert len(data) > 0
+            assert 'timestamp' in data.columns
+            assert 'close' in data.columns
+            
+            # Validate OHLCV schema
+            validation_errors = ColumnConstants.validate_required_columns(data)
+            assert len(validation_errors) == 0
+    
+    def test_barchart_provider_circuit_breaker(self):
+        """Test Barchart provider with circuit breaker"""
+        # Create circuit breaker
+        circuit_breaker = CircuitBreaker(
+            failure_threshold=2,
+            reset_timeout=1,
+            name="test-barchart"
+        )
+        
+        # Create provider with circuit breaker
+        auth = BarchartAuth()
+        client = BarchartClient(
+            auth=auth,
+            circuit_breaker=circuit_breaker
+        )
+        provider = BarchartDataProvider(client=client)
+        
+        # Test circuit breaker behavior
+        with pytest.raises(CircuitBreakerOpenError):
+            # Simulate failures to trip circuit breaker
+            for _ in range(3):
+                try:
+                    provider.fetch_data("INVALID_SYMBOL")
+                except Exception:
+                    pass  # Expected failures
+            
+            # This should raise CircuitBreakerOpenError
+            provider.fetch_data("AAPL")
+    
+    def test_provider_factory_dependency_injection(self):
+        """Test provider factory with custom dependencies"""
+        # Create custom dependencies
+        mock_http_client = MockHttpClient()
+        mock_cache = MockCache()
+        
+        # Create providers with custom dependencies
+        registry = get_provider_registry()
+        
+        yahoo_provider = registry.create_provider(
+            'YAHOO',
+            config=None,
+            cache=mock_cache
+        )
+        
+        barchart_provider = registry.create_provider(
+            'BARCHART',
+            config=BarchartConfig(username="test", password="test"),
+            http_client=mock_http_client
+        )
+        
+        # Verify dependency injection
+        assert yahoo_provider.cache is mock_cache
+        assert barchart_provider.client.http_client is mock_http_client
+```
+
+### 6.2 Docker Integration Validation
+
+**Docker Test Suite Integration (From `tests/docker/`):**
+```bash
+# Test 5: Provider Command Integration
+#!/bin/bash
+echo "Testing provider command integration..."
+
+# Test provider list command
+docker run --rm vortex-test:latest vortex providers --list
+if [ $? -eq 0 ]; then
+    echo "✅ Provider list command successful"
+else
+    echo "❌ Provider list command failed"
+    exit 1
+fi
+
+# Verify provider count
+PROVIDER_COUNT=$(docker run --rm vortex-test:latest vortex providers --list | grep -c "Total providers available")
+if [ "$PROVIDER_COUNT" -eq 1 ]; then
+    echo "✅ Provider count validation successful"
+else
+    echo "❌ Provider count validation failed"
+    exit 1
+fi
+
+# Test 12: Yahoo Download Integration
+echo "Testing Yahoo Finance download integration..."
+
+# Create test environment
+TEST_DIR="/tmp/vortex-integration-test"
+mkdir -p "$TEST_DIR"
+
+# Run Yahoo download test
+docker run --rm --user "1000:1000" \
+    -v "$TEST_DIR:/data" \
+    -e VORTEX_DEFAULT_PROVIDER=yahoo \
+    -e VORTEX_OUTPUT_DIR=/data \
+    vortex-test:latest \
+    vortex download --symbol AAPL --start-date 2024-01-01 --end-date 2024-01-07 --yes
+
+if [ $? -eq 0 ]; then
+    echo "✅ Yahoo download integration successful"
+else
+    echo "❌ Yahoo download integration failed"
+    exit 1
+fi
+
+# Validate output files
+if [ -f "$TEST_DIR/stocks/1d/AAPL.csv" ]; then
+    echo "✅ Output file validation successful"
+else
+    echo "❌ Output file validation failed"
+    exit 1
+fi
+
+# Cleanup
+rm -rf "$TEST_DIR"
+echo "Integration tests completed successfully"
+```
+
+### 6.3 Integration Monitoring and Observability
+
+**Production Integration Monitoring:**
+```python
+class IntegrationMonitor:
+    """Monitor integration health and performance"""
+    
+    def __init__(self):
+        self.correlation_manager = get_correlation_manager()
+        self.provider_registry = get_provider_registry()
+        self.metrics = defaultdict(list)
+        
+    def monitor_provider_performance(self, provider_name: str) -> Dict[str, Any]:
+        """Monitor provider performance metrics"""
+        correlation_id = f"monitor-{provider_name}-{int(time.time())}"
+        
+        with self.correlation_manager.correlation_context(correlation_id):
+            start_time = time.time()
+            
+            try:
+                # Test provider connectivity
+                provider = self.provider_registry.get_plugin(provider_name)
+                
+                # Perform health check
+                health_result = self._perform_health_check(provider)
+                
+                response_time = time.time() - start_time
+                
+                metrics = {
+                    'provider': provider_name,
+                    'status': 'healthy' if health_result else 'unhealthy',
+                    'response_time': response_time,
+                    'timestamp': datetime.utcnow().isoformat(),
+                    'correlation_id': correlation_id
+                }
+                
+                # Record metrics
+                self.metrics[provider_name].append(metrics)
+                
+                logger.info(f"Provider {provider_name} health check completed",
+                          extra=metrics)
+                
+                return metrics
+                
+            except Exception as e:
+                response_time = time.time() - start_time
+                
+                error_metrics = {
+                    'provider': provider_name,
+                    'status': 'error',
+                    'response_time': response_time,
+                    'error': str(e),
+                    'timestamp': datetime.utcnow().isoformat(),
+                    'correlation_id': correlation_id
+                }
+                
+                logger.error(f"Provider {provider_name} health check failed",
+                           extra=error_metrics)
+                
+                return error_metrics
+    
+    def get_integration_summary(self) -> Dict[str, Any]:
+        """Get overall integration health summary"""
+        summary = {
+            'total_providers': len(self.provider_registry.list_plugins()),
+            'healthy_providers': 0,
+            'providers': {}
+        }
+        
+        for provider_name in self.provider_registry.list_plugins():
+            recent_metrics = self.metrics[provider_name][-10:]  # Last 10 checks
+            
+            if recent_metrics:
+                healthy_count = sum(1 for m in recent_metrics if m['status'] == 'healthy')
+                health_percentage = (healthy_count / len(recent_metrics)) * 100
+                
+                provider_summary = {
+                    'health_percentage': health_percentage,
+                    'last_check': recent_metrics[-1]['timestamp'],
+                    'average_response_time': sum(m['response_time'] for m in recent_metrics) / len(recent_metrics)
+                }
+                
+                if health_percentage >= 80:
+                    summary['healthy_providers'] += 1
+                    
+            else:
+                provider_summary = {
+                    'health_percentage': 0,
+                    'last_check': None,
+                    'average_response_time': None
+                }
+            
+            summary['providers'][provider_name] = provider_summary
+        
+        summary['overall_health'] = (summary['healthy_providers'] / summary['total_providers']) * 100
+        
+        return summary
 ```
 
 ## Related Documents
 
 - **[Provider Abstraction](04-provider-abstraction.md)** - Provider interface design details
-- **[Security Design](06-security-design.md)** - Integration security considerations
-- **[Deployment Architecture](07-deployment-architecture.md)** - Production integration deployment
-- **[Data Requirements](../../requirements/prd/data-requirements.md)** - Integration data specifications
+- **[Security Design](06-security-design.md)** - Integration security implementation
+- **[Deployment Architecture](07-deployment-architecture.md)** - Docker-based integration deployment
+- **[Component Architecture](02-component-architecture.md)** - Clean Architecture integration patterns
+- **[System Overview](01-system-overview.md)** - Overall integration context
 
 ---
 
-**Next Review:** 2025-02-08  
+**Next Review:** 2026-02-15  
 **Reviewers:** Integration Architect, Senior Developer, DevOps Lead
