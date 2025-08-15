@@ -45,8 +45,9 @@ class CliAnalytics:
                 with open(self.analytics_file) as f:
                     config = json.load(f)
                     return config.get("enabled", True)  # Default to enabled
-        except Exception:
-            pass
+        except (FileNotFoundError, json.JSONDecodeError, PermissionError, OSError) as e:
+            import logging
+            logging.getLogger(__name__).debug(f"Failed to read analytics config: {e}")
         
         return True  # Default to enabled
     
@@ -58,8 +59,9 @@ class CliAnalytics:
                     config = json.load(f)
                     if "user_id" in config:
                         return config["user_id"]
-        except Exception:
-            pass
+        except (FileNotFoundError, json.JSONDecodeError, PermissionError, OSError) as e:
+            import logging
+            logging.getLogger(__name__).debug(f"Failed to read analytics user ID: {e}")
         
         # Create new anonymous user ID
         user_id = hashlib.sha256(str(uuid4()).encode()).hexdigest()[:12]
@@ -189,8 +191,9 @@ class CliAnalytics:
             events_file = self.config_dir / "events.jsonl"
             if events_file.exists():
                 events_file.unlink()
-        except Exception:
-            pass
+        except (OSError, PermissionError) as e:
+            import logging
+            logging.getLogger(__name__).debug(f"Failed to clear events file: {e}")
     
     def enable(self):
         """Enable analytics."""
@@ -215,8 +218,9 @@ class CliAnalytics:
             if events_file.exists():
                 with open(events_file) as f:
                     return sum(1 for _ in f)
-        except Exception:
-            pass
+        except (FileNotFoundError, OSError, PermissionError) as e:
+            import logging
+            logging.getLogger(__name__).debug(f"Failed to count stored events: {e}")
         return 0
 
 

@@ -49,7 +49,7 @@ class CredentialManager:
                         'username': credentials['username'],
                         'password': credentials['password']
                     }
-            except Exception as e:
+            except (KeyError, TypeError, ValueError, FileNotFoundError, PermissionError, OSError) as e:
                 source_name = getattr(source_loader, '__name__', str(source_loader))
                 logger.debug(f"Failed to load credentials from {source_name}: {e}")
                 continue
@@ -86,10 +86,10 @@ class CredentialManager:
                         credentials = self._parse_env_file(env_path, provider)
                         if credentials:
                             return credentials
-                    except Exception as e:
+                    except (FileNotFoundError, PermissionError, OSError, UnicodeDecodeError) as e:
                         logger.debug(f"Failed to parse {env_file}: {e}")
                         continue
-        except Exception as e:
+        except (OSError, PermissionError) as e:
             logger.debug(f"Failed to access .env files: {e}")
         
         return None
@@ -115,7 +115,7 @@ class CredentialManager:
                     'username': provider_config['username'],
                     'password': provider_config['password']
                 }
-        except Exception as e:
+        except (FileNotFoundError, PermissionError, OSError, KeyError, TypeError, ValueError) as e:
             logger.debug(f"Failed to load user credentials: {e}")
         
         return None

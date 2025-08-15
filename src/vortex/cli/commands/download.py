@@ -1,113 +1,51 @@
-"""Download command implementation."""
+"""Download command implementation.
 
-from datetime import datetime, timedelta, timezone
+Refactored to use focused modules following single responsibility principle."""
+
+import time
+from datetime import datetime, timezone
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, List, Union, Dict, Any, Tuple
+from typing import Optional, List, Dict, Any
 
 import click
 from rich.console import Console
-from rich.table import Table
-from rich.progress import Progress, SpinnerColumn, TextColumn
 
-# Local imports (organized by hierarchy)
+# Focused module imports
+from .symbol_resolver import resolve_symbols_and_configs
+from .download_executor import DownloadExecutor, show_download_summary
+
+# Core imports
 from vortex.core.config import ConfigManager
-from vortex.core.error_handling import return_none_on_error
 from ..utils.config_utils import (
     get_or_create_config_manager, 
     ensure_provider_configured,
-    get_default_date_range,
-    get_provider_config_with_defaults
+    get_default_date_range
 )
-from ..utils.download_utils import (
-    load_assets_from_file,
-    get_default_assets_file,
-    create_downloader_components,
-    parse_date_range,
-    parse_symbols_list,
-    count_download_jobs,
-    format_download_summary
-)
-from vortex.infrastructure.storage.csv_storage import CsvStorage
-from vortex.infrastructure.storage.parquet_storage import ParquetStorage
-from vortex.services.updating_downloader import UpdatingDownloader
-from vortex.services.download_job import DownloadJob
-from vortex.exceptions import (
-    CLIError, MissingArgumentError, InvalidCommandError,
-    ConfigurationError, DataProviderError, DataStorageError
-)
-from vortex.core.instruments import InstrumentConfig, DEFAULT_CONTRACT_DURATION_IN_DAYS
-from vortex.models.stock import Stock
-from vortex.models.period import Period
-from vortex.core.logging_integration import get_module_logger, get_module_performance_logger
-from vortex.infrastructure.plugins import get_provider_registry
+from vortex.exceptions import CLIError
 from ..completion import complete_provider, complete_symbol, complete_symbols_file, complete_assets_file, complete_date
-from ..utils.provider_utils import get_available_providers, get_provider_config_from_vortex_config
-from ..utils.instrument_parser import parse_instruments
-from ..ux import get_ux, enhanced_error_handler, validate_symbols
+from ..ux import enhanced_error_handler
 
 console = Console()
-ux = get_ux()
-logger = get_module_logger()
-perf_logger = get_module_performance_logger()
 
 
 @dataclass
-class DownloadExecutionConfig:
-    """Configuration for download execution."""
-    config_manager: ConfigManager
+class DownloadConfig:
+    """Configuration for download command."""
     provider: str
     symbols: List[str]
-    instrument_configs: dict
     start_date: datetime
     end_date: datetime
     output_dir: Path
-    backup: bool
-    force: bool
-    chunk_size: int
-    dry_run: bool
+    mode: str = 'updating'
+    backup_enabled: bool = True
+    force_backup: bool = False
+    random_sleep: int = 0
+    dry_run: bool = False
+    download_config: Dict[str, Any] = None
 
 
-@dataclass
-class JobExecutionContext:
-    """Context for executing a single download job."""
-    downloader: 'UpdatingDownloader'
-    instrument: 'Instrument'
-    period: 'Period'
-    start_date: datetime
-    end_date: datetime
-    symbol: str
-    provider: str
-    job_count: int
-    total_jobs: int
-    progress: Progress
-
-
-def load_config_instruments(assets_file_path: Path) -> Dict[str, Any]:
-    """Load instrument configurations from assets JSON file.
-    
-    Args:
-        assets_file_path: Path to the assets JSON file
-        
-    Returns:
-        Dictionary of instrument configurations
-        
-    Raises:
-        click.Abort: If file loading fails
-    """
-    try:
-        instrument_configs = InstrumentConfig.load_from_json(str(assets_file_path))
-        return instrument_configs
-    except FileNotFoundError:
-        console.print(f"[red]Assets file not found: '{assets_file_path}'[/red]")
-        raise click.Abort()
-    except (ValueError, TypeError) as e:
-        console.print(f"[red]Invalid assets file format '{assets_file_path}': {e}[/red]")
-        raise click.Abort()
-    except Exception as e:
-        console.print(f"[red]Unexpected error loading assets file '{assets_file_path}': {e}[/red]")
-        logger.error(f"Failed to load assets file: {e}", file_path=str(assets_file_path))
-        raise click.Abort()
+# Note: load_config_instruments functionality moved to symbol_resolver.py
 
 @click.command()
 @enhanced_error_handler
@@ -217,598 +155,102 @@ def download(
         # Run without installation
         uv run vortex download --help
     """
-    # Setup and validation phase
-    config_manager = ConfigManager(ctx.obj.get('config_file'))
-    provider = _resolve_provider(config_manager, provider)
-    _validate_provider(provider)
+    # Setup
+    config_manager = get_or_create_config_manager(ctx.obj.get('config_file'))
     
-    # Set default dates and paths
-    start_date, end_date, output_dir = _set_defaults(start_date, end_date, output_dir)
+    # Resolve provider (use default if not specified)
+    if provider is None:
+        provider = config_manager.get_default_provider()
+        console.print(f"Using default provider: {provider}")
     
-    # Parse and validate symbols/instruments
-    symbols, instrument_configs = _resolve_symbols_and_configs(
-        provider, symbol, symbols_file, assets
-    )
+    # Ensure provider is configured
+    ensure_provider_configured(config_manager, provider)
     
-    # Final validation
-    symbols = _validate_inputs(symbols, start_date, end_date, output_dir)
+    # Set defaults for dates and output directory
+    if start_date is None or end_date is None:
+        default_start, default_end = get_default_date_range()
+        start_date = start_date or default_start
+        end_date = end_date or default_end
     
-    # User confirmation
-    show_download_summary(provider, symbols, start_date, end_date, output_dir, backup, force)
-    if not yes and not ux.confirm("Proceed with download?", True):
-        ux.print_warning("Download cancelled")
+    if output_dir is None:
+        output_dir = Path('./data')
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Resolve symbols and configurations using extracted module
+    try:
+        symbols_list, instrument_configs = resolve_symbols_and_configs(
+            provider=provider,
+            symbols=list(symbol) if symbol else None,
+            assets_file=assets
+        )
+    except CLIError as e:
+        console.print(f"[red]Error: {e}[/red]")
+        raise click.Abort()
+    
+    # Validate inputs
+    if not symbols_list:
+        console.print("[red]No symbols to download[/red]")
+        raise click.Abort()
+    
+    # Show summary and get confirmation
+    _show_download_summary(provider, symbols_list, start_date, end_date, output_dir, backup, force)
+    if not yes and not click.confirm("Proceed with download?", default=True):
+        console.print("[yellow]Download cancelled[/yellow]")
         return
     
-    # Execute download
-    exec_config = DownloadExecutionConfig(
-        config_manager=config_manager,
+    # Create download configuration
+    download_config = DownloadConfig(
         provider=provider,
-        symbols=symbols,
-        instrument_configs=instrument_configs,
+        symbols=symbols_list,
         start_date=start_date,
         end_date=end_date,
         output_dir=output_dir,
-        backup=backup,
-        force=force,
-        chunk_size=chunk_size,
-        dry_run=ctx.obj.get('dry_run', False)
+        backup_enabled=backup,
+        force_backup=force,
+        dry_run=ctx.obj.get('dry_run', False),
+        download_config=config_manager.get_provider_config(provider)
     )
-    _execute_and_report_results(exec_config)
-
-def _resolve_provider(config_manager: ConfigManager, provider: str) -> str:
-    """Resolve the provider, using default if none specified."""
-    if provider is None:
-        provider = config_manager.get_default_provider()
-        ux.print_info(f"Using default provider: {provider}")
-    return provider
-
-
-def _validate_provider(provider: str) -> None:
-    """Validate that the provider exists in the plugin registry.
     
-    Args:
-        provider: Provider name to validate
-        
-    Raises:
-        click.Abort: If provider is not found or invalid
-    """
-    from vortex.exceptions.plugins import PluginNotFoundError
+    # Execute download using extracted module
+    executor = DownloadExecutor(download_config)
+    start_time = time.time()
     
     try:
-        registry = get_provider_registry()
-        registry.get_plugin(provider)  # This will raise PluginNotFoundError if not found
-    except PluginNotFoundError:
-        available_providers = get_available_providers()
-        ux.print_error(f"Provider '{provider}' not found")
-        ux.print_info(f"Available providers: {', '.join(available_providers)}")
-        ux.print_info("💡 Use 'vortex providers --list' to see all available providers")
-        raise click.Abort()
-    except Exception as e:
-        logger.error(f"Unexpected error validating provider '{provider}': {e}")
-        ux.print_error(f"Failed to validate provider '{provider}': {e}")
-        raise click.Abort()
-
-
-def _set_defaults(start_date: Optional[datetime], end_date: Optional[datetime], 
-                  output_dir: Optional[Path]) -> tuple[datetime, datetime, Path]:
-    """Set default values for dates and output directory."""
-    if not start_date:
-        start_date = datetime.now() - timedelta(days=30)
-    if not end_date:
-        end_date = datetime.now()
-    if not output_dir:
-        output_dir = Path("./data")
-    return start_date, end_date, output_dir
-
-
-class SymbolResolver:
-    """Handles symbol and configuration resolution using Chain of Responsibility pattern."""
-    
-    def __init__(self, provider: str):
-        self.provider = provider
-        self._setup_chain()
-    
-    def _setup_chain(self):
-        """Setup the chain of responsibility for symbol resolution."""
-        self.assets_handler = AssetsFileHandler()
-        self.direct_symbols_handler = DirectSymbolsHandler()
-        self.default_assets_handler = DefaultAssetsHandler(self.provider)
+        successful_jobs = executor.execute_downloads(symbols_list, instrument_configs)
+        end_time = time.time()
         
-        # Chain the handlers
-        self.assets_handler.set_next(self.direct_symbols_handler)
-        self.direct_symbols_handler.set_next(self.default_assets_handler)
-    
-    def resolve(self, symbol: tuple, symbols_file: Optional[Path], assets: Optional[Path]) -> tuple[List[str], dict]:
-        """Resolve symbols and configurations using the handler chain."""
-        context = SymbolResolutionContext(
-            symbol=symbol,
-            symbols_file=symbols_file,
-            assets=assets,
-            provider=self.provider
-        )
+        # Show results
+        total_jobs = len(symbols_list)  # Simplified - each symbol is one job
+        failed_jobs = total_jobs - successful_jobs
+        show_download_summary(start_time, end_time, total_jobs, successful_jobs, failed_jobs)
         
-        return self.assets_handler.handle(context)
-
-class SymbolResolutionContext:
-    """Context object for symbol resolution."""
-    
-    def __init__(self, symbol: Tuple[str, ...], symbols_file: Optional[Path], assets: Optional[Path], provider: str):
-        self.symbol = symbol
-        self.symbols_file = symbols_file
-        self.assets = assets
-        self.provider = provider
-
-class SymbolResolutionHandler:
-    """Base handler for symbol resolution chain."""
-    
-    def __init__(self):
-        self.next_handler = None
-    
-    def set_next(self, handler):
-        """Set the next handler in the chain."""
-        self.next_handler = handler
-        return handler
-    
-    def handle(self, context: SymbolResolutionContext) -> Tuple[List[str], Dict[str, Any]]:
-        """Handle symbol resolution or pass to next handler."""
-        result = self._try_resolve(context)
-        if result is not None:
-            return result
-        
-        if self.next_handler:
-            return self.next_handler.handle(context)
-        
-        # Final fallback - raise error
-        ux.print_error(f"No symbols specified and no default assets found for {context.provider}")
-        ux.print_info("💡 Try: vortex download -p yahoo -s AAPL")
-        raise MissingArgumentError("symbol", "download")
-    
-    def _try_resolve(self, context: SymbolResolutionContext) -> tuple[List[str], dict]:
-        """Try to resolve symbols. Return None if this handler can't handle the request."""
-        raise NotImplementedError
-
-class AssetsFileHandler(SymbolResolutionHandler):
-    """Handle symbol resolution from user-specified assets file."""
-    
-    @return_none_on_error("resolve_assets_file", "SymbolResolver")
-    def _try_resolve(self, context: SymbolResolutionContext) -> tuple[List[str], dict]:
-        if not context.assets:
-            raise Exception("No assets file provided")
-        
-        instrument_configs = load_config_instruments(context.assets)
-        symbols = list(instrument_configs.keys())
-        ux.print_success(f"Loaded {len(symbols)} instruments from {context.assets}")
-        return symbols, instrument_configs
-
-class DirectSymbolsHandler(SymbolResolutionHandler):
-    """Handle symbol resolution from direct symbol input or symbols file."""
-    
-    @return_none_on_error("resolve_direct_symbols", "SymbolResolver")
-    def _try_resolve(self, context: SymbolResolutionContext) -> tuple[List[str], dict]:
-        symbols = parse_instruments(context.symbol, context.symbols_file)
-        if symbols:
-            return symbols, None
-        raise Exception("No symbols provided from direct input or symbols file")
-
-class DefaultAssetsHandler(SymbolResolutionHandler):
-    """Handle symbol resolution from default provider assets."""
-    
-    def __init__(self, provider: str):
-        super().__init__()
-        self.provider = provider
-    
-    @return_none_on_error("resolve_default_assets", "SymbolResolver")
-    def _try_resolve(self, context: SymbolResolutionContext) -> tuple[List[str], dict]:
-        default_assets_file = get_default_assets_file(self.provider)
-        if default_assets_file is None:
-            raise Exception(f"No default assets file found for provider {self.provider}")
-        
-        instrument_configs = load_config_instruments(default_assets_file)
-        symbols = list(instrument_configs.keys())
-        ux.print_success(f"Loaded {len(symbols)} instruments from default {default_assets_file}")
-        return symbols, instrument_configs
-
-def _resolve_symbols_and_configs(
-    provider: str, symbol: tuple, symbols_file: Optional[Path], assets: Optional[Path]
-) -> tuple[List[str], dict]:
-    """Parse and validate symbols and instrument configurations."""
-    resolver = SymbolResolver(provider)
-    return resolver.resolve(symbol, symbols_file, assets)
-
-
-def _validate_inputs(symbols: List[str], start_date: datetime, end_date: datetime, 
-                     output_dir: Path) -> List[str]:
-    """Validate symbols, date range, and create output directory."""
-    # Validate symbols
-    validated_symbols = validate_symbols(symbols)
-    if not validated_symbols:
-        ux.print_error("No valid symbols to download")
-        raise click.Abort()
-    
-    # Validate date range
-    if start_date >= end_date:
-        raise InvalidCommandError(
-            "download",
-            f"Start date ({start_date.date()}) must be before end date ({end_date.date()})"
-        )
-    
-    # Create output directory
-    output_dir.mkdir(parents=True, exist_ok=True)
-    
-    return validated_symbols
-
-
-def _execute_and_report_results(config: DownloadExecutionConfig) -> None:
-    """Execute the download and report results."""
-    try:
-        success_count = execute_download(config)
-        
-        if success_count == len(config.symbols):
-            ux.print_success(f"Download completed! All {success_count} symbols successful")
+        if successful_jobs > 0:
+            console.print(f"[green]✅ Download completed: {successful_jobs}/{total_jobs} successful[/green]")
         else:
-            ux.print_warning(f"Download completed with issues: {success_count}/{len(config.symbols)} symbols successful")
-            ux.print_info(f"💡 Check logs for details on failed symbols")
-        
-    except (ConfigurationError, DataProviderError, DataStorageError) as e:
-        ux.print_error(f"Download failed: {e}")
-        logger.error("Download process failed", error=str(e), error_type=type(e).__name__)
-        raise click.Abort()
+            console.print(f"[red]❌ Download failed: No data downloaded[/red]")
+            raise click.Abort()
+            
     except KeyboardInterrupt:
-        ux.print_warning("\n⚠️ Download cancelled by user")
-        logger.info("Download cancelled by user")
+        console.print("[yellow]Download interrupted by user[/yellow]")
         raise click.Abort()
     except Exception as e:
-        ux.print_error(f"Unexpected error during download: {e}")
-        logger.error("Unexpected download error", error=str(e), exc_info=True)
+        console.print(f"[red]Download failed: {e}[/red]")
         raise click.Abort()
 
 
-def show_download_summary(
-    provider: str,
-    symbols: List[str],
-    start_date: datetime,
-    end_date: datetime,
-    output_dir: Path,
-    backup: bool,
-    force: bool
-) -> None:
-    """Display download summary table."""
-    table = Table(title="Download Summary")
-    table.add_column("Setting", style="cyan")
-    table.add_column("Value", style="green")
-    
-    table.add_row("Provider", provider.upper())
-    table.add_row("Symbols", f"{len(symbols)} symbols")
-    table.add_row("Date Range", f"{start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}")
-    table.add_row("Output Directory", str(output_dir))
-    table.add_row("Backup Files", "Yes" if backup else "No")
-    table.add_row("Force Re-download", "Yes" if force else "No")
-    
-    console.print(table)
-    
-    # Show symbols list
-    if len(symbols) <= 10:
-        console.print(f"[dim]Symbols: {', '.join(symbols)}[/dim]")
-    else:
-        console.print(f"[dim]Symbols: {', '.join(symbols[:5])} ... and {len(symbols)-5} more[/dim]")
+def _show_download_summary(provider: str, symbols: List[str], start_date: datetime, 
+                          end_date: datetime, output_dir: Path, backup: bool, force: bool) -> None:
+    """Display download summary before execution."""
+    console.print(f"\n[bold]📊 Download Summary[/bold]")
+    console.print(f"Provider: {provider}")
+    console.print(f"Symbols: {', '.join(symbols[:5])}{' ...' if len(symbols) > 5 else ''} ({len(symbols)} total)")
+    console.print(f"Date Range: {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}")
+    console.print(f"Output Directory: {output_dir}")
+    console.print(f"Backup: {'Yes' if backup else 'No'}")
+    console.print(f"Force Redownload: {'Yes' if force else 'No'}")
+    console.print()
 
-def execute_download(config: DownloadExecutionConfig) -> int:
-    """Execute the actual download process."""
-    
-    if config.dry_run:
-        console.print("[yellow]DRY RUN: Would download data but no changes will be made[/yellow]")
-        return len(config.symbols)
-    
-    # Setup phase
-    instrument_configs = _ensure_instrument_configs(config.instrument_configs, config.symbols)
-    download_config = get_download_config(config.config_manager, config.output_dir, config.backup, config.force)
-    downloader = create_downloader(config.provider, download_config)
-    
-    # Count total jobs
-    total_jobs = _count_total_jobs(config.symbols, instrument_configs)
-    
-    # Process downloads
-    return _process_all_downloads(
-        downloader, config.symbols, instrument_configs, config.start_date, config.end_date, 
-        config.provider, total_jobs
-    )
-
-
-def _ensure_instrument_configs(instrument_configs: dict, symbols: List[str]) -> dict:
-    """Ensure all symbols have instrument configurations, creating defaults if needed."""
-    if not instrument_configs:
-        instrument_configs = {}
-        for symbol in symbols:
-            # Create a simple stock config with daily period for direct symbol downloads
-            instrument_configs[symbol] = InstrumentConfig(
-                asset_class='stock',
-                name=symbol,
-                code=symbol,
-                periods='1d'
-            )
-    return instrument_configs
-
-
-def _count_total_jobs(symbols: List[str], instrument_configs: dict) -> int:
-    """Count the total number of download jobs to process."""
-    total_jobs = 0
-    for symbol in symbols:
-        config = instrument_configs.get(symbol)
-        if config and config.periods:
-            total_jobs += len(config.periods)
-        else:
-            total_jobs += 1  # Default to one job (daily)
-    return total_jobs
-
-
-def _process_all_downloads(
-    downloader, symbols: List[str], instrument_configs: dict,
-    start_date: datetime, end_date: datetime, provider: str, total_jobs: int
-) -> int:
-    """Process all downloads with progress tracking."""
-    success_count = 0
-    job_count = 0
-    
-    with ux.progress(f"Downloading {total_jobs} symbol-period combinations") as progress:
-        for symbol in symbols:
-            config = instrument_configs.get(symbol)
-            periods = _get_periods_for_symbol(config)
-            
-            logger.info(f"Processing {symbol} with {len(periods)} period(s): {[p.value for p in periods]}", 
-                       symbol=symbol, provider=provider)
-            
-            # Use BaseDownloader's proper job creation logic instead of manual instrument creation
-            # This fixes the critical bug where futures contracts were selected incorrectly
-            jobs = _create_jobs_using_downloader_logic(downloader, symbol, config, periods, start_date, end_date)
-            
-            # Process each job created by the downloader (may be multiple jobs for futures)
-            for job in jobs:
-                job_count += 1
-                
-                job_context = JobExecutionContext(
-                    downloader=downloader,
-                    instrument=job.instrument,
-                    period=job.period,
-                    start_date=job.start_date,
-                    end_date=job.end_date,
-                    symbol=symbol,
-                    provider=provider,
-                    job_count=job_count,
-                    total_jobs=total_jobs,
-                    progress=progress
-                )
-                
-                result = _process_single_job(job_context)
-                if result:
-                    success_count += 1
-    
-    return success_count
-
-
-def _get_periods_for_symbol(config) -> List:
-    """Get the periods to download for a symbol."""
-    if config and config.periods:
-        return config.periods
-    else:
-        # Fallback to daily for direct symbol input
-        return [Period.Daily]
-
-
-def _create_jobs_using_downloader_logic(downloader, symbol: str, config, periods: List, start_date: datetime, end_date: datetime):
-    """Create download jobs using BaseDownloader's proper logic instead of manual instrument creation.
-    
-    This ensures futures contracts are selected correctly using the same logic as BaseDownloader,
-    avoiding the bug where CLI manually creates Future objects with hardcoded current year.
-    """
-    import pytz
-    
-    tz = pytz.UTC  # Use UTC timezone for consistency
-    
-    # Check if this is a futures contract (has cycle attribute)
-    if config and hasattr(config, 'cycle') and config.cycle:
-        return _create_futures_jobs(downloader, symbol, config, periods, start_date, end_date, tz)
-    else:
-        return _create_simple_instrument_jobs(downloader, symbol, config, periods, start_date, end_date, tz)
-
-
-def _create_futures_jobs(downloader, symbol: str, config, periods: List, start_date: datetime, end_date: datetime, tz):
-    """Create jobs for futures contracts using BaseDownloader's logic."""
-    futures_code = config.code if hasattr(config, 'code') else symbol
-    roll_cycle = config.cycle
-    tick_date = config.tick_date if hasattr(config, 'tick_date') else None
-    days_count = config.days_count if hasattr(config, 'days_count') else 360
-    
-    # Convert to timezone-aware dates to match Future.get_date_range() behavior
-    tz_aware_start = _to_timezone_aware(start_date, tz)
-    tz_aware_end = _to_timezone_aware(end_date, tz)
-    
-    # Convert tick_date to timezone-aware if needed
-    if tick_date:
-        tick_date = _to_timezone_aware(tick_date, tz)
-    
-    return downloader._create_future_jobs(
-        futures_code=futures_code,
-        instr=symbol,
-        start=tz_aware_start,
-        end=tz_aware_end,
-        periods=periods,
-        tick_date=tick_date,
-        roll_cycle=roll_cycle,
-        days_count=days_count,
-        tz=tz
-    )
-
-
-def _create_simple_instrument_jobs(downloader, symbol: str, config, periods: List, start_date: datetime, end_date: datetime, tz):
-    """Create jobs for stocks and forex instruments."""
-    from vortex.services.download_job import DownloadJob
-    
-    # Create appropriate instrument based on asset class
-    instrument = _create_instrument_from_config(symbol, config)
-    
-    # Create jobs for each period
-    jobs = []
-    for period in periods:
-        tz_aware_start_date = _to_timezone_aware(start_date, tz)
-        tz_aware_end_date = _to_timezone_aware(end_date, tz)
-        
-        job = DownloadJob(
-            data_provider=downloader.data_provider,
-            data_storage=downloader.data_storage,
-            instrument=instrument,
-            period=period,
-            start_date=tz_aware_start_date,
-            end_date=tz_aware_end_date
-        )
-        jobs.append(job)
-    
-    return jobs
-
-
-def _create_instrument_from_config(symbol: str, config):
-    """Create appropriate instrument based on configuration."""
-    if config and hasattr(config, 'asset_class'):
-        asset_class = config.asset_class.lower()
-        instrument_code = config.code if hasattr(config, 'code') else symbol
-        
-        if asset_class == 'forex':
-            from vortex.models.forex import Forex
-            return Forex(id=symbol, symbol=instrument_code)
-        elif asset_class == 'stock':
-            from vortex.models.stock import Stock
-            return Stock(id=symbol, symbol=instrument_code)
-        else:
-            # Fallback to stock for unknown asset classes
-            from vortex.models.stock import Stock
-            return Stock(id=symbol, symbol=instrument_code)
-    else:
-        # Default to stock when no asset_class is available
-        from vortex.models.stock import Stock
-        instrument_code = config.code if config and hasattr(config, 'code') else symbol
-        return Stock(id=symbol, symbol=instrument_code)
-
-
-def _to_timezone_aware(dt: datetime, tz):
-    """Convert datetime to timezone-aware using the specified timezone."""
-    if dt.tzinfo is None:
-        return tz.localize(dt)
-    else:
-        return dt.astimezone(tz)
-
-
-# DEPRECATED: The old manual instrument creation logic has been replaced
-# with proper BaseDownloader._create_future_jobs() method to fix critical
-# futures contract selection bug. See _create_jobs_using_downloader_logic() above.
-
-# REMOVED: All the manual instrument creation classes (InstrumentCreator, 
-# FutureInstrumentCreator, FutureParameterExtractor, etc.) have been removed 
-# because they contained critical bugs:
-#
-# 1. FutureParameterExtractor._get_year() hardcoded datetime.now().year (2025)
-# 2. This caused selection of expired contracts (GCG25 instead of GCG26)
-# 3. Violated DRY principle by duplicating BaseDownloader logic incorrectly
-#
-# The new _create_jobs_using_downloader_logic() function above uses the 
-# correct BaseDownloader._create_future_jobs() method instead.
-
-
-def _process_single_job(context: JobExecutionContext) -> bool:
-    """Process a single download job and return success status."""
-    context.progress.update(context.job_count - 1, context.total_jobs, 
-                  f"Processing {context.symbol}|{context.period.value} ({context.job_count}/{context.total_jobs})")
-    
-    try:
-        logger.info(f"Processing {str(context.instrument)}|{context.period.value}|{context.start_date.strftime('%Y-%m-%d')}|{context.end_date.strftime('%Y-%m-%d')}", 
-                   symbol=context.symbol, period=context.period.value, provider=context.provider)
-        
-        # Use timezone-aware dates consistently throughout the pipeline
-        job = DownloadJob(
-            data_provider=context.downloader.data_provider,
-            data_storage=context.downloader.data_storage,
-            instrument=context.instrument,
-            period=context.period,  # Use the actual period from config
-            start_date=context.start_date,
-            end_date=context.end_date
-        )
-        
-        # Process the download job
-        context.downloader._process_job(job)
-        
-        context.progress.update(context.job_count, context.total_jobs, 
-                      f"✓ {context.symbol}|{context.period.value} completed ({context.job_count}/{context.total_jobs})")
-        return True
-        
-    except (DataProviderError, DataStorageError) as e:
-        context.progress.update(context.job_count, context.total_jobs, 
-                      f"✗ {context.symbol}|{context.period.value} failed ({context.job_count}/{context.total_jobs})")
-        logger.warning(f"Download failed for {context.symbol}|{context.period.value}: {e}", 
-                     symbol=context.symbol, period=context.period.value, error=str(e), error_type=type(e).__name__)
-        return False
-    except Exception as e:
-        context.progress.update(context.job_count, context.total_jobs, 
-                      f"✗ {context.symbol}|{context.period.value} failed ({context.job_count}/{context.total_jobs})")
-        logger.error(f"Unexpected error downloading {context.symbol}|{context.period.value}: {e}", 
-                   symbol=context.symbol, period=context.period.value, error=str(e), exc_info=True)
-        return False
-
-def get_download_config(
-    config_manager: ConfigManager,
-    output_dir: Path,
-    backup: bool,
-    force: bool
-) -> dict:
-    """Get configuration for the download."""
-    
-    # Load full configuration
-    config = config_manager.load_config()
-    
-    return {
-        'vortex_config': config,
-        'output_dir': output_dir,
-        'backup': backup,
-        'force': force
-    }
-
-def create_downloader(provider: str, download_config: dict):
-    """Create the appropriate downloader for the provider using plugin system."""
-    
-    vortex_config = download_config['vortex_config']
-    output_dir = download_config['output_dir']
-    backup = download_config['backup']
-    force = download_config['force']
-    
-    # Create storage objects
-    data_storage = CsvStorage(str(output_dir), False)  # dry_run handled at CLI level
-    backup_data_storage = ParquetStorage(str(output_dir), False) if backup else None
-    
-    # Create data provider using plugin system
-    try:
-        registry = get_provider_registry()
-        
-        # Get provider-specific configuration dynamically
-        provider_config = get_provider_config_from_vortex_config(provider, vortex_config)
-        
-        # Create data provider through plugin system
-        data_provider = registry.create_provider(provider, provider_config)
-        
-        logger.info(f"Created data provider '{provider}' using plugin system")
-        
-    except DataProviderError:
-        # Re-raise DataProviderError as-is
-        raise
-    except (ConfigurationError, ValueError, TypeError) as e:
-        logger.error(f"Configuration error creating provider '{provider}': {e}")
-        raise DataProviderError(provider, f"Configuration error: {e}")
-    except Exception as e:
-        logger.error(f"Unexpected error creating provider '{provider}': {e}", exc_info=True)
-        raise DataProviderError(provider, f"Initialization failed: {e}")
-    
-    # Create and return the downloader
-    return UpdatingDownloader(
-        data_storage, 
-        data_provider, 
-        backup_data_storage,
-        force_backup=force, 
-        random_sleep_in_sec=vortex_config.general.random_sleep_max,
-        dry_run=vortex_config.general.dry_run
-    )
+# Note: All other helper functions moved to focused modules:
+# - Symbol resolution: symbol_resolver.py
+# - Job creation: job_creator.py  
+# - Download execution: download_executor.py

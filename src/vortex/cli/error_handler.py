@@ -250,11 +250,13 @@ class CLIErrorHandler:
                     logger.error(message, 
                                error_dict=error.to_dict(),
                                correlation_id=error.correlation_id)
-                except Exception:
-                    pass  # Structured logging already handled it
-        except Exception:
+                except (AttributeError, TypeError, ValueError) as logging_error:
+                    # If structured logging fails, fall back to basic logging
+                    logging.debug(f"Structured logging failed: {logging_error}")
+        except (AttributeError, TypeError, ImportError) as fallback_error:
             # Ultimate fallback to basic logging
-            logging.error(f"{message}: {error.message}")
+            logging.error(f"{message}: {getattr(error, 'message', str(error))}")
+            logging.debug(f"Error handler fallback triggered: {fallback_error}")
     
     def _log_simple_error(self, message: str) -> None:
         """Log simple error message."""
