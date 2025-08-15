@@ -37,8 +37,8 @@ class DownloadExecutor:
         self.config = config
         self.logger = logging.getLogger(__name__)
     
-    def execute_downloads(self, symbols: List[str], instrument_configs: Dict[str, Any]) -> int:
-        """Execute downloads for all symbols and return success count."""
+    def execute_downloads(self, symbols: List[str], instrument_configs: Dict[str, Any]) -> tuple[int, int]:
+        """Execute downloads for all symbols and return (success_count, total_jobs)."""
         # Ensure all symbols have configurations
         instrument_configs = self._ensure_instrument_configs(instrument_configs, symbols)
         
@@ -47,7 +47,7 @@ class DownloadExecutor:
         
         if total_jobs == 0:
             self.logger.warning("No download jobs to execute")
-            return 0
+            return 0, 0
         
         self.logger.info(f"Starting download execution: {len(symbols)} symbols, {total_jobs} total jobs")
         
@@ -55,7 +55,7 @@ class DownloadExecutor:
         success_count = self._process_all_downloads(symbols, instrument_configs, total_jobs)
         
         self.logger.info(f"Download execution completed: {success_count}/{total_jobs} jobs successful")
-        return success_count
+        return success_count, total_jobs
     
     def _ensure_instrument_configs(self, instrument_configs: dict, symbols: List[str]) -> dict:
         """Ensure all symbols have instrument configurations."""

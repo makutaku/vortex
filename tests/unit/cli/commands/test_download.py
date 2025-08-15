@@ -65,7 +65,7 @@ class TestDownloadCommand:
             mock_config.return_value.get_provider_config.return_value = {}
             mock_dates.return_value = (datetime.now() - timedelta(days=30), datetime.now())
             mock_resolve.return_value = (['AAPL'], {'AAPL': {'asset_class': 'stock'}})
-            mock_executor.return_value.execute_downloads.return_value = 1
+            mock_executor.return_value.execute_downloads.return_value = (1, 1)  # (successful_jobs, total_jobs)
             
             yield {
                 'config': mock_config,

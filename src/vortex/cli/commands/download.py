@@ -217,11 +217,10 @@ def download(
     start_time = time.time()
     
     try:
-        successful_jobs = executor.execute_downloads(symbols_list, instrument_configs)
+        successful_jobs, total_jobs = executor.execute_downloads(symbols_list, instrument_configs)
         end_time = time.time()
         
         # Show results
-        total_jobs = len(symbols_list)  # Simplified - each symbol is one job
         failed_jobs = total_jobs - successful_jobs
         show_download_summary(start_time, end_time, total_jobs, successful_jobs, failed_jobs)
         
