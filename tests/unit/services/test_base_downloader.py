@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import Mock, patch, MagicMock, call
 from typing import Dict, List
 
-from vortex.services.base_downloader import BaseDownloader
+from vortex.services.base_downloader import BaseDownloader, DownloadConfiguration
 from vortex.services.download_job import DownloadJob
 from vortex.infrastructure.providers.base import HistoricalDataResult
 from vortex.infrastructure.storage.data_storage import DataStorage
@@ -122,7 +122,8 @@ class TestBaseDownloader:
         with patch.object(downloader, '_schedule_jobs', return_value=[]):
             with patch.object(downloader, '_process_jobs'):
                 with patch('vortex.services.base_downloader.logging'):
-                    downloader.download(['file1.json', 'file2.json'], 2023, 2024)
+                    config = DownloadConfiguration(['file1.json', 'file2.json'], 2023, 2024)
+                    downloader.download(config)
         
         # The test should verify that the load_from_json was called, but we're mocking it at the class level
         # So check the merge_dicts call instead which is more meaningful
@@ -131,14 +132,16 @@ class TestBaseDownloader:
     def test_download_invalid_input_type(self, downloader):
         """Test download with invalid input type raises TypeError."""
         with pytest.raises(TypeError):
-            downloader.download(123, 2023, 2024)
+            config = DownloadConfiguration(123, 2023, 2024)
+            downloader.download(config)
 
     @patch('vortex.services.base_downloader.logging')
     def test_download_logs_info(self, mock_logging, downloader):
         """Test download logs start information."""
         with patch.object(downloader, '_schedule_jobs', return_value=[]):
             with patch.object(downloader, '_process_jobs'):
-                downloader.download({}, 2023, 2024)
+                config = DownloadConfiguration({}, 2023, 2024)
+                downloader.download(config)
         
         mock_logging.info.assert_any_call("Download from 2023 to 2024 ...")
 
@@ -308,7 +311,8 @@ class TestBaseDownloader:
                 with patch.object(downloader, '_schedule_jobs', return_value=[Mock()]) as mock_schedule:
                     with patch.object(downloader, '_process_jobs') as mock_process:
                         with patch('vortex.services.base_downloader.logging'):
-                            downloader.download(contract_map, 2024, 2024)
+                            config = DownloadConfiguration(contract_map, 2024, 2024)
+                            downloader.download(config)
         
         # Verify the workflow calls the right methods
         mock_create_jobs.assert_called_once()
@@ -394,7 +398,8 @@ class TestBaseDownloader:
                 with patch.object(downloader, '_schedule_jobs', return_value=[]):
                     with patch.object(downloader, '_process_jobs'):
                         with patch('vortex.services.base_downloader.logging'):
-                            downloader.download('test_file.json', 2024, 2025)
+                            config = DownloadConfiguration('test_file.json', 2024, 2025)
+                            downloader.download(config)
         
         mock_load.assert_called_once_with('test_file.json')
 
@@ -850,7 +855,8 @@ class TestBaseDownloader:
         
         with patch('vortex.core.instruments.config.InstrumentConfig.load_from_json', return_value=mock_config_data):
             with patch.object(downloader, '_create_jobs', return_value=[]) as mock_create:
-                downloader.download("test.json", 2024, 2025)
+                config = DownloadConfiguration("test.json", 2024, 2025)
+                downloader.download(config)
                 mock_create.assert_called_once_with(mock_config_data, 2024, 2025)
 
     def test_download_with_usage_limit_exceeded_error_logging(self, mock_data_storage, mock_data_provider, caplog):
@@ -860,7 +866,8 @@ class TestBaseDownloader:
         # Mock to raise AllowanceLimitExceededError
         with patch.object(downloader, '_create_jobs', side_effect=AllowanceLimitExceededError("test", 100, 150)):
             with caplog.at_level(logging.ERROR):
-                downloader.download({}, 2024, 2024)
+                config = DownloadConfiguration({}, 2024, 2024)
+                downloader.download(config)
                 
         # Verify error was logged
         assert "Daily usage limit exceeded: 100/150" in caplog.text

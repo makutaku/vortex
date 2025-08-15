@@ -391,8 +391,15 @@ class DataTypeValidator:
                 count=invalid_low
             )
     
-    def _add_issue(self, issue_type: ValidationIssueType, column_name: str, message: str, 
-                   count: int = None, expected_type: str = None, actual_type: str = None):
+    def _add_issue(
+        self, 
+        issue_type: ValidationIssueType, 
+        column_name: str, 
+        message: str, 
+        count: Optional[int] = None, 
+        expected_type: Optional[str] = None, 
+        actual_type: Optional[str] = None
+    ) -> None:
         """Add a validation issue to the issues list."""
         self.issues.append(ValidationIssue(
             type=issue_type,

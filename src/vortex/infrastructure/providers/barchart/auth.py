@@ -5,12 +5,14 @@ Handles login, logout, CSRF token extraction, and session creation for Barchart.
 """
 
 from typing import Dict, Any, Optional
+import logging
 
 import requests
 from bs4 import BeautifulSoup
 
 from vortex.utils.logging_utils import LoggingContext, LoggingConfiguration
 from vortex.core.constants import NetworkConstants, ProviderConstants
+from vortex.core.security.validation import CredentialSanitizer
 
 
 class BarchartAuth:
@@ -21,11 +23,21 @@ class BarchartAuth:
     BARCHART_LOGOUT_URL = BARCHART_URL + '/logout'
     
     def __init__(self, username: str, password: str):
-        if not username or not password:
-            raise ValueError('Barchart credentials are required')
+        # Comprehensive credential validation and sanitization
+        sanitized_username, sanitized_password, warnings = (
+            CredentialSanitizer.validate_and_sanitize_credentials(username, password)
+        )
         
-        self.username = username
-        self.password = password
+        # Log warnings if any (but not the actual credentials)
+        if warnings:
+            logger = logging.getLogger(__name__)
+            masked_username = CredentialSanitizer.mask_credential(sanitized_username)
+            logger.info(
+                f"Credential validation warnings for user {masked_username}: {', '.join(warnings)}"
+            )
+        
+        self.username = sanitized_username
+        self.password = sanitized_password
         self.session = self._create_session()
     
     def _create_session(self) -> requests.Session:
@@ -113,8 +125,9 @@ class BarchartAuth:
     
     def get_xsrf_token(self) -> str:
         """Get XSRF token from cookies (bc-utils methodology)."""
+        from urllib.parse import unquote
+        
         if 'XSRF-TOKEN' in self.session.cookies:
-            from urllib.parse import unquote
             return unquote(self.session.cookies['XSRF-TOKEN'])
         
         # If no XSRF token in cookies, try to get one by visiting a page
@@ -153,7 +166,7 @@ class BarchartAuth:
                 return {'data': response.text, 'content_type': response.headers.get('content-type', '')}
                 
         except requests.exceptions.Timeout as e:
-            logger.error(f"API request timeout: {url}", timeout=NetworkConstants.DEFAULT_REQUEST_TIMEOUT)
+            logger.error(f"API request timeout: {url} (timeout: {NetworkConstants.DEFAULT_REQUEST_TIMEOUT})")
             raise
         except requests.exceptions.ConnectionError as e:
             logger.error(f"API connection failed: {url}")
@@ -162,5 +175,5 @@ class BarchartAuth:
             logger.error(f"API HTTP error: {url}, status: {e.response.status_code}")
             raise
         except Exception as e:
-            logger.error(f"Unexpected API request error: {url}", error=str(e))
+            logger.error(f"Unexpected API request error: {url}, error: {str(e)}")
             raise

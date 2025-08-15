@@ -11,6 +11,7 @@ import requests
 from bs4 import BeautifulSoup
 
 from vortex.infrastructure.providers.barchart.auth import BarchartAuth
+from vortex.exceptions.config import ConfigurationValidationError
 
 
 @pytest.mark.unit
@@ -19,30 +20,30 @@ class TestBarchartAuth:
     
     def test_init_valid_credentials(self):
         """Test initialization with valid credentials."""
-        auth = BarchartAuth("testuser", "testpass")
+        auth = BarchartAuth("testuser@example.com", "testpass123")
         
-        assert auth.username == "testuser"
-        assert auth.password == "testpass"
+        assert auth.username == "testuser@example.com"
+        assert auth.password == "testpass123"
         assert isinstance(auth.session, requests.Session)
     
     def test_init_empty_username(self):
         """Test initialization fails with empty username."""
-        with pytest.raises(Exception, match="Barchart credentials are required"):
-            BarchartAuth("", "testpass")
+        with pytest.raises(ConfigurationValidationError, match="Username validation failed"):
+            BarchartAuth("", "testpass123")
     
     def test_init_empty_password(self):
         """Test initialization fails with empty password."""
-        with pytest.raises(Exception, match="Barchart credentials are required"):
-            BarchartAuth("testuser", "")
+        with pytest.raises(ConfigurationValidationError, match="Password validation failed"):
+            BarchartAuth("testuser@example.com", "")
     
     def test_init_none_credentials(self):
         """Test initialization fails with None credentials."""
-        with pytest.raises(Exception, match="Barchart credentials are required"):
+        with pytest.raises(ConfigurationValidationError):
             BarchartAuth(None, None)
     
     def test_create_session(self):
         """Test session creation with proper headers."""
-        auth = BarchartAuth("testuser", "testpass")
+        auth = BarchartAuth("testuser@example.com", "testpass123")
         session = auth._create_session()
         
         assert isinstance(session, requests.Session)
@@ -223,6 +224,187 @@ class TestBarchartAuthEdgeCases:
         assert BarchartAuth.BARCHART_URL == 'https://www.barchart.com'
         assert BarchartAuth.BARCHART_LOGIN_URL == 'https://www.barchart.com/login'
         assert BarchartAuth.BARCHART_LOGOUT_URL == 'https://www.barchart.com/logout'
+
+
+@pytest.mark.unit
+class TestBarchartAuthErrorScenarios:
+    """Test error handling and edge cases in authentication."""
+    
+    def setup_method(self):
+        """Set up test fixtures."""
+        with patch.object(BarchartAuth, '_create_session'):
+            self.auth = BarchartAuth("testuser", "testpass")
+            self.auth.session = Mock(spec=requests.Session)
+    
+    def test_login_csrf_token_not_found(self):
+        """Test login when CSRF token cannot be found."""
+        # Mock response without CSRF token
+        mock_get_response = Mock()
+        mock_get_response.text = '<html><body>No token here</body></html>'
+        self.auth.session.get.return_value = mock_get_response
+        
+        with patch('bs4.BeautifulSoup') as mock_soup:
+            mock_soup.return_value.find.return_value = None  # No token found
+            
+            with pytest.raises(ValueError, match="CSRF token not found"):
+                self.auth.login()
+    
+    def test_login_bad_status_code(self):
+        """Test login with bad HTTP status code."""
+        from vortex.exceptions.providers import AuthenticationError
+        
+        # Mock successful GET for login page
+        mock_get_response = Mock()
+        mock_get_response.text = '<meta name="csrf-token" content="test-token">'
+        self.auth.session.get.return_value = mock_get_response
+        
+        # Mock POST with bad status
+        mock_post_response = Mock()
+        mock_post_response.url = "https://www.barchart.com/dashboard"
+        mock_post_response.status_code = 500
+        self.auth.session.post.return_value = mock_post_response
+        
+        with patch('bs4.BeautifulSoup') as mock_soup:
+            mock_meta = Mock()
+            mock_meta.get.return_value = 'test-token'
+            mock_soup.return_value.find.return_value = mock_meta
+            
+            with pytest.raises(AuthenticationError, match="Login failed with status code: 500"):
+                self.auth.login()
+    
+    def test_login_missing_session_cookie_warning(self):
+        """Test login warning when laravel_session cookie is missing."""
+        # Mock successful GET and POST
+        mock_get_response = Mock()
+        mock_get_response.text = '<meta name="csrf-token" content="test-token">'
+        self.auth.session.get.return_value = mock_get_response
+        
+        mock_post_response = Mock()
+        mock_post_response.url = "https://www.barchart.com/dashboard"
+        mock_post_response.status_code = 200
+        self.auth.session.post.return_value = mock_post_response
+        
+        # Mock cookies without laravel_session
+        self.auth.session.cookies = {'other_cookie': 'value'}
+        
+        with patch('bs4.BeautifulSoup') as mock_soup:
+            mock_meta = Mock()
+            mock_meta.get.return_value = 'test-token'
+            mock_soup.return_value.find.return_value = mock_meta
+            
+            with patch('logging.getLogger') as mock_logger:
+                mock_logger_instance = Mock()
+                mock_logger.return_value = mock_logger_instance
+                
+                self.auth.login()
+                
+                mock_logger_instance.warning.assert_called_once()
+                args = mock_logger_instance.warning.call_args[0]
+                assert 'missing expected laravel_session cookie' in args[0]
+    
+    def test_get_xsrf_token_fallback_success(self):
+        """Test XSRF token fallback when not in initial cookies."""
+        # Initially no XSRF token
+        self.auth.session.cookies = {}
+        
+        # Mock the fallback request that gets the token
+        mock_response = Mock()
+        
+        def side_effect_get(*args, **kwargs):
+            # Simulate getting the token after visiting main page
+            self.auth.session.cookies = {'XSRF-TOKEN': 'fallback%20token'}
+            return mock_response
+        
+        self.auth.session.get.side_effect = side_effect_get
+        
+        with patch('urllib.parse.unquote', return_value='fallback token'):
+            token = self.auth.get_xsrf_token()
+            assert token == 'fallback token'
+    
+    def test_get_xsrf_token_failure(self):
+        """Test XSRF token failure when token cannot be obtained."""
+        # No XSRF token in cookies initially
+        self.auth.session.cookies = {}
+        
+        # Mock the fallback request that still doesn't get the token
+        mock_response = Mock()
+        self.auth.session.get.return_value = mock_response
+        
+        with pytest.raises(ValueError, match="Unable to obtain XSRF token"):
+            self.auth.get_xsrf_token()
+    
+    def test_make_api_request_timeout_error(self):
+        """Test API request timeout handling."""
+        self.auth.session.cookies = {'XSRF-TOKEN': 'test-token'}
+        self.auth.session.get.side_effect = requests.exceptions.Timeout("Request timeout")
+        
+        with pytest.raises(requests.exceptions.Timeout):
+            self.auth.make_api_request('https://test.com/api')
+    
+    def test_make_api_request_connection_error(self):
+        """Test API request connection error handling."""
+        self.auth.session.cookies = {'XSRF-TOKEN': 'test-token'}
+        self.auth.session.get.side_effect = requests.exceptions.ConnectionError("Connection failed")
+        
+        with pytest.raises(requests.exceptions.ConnectionError):
+            self.auth.make_api_request('https://test.com/api')
+    
+    def test_make_api_request_http_error(self):
+        """Test API request HTTP error handling."""
+        self.auth.session.cookies = {'XSRF-TOKEN': 'test-token'}
+        
+        mock_response = Mock()
+        mock_response.status_code = 404
+        http_error = requests.exceptions.HTTPError("Not found")
+        http_error.response = mock_response
+        self.auth.session.get.side_effect = http_error
+        
+        with pytest.raises(requests.exceptions.HTTPError):
+            self.auth.make_api_request('https://test.com/api')
+    
+    def test_make_api_request_unexpected_error(self):
+        """Test API request unexpected error handling."""
+        self.auth.session.cookies = {'XSRF-TOKEN': 'test-token'}
+        self.auth.session.get.side_effect = Exception("Unexpected error")
+        
+        with pytest.raises(Exception, match="Unexpected error"):
+            self.auth.make_api_request('https://test.com/api')
+    
+    def test_make_api_request_with_params(self):
+        """Test API request with parameters."""
+        mock_response = Mock()
+        mock_response.headers = {'content-type': 'application/json'}
+        mock_response.json.return_value = {'success': True}
+        mock_response.raise_for_status = Mock()
+        
+        self.auth.session.get.return_value = mock_response
+        self.auth.session.cookies = {'XSRF-TOKEN': 'test-token'}
+        
+        params = {'symbol': 'AAPL', 'period': '1d'}
+        result = self.auth.make_api_request('https://test.com/api', params=params)
+        
+        assert result == {'success': True}
+        # Verify params were passed
+        call_args = self.auth.session.get.call_args
+        assert 'params' in call_args[1]
+        assert call_args[1]['params'] == params
+    
+    def test_make_api_request_csv_response(self):
+        """Test API request with CSV response."""
+        mock_response = Mock()
+        mock_response.headers = {'content-type': 'text/csv'}
+        mock_response.text = 'Date,Open,High,Low,Close\n2024-01-01,100,105,99,104'
+        mock_response.raise_for_status = Mock()
+        
+        self.auth.session.get.return_value = mock_response
+        self.auth.session.cookies = {'XSRF-TOKEN': 'test-token'}
+        
+        result = self.auth.make_api_request('https://test.com/api')
+        
+        assert 'data' in result
+        assert 'content_type' in result
+        assert result['content_type'] == 'text/csv'
+        assert 'Date,Open,High,Low,Close' in result['data']
 
 
 @pytest.mark.unit

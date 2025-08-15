@@ -28,7 +28,12 @@ class InvalidInstrumentError(InstrumentError):
 class UnsupportedInstrumentError(InstrumentError):
     """Raised when an instrument is not supported by the provider."""
     
-    def __init__(self, symbol: str, provider: str, supported_types: Optional[List[str]] = None):
+    def __init__(
+        self, 
+        symbol: str, 
+        provider: str, 
+        supported_types: Optional[List[str]] = None
+    ):
         from .base import ExceptionContext
         message = f"Instrument '{symbol}' not supported by {provider}"
         if supported_types:

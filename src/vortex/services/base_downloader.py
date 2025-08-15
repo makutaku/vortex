@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
 from itertools import cycle
 from typing import List, Dict, Optional, Union, Tuple
+from dataclasses import dataclass
 
 from .download_job import DownloadJob
 from vortex.infrastructure.providers.base import DataProvider, HistoricalDataResult
@@ -22,6 +23,33 @@ from vortex.utils.utils import (
 )
 
 
+@dataclass
+class DownloadConfiguration:
+    """Configuration for download operations."""
+    instruments: Union[str, List[str], Dict]
+    start_year: int
+    end_year: int
+    
+    def __post_init__(self):
+        """Validate configuration after initialization."""
+        if self.start_year > self.end_year:
+            raise ValueError(f"Start year ({self.start_year}) cannot be greater than end year ({self.end_year})")
+        
+        if self.start_year < 1900 or self.end_year > 2100:
+            raise ValueError("Years must be between 1900 and 2100")
+    
+    def load_contract_map(self) -> Dict:
+        """Load and return the contract map from instruments configuration."""
+        if is_list_of_strings(self.instruments):
+            return merge_dicts(InstrumentConfig.load_from_json(file) for file in self.instruments)
+        elif isinstance(self.instruments, str):
+            return InstrumentConfig.load_from_json(self.instruments)
+        elif isinstance(self.instruments, dict):
+            return self.instruments
+        else:
+            raise TypeError(f"Unsupported instruments type: {type(self.instruments)}")
+
+
 class BaseDownloader(ABC):
 
     def __init__(self, data_storage: DataStorage, data_provider: DataProvider, backup_data_storage: Optional[DataStorage] = None, force_backup: bool = False) -> None:
@@ -36,24 +64,29 @@ class BaseDownloader(ABC):
     def logout(self) -> None:
         self.data_provider.logout()
 
-    def download(self, instr_configs_or_market_metadata_files: Union[str, List[str], Dict], start_year: int, end_year: int) -> None:
-        logging.info(f"Download from {start_year} to {end_year} ...")
+    def download(self, config: DownloadConfiguration) -> None:
+        """Download data using the provided configuration."""
+        logging.info(f"Download from {config.start_year} to {config.end_year} ...")
         try:
-            if is_list_of_strings(instr_configs_or_market_metadata_files):
-                market_metadata_files = instr_configs_or_market_metadata_files
-                contract_map = merge_dicts(InstrumentConfig.load_from_json(file) for file in market_metadata_files)
-            elif isinstance(instr_configs_or_market_metadata_files, str):
-                contract_map = InstrumentConfig.load_from_json(instr_configs_or_market_metadata_files)
-            elif isinstance(instr_configs_or_market_metadata_files, dict):
-                contract_map = instr_configs_or_market_metadata_files
-            else:
-                raise TypeError(instr_configs_or_market_metadata_files)
-
-            job_list = self._create_jobs(contract_map, start_year, end_year)
+            contract_map = config.load_contract_map()
+            job_list = self._create_jobs(contract_map, config.start_year, config.end_year)
             self._process_jobs(job_list)
-
         except AllowanceLimitExceededError as e:  # absorbing exception by design
             logging.error(f"{e}")
+    
+    def download_legacy(
+        self, 
+        instr_configs_or_market_metadata_files: Union[str, List[str], Dict], 
+        start_year: int, 
+        end_year: int
+    ) -> None:
+        """Legacy download method - use download() with DownloadConfiguration instead."""
+        config = DownloadConfiguration(
+            instruments=instr_configs_or_market_metadata_files,
+            start_year=start_year,
+            end_year=end_year
+        )
+        self.download(config)
 
     def _create_jobs(self, configs, start_year: int, end_year: int) -> List[DownloadJob]:
 

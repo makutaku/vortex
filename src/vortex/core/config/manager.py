@@ -12,6 +12,7 @@ import os
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
+from dataclasses import dataclass
 
 try:
     if sys.version_info >= (3, 11):
@@ -31,6 +32,25 @@ from ...exceptions.config import (
     ConfigurationValidationError
 )
 from ...utils.error_handling import FileOperationHandler
+
+
+@dataclass
+class EnvironmentOverride:
+    """Helper for applying environment variable overrides."""
+    config_section: Dict[str, Any]
+    settings: VortexSettings
+    
+    def apply_if_set(self, setting_name: str, config_key: str) -> None:
+        """Apply setting if it's set in environment."""
+        value = getattr(self.settings, setting_name, None)
+        if value is not None:
+            self.config_section[config_key] = value
+    
+    def apply_string_if_set(self, setting_name: str, config_key: str) -> None:
+        """Apply string setting if it's set in environment."""
+        value = getattr(self.settings, setting_name, None)
+        if value:
+            self.config_section[config_key] = value
 
 
 class ConfigManager:
@@ -162,20 +182,19 @@ class ConfigManager:
         if "ibkr" not in config_data["providers"]:
             config_data["providers"]["ibkr"] = {}
     
-    def _apply_general_env_overrides(self, config_data: Dict[str, Any], settings: VortexSettings) -> None:
+    def _apply_general_env_overrides(
+        self, 
+        config_data: Dict[str, Any], 
+        settings: VortexSettings
+    ) -> None:
         """Apply general environment variable overrides."""
-        general_config = config_data["general"]
+        override = EnvironmentOverride(config_data["general"], settings)
         
-        if settings.vortex_output_directory:
-            general_config["output_directory"] = settings.vortex_output_directory
-        if settings.vortex_log_level:
-            general_config["log_level"] = settings.vortex_log_level
-        if settings.vortex_backup_enabled is not None:
-            general_config["backup_enabled"] = settings.vortex_backup_enabled
-        if settings.vortex_dry_run is not None:
-            general_config["dry_run"] = settings.vortex_dry_run
-        if settings.vortex_default_provider:
-            general_config["default_provider"] = settings.vortex_default_provider
+        override.apply_string_if_set("vortex_output_directory", "output_directory")
+        override.apply_string_if_set("vortex_log_level", "log_level")
+        override.apply_if_set("vortex_backup_enabled", "backup_enabled")
+        override.apply_if_set("vortex_dry_run", "dry_run")
+        override.apply_string_if_set("vortex_default_provider", "default_provider")
     
     def _apply_logging_env_overrides(self, config_data: Dict[str, Any], settings: VortexSettings) -> None:
         """Apply logging environment variable overrides."""
