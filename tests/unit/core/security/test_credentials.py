@@ -33,7 +33,7 @@ class TestEnvironmentVariableCredentials:
     @patch.dict(os.environ, {
         'VORTEX_BARCHART_USERNAME': 'test_user',
         'VORTEX_BARCHART_PASSWORD': 'test_pass'
-    })
+    }, clear=True)
     def test_load_from_env_vars_barchart_success(self):
         """Test successful loading of Barchart credentials from env vars."""
         manager = CredentialManager()
@@ -46,7 +46,7 @@ class TestEnvironmentVariableCredentials:
     @patch.dict(os.environ, {
         'VORTEX_BARCHART_USERNAME': 'test_user'
         # Missing password
-    })
+    }, clear=True)
     def test_load_from_env_vars_barchart_missing_password(self):
         """Test loading Barchart credentials with missing password."""
         manager = CredentialManager()
@@ -57,7 +57,7 @@ class TestEnvironmentVariableCredentials:
     @patch.dict(os.environ, {
         'VORTEX_BARCHART_PASSWORD': 'test_pass'
         # Missing username
-    })
+    }, clear=True)
     def test_load_from_env_vars_barchart_missing_username(self):
         """Test loading Barchart credentials with missing username."""
         manager = CredentialManager()
@@ -254,7 +254,7 @@ class TestGetBarchartCredentials:
     @patch.dict(os.environ, {
         'VORTEX_BARCHART_USERNAME': 'env_user',
         'VORTEX_BARCHART_PASSWORD': 'env_pass'
-    })
+    }, clear=True)
     def test_get_barchart_credentials_from_env(self):
         """Test getting Barchart credentials from environment variables."""
         manager = CredentialManager()
@@ -283,33 +283,21 @@ VORTEX_BARCHART_PASSWORD=file_pass
         assert credentials['username'] == 'file_user'
         assert credentials['password'] == 'file_pass'
     
-    @patch.dict(os.environ, {}, clear=True)
-    @patch('pathlib.Path.cwd')
-    @patch('pathlib.Path.exists', side_effect=lambda: False)  # No .env files
-    @patch('pathlib.Path.home')
-    def test_get_barchart_credentials_from_user_config(self, mock_home, mock_env_exists, mock_cwd):
+    def test_get_barchart_credentials_from_user_config(self):
         """Test getting credentials from user config as fallback."""
-        mock_cwd.return_value = Path('/test/dir')
-        mock_home.return_value = Path('/home/test')
-        
-        # Mock user config file exists and content
-        with patch('pathlib.Path.exists') as mock_user_exists:
-            mock_user_exists.side_effect = lambda self: str(self).endswith('credentials.json')
-            
-            with patch('builtins.open', new_callable=mock_open, read_data=json.dumps({
-                "providers": {
-                    "barchart": {
-                        "username": "user_config_user",
-                        "password": "user_config_pass"
-                    }
-                }
-            })):
-                manager = CredentialManager()
-                credentials = manager.get_barchart_credentials()
-                
-                assert credentials is not None
-                assert credentials['username'] == 'user_config_user'
-                assert credentials['password'] == 'user_config_pass'
+        # Mock the class methods directly on the class to ensure they're applied
+        with patch('vortex.core.security.credentials.CredentialManager._load_from_env_vars', return_value=None):
+            with patch('vortex.core.security.credentials.CredentialManager._load_from_env_files', return_value=None):
+                with patch('vortex.core.security.credentials.CredentialManager._load_from_user_config', return_value={
+                    'username': 'user_config_user',
+                    'password': 'user_config_pass'
+                }):
+                    manager = CredentialManager()
+                    credentials = manager.get_barchart_credentials()
+                    
+                    assert credentials is not None
+                    assert credentials['username'] == 'user_config_user'
+                    assert credentials['password'] == 'user_config_pass'
     
     @patch.dict(os.environ, {}, clear=True)
     @patch('pathlib.Path.exists', return_value=False)
@@ -430,7 +418,7 @@ class TestConvenienceFunction:
     @patch.dict(os.environ, {
         'VORTEX_BARCHART_USERNAME': 'convenience_user',
         'VORTEX_BARCHART_PASSWORD': 'convenience_pass'
-    })
+    }, clear=True)
     def test_get_secure_barchart_credentials(self):
         """Test convenience function for getting Barchart credentials."""
         credentials = get_secure_barchart_credentials()

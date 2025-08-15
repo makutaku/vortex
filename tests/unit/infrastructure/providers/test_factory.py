@@ -45,11 +45,13 @@ class TestProviderFactory:
         assert isinstance(provider, DataProviderProtocol)
         assert provider.get_name() == 'YahooFinance'
     
-    @patch('vortex.infrastructure.providers.barchart.provider.BarchartAuth')
+    @patch('vortex.infrastructure.providers.barchart.auth.BarchartAuth')
     def test_create_barchart_provider(self, mock_auth_class, factory, mock_config_manager):
         """Test creating Barchart provider with configuration."""
         # Mock the auth to avoid login issues
         mock_auth = Mock()
+        mock_auth.login.return_value = None  # Configure login to succeed
+        mock_auth.session = Mock()  # Mock session for HTTP client
         mock_auth_class.return_value = mock_auth
         
         provider = factory.create_provider('barchart')
@@ -61,11 +63,13 @@ class TestProviderFactory:
         # Verify config manager was called
         mock_config_manager.get_provider_config.assert_called_with('barchart')
     
-    @patch('vortex.infrastructure.providers.barchart.provider.BarchartAuth')
+    @patch('vortex.infrastructure.providers.barchart.auth.BarchartAuth')
     def test_create_barchart_with_override(self, mock_auth_class, factory):
         """Test creating Barchart provider with config override."""
         # Mock the auth to avoid login issues
         mock_auth = Mock()
+        mock_auth.login.return_value = None  # Configure login to succeed
+        mock_auth.session = Mock()  # Mock session for HTTP client
         mock_auth_class.return_value = mock_auth
         
         override_config = {
@@ -77,7 +81,7 @@ class TestProviderFactory:
         provider = factory.create_provider('barchart', override_config)
         
         assert provider is not None
-        assert provider.daily_limit == 250
+        assert provider.get_daily_limit() == 250
     
     def test_create_provider_not_found(self, factory):
         """Test creating non-existent provider raises error."""
@@ -152,11 +156,14 @@ class TestProviderFactory:
         assert "Provider 'nonexistent' not found" in str(exc_info.value)
     
     @patch('vortex.infrastructure.providers.ibkr.provider.IB')
-    def test_create_ibkr_provider(self, mock_ib_class, factory, mock_config_manager):
+    @patch('vortex.infrastructure.providers.ibkr.provider.IbkrDataProvider.login')
+    def test_create_ibkr_provider(self, mock_login, mock_ib_class, factory, mock_config_manager):
         """Test creating IBKR provider with configuration."""
         # Mock IB to avoid connection attempts
         mock_ib = Mock()
         mock_ib_class.return_value = mock_ib
+        # Mock login to avoid actual connection attempts
+        mock_login.return_value = None
         
         mock_config_manager.get_provider_config.return_value = {
             'host': 'localhost',

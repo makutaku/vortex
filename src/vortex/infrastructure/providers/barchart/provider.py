@@ -14,6 +14,7 @@ from pandas import DataFrame
 
 from ..base import DataProvider
 from ..interfaces import HTTPClientProtocol, BarchartHTTPClient
+from ..config import BarchartProviderConfig, CircuitBreakerConfig
 from vortex.core.error_handling.strategies import ErrorHandlingStrategy
 from vortex.exceptions.providers import DataNotFoundError, AllowanceLimitExceededError
 from vortex.exceptions.providers import DataProviderError
@@ -30,34 +31,51 @@ from .parser import BarchartParser
 
 
 class BarchartDataProvider(DataProvider):
-    """Barchart data provider with modular architecture.
+    """Enhanced Barchart data provider with configuration-based architecture.
     
-    This provider requires authentication and implements the ConfigurableProviderProtocol
-    interface for proper configuration management.
+    This provider supports comprehensive dependency injection, circuit breaker
+    integration, and configuration-based setup for improved maintainability.
     """
     
     PROVIDER_NAME = "Barchart"
-    BARCHART_URL = ProviderConstants.Barchart.BASE_URL
     
-    def __init__(self, username: str, password: str, 
-                 daily_download_limit: int = ProviderConstants.Barchart.DEFAULT_DAILY_DOWNLOAD_LIMIT,
-                 http_client: Optional[HTTPClientProtocol] = None):
+    def __init__(self, 
+                 config: BarchartProviderConfig,
+                 auth_handler: Optional[BarchartAuth] = None,
+                 http_client: Optional[HTTPClientProtocol] = None,
+                 parser: Optional[BarchartParser] = None,
+                 circuit_breaker_config: Optional[CircuitBreakerConfig] = None):
+        """Initialize Barchart provider with dependency injection.
         
-        super().__init__()  # Initialize standardized error handling
+        Args:
+            config: Provider configuration with all settings
+            auth_handler: Optional authentication handler (will be created if not provided)
+            http_client: Optional HTTP client (will be created if not provided)
+            parser: Optional parser (will be created if not provided)
+            circuit_breaker_config: Optional circuit breaker configuration
+        """
+        # Initialize base with circuit breaker config
+        super().__init__(circuit_breaker_config)
         
-        # Store credentials for validation
-        self.username = username
-        self.password = password
+        # Store configuration
+        self.config = config
+        if not config.validate():
+            raise ValueError("Invalid Barchart provider configuration")
         
-        # Store daily limit for informational purposes (not enforced client-side)
-        # bc-utils relies on server-side enforcement: 250 for paid, 5 for free users
-        self.daily_limit = daily_download_limit
-        self.auth = BarchartAuth(username, password)
+        # Initialize components with dependency injection
+        self.auth = auth_handler or BarchartAuth(config.username, config.password)
         self.client = BarchartClient(self.auth)
-        self.parser = BarchartParser()
-        
-        # Inject HTTP client with sensible default
+        self.parser = parser or BarchartParser()
         self._http_client = http_client or BarchartHTTPClient(self.auth.session)
+        
+        self.logger.info(
+            f"Initialized {self.PROVIDER_NAME} provider",
+            extra={
+                'provider': self.PROVIDER_NAME,
+                'daily_limit': config.daily_limit,
+                'base_url': config.base_url
+            }
+        )
         
         # Don't auto-login in constructor - require explicit login call
     
@@ -118,15 +136,10 @@ class BarchartDataProvider(DataProvider):
     def validate_configuration(self) -> bool:
         """Validate Barchart provider configuration.
         
-        Checks that required credentials are provided and non-empty.
-        
         Returns:
             True if configuration is valid, False otherwise
         """
-        return (self.username is not None and 
-                self.password is not None and
-                len(self.username.strip()) > 0 and 
-                len(self.password.strip()) > 0)
+        return self.config.validate()
     
     def get_required_config_fields(self) -> list[str]:
         """Get list of required configuration fields for Barchart provider.
@@ -143,7 +156,7 @@ class BarchartDataProvider(DataProvider):
     def get_daily_limit(self) -> int:
         """Get the configured daily download limit for informational purposes."""
         try:
-            return self.daily_limit
+            return self.config.daily_limit
         except Exception as e:
             # Use standardized error handling with default return value
             return self._handle_provider_error(
@@ -161,7 +174,7 @@ class BarchartDataProvider(DataProvider):
         
         try:
             # Use exact bc-utils approach: GET home page for CSRF token, then POST with onlyCheckPermissions
-            home_response = self.auth.session.get(self.BARCHART_URL, timeout=30)
+            home_response = self.auth.session.get(self.config.base_url, timeout=self.config.request_timeout)
             
             if home_response.status_code != 200:
                 logger.debug(f"Cannot access home page for usage check: {home_response.status_code}")
@@ -183,15 +196,15 @@ class BarchartDataProvider(DataProvider):
                 'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:86.0) Gecko/20100101 Firefox/86.0',
                 'Accept': 'application/json, text/javascript, */*; q=0.01',
                 'Content-Type': 'application/x-www-form-urlencoded',
-                'Origin': self.BARCHART_URL,
-                'Referer': self.BARCHART_URL,
+                'Origin': self.config.base_url,
+                'Referer': self.config.base_url,
                 'X-CSRF-TOKEN': csrf_token
             }
             
             # Use bc-utils /my/download endpoint with onlyCheckPermissions
-            download_url = f"{self.BARCHART_URL}/my/download"
+            download_url = f"{self.config.base_url}{self.config.download_endpoint}"
             logger.debug(f"bc-utils usage check payload: {payload}")
-            response = self.auth.session.post(download_url, data=payload, headers=headers, timeout=30)
+            response = self.auth.session.post(download_url, data=payload, headers=headers, timeout=self.config.request_timeout)
             
             logger.debug(f"Usage check response status: {response.status_code}")
             logger.debug(f"Usage check response: {response.text[:200]}...")
@@ -250,22 +263,22 @@ class BarchartDataProvider(DataProvider):
         return [
             FrequencyAttributes(Period('1d'), get_min_start_date(Period('1d')), 
                               get_max_range(Period('1d')), 
-                              {'max_bars': ProviderConstants.Barchart.MAX_BARS_PER_DOWNLOAD, 'frequency_name': 'daily'}),
+                              {'max_bars': self.config.max_bars_per_download, 'frequency_name': 'daily'}),
             FrequencyAttributes(Period('1h'), get_min_start_date(Period('1h')), 
                               get_max_range(Period('1h')), 
-                              {'max_bars': ProviderConstants.Barchart.MAX_BARS_PER_DOWNLOAD, 'frequency_name': 'hourly'}),
+                              {'max_bars': self.config.max_bars_per_download, 'frequency_name': 'hourly'}),
             FrequencyAttributes(Period('30m'), get_min_start_date(Period('30m')), 
                               get_max_range(Period('30m')), 
-                              {'max_bars': ProviderConstants.Barchart.MAX_BARS_PER_DOWNLOAD, 'frequency_name': '30minute'}),
+                              {'max_bars': self.config.max_bars_per_download, 'frequency_name': '30minute'}),
             FrequencyAttributes(Period('15m'), get_min_start_date(Period('15m')), 
                               get_max_range(Period('15m')), 
-                              {'max_bars': ProviderConstants.Barchart.MAX_BARS_PER_DOWNLOAD, 'frequency_name': '15minute'}),
+                              {'max_bars': self.config.max_bars_per_download, 'frequency_name': '15minute'}),
             FrequencyAttributes(Period('5m'), get_min_start_date(Period('5m')), 
                               get_max_range(Period('5m')), 
-                              {'max_bars': ProviderConstants.Barchart.MAX_BARS_PER_DOWNLOAD, 'frequency_name': '5minute'}),
+                              {'max_bars': self.config.max_bars_per_download, 'frequency_name': '5minute'}),
             FrequencyAttributes(Period('1m'), get_min_start_date(Period('1m')), 
                               get_max_range(Period('1m')), 
-                              {'max_bars': ProviderConstants.Barchart.MAX_BARS_PER_DOWNLOAD, 'frequency_name': 'minute'}),
+                              {'max_bars': self.config.max_bars_per_download, 'frequency_name': 'minute'}),
         ]
 
     @singledispatchmethod
@@ -302,20 +315,17 @@ class BarchartDataProvider(DataProvider):
             # Check server usage using exact bc-utils methodology
             current_usage = self._check_server_usage()
             if current_usage is not None:
-                logger.info(f"bc-utils server usage: {current_usage} downloads used today (configured limit: {self.daily_limit})")
+                logger.info(f"bc-utils server usage: {current_usage} downloads used today (configured limit: {self.get_daily_limit()})")
             else:
-                logger.info(f"bc-utils usage check unavailable (configured limit: {self.daily_limit})")
+                logger.info(f"bc-utils usage check unavailable (configured limit: {self.get_daily_limit()})")
             
             # Use exact bc-utils approach: /my/download endpoint
             # Note: bc-utils relies on server-side usage enforcement (250 paid/5 free per day)
             logger.info(f"Attempting bc-utils download for {instrument}")
             df = self._fetch_via_bc_utils_download(instrument, frequency_attributes, start_date, end_date, tz)
             if df is not None:
-                # Use standardized validation instead of provider-specific validation
-                df = self._validate_fetched_data(df, instrument, frequency_attributes.frequency, start_date, end_date)
-                
-                # Barchart-specific: Check minimum data points requirement
-                if len(df) < ProviderConstants.Barchart.MIN_REQUIRED_DATA_POINTS:
+                # Barchart-specific: Check minimum data points requirement before validation
+                if len(df) < self.config.min_required_data_points:
                     from vortex.exceptions.providers import DataProviderError
                     symbol = instrument.get_symbol() if hasattr(instrument, 'get_symbol') else str(instrument)
                     raise DataProviderError(
@@ -324,6 +334,7 @@ class BarchartDataProvider(DataProvider):
                         "This may indicate the symbol is delisted or has limited trading history"
                     )
                 
+                # Return data - standardized validation is handled by base class wrapper
                 return df
             
             # No data found - use standardized error creation
@@ -363,12 +374,12 @@ class BarchartDataProvider(DataProvider):
         # Note: Using actual working API format from network capture (ISO dates)
         
         # Use the /my/download endpoint directly
-        download_url = f"{self.BARCHART_URL}/my/download"
+        download_url = f"{self.config.base_url}{self.config.download_endpoint}"
         
         logger.info(f"Using bc-utils /my/download endpoint for {instrument}")
         
         # Get CSRF token from home page (the only request we actually need) with timeout to prevent hanging
-        home_response = self.auth.session.get(self.BARCHART_URL, timeout=30)
+        home_response = self.auth.session.get(self.config.base_url, timeout=self.config.request_timeout)
         
         if home_response.status_code != 200:
             raise self._create_connection_error(
@@ -438,14 +449,14 @@ class BarchartDataProvider(DataProvider):
             'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:86.0) Gecko/20100101 Firefox/86.0',
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
             'Content-Type': 'application/x-www-form-urlencoded',
-            'Origin': self.BARCHART_URL,
-            'Referer': self.BARCHART_URL,
+            'Origin': self.config.base_url,
+            'Referer': self.config.base_url,
             'X-CSRF-TOKEN': csrf_token
         }
         
         # Use the /my/download endpoint directly (this is what works!)
         logger.info(f"Using /my/download endpoint with meta CSRF token for {instrument}")
-        response = self.auth.session.post(download_url, data=payload, headers=headers, timeout=60)
+        response = self.auth.session.post(download_url, data=payload, headers=headers, timeout=self.config.download_timeout)
         
         logger.debug(f"Download response status: {response.status_code}")
         logger.debug(f"Download response headers: {dict(response.headers)}")
@@ -556,16 +567,16 @@ class BarchartDataProvider(DataProvider):
     def get_historical_quote_url(self, future: Future) -> str:
         """Get historical quote URL for futures."""
         symbol = future.get_symbol()
-        return f"{self.BARCHART_URL}/futures/quotes/{symbol}/historical-download"
+        return f"{self.config.base_url}/futures/quotes/{symbol}/historical-download"
 
     @get_historical_quote_url.register
     def _(self, stock: Stock) -> str:
         """Get historical quote URL for stocks."""
         symbol = stock.get_symbol()
-        return f"{self.BARCHART_URL}/stocks/quotes/{symbol}/historical-download"
+        return f"{self.config.base_url}/stocks/quotes/{symbol}/historical-download"
 
     @get_historical_quote_url.register
     def _(self, forex: Forex) -> str:
         """Get historical quote URL for forex."""
         symbol = forex.get_symbol()
-        return f"{self.BARCHART_URL}/forex/quotes/{symbol}/historical-download"
+        return f"{self.config.base_url}/forex/quotes/{symbol}/historical-download"

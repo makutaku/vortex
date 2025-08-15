@@ -12,6 +12,7 @@ from pandas import DataFrame
 
 from ..base import DataProvider
 from ..interfaces import ConnectionManagerProtocol, IBKRConnectionManager
+from ..config import IBKRProviderConfig, CircuitBreakerConfig
 from vortex.models.columns import (
     DATETIME_INDEX_NAME, OPEN_COLUMN, HIGH_COLUMN, 
     LOW_COLUMN, CLOSE_COLUMN, VOLUME_COLUMN,
@@ -31,16 +32,42 @@ from vortex.core.constants import ProviderConstants
 class IbkrDataProvider(DataProvider):
     PROVIDER_NAME = "InteractiveBrokers"
 
-    def __init__(self, ip_address, port, client_id=None, connection_manager: Optional[ConnectionManagerProtocol] = None):
-        super().__init__()  # Initialize standardized error handling
+    def __init__(self, 
+                 config: Optional[IBKRProviderConfig] = None,
+                 connection_manager: Optional[ConnectionManagerProtocol] = None,
+                 circuit_breaker_config: Optional[CircuitBreakerConfig] = None):
+        """Initialize IBKR provider with configuration and dependency injection.
+        
+        Args:
+            config: Provider configuration (uses defaults if not provided)
+            connection_manager: Optional connection manager (will be created if not provided)
+            circuit_breaker_config: Optional circuit breaker configuration
+        """
+        # Initialize base with circuit breaker config
+        super().__init__(circuit_breaker_config)
+        
+        # Store configuration
+        self.config = config or IBKRProviderConfig()
+        if not self.config.validate():
+            raise ValueError("Invalid IBKR provider configuration")
+        
+        # Initialize IB client
         self.ib = IB()
-        self.ip_address = ip_address
-        self.port = port
-        self.client_id = client_id or ProviderConstants.IBKR.DEFAULT_CLIENT_ID
         
         # Inject connection manager with sensible default
         self._connection_manager = connection_manager or IBKRConnectionManager(
-            self.ib, self.ip_address, self.port, self.client_id
+            self.ib, self.config.host, self.config.port, 
+            self.config.client_id or ProviderConstants.IBKR.DEFAULT_CLIENT_ID
+        )
+        
+        self.logger.info(
+            f"Initialized {self.PROVIDER_NAME} provider",
+            extra={
+                'provider': self.PROVIDER_NAME,
+                'host': self.config.host,
+                'port': self.config.port,
+                'connection_timeout': self.config.connection_timeout
+            }
         )
         
         # Don't auto-connect in constructor - require explicit login call
@@ -54,14 +81,14 @@ class IbkrDataProvider(DataProvider):
     def login(self):
         """Login to IBKR using injected connection manager with standardized error handling."""
         try:
-            success = self._connection_manager.connect(timeout=ProviderConstants.IBKR.CONNECTION_TIMEOUT_SECONDS)
+            success = self._connection_manager.connect(timeout=self.config.connection_timeout)
             if not success:
-                raise ConnectionError("ibkr", f"Failed to establish connection to {self.ip_address}:{self.port}")
+                raise ConnectionError("ibkr", f"Failed to establish connection to {self.config.host}:{self.config.port}")
             
         except Exception as e:
             # Create standardized connection error
             connection_error = self._create_connection_error(
-                f"Failed to connect to IBKR at {self.ip_address}:{self.port} - {e}",
+                f"Failed to connect to IBKR at {self.config.host}:{self.config.port} - {e}",
                 "login"
             )
             raise connection_error from e
@@ -82,23 +109,10 @@ class IbkrDataProvider(DataProvider):
     def validate_configuration(self) -> bool:
         """Validate IBKR provider configuration.
         
-        Checks that IP address and port are provided and valid.
-        
         Returns:
             True if configuration is valid, False otherwise
         """
-        try:
-            # Validate IP address is not empty
-            if not self.ip_address or not str(self.ip_address).strip():
-                return False
-            
-            # Validate port is a valid integer in reasonable range
-            if not isinstance(self.port, int) or self.port <= 0 or self.port > 65535:
-                return False
-                
-            return True
-        except Exception:
-            return False
+        return self.config.validate()
     
     def get_required_config_fields(self) -> list[str]:
         """Get list of required configuration fields for IBKR provider.
@@ -169,7 +183,7 @@ class IbkrDataProvider(DataProvider):
         """Fetch historical data from IBKR with standardized error handling."""
         try:
             # If live data is available a request for delayed data would be ignored by TWS.
-            self.ib.reqMarketDataType(3)
+            self.ib.reqMarketDataType(self.config.market_data_type)
 
             bars = self.ib.reqHistoricalData(
                 contract,
@@ -177,9 +191,9 @@ class IbkrDataProvider(DataProvider):
                 durationStr=frequency_attributes.properties['duration'],
                 barSizeSetting=frequency_attributes.properties['bar_size'],
                 whatToShow=what_to_show,
-                useRTH=True,
+                useRTH=self.config.use_rth_only,
                 formatDate=2,
-                timeout=ProviderConstants.IBKR.HISTORICAL_DATA_TIMEOUT_SECONDS,
+                timeout=self.config.historical_data_timeout,
             )
             
             df = util.df(bars)
@@ -210,15 +224,8 @@ class IbkrDataProvider(DataProvider):
                 df.set_index(datetime_col, inplace=True)
                 df.index.name = DATETIME_INDEX_NAME
             
-            # Create mock instrument for validation (IBKR uses contracts)
-            from vortex.models.stock import Stock
-            symbol = str(contract)
-            mock_instrument = Stock(symbol)
-            
-            # Use standardized validation
-            df = self._validate_fetched_data(
-                df, mock_instrument, frequency_attributes.frequency
-            )
+            # Return processed data - validation is handled by base class wrapper
+            # Note: IBKR-specific processing is complete at this point
 
             return df
             

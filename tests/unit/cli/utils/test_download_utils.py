@@ -85,10 +85,7 @@ class TestGetDefaultAssetsFile:
     @patch('pathlib.Path.exists')
     def test_get_default_assets_file_provider_specific(self, mock_exists):
         """Test getting provider-specific default assets file."""
-        def path_exists(path):
-            return str(path) == "config/assets/yahoo.json"
-        
-        mock_exists.side_effect = lambda self: path_exists(str(self))
+        mock_exists.return_value = True
         
         result = get_default_assets_file("yahoo")
         
@@ -97,10 +94,8 @@ class TestGetDefaultAssetsFile:
     @patch('pathlib.Path.exists')
     def test_get_default_assets_file_fallback_to_default(self, mock_exists):
         """Test fallback to general default assets file."""
-        def path_exists(path):
-            return str(path) == "config/assets/default.json"
-        
-        mock_exists.side_effect = lambda self: path_exists(str(self))
+        # First call returns False (provider-specific), second call returns True (default)
+        mock_exists.side_effect = [False, True]
         
         result = get_default_assets_file("nonexistent")
         
@@ -130,7 +125,7 @@ class TestCreateDownloaderComponents:
     """Test downloader component creation."""
     
     @patch('vortex.cli.utils.download_utils.get_provider_registry')
-    @patch('vortex.cli.utils.download_utils.get_provider_config_with_defaults')
+    @patch('vortex.cli.utils.config_utils.get_provider_config_with_defaults')
     def test_create_downloader_components_success(self, mock_get_config, mock_get_registry):
         """Test successful downloader components creation."""
         # Mock configuration
@@ -161,7 +156,7 @@ class TestCreateDownloaderComponents:
         mock_registry.create_provider.assert_called_once_with("yahoo", provider_config)
     
     @patch('vortex.cli.utils.download_utils.get_provider_registry')
-    @patch('vortex.cli.utils.download_utils.get_provider_config_with_defaults')
+    @patch('vortex.cli.utils.config_utils.get_provider_config_with_defaults')
     def test_create_downloader_components_no_backup(self, mock_get_config, mock_get_registry):
         """Test downloader components creation without backup."""
         # Mock configuration
@@ -188,7 +183,7 @@ class TestCreateDownloaderComponents:
         assert parquet_storage is None
     
     @patch('vortex.cli.utils.download_utils.get_provider_registry')
-    @patch('vortex.cli.utils.download_utils.get_provider_config_with_defaults')
+    @patch('vortex.cli.utils.config_utils.get_provider_config_with_defaults')
     def test_create_downloader_components_provider_error(self, mock_get_config, mock_get_registry):
         """Test handling of provider creation errors."""
         # Mock configuration
@@ -246,7 +241,7 @@ class TestCreateDownloader:
 class TestParseDateRange:
     """Test date range parsing."""
     
-    @patch('vortex.cli.utils.download_utils.get_default_date_range')
+    @patch('vortex.cli.utils.config_utils.get_default_date_range')
     def test_parse_date_range_success(self, mock_get_default):
         """Test successful date range parsing."""
         start_date = datetime(2024, 1, 1)
@@ -259,7 +254,7 @@ class TestParseDateRange:
         assert result_end == end_date
         mock_get_default.assert_called_once_with("yahoo", start_date, end_date)
     
-    @patch('vortex.cli.utils.download_utils.get_default_date_range')
+    @patch('vortex.cli.utils.config_utils.get_default_date_range')
     def test_parse_date_range_with_none_dates(self, mock_get_default):
         """Test date range parsing with None dates (use defaults)."""
         default_start = datetime(2024, 1, 1)
@@ -272,7 +267,7 @@ class TestParseDateRange:
         assert result_end == default_end
         mock_get_default.assert_called_once_with("yahoo", None, None)
     
-    @patch('vortex.cli.utils.download_utils.get_default_date_range')
+    @patch('vortex.cli.utils.config_utils.get_default_date_range')
     def test_parse_date_range_mixed_none(self, mock_get_default):
         """Test date range parsing with one None date."""
         start_date = datetime(2024, 6, 1)
@@ -293,7 +288,7 @@ class TestParseDateRange:
         with pytest.raises(CLIError, match="Invalid date format"):
             parse_date_range("not-a-date", "2024-12-31", "yahoo")
     
-    @patch('vortex.cli.utils.download_utils.get_default_date_range')
+    @patch('vortex.cli.utils.config_utils.get_default_date_range')
     def test_parse_date_range_start_after_end(self, mock_get_default):
         """Test date range parsing where start date is after end date."""
         # Mock default range where start > end
@@ -302,7 +297,7 @@ class TestParseDateRange:
         with pytest.raises(CLIError, match="Start date must be before end date"):
             parse_date_range("2024-12-31", "2024-01-01", "yahoo")
     
-    @patch('vortex.cli.utils.download_utils.get_default_date_range')
+    @patch('vortex.cli.utils.config_utils.get_default_date_range')
     def test_parse_date_range_same_dates(self, mock_get_default):
         """Test date range parsing where start and end dates are the same."""
         same_date = datetime(2024, 6, 15)
@@ -419,25 +414,25 @@ class TestValidatePeriods:
         result = validate_periods("1d")
         
         assert len(result) == 1
-        assert result[0] == Period.DAILY
+        assert result[0] == Period.Daily
     
     def test_validate_periods_multiple_periods(self):
         """Test validating multiple periods."""
         result = validate_periods("1d,1h,5m")
         
         assert len(result) == 3
-        assert Period.DAILY in result
-        assert Period.HOURLY in result
-        assert Period.FIVE_MINUTE in result
+        assert Period.Daily in result
+        assert Period.Hourly in result
+        assert Period.Minute_5 in result
     
     def test_validate_periods_with_spaces(self):
         """Test validating periods with spaces."""
         result = validate_periods("1d, 1h, 5m")
         
         assert len(result) == 3
-        assert Period.DAILY in result
-        assert Period.HOURLY in result
-        assert Period.FIVE_MINUTE in result
+        assert Period.Daily in result
+        assert Period.Hourly in result
+        assert Period.Minute_5 in result
     
     def test_validate_periods_invalid_period(self):
         """Test validating invalid period."""
@@ -609,7 +604,7 @@ class TestFormatDownloadSummary:
         assert result['symbols_count'] == 1
         assert result['symbols_preview'] == 'AAPL'
         assert result['date_range'] == '2024-08-01 to 2024-08-31'
-        assert result['output_directory'] == './output'
+        assert result['output_directory'] == 'output'
         assert result['total_jobs'] == 1
     
     def test_format_download_summary_provider_case(self):

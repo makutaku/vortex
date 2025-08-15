@@ -51,9 +51,7 @@ class TestDownloadData:
         
         # Create test frequency attributes
         self.frequency_attributes = FrequencyAttributes(
-            frequency=Period.DAILY,
-            name="Daily",
-            max_records_per_download=5000
+            frequency=Period.Daily
         )
         
         self.start_date = datetime(2024, 1, 1)
@@ -272,9 +270,7 @@ class TestPayloadBuilding:
         self.end_date = datetime(2024, 6, 30)
         
         self.frequency_attributes = FrequencyAttributes(
-            frequency=Period.HOURLY,
-            name="Hourly",
-            max_records_per_download=1000
+            frequency=Period.Hourly
         )
     
     def test_build_download_payload_basic(self):
@@ -293,8 +289,8 @@ class TestPayloadBuilding:
             'symbol': self.symbol,
             'startDate': '06/01/2024',
             'endDate': '06/30/2024',
-            'period': 'hourly',
-            'maxRecords': '1000',
+            'period': '1h',
+            'maxRecords': '5000',
             'order': 'asc',
             'dividends': 'false',
             'backadjust': 'false',
@@ -328,9 +324,7 @@ class TestPayloadBuilding:
         """Test frequency attributes handling in payload."""
         # Test with different frequency
         weekly_attrs = FrequencyAttributes(
-            frequency=Period.WEEKLY,
-            name="Weekly",
-            max_records_per_download=2500
+            frequency=Period.Weekly
         )
         
         payload = self.client._build_download_payload(
@@ -341,8 +335,8 @@ class TestPayloadBuilding:
             self.end_date
         )
         
-        assert payload['period'] == 'weekly'
-        assert payload['maxRecords'] == '2500'
+        assert payload['period'] == '1w'
+        assert payload['maxRecords'] == '5000'
     
     def test_build_download_payload_symbol_handling(self):
         """Test symbol handling in payload."""
@@ -396,9 +390,7 @@ class TestIntegration:
         # Setup
         symbol = "GOOGL"
         frequency_attrs = FrequencyAttributes(
-            frequency=Period.DAILY,
-            name="Daily",
-            max_records_per_download=5000
+            frequency=Period.Daily
         )
         start_date = datetime(2024, 1, 1)
         end_date = datetime(2024, 3, 31)
@@ -488,9 +480,7 @@ class TestErrorHandling:
         mock_post.side_effect = requests.RequestException("Network error")
         
         frequency_attrs = FrequencyAttributes(
-            frequency=Period.DAILY,
-            name="Daily",
-            max_records_per_download=5000
+            frequency=Period.Daily
         )
         
         with pytest.raises(requests.RequestException):

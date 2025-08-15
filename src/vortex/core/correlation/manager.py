@@ -12,13 +12,21 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 
-# Optional logging - graceful fallback if not available
-try:
-    from vortex.shared.logging import get_logger
-    logger = get_logger(__name__)
-except ImportError:
-    import logging
-    logger = logging.getLogger(__name__)
+# Use standard Python logging for compatibility
+import logging
+logger = logging.getLogger(__name__)
+_structured_logger = False
+
+
+def _log_with_context(level, message, **kwargs):
+    """Log message with context, handling both structured and standard loggers."""
+    # Always use string formatting for compatibility - structured logging disabled
+    context_parts = [f"{k}={v}" for k, v in kwargs.items() if v is not None]
+    if context_parts:
+        full_message = f"{message} ({', '.join(context_parts)})"
+    else:
+        full_message = message
+    getattr(logger, level)(full_message)
 
 
 # Thread-local storage for correlation context
@@ -80,10 +88,7 @@ class CorrelationIdManager:
         _context_storage.context = context
         _context_storage.correlation_id = context.correlation_id
         
-        logger.debug("Correlation context set",
-                   correlation_id=context.correlation_id,
-                   operation=context.operation,
-                   provider=context.provider)
+        logger.debug(f"Correlation context set (correlation_id={context.correlation_id}, operation={context.operation}, provider={context.provider})")
     
     @staticmethod
     def clear_context():
@@ -95,7 +100,7 @@ class CorrelationIdManager:
             delattr(_context_storage, 'correlation_id')
             
         if correlation_id:
-            logger.debug("Correlation context cleared", correlation_id=correlation_id)
+            logger.debug(f"Correlation context cleared (correlation_id={correlation_id})")
     
     @staticmethod
     @contextmanager
@@ -138,30 +143,30 @@ class CorrelationIdManager:
         try:
             # Set new context
             CorrelationIdManager.set_context(context)
-            logger.info("Operation started",
-                       correlation_id=correlation_id,
-                       parent_id=parent_id,
-                       operation=operation,
-                       provider=provider)
+            _log_with_context("info", "Operation started",
+                            correlation_id=correlation_id,
+                            parent_id=parent_id,
+                            operation=operation,
+                            provider=provider)
             
             yield context
             
             # Log successful completion
             elapsed = context.elapsed_seconds()
-            logger.info("Operation completed successfully",
-                       correlation_id=correlation_id,
-                       operation=operation,
-                       elapsed_seconds=elapsed)
+            _log_with_context("info", "Operation completed successfully",
+                            correlation_id=correlation_id,
+                            operation=operation,
+                            elapsed_seconds=elapsed)
             
         except Exception as e:
             # Log error with context
             elapsed = context.elapsed_seconds()
-            logger.error("Operation failed",
-                        correlation_id=correlation_id,
-                        operation=operation,
-                        exception_type=type(e).__name__,
-                        exception_message=str(e),
-                        elapsed_seconds=elapsed)
+            _log_with_context("error", "Operation failed",
+                            correlation_id=correlation_id,
+                            operation=operation,
+                            exception_type=type(e).__name__,
+                            exception_message=str(e),
+                            elapsed_seconds=elapsed)
             
             # Add correlation ID to exception if it supports it
             if hasattr(e, 'correlation_id'):
@@ -189,9 +194,7 @@ class CorrelationIdManager:
         context = CorrelationIdManager.get_current_context()
         if context:
             context.metadata.update(metadata)
-            logger.debug("Added context metadata",
-                        correlation_id=context.correlation_id,
-                        metadata=metadata)
+            logger.debug(f"Added context metadata (correlation_id={context.correlation_id}, metadata={metadata})")
 
 
 class RequestTracker:

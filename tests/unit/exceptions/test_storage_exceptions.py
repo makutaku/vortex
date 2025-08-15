@@ -20,7 +20,11 @@ class TestDataStorageError:
         """Test creating DataStorageError."""
         error = DataStorageError("Test storage error")
         
-        assert str(error) == "Test storage error"
+        # The base VortexError class adds error ID, so we check if message is included
+        str_repr = str(error)
+        assert "Test storage error" in str_repr
+        assert "Error ID:" in str_repr
+        assert error.message == "Test storage error"
         assert isinstance(error, Exception)
 
 
@@ -55,9 +59,11 @@ class TestFileStorageError:
         
         # Should have context with help text
         assert hasattr(error, 'context')
-        assert "disk space" in error.context.help_text
-        assert "FILE_STORAGE_ERROR" in error.context.error_code
-        assert "/data" in error.context.help_text
+        assert hasattr(error, 'help_text')
+        assert hasattr(error, 'error_code')
+        assert "disk space" in error.help_text
+        assert error.error_code == "FILE_STORAGE_ERROR"
+        assert "/data" in error.help_text
 
 
 class TestVortexPermissionError:
@@ -88,9 +94,9 @@ class TestVortexPermissionError:
         
         # Should have context with help text
         assert hasattr(error, 'context')
-        assert "permissions" in error.context.help_text
-        assert "PERMISSION_DENIED" in error.context.error_code
-        assert "/restricted/data" in error.context.help_text
+        assert "permissions" in error.help_text
+        assert "PERMISSION_DENIED" in error.error_code
+        assert "/restricted/data" in error.help_text
 
 
 class TestDiskSpaceError:
@@ -120,9 +126,9 @@ class TestDiskSpaceError:
         
         # Should have context with help text
         assert hasattr(error, 'context')
-        assert "Free up disk space" in error.context.help_text
-        assert "DISK_SPACE_ERROR" in error.context.error_code
-        assert "/output" in error.context.help_text
+        assert "Free up disk space" in error.help_text
+        assert "DISK_SPACE_ERROR" in error.error_code
+        assert "/output" in error.help_text
     
     def test_disk_space_error_without_required_space(self):
         """Test DiskSpaceError without required space info."""
@@ -290,9 +296,9 @@ class TestStorageErrorEdgeCases:
         disk_error = DiskSpaceError(path)
         
         error_codes = {
-            file_error.context.error_code,
-            perm_error.context.error_code, 
-            disk_error.context.error_code
+            file_error.error_code,
+            perm_error.error_code, 
+            disk_error.error_code
         }
         
         # All error codes should be different
@@ -307,6 +313,6 @@ class TestStorageErrorEdgeCases:
         disk_error = DiskSpaceError(path, "5GB")
         
         # All help texts should mention the path or parent directory
-        assert "/important" in file_error.context.help_text
-        assert "/important/data" in perm_error.context.help_text
-        assert "/important/data" in disk_error.context.help_text
+        assert "/important" in file_error.help_text
+        assert "/important/data" in perm_error.help_text
+        assert "/important/data" in disk_error.help_text

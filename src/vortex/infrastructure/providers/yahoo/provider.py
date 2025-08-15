@@ -9,6 +9,7 @@ from pandas import DataFrame
 
 from ..base import DataProvider
 from ..interfaces import CacheManagerProtocol, DataFetcherProtocol, YahooCacheManager, YahooDataFetcher
+from ..config import YahooProviderConfig, CircuitBreakerConfig
 from vortex.models.columns import DATETIME_INDEX_NAME, validate_required_columns, get_provider_expected_columns, standardize_dataframe_columns
 from vortex.exceptions.providers import DataNotFoundError, VortexConnectionError as ConnectionError
 from vortex.core.error_handling.strategies import ErrorHandlingStrategy
@@ -22,16 +23,44 @@ class YahooDataProvider(DataProvider):
     YAHOO_DATE_TIME_COLUMN = "Date"
     PROVIDER_NAME = "YahooFinance"
 
-    def __init__(self, cache_manager: Optional[CacheManagerProtocol] = None, 
-                 data_fetcher: Optional[DataFetcherProtocol] = None) -> None:
-        super().__init__()  # Initialize standardized error handling
+    def __init__(self, 
+                 config: Optional[YahooProviderConfig] = None,
+                 cache_manager: Optional[CacheManagerProtocol] = None, 
+                 data_fetcher: Optional[DataFetcherProtocol] = None,
+                 circuit_breaker_config: Optional[CircuitBreakerConfig] = None) -> None:
+        """Initialize Yahoo provider with configuration and dependency injection.
+        
+        Args:
+            config: Provider configuration (uses defaults if not provided)
+            cache_manager: Optional cache manager (will be created if not provided)
+            data_fetcher: Optional data fetcher (will be created if not provided)
+            circuit_breaker_config: Optional circuit breaker configuration
+        """
+        # Initialize base with circuit breaker config
+        super().__init__(circuit_breaker_config)
+        
+        # Store configuration  
+        self.config = config or YahooProviderConfig()
+        if not self.config.validate():
+            raise ValueError("Invalid Yahoo provider configuration")
         
         # Inject dependencies with sensible defaults
-        self._cache_manager = cache_manager or self._create_default_cache_manager()
+        self._cache_manager = cache_manager or (
+            self._create_default_cache_manager() if self.config.cache_enabled else None
+        )
         self._data_fetcher = data_fetcher or YahooDataFetcher()
         
         # Initialize cache on first use, not in constructor
         self._cache_initialized = False
+        
+        self.logger.info(
+            f"Initialized {self.PROVIDER_NAME} provider",
+            extra={
+                'provider': self.PROVIDER_NAME,
+                'cache_enabled': self.config.cache_enabled,
+                'validate_data_types': self.config.validate_data_types
+            }
+        )
 
     def get_name(self) -> str:
         return YahooDataProvider.PROVIDER_NAME
@@ -138,10 +167,8 @@ class YahooDataProvider(DataProvider):
                 instrument.get_symbol(), interval, start, end
             )
             
-            # Use standardized validation instead of provider-specific logic
-            df = self._validate_fetched_data(
-                df, instrument, frequency_attributes.frequency, start, end
-            )
+            # Apply standardized validation - this is handled by the base class wrapper
+            # No need for provider-specific validation here
             
             return df
             

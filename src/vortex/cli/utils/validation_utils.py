@@ -37,8 +37,11 @@ def validate_csv_file(file_path: Path) -> Dict[str, Any]:
         raise CLIError(f"Not a CSV file: {file_path}")
     
     try:
-        # Read CSV file
-        df = pd.read_csv(file_path, index_col=0, parse_dates=True)
+        # Read CSV file and suppress dateutil warnings
+        import warnings
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+            df = pd.read_csv(file_path, index_col=0, parse_dates=True)
         
         # Get file info
         file_size = file_path.stat().st_size
@@ -133,10 +136,13 @@ def validate_provider_specific_format(
         from vortex.infrastructure.providers.ibkr.column_mapping import IbkrColumnMapping
         mapping = IbkrColumnMapping()
         
-        # Check for bar count column
-        if mapping.BAR_COUNT_COLUMN in df.columns:
-            if (df[mapping.BAR_COUNT_COLUMN] <= 0).any():
-                issues.append("Invalid bar count values found")
+        # Check for count column (look for actual IBKR column names)
+        count_columns = ['Bar Count', 'count', 'Count']  # Common IBKR count column variations
+        for col in count_columns:
+            if col in df.columns:
+                if (df[col] <= 0).any():
+                    issues.append("Invalid bar count values found")
+                break
     
     return len(issues) == 0, issues
 
@@ -158,8 +164,20 @@ def _check_data_quality(df: pd.DataFrame) -> List[str]:
     
     # Check for gaps in time series
     if isinstance(df.index, pd.DatetimeIndex) and len(df) > 1:
-        # Calculate expected frequency
+        # Try to infer frequency first
         freq = pd.infer_freq(df.index)
+        
+        # If frequency can't be inferred, try common frequencies for gap detection
+        if not freq:
+            # Check if data looks like daily data (common case)
+            time_diffs = df.index.to_series().diff()[1:]
+            most_common_diff = time_diffs.mode()
+            if len(most_common_diff) > 0:
+                common_diff = most_common_diff.iloc[0]
+                # If most common difference is around 1 day, assume daily frequency
+                if pd.Timedelta('23 hours') <= common_diff <= pd.Timedelta('25 hours'):
+                    freq = 'D'
+        
         if freq:
             expected_periods = pd.date_range(
                 start=df.index[0], 
@@ -182,26 +200,32 @@ def _check_data_quality(df: pd.DataFrame) -> List[str]:
             
             # Check for extreme price changes
             if len(df) > 1:
-                pct_change = df[col].pct_change().abs()
+                # Use pct_change without deprecated fill_method parameter
+                pct_change = df[col].pct_change(fill_method=None).abs()
                 extreme_changes = pct_change[pct_change > 0.5]  # 50% change
                 if len(extreme_changes) > 0:
                     warnings.append(f"Extreme price changes (>50%) found in {col}")
     
-    # Check OHLC relationships
+    # Check OHLC relationships (only for numeric columns)
     if all(col in df.columns for col in [HIGH_COLUMN, LOW_COLUMN]):
-        invalid_hl = df[HIGH_COLUMN] < df[LOW_COLUMN]
-        if invalid_hl.any():
-            warnings.append(f"High < Low found in {invalid_hl.sum()} rows")
+        if (pd.api.types.is_numeric_dtype(df[HIGH_COLUMN]) and 
+            pd.api.types.is_numeric_dtype(df[LOW_COLUMN])):
+            invalid_hl = df[HIGH_COLUMN] < df[LOW_COLUMN]
+            if invalid_hl.any():
+                warnings.append(f"High < Low found in {invalid_hl.sum()} rows")
     
     if all(col in df.columns for col in [OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, CLOSE_COLUMN]):
-        # Check if Open/Close within High/Low range
-        invalid_open = (df[OPEN_COLUMN] > df[HIGH_COLUMN]) | (df[OPEN_COLUMN] < df[LOW_COLUMN])
-        invalid_close = (df[CLOSE_COLUMN] > df[HIGH_COLUMN]) | (df[CLOSE_COLUMN] < df[LOW_COLUMN])
-        
-        if invalid_open.any():
-            warnings.append(f"Open price outside High/Low range in {invalid_open.sum()} rows")
-        if invalid_close.any():
-            warnings.append(f"Close price outside High/Low range in {invalid_close.sum()} rows")
+        # Check if Open/Close within High/Low range (only for numeric columns)
+        all_numeric = all(pd.api.types.is_numeric_dtype(df[col]) for col in 
+                         [OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, CLOSE_COLUMN])
+        if all_numeric:
+            invalid_open = (df[OPEN_COLUMN] > df[HIGH_COLUMN]) | (df[OPEN_COLUMN] < df[LOW_COLUMN])
+            invalid_close = (df[CLOSE_COLUMN] > df[HIGH_COLUMN]) | (df[CLOSE_COLUMN] < df[LOW_COLUMN])
+            
+            if invalid_open.any():
+                warnings.append(f"Open price outside High/Low range in {invalid_open.sum()} rows")
+            if invalid_close.any():
+                warnings.append(f"Close price outside High/Low range in {invalid_close.sum()} rows")
     
     return warnings
 

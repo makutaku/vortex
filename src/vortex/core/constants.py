@@ -46,6 +46,7 @@ class ProviderConstants:
         """Yahoo Finance provider constants."""
         
         # Request limits
+        MAX_SYMBOLS_PER_REQUEST = 10
         MAX_BARS_PER_DOWNLOAD = 50000
         MAX_RETRIES = 3
         REQUEST_TIMEOUT_SECONDS = 15

@@ -14,6 +14,8 @@ from vortex.infrastructure.providers.protocol import DataProviderProtocol
 from .barchart import BarchartDataProvider
 from .yahoo import YahooDataProvider
 from .ibkr import IbkrDataProvider
+from .config import BarchartProviderConfig, YahooProviderConfig, IBKRProviderConfig, CircuitBreakerConfig
+from .builders import BarchartProviderBuilder, YahooProviderBuilder, IBKRProviderBuilder
 from .interfaces import (
     CacheManagerProtocol, DataFetcherProtocol, ConnectionManagerProtocol, HTTPClientProtocol,
     YahooCacheManager, YahooDataFetcher, IBKRConnectionManager, BarchartHTTPClient,
@@ -23,7 +25,7 @@ from .interfaces import (
 
 
 class ProviderFactory:
-    """Factory for creating data provider instances with dependency injection."""
+    """Enhanced factory for creating data provider instances with comprehensive DI support."""
     
     def __init__(self, config_manager: Optional[ConfigManager] = None):
         """Initialize the factory with optional configuration manager.
@@ -41,6 +43,11 @@ class ProviderFactory:
             'barchart': self._build_barchart_provider,
             'yahoo': self._build_yahoo_provider,
             'ibkr': self._build_ibkr_provider,
+        }
+        self._builder_classes: Dict[str, Type] = {
+            'barchart': BarchartProviderBuilder,
+            'yahoo': YahooProviderBuilder,
+            'ibkr': IBKRProviderBuilder,
         }
     
     def create_provider(
@@ -72,34 +79,79 @@ class ProviderFactory:
         # Build with configuration
         return builder(config_override)
     
-    def _build_barchart_provider(self, config_override: Optional[Dict[str, Any]] = None) -> BarchartDataProvider:
-        """Build Barchart provider with configuration and dependency injection."""
-        # Get base configuration from config manager
-        provider_config = self.config_manager.get_provider_config('barchart')
+    def get_builder(self, provider_name: str):
+        """Get a fresh builder instance for the specified provider.
         
-        # Apply overrides if provided
-        if config_override:
-            provider_config.update(config_override)
-        
-        # Validate required fields
-        required_fields = ['username', 'password']
-        missing_fields = [field for field in required_fields if not provider_config.get(field)]
-        
-        if missing_fields:
-            raise ValueError(
-                f"Missing required configuration for Barchart provider: {', '.join(missing_fields)}"
+        Args:
+            provider_name: Name of the provider to create builder for
+            
+        Returns:
+            Fresh builder instance for the provider
+            
+        Raises:
+            PluginNotFoundError: If provider name is not recognized
+        """
+        if provider_name not in self._builder_classes:
+            raise PluginNotFoundError(
+                f"Provider '{provider_name}' not found. "
+                f"Available providers: {', '.join(self._builder_classes.keys())}"
             )
         
-        # Create HTTP client dependency (if not provided in config)
-        http_client = config_override.get('http_client') if config_override else None
+        return self._builder_classes[provider_name]()
+    
+    def create_provider_with_builder(self, provider_name: str, builder_config_func=None):
+        """Create provider using fluent builder interface.
         
-        # Create provider with injected dependencies
-        provider = BarchartDataProvider(
-            username=provider_config['username'],
-            password=provider_config['password'],
-            daily_download_limit=provider_config.get('daily_limit', 150),
-            http_client=http_client
-        )
+        Args:
+            provider_name: Name of the provider to create
+            builder_config_func: Optional function to configure the builder
+            
+        Returns:
+            Configured provider instance
+            
+        Example:
+            # Create Barchart provider with custom configuration
+            provider = factory.create_provider_with_builder(
+                'barchart', 
+                lambda b: b.with_credentials('user', 'pass')
+                          .with_timeouts(30, 60)
+                          .with_rate_limiting(200, 3)
+            )
+        """
+        builder = self.get_builder(provider_name)
+        
+        if builder_config_func:
+            builder = builder_config_func(builder)
+        
+        return builder.build()
+    
+    def _build_barchart_provider(self, config_override: Optional[Dict[str, Any]] = None) -> BarchartDataProvider:
+        """Build Barchart provider with enhanced configuration and dependency injection."""
+        # Get base configuration from config manager
+        base_config = self.config_manager.get_provider_config('barchart')
+        
+        # Create configuration object with overrides
+        try:
+            config = BarchartProviderConfig.from_dict(base_config, config_override)
+        except TypeError as e:
+            if "missing" in str(e) and "positional arguments" in str(e):
+                raise ValueError("Missing required configuration for Barchart provider: username, password")
+            raise
+        
+        # Use builder for complex construction
+        builder = BarchartProviderBuilder()
+        builder.with_config(config)
+        
+        # Apply any injected dependencies from config_override
+        if config_override:
+            if 'http_client' in config_override:
+                builder.with_http_client(config_override['http_client'])
+            if 'auth_handler' in config_override:
+                builder.with_auth_handler(config_override['auth_handler'])
+            if 'parser' in config_override:
+                builder.with_parser(config_override['parser'])
+        
+        provider = builder.build()
         
         # Perform explicit login now that provider is configured
         provider.login()
@@ -107,40 +159,44 @@ class ProviderFactory:
         return provider
     
     def _build_yahoo_provider(self, config_override: Optional[Dict[str, Any]] = None) -> YahooDataProvider:
-        """Build Yahoo provider with dependency injection support."""
-        # Create dependencies (if not provided in config)
-        cache_manager = None
-        data_fetcher = None
+        """Build Yahoo provider with enhanced configuration and dependency injection."""
+        # Get base configuration from config manager
+        base_config = self.config_manager.get_provider_config('yahoo') or {}
         
+        # Create configuration object with overrides
+        config = YahooProviderConfig.from_dict(base_config, config_override)
+        
+        # Use builder for complex construction
+        builder = YahooProviderBuilder()
+        builder.with_config(config)
+        
+        # Apply any injected dependencies from config_override
         if config_override:
-            cache_manager = config_override.get('cache_manager')
-            data_fetcher = config_override.get('data_fetcher')
+            if 'cache_manager' in config_override:
+                builder.with_cache_manager(config_override['cache_manager'])
+            if 'data_fetcher' in config_override:
+                builder.with_data_fetcher(config_override['data_fetcher'])
         
-        # If no custom dependencies provided, use defaults (which will be created lazily)
-        return YahooDataProvider(
-            cache_manager=cache_manager,
-            data_fetcher=data_fetcher
-        )
+        return builder.build()
     
     def _build_ibkr_provider(self, config_override: Optional[Dict[str, Any]] = None) -> IbkrDataProvider:
-        """Build IBKR provider with configuration and dependency injection."""
+        """Build IBKR provider with enhanced configuration and dependency injection."""
         # Get base configuration from config manager
-        provider_config = self.config_manager.get_provider_config('ibkr')
+        base_config = self.config_manager.get_provider_config('ibkr') or {}
         
-        # Apply overrides if provided
+        # Create configuration object with overrides
+        config = IBKRProviderConfig.from_dict(base_config, config_override)
+        
+        # Use builder for complex construction
+        builder = IBKRProviderBuilder()
+        builder.with_config(config)
+        
+        # Apply any injected dependencies from config_override
         if config_override:
-            provider_config.update(config_override)
+            if 'connection_manager' in config_override:
+                builder.with_connection_manager(config_override['connection_manager'])
         
-        # Create connection manager dependency (if not provided in config)
-        connection_manager = config_override.get('connection_manager') if config_override else None
-        
-        # Create provider with injected dependencies  
-        provider = IbkrDataProvider(
-            ip_address=provider_config.get('host', 'localhost'),
-            port=provider_config.get('port', 7497),
-            client_id=provider_config.get('client_id'),
-            connection_manager=connection_manager
-        )
+        provider = builder.build()
         
         # Perform explicit login now that provider is configured
         provider.login()

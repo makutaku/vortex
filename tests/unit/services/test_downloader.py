@@ -27,11 +27,13 @@ def create_barchart_downloader(config: VortexConfig, download_dir: str, mock_log
     
     data_storage = CsvStorage(download_dir, config.general.dry_run)
     backup_data_storage = ParquetStorage(download_dir, config.general.dry_run) if config.general.backup_enabled else None
-    data_provider = BarchartDataProvider(
+    from vortex.infrastructure.providers.config import BarchartProviderConfig
+    provider_config = BarchartProviderConfig(
         username=config.providers.barchart.username,
         password=config.providers.barchart.password,
-        daily_download_limit=config.providers.barchart.daily_limit
+        daily_limit=config.providers.barchart.daily_limit
     )
+    data_provider = BarchartDataProvider(provider_config)
     return UpdatingDownloader(
         data_storage, 
         data_provider, 
@@ -112,14 +114,16 @@ class TestDataProviders:
         """Test Barchart provider creation with credentials."""
         mock_login.return_value = None  # Mock successful login
         
-        provider = BarchartDataProvider(
+        from vortex.infrastructure.providers.config import BarchartProviderConfig
+        provider_config = BarchartProviderConfig(
             username="test@example.com",
             password="testpass",
-            daily_download_limit=100
+            daily_limit=100
         )
+        provider = BarchartDataProvider(provider_config)
         assert provider is not None
-        assert provider.auth.username == "test@example.com"
-        assert provider.daily_limit == 100
+        assert provider.config.username == "test@example.com"
+        assert provider.get_daily_limit() == 100
         
         # Login is no longer called in constructor - it's done explicitly by factory
         # Call login explicitly to test the method works
@@ -131,13 +135,16 @@ class TestDataProviders:
         """Test IBKR provider creation with connection details."""
         mock_login.return_value = None  # Mock successful login
         
-        provider = IbkrDataProvider(
-            ip_address="localhost",
-            port="7497"
+        from vortex.infrastructure.providers.config import IBKRProviderConfig
+        provider_config = IBKRProviderConfig(
+            host="localhost",
+            port=7497,
+            client_id=1
         )
+        provider = IbkrDataProvider(provider_config)
         assert provider is not None
-        assert provider.ip_address == "localhost"
-        assert provider.port == "7497"
+        assert provider.config.host == "localhost"
+        assert provider.config.port == 7497
         
         # Login is no longer called in constructor - it's done explicitly by factory
         # Call login explicitly to test the method works

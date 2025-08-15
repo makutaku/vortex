@@ -43,13 +43,15 @@ class CredentialManager:
             try:
                 credentials = source_loader('barchart')
                 if credentials and 'username' in credentials and 'password' in credentials:
-                    logger.debug(f"Barchart credentials loaded from {source_loader.__name__}")
+                    source_name = getattr(source_loader, '__name__', str(source_loader))
+                    logger.debug(f"Barchart credentials loaded from {source_name}")
                     return {
                         'username': credentials['username'],
                         'password': credentials['password']
                     }
             except Exception as e:
-                logger.debug(f"Failed to load credentials from {source_loader.__name__}: {e}")
+                source_name = getattr(source_loader, '__name__', str(source_loader))
+                logger.debug(f"Failed to load credentials from {source_name}: {e}")
                 continue
         
         logger.warning("No Barchart credentials found in any secure source")
@@ -57,7 +59,7 @@ class CredentialManager:
     
     def _load_from_env_vars(self, provider: str) -> Optional[Dict[str, Any]]:
         """Load credentials from environment variables."""
-        if provider.lower() == 'barchart':
+        if provider and provider.lower() == 'barchart':
             username = os.getenv('VORTEX_BARCHART_USERNAME')
             password = os.getenv('VORTEX_BARCHART_PASSWORD')
             
@@ -71,30 +73,39 @@ class CredentialManager:
     
     def _load_from_env_files(self, provider: str) -> Optional[Dict[str, Any]]:
         """Load credentials from .env files (excluded from git)."""
-        env_files = ['.env.local', '.env']
-        
-        for env_file in env_files:
-            env_path = Path.cwd() / env_file
-            if env_path.exists():
-                try:
-                    credentials = self._parse_env_file(env_path, provider)
-                    if credentials:
-                        return credentials
-                except Exception as e:
-                    logger.debug(f"Failed to parse {env_file}: {e}")
-                    continue
+        if not provider:
+            return None
+            
+        try:
+            env_files = ['.env.local', '.env']
+            
+            for env_file in env_files:
+                env_path = Path.cwd() / env_file
+                if env_path.exists():
+                    try:
+                        credentials = self._parse_env_file(env_path, provider)
+                        if credentials:
+                            return credentials
+                    except Exception as e:
+                        logger.debug(f"Failed to parse {env_file}: {e}")
+                        continue
+        except Exception as e:
+            logger.debug(f"Failed to access .env files: {e}")
         
         return None
     
     def _load_from_user_config(self, provider: str) -> Optional[Dict[str, Any]]:
         """Load credentials from user configuration directory."""
-        user_config_dir = Path.home() / '.vortex'
-        credentials_file = user_config_dir / 'credentials.json'
-        
-        if not credentials_file.exists():
+        if not provider:
             return None
-        
+            
         try:
+            user_config_dir = Path.home() / '.vortex'
+            credentials_file = user_config_dir / 'credentials.json'
+            
+            if not credentials_file.exists():
+                return None
+            
             with open(credentials_file, 'r') as f:
                 config = json.load(f)
             
@@ -111,6 +122,9 @@ class CredentialManager:
     
     def _parse_env_file(self, env_path: Path, provider: str) -> Optional[Dict[str, Any]]:
         """Parse environment file for provider credentials."""
+        if not provider:
+            return None
+            
         credentials = {}
         
         with open(env_path, 'r') as f:

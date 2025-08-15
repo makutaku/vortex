@@ -15,6 +15,9 @@ from vortex.exceptions.providers import (
 from vortex.core.error_handling.strategies import (
     StandardizedErrorHandler, ErrorContext, ErrorHandlingStrategy
 )
+from vortex.infrastructure.resilience.circuit_breaker import get_circuit_breaker, CircuitBreakerConfig
+from vortex.core.correlation import with_correlation, CorrelationIdManager
+from .metrics import get_metrics_collector, ProviderMetricsCollector
 from retrying import retry
 import logging
 
@@ -59,18 +62,52 @@ def should_retry(exception: Exception) -> bool:
 
 
 class DataProvider(ABC):
-    """Abstract base class for all data providers.
+    """Enhanced abstract base class for all data providers.
     
-    This class provides default implementations for common provider functionality
-    and defines the interface that all providers must implement.
+    This class provides default implementations for common provider functionality,
+    standardized error handling, circuit breaker integration, and observability.
     
     Note: This class is aligned with the DataProviderProtocol to ensure
     consistency between interface definition and implementation.
     """
 
-    def __init__(self):
-        """Initialize the data provider with standardized error handling."""
-        self._error_handler = StandardizedErrorHandler(logging.getLogger(self.__class__.__module__))
+    def __init__(self, circuit_breaker_config: Optional[CircuitBreakerConfig] = None):
+        """Initialize the data provider with enhanced capabilities."""
+        self.logger = logging.getLogger(self.__class__.__name__)
+        self._error_handler = StandardizedErrorHandler(self.logger)
+        # Standard Python loggers don't support direct structured logging
+        # Always use string formatting approach for compatibility
+        self._has_structured_logging = False
+        
+        # Initialize circuit breaker for this provider
+        cb_config = circuit_breaker_config or CircuitBreakerConfig(
+            failure_threshold=3,
+            recovery_timeout=60,
+            success_threshold=2,
+            monitored_exceptions=(DataProviderError, ConnectionError, RateLimitError)
+        )
+        self._circuit_breaker = get_circuit_breaker(
+            f"provider_{self.get_name().lower()}", cb_config
+        )
+        
+        # Initialize metrics collector for this provider
+        self._metrics_collector = get_metrics_collector(self.get_name().lower())
+        
+        self.logger.debug(f"Initialized {self.get_name()} provider with circuit breaker and metrics")
+
+    def _log_with_context(self, level: str, message: str, **extra_data):
+        """Log message with context, handling both structured and standard loggers."""
+        if self._has_structured_logging:
+            # Use structured logging with extra parameter - pass as 'extra' dict
+            getattr(self.logger, level)(message, extra=extra_data)
+        else:
+            # Format as string for standard logger
+            context_parts = [f"{k}={v}" for k, v in extra_data.items() if v is not None]
+            if context_parts:
+                full_message = f"{message} ({', '.join(context_parts)})"
+            else:
+                full_message = message
+            getattr(self.logger, level)(full_message)
 
     def __str__(self) -> str:
         """String representation of the provider."""
@@ -138,16 +175,15 @@ class DataProvider(ABC):
         freq_attr = freq_dict.get(period)
         return freq_attr.get_min_start() if freq_attr else None
 
-    @retry(wait_exponential_multiplier=2000,
-           stop_max_attempt_number=5,
-           retry_on_exception=should_retry)
+    @with_correlation(operation="fetch_historical_data")
     def fetch_historical_data(self,
                               instrument: Instrument,
                               period: Period,
                               start_date: datetime, end_date: datetime) -> Optional[DataFrame]:
-        """Fetch historical data for an instrument.
+        """Fetch historical data with enhanced error handling and circuit breaker protection.
         
-        This method includes retry logic and error handling.
+        This method includes retry logic, circuit breaker protection, correlation tracking,
+        and standardized error handling.
         
         Args:
             instrument: The financial instrument to fetch data for
@@ -157,12 +193,115 @@ class DataProvider(ABC):
             
         Returns:
             DataFrame with OHLCV data, or None if no data available
+            
+        Raises:
+            DataProviderError: For provider-specific errors
+            DataNotFoundError: When no data is available
+            ConnectionError: For network connectivity issues
         """
+        correlation_id = CorrelationIdManager.get_current_id()
+        
+        # Add operation context for observability
+        CorrelationIdManager.add_context_metadata(
+            provider=self.get_name(),
+            symbol=getattr(instrument, 'symbol', str(instrument)),
+            period=str(period),
+            start_date=start_date.isoformat(),
+            end_date=end_date.isoformat()
+        )
+        
+        self._log_with_context(
+            "info",
+            f"Starting data fetch for {getattr(instrument, 'symbol', str(instrument))}",
+            provider=self.get_name(),
+            correlation_id=correlation_id,
+            period=str(period)
+        )
+        
+        # Validate period support BEFORE retry mechanism to avoid retrying validation errors
         freq_dict = self._get_frequency_attr_dict()
         freq_attr = freq_dict.get(period)
         if freq_attr is None:
-            raise ValueError(f"Period {period} is not supported by provider {self.get_name()}")
-        return self._fetch_historical_data(instrument, freq_attr, start_date, end_date)
+            # Use standardized error handling for validation errors (no retry)
+            validation_error = ValueError(f"Period {period} is not supported by provider {self.get_name()}")
+            return self._handle_provider_error(
+                validation_error,
+                "fetch_historical_data",
+                ErrorHandlingStrategy.FAIL_FAST,
+                instrument=instrument,
+                period=period,
+                correlation_id=correlation_id
+            )
+        
+        # Track the entire operation with metrics
+        with self._metrics_collector.track_operation(
+            'fetch_historical_data',
+            correlation_id=correlation_id,
+            symbol=getattr(instrument, 'symbol', str(instrument)),
+            period=str(period)
+        ):
+            return self._fetch_historical_data_with_retry(
+                instrument, freq_attr, start_date, end_date, correlation_id
+            )
+
+    @retry(wait_exponential_multiplier=2000,
+           stop_max_attempt_number=5,
+           retry_on_exception=should_retry)
+    def _fetch_historical_data_with_retry(self,
+                                          instrument: Instrument,
+                                          freq_attr: FrequencyAttributes,
+                                          start_date: datetime,
+                                          end_date: datetime,
+                                          correlation_id: str) -> Optional[DataFrame]:
+        """Internal method that handles the retryable portion of data fetching.
+        
+        This method only includes operations that should be retried (network calls, etc.)
+        and excludes validation errors that should fail immediately.
+        """
+        try:
+            # Use circuit breaker for the actual fetch operation
+            result = self._circuit_breaker.call(
+                self._fetch_historical_data_with_validation,
+                instrument, freq_attr, start_date, end_date, correlation_id
+            )
+            
+            self._log_with_context(
+                "info",
+                f"Data fetch completed successfully",
+                provider=self.get_name(),
+                correlation_id=correlation_id,
+                rows_fetched=len(result) if result is not None else 0
+            )
+            
+            return result
+            
+        except Exception as e:
+            self._log_with_context(
+                "error",
+                f"Data fetch failed: {str(e)}",
+                provider=self.get_name(),
+                correlation_id=correlation_id,
+                exception_type=type(e).__name__
+            )
+            
+            # Enhanced exception context
+            if hasattr(e, 'add_context'):
+                e.add_context(
+                    provider=self.get_name(),
+                    symbol=getattr(instrument, 'symbol', str(instrument)),
+                    operation="fetch_historical_data",
+                    correlation_id=correlation_id
+                )
+            
+            # Use standardized error handling
+            return self._handle_provider_error(
+                e,
+                "fetch_historical_data",
+                ErrorHandlingStrategy.FAIL_FAST,
+                instrument=instrument,
+                period=freq_attr.frequency,
+                correlation_id=correlation_id
+            )
 
     def validate_configuration(self) -> bool:
         """Validate provider configuration.
@@ -293,10 +432,14 @@ class DataProvider(ABC):
         Returns:
             Result based on the error handling strategy
         """
+        # Filter context_kwargs to only include parameters ErrorContext accepts
+        valid_context_keys = {'error_type', 'default_value', 'correlation_id'}
+        filtered_kwargs = {k: v for k, v in context_kwargs.items() if k in valid_context_keys}
+        
         context = ErrorContext(
             operation=operation,
             component=self.get_name(),
-            **context_kwargs
+            **filtered_kwargs
         )
         return self._error_handler.handle_error(error, context, strategy)
 
@@ -357,6 +500,97 @@ class DataProvider(ABC):
             AuthenticationError with consistent formatting
         """
         return AuthenticationError(self.get_name().lower(), details, http_code)
+
+    def _fetch_historical_data_with_validation(
+        self, 
+        instrument: Instrument, 
+        frequency_attributes: FrequencyAttributes,
+        start_date: datetime, 
+        end_date: datetime,
+        correlation_id: Optional[str] = None
+    ) -> Optional[DataFrame]:
+        """Wrapper method that adds validation to the abstract fetch method.
+        
+        This method calls the provider-specific implementation and applies
+        standardized validation to the results.
+        
+        Args:
+            instrument: The financial instrument to fetch data for
+            frequency_attributes: Detailed frequency information
+            start_date: Start date for the data range
+            end_date: End date for the data range
+            correlation_id: Optional correlation ID for tracking
+            
+        Returns:
+            DataFrame with validated OHLCV data, or None if no data available
+        """
+        try:
+            # Call the provider-specific implementation
+            result = self._fetch_historical_data(instrument, frequency_attributes, start_date, end_date)
+            
+            # Apply standardized validation if data was returned
+            if result is not None and not result.empty:
+                result = self._validate_fetched_data(
+                    result, instrument, frequency_attributes.frequency, start_date, end_date
+                )
+            
+            return result
+            
+        except Exception as e:
+            # Log with correlation context
+            self._log_with_context(
+                "error",
+                f"Provider-specific fetch failed: {str(e)}",
+                provider=self.get_name(),
+                correlation_id=correlation_id,
+                exception_type=type(e).__name__
+            )
+            raise
+
+    def get_health_status(self) -> dict:
+        """Get comprehensive provider health status.
+        
+        Returns:
+            Dictionary with health status information including metrics
+        """
+        metrics = self._metrics_collector.get_metrics()
+        active_ops = self._metrics_collector.get_active_operations()
+        
+        return {
+            'provider': self.get_name(),
+            'circuit_breaker': self._circuit_breaker.stats,
+            'metrics': metrics.to_dict(),
+            'active_operations': active_ops,
+            'health_score': self._calculate_health_score(),
+            'metrics_health_score': self._metrics_collector.get_health_score()
+        }
+    
+    def _calculate_health_score(self) -> float:
+        """Calculate a health score based on circuit breaker metrics."""
+        cb_stats = self._circuit_breaker.stats
+        
+        if cb_stats['state'] == 'closed':
+            # Healthy state - score based on failure rate
+            failure_rate = cb_stats.get('failure_rate', 0.0)
+            return max(0.0, 100.0 - (failure_rate * 100))
+        elif cb_stats['state'] == 'half_open':
+            # Testing recovery - medium score
+            return 50.0
+        else:
+            # Open circuit - unhealthy
+            return 0.0
+    
+    def get_metrics(self):
+        """Get provider metrics."""
+        return self._metrics_collector.get_metrics()
+    
+    def get_active_operations(self):
+        """Get currently active operations."""
+        return self._metrics_collector.get_active_operations()
+    
+    def reset_metrics(self):
+        """Reset provider metrics (useful for testing)."""
+        self._metrics_collector.reset_metrics()
 
     def _get_frequency_attr_dict(self) -> dict:
         """Build a dictionary mapping periods to their frequency attributes.

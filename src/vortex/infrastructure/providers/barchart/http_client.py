@@ -88,10 +88,13 @@ class BarchartHttpClient(AuthenticatedHttpClient):
         Returns:
             Tuple of (usage_data dict, new_xsrf_token)
         """
-        with LoggingContext(
+        from vortex.utils.logging_utils import LoggingConfiguration
+        
+        config = LoggingConfiguration(
             entry_msg="Checking usage",
             success_msg="Checked usage"
-        ):
+        )
+        with LoggingContext(config):
             headers = self._build_usage_headers(xsrf_token)
             payload = {'check': True}
             
@@ -138,8 +141,8 @@ class BarchartHttpClient(AuthenticatedHttpClient):
             'symbol': symbol,
             'startDate': start_date.strftime("%m/%d/%Y"),
             'endDate': end_date.strftime("%m/%d/%Y"),
-            'period': frequency_attributes.name.lower(),
-            'maxRecords': str(frequency_attributes.max_records_per_download),
+            'period': str(frequency_attributes.frequency).lower(),
+            'maxRecords': '5000',  # Default max records
             'order': 'asc',
             'dividends': 'false',
             'backadjust': 'false',

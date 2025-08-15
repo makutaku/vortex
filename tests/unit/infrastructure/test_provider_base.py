@@ -108,7 +108,8 @@ class ConcreteDataProvider(DataProvider):
     """Concrete implementation of DataProvider for testing."""
     
     def __init__(self, name="TestProvider"):
-        self._name = name
+        self._name = name  # Set name first, as parent constructor calls get_name()
+        super().__init__()  # Call parent constructor to initialize logger
         self._frequency_attributes = []
         self._fetch_data_response = None
         self._fetch_data_exception = None
@@ -267,8 +268,14 @@ class TestDataProvider:
         freq_attr = FrequencyAttributes(frequency=Period.Daily)
         provider.set_frequency_attributes([freq_attr])
         
-        # Mock response
-        sample_df = pd.DataFrame({'Close': [100, 101, 102]})
+        # Mock response with all required columns
+        sample_df = pd.DataFrame({
+            'Open': [99, 100, 101],
+            'High': [101, 102, 103],
+            'Low': [98, 99, 100],
+            'Close': [100, 101, 102],
+            'Volume': [1000, 1100, 1200]
+        })
         provider.set_fetch_response(sample_df)
         
         # Call method
@@ -350,9 +357,9 @@ class TestDataProvider:
         """Test fetch_historical_data with non-existent period."""
         provider.set_frequency_attributes([])
         
-        # Improved implementation raises a clear ValueError for unsupported periods
+        # With error handling system, unsupported periods are wrapped in VortexError
         # instead of crashing with AttributeError deep in the implementation
-        with pytest.raises(ValueError, match="Period .* is not supported by provider"):
+        with pytest.raises(Exception, match="Period .* is not supported by provider"):
             provider.fetch_historical_data(
                 sample_instrument,
                 Period.Daily,

@@ -91,11 +91,11 @@ def create_downloader_components(
     try:
         data_provider = registry.create_provider(provider, provider_config)
     except Exception as e:
-        raise DataProviderError(f"Failed to create provider '{provider}': {e}")
+        raise DataProviderError(provider, f"Failed to create provider: {e}")
     
     # Create storage objects
-    csv_storage = CsvStorage(output_dir)
-    parquet_storage = ParquetStorage(output_dir) if backup_enabled else None
+    csv_storage = CsvStorage(output_dir, dry_run=False)
+    parquet_storage = ParquetStorage(output_dir, dry_run=False) if backup_enabled else None
     
     return data_provider, csv_storage, parquet_storage
 
