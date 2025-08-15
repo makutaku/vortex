@@ -73,13 +73,27 @@ class DownloadExecutor:
         return updated_configs
     
     def _count_total_jobs(self, symbols: List[str], instrument_configs: dict) -> int:
-        """Count total number of download jobs."""
+        """Count total number of download jobs using same logic as actual job creation."""
         total_jobs = 0
+        
+        # Create temporary downloader for job counting
+        downloader = self._create_downloader()
         
         for symbol in symbols:
             config = instrument_configs.get(symbol, {})
             periods = get_periods_for_symbol(config)
-            total_jobs += len(periods)
+            
+            # Use the same job creation logic to get accurate count
+            try:
+                jobs = create_jobs_using_downloader_logic(
+                    downloader, symbol, config, periods, 
+                    self.config.start_date, self.config.end_date
+                )
+                total_jobs += len(jobs)
+            except Exception as e:
+                self.logger.warning(f"Failed to count jobs for symbol {symbol}: {e}")
+                # Fallback to period count if job creation fails
+                total_jobs += len(periods)
         
         return total_jobs
     
