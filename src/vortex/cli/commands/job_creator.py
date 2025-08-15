@@ -40,8 +40,15 @@ def create_jobs_using_downloader_logic(downloader, symbol: str, config, periods:
         tz = pytz.UTC
     
     # Try to determine instrument type from symbol or config
-    if hasattr(config, 'asset_class') and config.asset_class:
-        if config.asset_class.lower() in ['future', 'futures']:
+    # Handle both dict and object configs
+    asset_class = None
+    if isinstance(config, dict):
+        asset_class = config.get('asset_class')
+    elif hasattr(config, 'asset_class'):
+        asset_class = config.asset_class
+    
+    if asset_class:
+        if asset_class.lower() in ['future', 'futures']:
             return _create_futures_jobs(downloader, symbol, config, periods, start_date, end_date, tz)
         else:
             # For stocks, forex, or other types
@@ -56,14 +63,44 @@ def _create_futures_jobs(downloader, symbol: str, config, periods: List,
     """Create jobs for futures instruments with contract-specific logic."""
     jobs = []
     
-    # Create Future instrument
+    # Create Future instrument - handle both dict and object configs
+    if isinstance(config, dict):
+        futures_code = config.get('code', symbol)
+        
+        # Handle cycle field (e.g., "GZ" = Gold, December)
+        cycle = config.get('cycle', '')
+        if cycle and len(cycle) >= 2:
+            # Extract month code from cycle (last character)
+            month_code = cycle[-1]  # 'Z' from 'GZ'
+        else:
+            month_code = config.get('month_code', 'Z')  # Default to December
+        
+        year = config.get('year', datetime.now().year)
+        tick_date = config.get('tick_date', datetime.now(tz))
+        days_count = config.get('days_count', 365)
+        
+        # Convert tick_date string to datetime if needed
+        if isinstance(tick_date, str):
+            try:
+                tick_date = datetime.fromisoformat(tick_date.replace('Z', '+00:00'))
+                if tick_date.tzinfo is None:
+                    tick_date = tz.localize(tick_date)
+            except ValueError:
+                tick_date = datetime.now(tz)
+    else:
+        futures_code = getattr(config, 'code', symbol)
+        year = getattr(config, 'year', datetime.now().year)
+        month_code = getattr(config, 'month_code', 'Z')  # Default to December
+        tick_date = getattr(config, 'tick_date', datetime.now(tz))
+        days_count = getattr(config, 'days_count', 365)
+    
     future = Future(
         id=symbol,
-        futures_code=getattr(config, 'code', symbol),
-        year=getattr(config, 'year', datetime.now().year),
-        month_code=getattr(config, 'month_code', 'M'),  # Default to June
-        tick_date=getattr(config, 'tick_date', datetime.now(tz)),
-        days_count=getattr(config, 'days_count', 365)
+        futures_code=futures_code,
+        year=year,
+        month_code=month_code,
+        tick_date=tick_date,
+        days_count=days_count
     )
     
     for period in periods:
@@ -110,8 +147,15 @@ def _create_simple_instrument_jobs(downloader, symbol: str, config, periods: Lis
 
 def _create_instrument_from_config(symbol: str, config):
     """Create appropriate instrument instance based on configuration."""
-    if hasattr(config, 'asset_class') and config.asset_class:
-        asset_class = config.asset_class.lower()
+    # Handle both dict and object configs
+    asset_class = None
+    if isinstance(config, dict):
+        asset_class = config.get('asset_class')
+    elif hasattr(config, 'asset_class'):
+        asset_class = config.asset_class
+    
+    if asset_class:
+        asset_class = asset_class.lower()
         
         if asset_class in ['stock', 'stocks', 'equity']:
             return Stock(
@@ -124,14 +168,44 @@ def _create_instrument_from_config(symbol: str, config):
                 symbol=symbol
             )
         elif asset_class in ['future', 'futures']:
-            # Future needs specific parameters - use simplified approach
+            # Future needs specific parameters - use dict-safe getters
+            if isinstance(config, dict):
+                futures_code = config.get('code', symbol)
+                
+                # Handle cycle field (e.g., "GZ" = Gold, December)
+                cycle = config.get('cycle', '')
+                if cycle and len(cycle) >= 2:
+                    # Extract month code from cycle (last character)
+                    month_code = cycle[-1]  # 'Z' from 'GZ'
+                else:
+                    month_code = config.get('month_code', 'Z')  # Default to December
+                
+                year = config.get('year', datetime.now().year)
+                tick_date = config.get('tick_date', datetime.now(timezone.utc))
+                days_count = config.get('days_count', 365)
+                
+                # Convert tick_date string to datetime if needed
+                if isinstance(tick_date, str):
+                    try:
+                        tick_date = datetime.fromisoformat(tick_date.replace('Z', '+00:00'))
+                        if tick_date.tzinfo is None:
+                            tick_date = tick_date.replace(tzinfo=timezone.utc)
+                    except ValueError:
+                        tick_date = datetime.now(timezone.utc)
+            else:
+                futures_code = getattr(config, 'code', symbol)
+                year = getattr(config, 'year', datetime.now().year)
+                month_code = getattr(config, 'month_code', 'Z')  # Default to December
+                tick_date = getattr(config, 'tick_date', datetime.now(timezone.utc))
+                days_count = getattr(config, 'days_count', 365)
+            
             return Future(
                 id=symbol,
-                futures_code=getattr(config, 'code', symbol),
-                year=getattr(config, 'year', datetime.now().year),
-                month_code=getattr(config, 'month_code', 'M'),  # Default to June
-                tick_date=getattr(config, 'tick_date', datetime.now(timezone.utc)),
-                days_count=getattr(config, 'days_count', 365)
+                futures_code=futures_code,
+                year=year,
+                month_code=month_code,
+                tick_date=tick_date,
+                days_count=days_count
             )
     
     # Default to Stock if no asset class specified
