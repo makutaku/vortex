@@ -66,15 +66,23 @@ class BarchartUsageChecker:
             
             if resp.status_code == NetworkConstants.HTTP_OK:
                 try:
-                    # Parse JSON response that contains allowance information
+                    # Parse JSON response that contains usage information
                     json_data = resp.json()
+                    self.logger.debug(f"Usage check raw response: {json_data}")
                     
-                    # Extract allowance from bc-utils format
-                    allowance_info = json_data.get('allowance', {})
-                    used_count = allowance_info.get('used', 0)
+                    # Check for error (bc-utils approach)
+                    if json_data.get("error") is not None:
+                        self.logger.debug(f"Usage check error: {json_data.get('error')}")
+                        return None
                     
-                    self.logger.debug(f"Server usage check successful: {used_count} downloads used")
-                    return used_count
+                    # Check for success and count (bc-utils approach) - this is the correct format!
+                    if json_data.get("success"):
+                        used_count = int(json_data.get('count', '0'))
+                        self.logger.debug(f"bc-utils usage success: {json_data['success']}, count: {used_count}")
+                        return used_count
+                    else:
+                        self.logger.debug(f"Usage check unsuccessful: {json_data}")
+                        return None
                     
                 except Exception as parse_error:
                     self.logger.debug(f"Could not parse usage response: {parse_error}")
