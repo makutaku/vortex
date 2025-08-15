@@ -168,7 +168,7 @@ def download(
     
     # Set defaults for dates and output directory
     if start_date is None or end_date is None:
-        default_start, default_end = get_default_date_range()
+        default_start, default_end = get_default_date_range(provider)
         start_date = start_date or default_start
         end_date = end_date or default_end
     

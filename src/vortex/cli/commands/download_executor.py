@@ -157,16 +157,17 @@ class DownloadExecutor:
     
     def _create_downloader(self):
         """Create appropriate downloader instance."""
-        from vortex.infrastructure.providers.factory import create_provider
+        from vortex.infrastructure.providers.factory import ProviderFactory
         from vortex.infrastructure.storage.csv_storage import CsvStorage
         from vortex.infrastructure.storage.parquet_storage import ParquetStorage
         
         # Create provider
-        provider = create_provider(self.config.provider, self.config.download_config)
+        factory = ProviderFactory()
+        provider = factory.create_provider(self.config.provider, self.config.download_config)
         
         # Create storage
-        csv_storage = CsvStorage(self.config.output_dir)
-        parquet_storage = ParquetStorage(self.config.output_dir) if self.config.backup_enabled else None
+        csv_storage = CsvStorage(str(self.config.output_dir), self.config.dry_run)
+        parquet_storage = ParquetStorage(str(self.config.output_dir)) if self.config.backup_enabled else None
         
         # Create downloader
         if self.config.mode == 'updating':
