@@ -109,7 +109,7 @@ class DownloadExecutor:
                     completed_jobs += 1
                     context = JobExecutionContext(job, completed_jobs, total_jobs, symbol)
                     
-                    if self._process_single_job(context):
+                    if self._process_single_job(context, downloader):
                         successful_jobs += 1
                     
                     # Show progress
@@ -124,8 +124,8 @@ class DownloadExecutor:
         
         return successful_jobs
     
-    def _process_single_job(self, context: JobExecutionContext) -> bool:
-        """Process a single download job."""
+    def _process_single_job(self, context: JobExecutionContext, downloader) -> bool:
+        """Process a single download job using the shared downloader instance."""
         config = LoggingConfiguration(
             entry_msg=f"Processing job {context.job_number}/{context.total_jobs}: {context.symbol}",
             entry_level=logging.INFO,
@@ -135,7 +135,6 @@ class DownloadExecutor:
         
         with LoggingContext(config):
             try:
-                downloader = self._create_downloader()
                 result = downloader._process_job(context.job)
                 
                 if result == HistoricalDataResult.OK:

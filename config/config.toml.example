@@ -11,6 +11,10 @@ backup_enabled = false
 # Dry run mode (don't actually download, just show what would be downloaded)
 dry_run = false
 
+# Random sleep between requests to avoid bot detection (0-300 seconds)
+# Set to 0 to disable. Higher values are more polite but slower.
+random_sleep_max = 10
+
 # Logging configuration
 [general.logging]
 level = "INFO"        # DEBUG, INFO, WARNING, ERROR

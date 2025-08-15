@@ -207,6 +207,7 @@ def download(
         output_dir=output_dir,
         backup_enabled=backup,
         force_backup=force,
+        random_sleep=config_manager.load_config().general.random_sleep_max,
         dry_run=ctx.obj.get('dry_run', False),
         download_config=config_manager.get_provider_config(provider)
     )

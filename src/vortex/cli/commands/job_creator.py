@@ -17,12 +17,21 @@ from vortex.models.period import Period
 
 def get_periods_for_symbol(config) -> List:
     """Get periods for symbol based on configuration."""
-    if hasattr(config, 'periods') and config.periods:
+    # Handle both dict and object configs
+    periods = None
+    if isinstance(config, dict):
+        periods = config.get('periods')
+    elif hasattr(config, 'periods'):
+        periods = config.periods
+    
+    if periods:
         # If config has periods, parse them
-        if isinstance(config.periods, str):
-            return [Period(config.periods)]
-        elif isinstance(config.periods, list):
-            return [Period(p) for p in config.periods]
+        if isinstance(periods, str):
+            # Split comma-separated string periods
+            period_strings = [p.strip() for p in periods.split(',')]
+            return [Period(p) for p in period_strings if p]
+        elif isinstance(periods, list):
+            return [Period(p) for p in periods]
     
     # Default to daily
     return [Period('1d')]
@@ -63,19 +72,10 @@ def _create_futures_jobs(downloader, symbol: str, config, periods: List,
     """Create jobs for futures instruments with contract-specific logic."""
     jobs = []
     
-    # Create Future instrument - handle both dict and object configs
+    # Extract contract configuration - handle both dict and object configs
     if isinstance(config, dict):
         futures_code = config.get('code', symbol)
-        
-        # Handle cycle field (e.g., "GZ" = Gold, December)
         cycle = config.get('cycle', '')
-        if cycle and len(cycle) >= 2:
-            # Extract month code from cycle (last character)
-            month_code = cycle[-1]  # 'Z' from 'GZ'
-        else:
-            month_code = config.get('month_code', 'Z')  # Default to December
-        
-        year = config.get('year', datetime.now().year)
         tick_date = config.get('tick_date', datetime.now(tz))
         days_count = config.get('days_count', 365)
         
@@ -89,33 +89,57 @@ def _create_futures_jobs(downloader, symbol: str, config, periods: List,
                 tick_date = datetime.now(tz)
     else:
         futures_code = getattr(config, 'code', symbol)
-        year = getattr(config, 'year', datetime.now().year)
-        month_code = getattr(config, 'month_code', 'Z')  # Default to December
+        cycle = getattr(config, 'cycle', '')
         tick_date = getattr(config, 'tick_date', datetime.now(tz))
         days_count = getattr(config, 'days_count', 365)
     
-    future = Future(
-        id=symbol,
-        futures_code=futures_code,
-        year=year,
-        month_code=month_code,
-        tick_date=tick_date,
-        days_count=days_count
-    )
+    # Parse cycle field to get all contract months (roll_cycle)
+    # e.g., "GZ" = ['G', 'Z'] (February and December)
+    roll_cycle = []
+    if cycle:
+        # Treat cycle as a string of month codes
+        roll_cycle = [char for char in cycle if char.isalpha()]
     
-    for period in periods:
-        try:
-            # Use downloader's job creation logic for dated instruments (futures)
-            # Ensure dates are timezone-aware
-            tz_start_date = _to_timezone_aware(start_date, tz)
-            tz_end_date = _to_timezone_aware(end_date, tz)
-            instrument_jobs = downloader.create_jobs_for_dated_instrument(future, [period], tz_start_date, tz_end_date, tz)
-            jobs.extend(instrument_jobs)
-            logging.debug(f"Created {len(instrument_jobs)} futures jobs for {symbol} {period}")
-        except Exception as e:
-            logging.warning(f"Failed to create futures jobs for {symbol} {period}: {e}")
-            continue
+    # If no cycle specified, default to December
+    if not roll_cycle:
+        roll_cycle = ['Z']
     
+    # Generate all year/month combinations within date range (like original system)
+    from vortex.utils.utils import generate_year_month_tuples
+    from datetime import timedelta
+    
+    # Add days_count to end date to include contracts that may expire in the future
+    # but have prices today
+    future_end_date = end_date + timedelta(days=days_count)
+    year_month_gen = generate_year_month_tuples(start_date, future_end_date)
+    
+    # Create jobs for each year/month combination that matches our roll cycle
+    for year, month in year_month_gen:
+        month_code = Future.get_code_for_month(month)
+        if month_code in roll_cycle:
+            future = Future(
+                id=symbol,
+                futures_code=futures_code,
+                year=year,
+                month_code=month_code,
+                tick_date=tick_date,
+                days_count=days_count
+            )
+            
+            for period in periods:
+                try:
+                    # Use downloader's job creation logic for dated instruments (futures)
+                    # Ensure dates are timezone-aware
+                    tz_start_date = _to_timezone_aware(start_date, tz)
+                    tz_end_date = _to_timezone_aware(end_date, tz)
+                    instrument_jobs = downloader.create_jobs_for_dated_instrument(future, [period], tz_start_date, tz_end_date, tz)
+                    jobs.extend(instrument_jobs)
+                    logging.debug(f"Created {len(instrument_jobs)} futures jobs for {symbol}{month_code}{Future.get_code_for_year(year)} {period}")
+                except Exception as e:
+                    logging.warning(f"Failed to create futures jobs for {symbol}{month_code}{Future.get_code_for_year(year)} {period}: {e}")
+                    continue
+    
+    logging.info(f"Created {len(jobs)} total futures jobs for {symbol} across multiple years and {len(roll_cycle)} contract months: {roll_cycle}")
     return jobs
 
 
@@ -168,44 +192,11 @@ def _create_instrument_from_config(symbol: str, config):
                 symbol=symbol
             )
         elif asset_class in ['future', 'futures']:
-            # Future needs specific parameters - use dict-safe getters
-            if isinstance(config, dict):
-                futures_code = config.get('code', symbol)
-                
-                # Handle cycle field (e.g., "GZ" = Gold, December)
-                cycle = config.get('cycle', '')
-                if cycle and len(cycle) >= 2:
-                    # Extract month code from cycle (last character)
-                    month_code = cycle[-1]  # 'Z' from 'GZ'
-                else:
-                    month_code = config.get('month_code', 'Z')  # Default to December
-                
-                year = config.get('year', datetime.now().year)
-                tick_date = config.get('tick_date', datetime.now(timezone.utc))
-                days_count = config.get('days_count', 365)
-                
-                # Convert tick_date string to datetime if needed
-                if isinstance(tick_date, str):
-                    try:
-                        tick_date = datetime.fromisoformat(tick_date.replace('Z', '+00:00'))
-                        if tick_date.tzinfo is None:
-                            tick_date = tick_date.replace(tzinfo=timezone.utc)
-                    except ValueError:
-                        tick_date = datetime.now(timezone.utc)
-            else:
-                futures_code = getattr(config, 'code', symbol)
-                year = getattr(config, 'year', datetime.now().year)
-                month_code = getattr(config, 'month_code', 'Z')  # Default to December
-                tick_date = getattr(config, 'tick_date', datetime.now(timezone.utc))
-                days_count = getattr(config, 'days_count', 365)
-            
-            return Future(
-                id=symbol,
-                futures_code=futures_code,
-                year=year,
-                month_code=month_code,
-                tick_date=tick_date,
-                days_count=days_count
+            # ERROR: This method should NOT be used for futures!
+            # Futures should use _create_futures_jobs() to properly handle all contract months.
+            raise ValueError(
+                f"_create_instrument_from_config should not be used for futures. "
+                f"Use _create_futures_jobs() instead to properly handle all contract months in cycle."
             )
     
     # Default to Stock if no asset class specified
