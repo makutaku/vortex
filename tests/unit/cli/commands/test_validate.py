@@ -55,7 +55,7 @@ class TestValidateCommand:
             mock_console.print.assert_any_call("[yellow]No data files found to validate[/yellow]")
     
     @patch('vortex.cli.commands.validate.run_validation')
-    @patch('vortex.cli.commands.validation_display.display_results')
+    @patch('vortex.cli.commands.validate.display_results')
     @patch('vortex.cli.commands.validate.show_validation_summary')
     @patch('vortex.cli.commands.validate.get_files_to_validate')
     @patch('vortex.cli.commands.validate.console')
@@ -64,7 +64,7 @@ class TestValidateCommand:
         """Test validate command with files found."""
         mock_files = [Path("test1.csv"), Path("test2.csv")]
         mock_get_files.return_value = mock_files
-        mock_results = [{"file": Path("test1.csv"), "valid": True}]
+        mock_results = [{"file": Path("test1.csv"), "valid": True, "errors": [], "warnings": [], "metrics": {}, "fixed": False}]
         mock_run_validation.return_value = mock_results
         
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -77,7 +77,7 @@ class TestValidateCommand:
             mock_summary.assert_called_once_with(mock_results)
     
     @patch('vortex.cli.commands.validate.run_validation')
-    @patch('vortex.cli.commands.validation_display.display_results')
+    @patch('vortex.cli.commands.validate.display_results')
     @patch('vortex.cli.commands.validate.show_validation_summary')
     @patch('vortex.cli.commands.validate.get_files_to_validate')
     @patch('vortex.cli.commands.validate.console')
@@ -86,7 +86,7 @@ class TestValidateCommand:
         """Test validate command with all options."""
         mock_files = [Path("test.csv")]
         mock_get_files.return_value = mock_files
-        mock_results = [{"file": Path("test.csv"), "valid": False}]
+        mock_results = [{"file": Path("test.csv"), "valid": False, "errors": [], "warnings": [], "metrics": {}, "fixed": False}]
         mock_run_validation.return_value = mock_results
         
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -193,7 +193,7 @@ class TestRunValidation:
     def test_run_validation_single_file(self, mock_console, mock_validate_file):
         """Test validation with single file."""
         mock_file = Path("test.csv")
-        mock_result = {"file": mock_file, "valid": True, "errors": []}
+        mock_result = {"file": mock_file, "valid": True, "errors": [], "warnings": [], "metrics": {}, "fixed": False}
         mock_validate_file.return_value = mock_result
         
         results = run_validation([mock_file], None, False)
@@ -213,8 +213,8 @@ class TestRunValidation:
         
         mock_files = [Path("test1.csv"), Path("test2.csv")]
         mock_results = [
-            {"file": mock_files[0], "valid": True, "errors": []},
-            {"file": mock_files[1], "valid": False, "errors": ["Error"]}
+            {"file": mock_files[0], "valid": True, "errors": [], "warnings": [], "metrics": {}, "fixed": False},
+            {"file": mock_files[1], "valid": False, "errors": ["Error"], "warnings": [], "metrics": {}, "fixed": False}
         ]
         mock_validate_file.side_effect = mock_results
         
@@ -704,21 +704,21 @@ class TestDisplayResults:
     @patch('vortex.cli.commands.validation_display.display_table_results')
     def test_display_results_table(self, mock_display_table):
         """Test display results in table format."""
-        results = [{"file": Path("test.csv"), "valid": True}]
+        results = [{"file": Path("test.csv"), "valid": True, "errors": [], "warnings": [], "metrics": {}, "fixed": False}]
         display_results(results, True, "table")
         mock_display_table.assert_called_once_with(results, True)
     
     @patch('vortex.cli.commands.validation_display.display_json_results')
     def test_display_results_json(self, mock_display_json):
         """Test display results in JSON format."""
-        results = [{"file": Path("test.csv"), "valid": True}]
+        results = [{"file": Path("test.csv"), "valid": True, "errors": [], "warnings": [], "metrics": {}, "fixed": False}]
         display_results(results, False, "json")
         mock_display_json.assert_called_once_with(results)
     
     @patch('vortex.cli.commands.validation_display.display_csv_results')
     def test_display_results_csv(self, mock_display_csv):
         """Test display results in CSV format."""
-        results = [{"file": Path("test.csv"), "valid": True}]
+        results = [{"file": Path("test.csv"), "valid": True, "errors": [], "warnings": [], "metrics": {}, "fixed": False}]
         display_results(results, False, "csv")
         mock_display_csv.assert_called_once_with(results)
 
@@ -726,8 +726,8 @@ class TestDisplayResults:
 class TestDisplayTableResults:
     """Test table display functionality."""
     
-    @patch('vortex.cli.commands.validate.console')
-    @patch('vortex.cli.commands.validate.show_detailed_issues')
+    @patch('vortex.cli.commands.validation_display.console')
+    @patch('vortex.cli.commands.validation_display.show_detailed_issues')
     def test_display_table_results_basic(self, mock_show_detailed, mock_console):
         """Test basic table display."""
         with tempfile.NamedTemporaryFile(suffix='.csv', delete=False) as temp_file:
@@ -749,8 +749,8 @@ class TestDisplayTableResults:
             finally:
                 temp_path.unlink()
     
-    @patch('vortex.cli.commands.validate.console')
-    @patch('vortex.cli.commands.validate.show_detailed_issues')
+    @patch('vortex.cli.commands.validation_display.console')
+    @patch('vortex.cli.commands.validation_display.show_detailed_issues')
     def test_display_table_results_detailed(self, mock_show_detailed, mock_console):
         """Test detailed table display."""
         with tempfile.NamedTemporaryFile(suffix='.csv', delete=False) as temp_file:
@@ -775,7 +775,7 @@ class TestDisplayTableResults:
 class TestDisplayJsonResults:
     """Test JSON display functionality."""
     
-    @patch('vortex.cli.commands.validate.console')
+    @patch('vortex.cli.commands.validation_display.console')
     def test_display_json_results(self, mock_console):
         """Test JSON results display."""
         results = [{
@@ -798,7 +798,7 @@ class TestDisplayJsonResults:
 class TestDisplayCsvResults:
     """Test CSV display functionality."""
     
-    @patch('vortex.cli.commands.validate.console')
+    @patch('vortex.cli.commands.validation_display.console')
     def test_display_csv_results(self, mock_console):
         """Test CSV results display."""
         results = [{
@@ -820,7 +820,7 @@ class TestDisplayCsvResults:
 class TestShowDetailedIssues:
     """Test detailed issues display."""
     
-    @patch('vortex.cli.commands.validate.console')
+    @patch('vortex.cli.commands.validation_display.console')
     def test_show_detailed_issues_with_errors(self, mock_console):
         """Test showing detailed issues with errors and warnings."""
         results = [
@@ -859,7 +859,7 @@ class TestShowDetailedIssues:
 class TestShowValidationSummary:
     """Test validation summary display."""
     
-    @patch('vortex.cli.commands.validate.console')
+    @patch('vortex.cli.commands.validation_display.console')
     def test_show_validation_summary(self, mock_console):
         """Test validation summary display."""
         results = [
@@ -873,7 +873,7 @@ class TestShowValidationSummary:
         # Should print summary information
         assert mock_console.print.call_count >= 5  # Title + total + valid + invalid + warnings
     
-    @patch('vortex.cli.commands.validate.console')
+    @patch('vortex.cli.commands.validation_display.console')
     def test_show_validation_summary_all_valid(self, mock_console):
         """Test validation summary with all valid files."""
         results = [
