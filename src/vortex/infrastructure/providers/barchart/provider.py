@@ -250,10 +250,10 @@ class BarchartDataProvider(DataProvider):
         logger = logging.getLogger(__name__)
         
         try:
-            # Check server usage using exact bc-utils methodology
+            # Check server usage using exact bc-utils methodology (pre-download)
             current_usage = self._check_server_usage()
             if current_usage is not None:
-                logger.info(f"bc-utils server usage: {current_usage} downloads used today (configured limit: {self.get_daily_limit()})")
+                logger.info(f"bc-utils server usage before download: {current_usage} downloads used today (configured limit: {self.get_daily_limit()})")
             else:
                 logger.info(f"bc-utils usage check unavailable (configured limit: {self.get_daily_limit()})")
             
@@ -412,6 +412,12 @@ class BarchartDataProvider(DataProvider):
         
         if response.text and has_csv_data:
             logger.info(f"bc-utils download successful for {instrument}")
+            
+            # Check usage again after successful download to get updated count
+            post_download_usage = self._check_server_usage()
+            if post_download_usage is not None:
+                logger.info(f"bc-utils server usage after download: {post_download_usage} downloads used today (configured limit: {self.get_daily_limit()})")
+            
             return self._process_bc_utils_csv_response(response.text, frequency_attributes.frequency, tz)
         else:
             raise DataNotFoundError('barchart', str(instrument), frequency_attributes.frequency, start_date, end_date)
