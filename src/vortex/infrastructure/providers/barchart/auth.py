@@ -4,6 +4,8 @@ Barchart authentication and session management.
 Handles login, logout, CSRF token extraction, and session creation for Barchart.com.
 """
 
+from typing import Dict, Any, Optional
+
 import requests
 from bs4 import BeautifulSoup
 
@@ -93,7 +95,7 @@ class BarchartAuth:
         with LoggingContext(config):
             self.session.get(self.BARCHART_LOGOUT_URL, timeout=NetworkConstants.SHORT_REQUEST_TIMEOUT)
     
-    def get_api_headers(self) -> dict:
+    def get_api_headers(self) -> Dict[str, str]:
         """Get headers required for API requests (bc-utils methodology)."""
         headers = {
             'User-Agent': NetworkConstants.DEFAULT_USER_AGENT,
@@ -128,7 +130,7 @@ class BarchartAuth:
         
         raise ValueError("Unable to obtain XSRF token from Barchart")
     
-    def make_api_request(self, url: str, params: dict = None) -> dict:
+    def make_api_request(self, url: str, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Make authenticated API request using bc-utils methodology."""
         import json
         import logging
@@ -150,6 +152,15 @@ class BarchartAuth:
                 # Handle CSV or other text responses
                 return {'data': response.text, 'content_type': response.headers.get('content-type', '')}
                 
+        except requests.exceptions.Timeout as e:
+            logger.error(f"API request timeout: {url}", timeout=NetworkConstants.DEFAULT_REQUEST_TIMEOUT)
+            raise
+        except requests.exceptions.ConnectionError as e:
+            logger.error(f"API connection failed: {url}")
+            raise
+        except requests.exceptions.HTTPError as e:
+            logger.error(f"API HTTP error: {url}, status: {e.response.status_code}")
+            raise
         except Exception as e:
-            logger.error(f"API request failed: {url}, error: {e}")
+            logger.error(f"Unexpected API request error: {url}", error=str(e))
             raise

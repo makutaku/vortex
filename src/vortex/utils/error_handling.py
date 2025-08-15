@@ -48,7 +48,7 @@ class SafeOperationHandler:
     """Handles safe operation patterns with consistent error handling."""
     
     @staticmethod
-    def safe_completion(operation_func: F) -> F:
+    def safe_completion(operation_func: Callable[..., Optional[List[str]]]) -> Callable[..., List[str]]:
         """
         Decorator to safely handle completion operations with debug logging.
         
@@ -68,13 +68,16 @@ class SafeOperationHandler:
                 if result is None:
                     return []
                 return result if isinstance(result, list) else [str(result)]
+            except (ValueError, TypeError, KeyError) as e:
+                logger.debug(ERROR_TEMPLATES["completion_error"].format(error=f"Expected error: {e}"))
+                return []
             except Exception as e:
-                logger.debug(ERROR_TEMPLATES["completion_error"].format(error=e))
+                logger.warning(ERROR_TEMPLATES["completion_error"].format(error=f"Unexpected error: {e}"))
                 return []
         return wrapper
     
     @staticmethod
-    def safe_analytics_operation(operation_name: str, operation_func: Callable, *args, **kwargs) -> Any:
+    def safe_analytics_operation(operation_name: str, operation_func: Callable[..., T], *args, **kwargs) -> Optional[T]:
         """
         Centralized analytics error handling with consistent logging.
         
@@ -88,10 +91,16 @@ class SafeOperationHandler:
         """
         try:
             return operation_func(*args, **kwargs)
-        except Exception as e:
+        except (ValueError, TypeError, KeyError) as e:
             logger.debug(ERROR_TEMPLATES["analytics_operation"].format(
                 operation_name=operation_name, 
-                error=e
+                error=f"Expected error: {e}"
+            ))
+            return None
+        except Exception as e:
+            logger.warning(ERROR_TEMPLATES["analytics_operation"].format(
+                operation_name=operation_name, 
+                error=f"Unexpected error: {e}"
             ))
             return None
 

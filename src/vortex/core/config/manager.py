@@ -91,8 +91,10 @@ class ConfigManager:
         # Validate and create config object
         try:
             self._config = VortexConfig(**config_data)
+        except (ValueError, TypeError) as e:
+            raise ConfigurationValidationError([f"Configuration validation failed: {e}"])
         except Exception as e:
-            raise ConfigurationValidationError([str(e)])
+            raise ConfigurationValidationError([f"Unexpected configuration error: {e}"])
         
         return self._config
     
@@ -107,11 +109,25 @@ class ConfigManager:
         def load_toml_content(f):
             try:
                 return tomllib.load(f)
-            except Exception as e:
-                # Convert TOML parsing errors to InvalidConfigurationError
+            except tomllib.TOMLDecodeError as e:
+                # Specific TOML parsing error
                 raise InvalidConfigurationError(
                     str(self.config_file), 
-                    str(e), 
+                    f"Invalid TOML syntax: {e}", 
+                    "valid TOML format"
+                )
+            except (ValueError, TypeError) as e:
+                # Data type or value errors
+                raise InvalidConfigurationError(
+                    str(self.config_file), 
+                    f"Invalid configuration values: {e}", 
+                    "valid TOML format"
+                )
+            except Exception as e:
+                # Unexpected errors
+                raise InvalidConfigurationError(
+                    str(self.config_file), 
+                    f"Failed to parse TOML file: {e}", 
                     "valid TOML format"
                 )
         
@@ -278,8 +294,10 @@ class ConfigManager:
                 config.providers.ibkr = IBKRConfig(**provider_config)
             else:
                 raise InvalidConfigurationError("provider", provider, "barchart, yahoo, or ibkr")
+        except (ValueError, TypeError) as e:
+            raise ConfigurationValidationError([f"Invalid {provider} configuration values: {e}"])
         except Exception as e:
-            raise ConfigurationValidationError([f"Invalid {provider} configuration: {e}"])
+            raise ConfigurationValidationError([f"Unexpected error configuring {provider}: {e}"])
         
         # Save the updated configuration
         self.save_config(config)
@@ -343,8 +361,15 @@ class ConfigManager:
             
             return imported_config
             
+        except (FileNotFoundError, PermissionError) as e:
+            raise ConfigurationError(
+                f"Cannot access configuration file: {file_path}",
+                help_text="Check file permissions and path"
+            )
+        except (ValueError, TypeError) as e:
+            raise ConfigurationValidationError([f"Invalid configuration format: {e}"])
         except Exception as e:
-            raise ConfigurationValidationError([f"Invalid configuration file: {e}"])
+            raise ConfigurationValidationError([f"Failed to import configuration: {e}"])
     
     def export_config(self, file_path: Path) -> None:
         """Export current configuration to a TOML file."""

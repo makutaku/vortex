@@ -3,7 +3,7 @@
 from datetime import datetime, timedelta, timezone
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, List, Union
+from typing import Optional, List, Union, Dict, Any, Tuple
 
 import click
 from rich.console import Console
@@ -71,25 +71,42 @@ class DownloadExecutionConfig:
 @dataclass
 class JobExecutionContext:
     """Context for executing a single download job."""
-    downloader: object  # UpdatingDownloader instance
-    instrument: object  # Instrument instance
-    period: object  # Period instance
+    downloader: 'UpdatingDownloader'
+    instrument: 'Instrument'
+    period: 'Period'
     start_date: datetime
     end_date: datetime
     symbol: str
     provider: str
     job_count: int
     total_jobs: int
-    progress: object  # Progress tracking instance
+    progress: Progress
 
 
-def load_config_instruments(assets_file_path: Path) -> dict:
-    """Load instrument configurations from assets JSON file."""
+def load_config_instruments(assets_file_path: Path) -> Dict[str, Any]:
+    """Load instrument configurations from assets JSON file.
+    
+    Args:
+        assets_file_path: Path to the assets JSON file
+        
+    Returns:
+        Dictionary of instrument configurations
+        
+    Raises:
+        click.Abort: If file loading fails
+    """
     try:
         instrument_configs = InstrumentConfig.load_from_json(str(assets_file_path))
         return instrument_configs
+    except FileNotFoundError:
+        console.print(f"[red]Assets file not found: '{assets_file_path}'[/red]")
+        raise click.Abort()
+    except (ValueError, TypeError) as e:
+        console.print(f"[red]Invalid assets file format '{assets_file_path}': {e}[/red]")
+        raise click.Abort()
     except Exception as e:
-        console.print(f"[red]Error loading assets file '{assets_file_path}': {e}[/red]")
+        console.print(f"[red]Unexpected error loading assets file '{assets_file_path}': {e}[/red]")
+        logger.error(f"Failed to load assets file: {e}", file_path=str(assets_file_path))
         raise click.Abort()
 
 @click.command()
@@ -247,15 +264,28 @@ def _resolve_provider(config_manager: ConfigManager, provider: str) -> str:
 
 
 def _validate_provider(provider: str) -> None:
-    """Validate that the provider exists in the plugin registry."""
+    """Validate that the provider exists in the plugin registry.
+    
+    Args:
+        provider: Provider name to validate
+        
+    Raises:
+        click.Abort: If provider is not found or invalid
+    """
+    from vortex.exceptions.plugins import PluginNotFoundError
+    
     try:
         registry = get_provider_registry()
         registry.get_plugin(provider)  # This will raise PluginNotFoundError if not found
-    except Exception as e:
+    except PluginNotFoundError:
         available_providers = get_available_providers()
         ux.print_error(f"Provider '{provider}' not found")
         ux.print_info(f"Available providers: {', '.join(available_providers)}")
         ux.print_info("💡 Use 'vortex providers --list' to see all available providers")
+        raise click.Abort()
+    except Exception as e:
+        logger.error(f"Unexpected error validating provider '{provider}': {e}")
+        ux.print_error(f"Failed to validate provider '{provider}': {e}")
         raise click.Abort()
 
 
@@ -302,7 +332,7 @@ class SymbolResolver:
 class SymbolResolutionContext:
     """Context object for symbol resolution."""
     
-    def __init__(self, symbol: tuple, symbols_file: Optional[Path], assets: Optional[Path], provider: str):
+    def __init__(self, symbol: Tuple[str, ...], symbols_file: Optional[Path], assets: Optional[Path], provider: str):
         self.symbol = symbol
         self.symbols_file = symbols_file
         self.assets = assets
@@ -319,7 +349,7 @@ class SymbolResolutionHandler:
         self.next_handler = handler
         return handler
     
-    def handle(self, context: SymbolResolutionContext) -> tuple[List[str], dict]:
+    def handle(self, context: SymbolResolutionContext) -> Tuple[List[str], Dict[str, Any]]:
         """Handle symbol resolution or pass to next handler."""
         result = self._try_resolve(context)
         if result is not None:
@@ -419,9 +449,17 @@ def _execute_and_report_results(config: DownloadExecutionConfig) -> None:
             ux.print_warning(f"Download completed with issues: {success_count}/{len(config.symbols)} symbols successful")
             ux.print_info(f"💡 Check logs for details on failed symbols")
         
-    except Exception as e:
+    except (ConfigurationError, DataProviderError, DataStorageError) as e:
         ux.print_error(f"Download failed: {e}")
-        logger.error("Download process failed", error=str(e))
+        logger.error("Download process failed", error=str(e), error_type=type(e).__name__)
+        raise click.Abort()
+    except KeyboardInterrupt:
+        ux.print_warning("\n⚠️ Download cancelled by user")
+        logger.info("Download cancelled by user")
+        raise click.Abort()
+    except Exception as e:
+        ux.print_error(f"Unexpected error during download: {e}")
+        logger.error("Unexpected download error", error=str(e), exc_info=True)
         raise click.Abort()
 
 
@@ -700,11 +738,17 @@ def _process_single_job(context: JobExecutionContext) -> bool:
                       f"✓ {context.symbol}|{context.period.value} completed ({context.job_count}/{context.total_jobs})")
         return True
         
+    except (DataProviderError, DataStorageError) as e:
+        context.progress.update(context.job_count, context.total_jobs, 
+                      f"✗ {context.symbol}|{context.period.value} failed ({context.job_count}/{context.total_jobs})")
+        logger.warning(f"Download failed for {context.symbol}|{context.period.value}: {e}", 
+                     symbol=context.symbol, period=context.period.value, error=str(e), error_type=type(e).__name__)
+        return False
     except Exception as e:
         context.progress.update(context.job_count, context.total_jobs, 
                       f"✗ {context.symbol}|{context.period.value} failed ({context.job_count}/{context.total_jobs})")
-        logger.error(f"Failed to download {context.symbol}|{context.period.value}: {e}", 
-                   symbol=context.symbol, period=context.period.value, error=str(e))
+        logger.error(f"Unexpected error downloading {context.symbol}|{context.period.value}: {e}", 
+                   symbol=context.symbol, period=context.period.value, error=str(e), exc_info=True)
         return False
 
 def get_download_config(
@@ -749,8 +793,14 @@ def create_downloader(provider: str, download_config: dict):
         
         logger.info(f"Created data provider '{provider}' using plugin system")
         
+    except DataProviderError:
+        # Re-raise DataProviderError as-is
+        raise
+    except (ConfigurationError, ValueError, TypeError) as e:
+        logger.error(f"Configuration error creating provider '{provider}': {e}")
+        raise DataProviderError(provider, f"Configuration error: {e}")
     except Exception as e:
-        logger.error(f"Failed to create provider '{provider}' via plugin system: {e}")
+        logger.error(f"Unexpected error creating provider '{provider}': {e}", exc_info=True)
         raise DataProviderError(provider, f"Initialization failed: {e}")
     
     # Create and return the downloader
