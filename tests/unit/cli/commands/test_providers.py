@@ -213,9 +213,15 @@ class TestLegacyProviderTesting:
         assert result['success'] is False
         assert 'credentials' in result['message'].lower()
     
-    def test_check_single_provider_ibkr_success(self):
+    @patch('socket.socket')
+    def test_check_single_provider_ibkr_success(self, mock_socket_class):
         """Test successful IBKR provider check."""
         from vortex.cli.commands.providers import check_single_provider
+        
+        # Mock socket instance and connection success
+        mock_socket = Mock()
+        mock_socket.connect_ex.return_value = 0  # Success
+        mock_socket_class.return_value = mock_socket
         
         mock_config_manager = Mock()
         mock_config_manager.get_provider_config.return_value = {
@@ -226,7 +232,7 @@ class TestLegacyProviderTesting:
         result = check_single_provider(mock_config_manager, 'ibkr')
         
         assert result['success'] is True
-        assert 'localhost:7497' in result['message']
+        assert 'Successfully connected to localhost:7497' in result['message']
     
     def test_check_single_provider_ibkr_no_host(self):
         """Test IBKR provider check without host."""
@@ -239,6 +245,27 @@ class TestLegacyProviderTesting:
         
         assert result['success'] is False
         assert 'No host configured' in result['message']
+    
+    @patch('socket.socket')
+    def test_check_single_provider_ibkr_connection_failed(self, mock_socket_class):
+        """Test IBKR provider check with connection failure."""
+        from vortex.cli.commands.providers import check_single_provider
+        
+        # Mock socket instance and connection failure
+        mock_socket = Mock()
+        mock_socket.connect_ex.return_value = 1  # Connection failed
+        mock_socket_class.return_value = mock_socket
+        
+        mock_config_manager = Mock()
+        mock_config_manager.get_provider_config.return_value = {
+            'host': 'localhost',
+            'port': 7497
+        }
+        
+        result = check_single_provider(mock_config_manager, 'ibkr')
+        
+        assert result['success'] is False
+        assert 'Cannot connect to localhost:7497' in result['message']
     
     def test_check_single_provider_unknown(self):
         """Test provider check for unknown provider."""
