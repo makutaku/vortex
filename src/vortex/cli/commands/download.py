@@ -563,86 +563,99 @@ def _create_jobs_using_downloader_logic(downloader, symbol: str, config, periods
     avoiding the bug where CLI manually creates Future objects with hardcoded current year.
     """
     import pytz
-    from vortex.services.download_job import DownloadJob
     
-    jobs = []
     tz = pytz.UTC  # Use UTC timezone for consistency
     
     # Check if this is a futures contract (has cycle attribute)
     if config and hasattr(config, 'cycle') and config.cycle:
-        # Use BaseDownloader's _create_future_jobs method - the CORRECT logic
-        futures_code = config.code if hasattr(config, 'code') else symbol
-        roll_cycle = config.cycle
-        tick_date = config.tick_date if hasattr(config, 'tick_date') else None
-        days_count = config.days_count if hasattr(config, 'days_count') else 360
-        
-        # CRITICAL FIX: BaseDownloader expects timezone-aware datetime objects that match
-        # the timezone used by Future.get_date_range(). Future.get_date_range() always
-        # returns timezone-aware dates using tz.localize(), so we must pass timezone-aware
-        # dates that use the same timezone to avoid comparison errors.
-        
-        # Convert to timezone-aware using the same timezone that Future.get_date_range() uses
-        tz_aware_start = tz.localize(start_date.replace(tzinfo=None)) if start_date.tzinfo is None else start_date.astimezone(tz)
-        tz_aware_end = tz.localize(end_date.replace(tzinfo=None)) if end_date.tzinfo is None else end_date.astimezone(tz)
-        
-        # Also convert tick_date to timezone-aware if needed
-        if tick_date:
-            if tick_date.tzinfo is None:
-                tick_date = tz.localize(tick_date)
-            else:
-                tick_date = tick_date.astimezone(tz)
-        
-        jobs = downloader._create_future_jobs(
-            futures_code=futures_code,
-            instr=symbol,
-            start=tz_aware_start,
-            end=tz_aware_end,
-            periods=periods,
-            tick_date=tick_date,
-            roll_cycle=roll_cycle,
-            days_count=days_count,
-            tz=tz
-        )
+        return _create_futures_jobs(downloader, symbol, config, periods, start_date, end_date, tz)
     else:
-        # For stocks and forex, create simple jobs (single instrument, no complex contract logic)
-        if config and hasattr(config, 'asset_class'):
-            # Determine instrument type from asset_class set during JSON parsing
-            asset_class = config.asset_class.lower()
-            instrument_code = config.code if hasattr(config, 'code') else symbol
-            
-            if asset_class == 'forex':
-                from vortex.models.forex import Forex
-                instrument = Forex(id=symbol, symbol=instrument_code)
-            elif asset_class == 'stock':
-                from vortex.models.stock import Stock
-                instrument = Stock(id=symbol, symbol=instrument_code)
-            else:
-                # Fallback to stock for unknown asset classes
-                from vortex.models.stock import Stock
-                instrument = Stock(id=symbol, symbol=instrument_code)
-        else:
-            # Default to stock when no asset_class is available
-            from vortex.models.stock import Stock
-            instrument_code = config.code if config and hasattr(config, 'code') else symbol
-            instrument = Stock(id=symbol, symbol=instrument_code)
+        return _create_simple_instrument_jobs(downloader, symbol, config, periods, start_date, end_date, tz)
+
+
+def _create_futures_jobs(downloader, symbol: str, config, periods: List, start_date: datetime, end_date: datetime, tz):
+    """Create jobs for futures contracts using BaseDownloader's logic."""
+    futures_code = config.code if hasattr(config, 'code') else symbol
+    roll_cycle = config.cycle
+    tick_date = config.tick_date if hasattr(config, 'tick_date') else None
+    days_count = config.days_count if hasattr(config, 'days_count') else 360
+    
+    # Convert to timezone-aware dates to match Future.get_date_range() behavior
+    tz_aware_start = _to_timezone_aware(start_date, tz)
+    tz_aware_end = _to_timezone_aware(end_date, tz)
+    
+    # Convert tick_date to timezone-aware if needed
+    if tick_date:
+        tick_date = _to_timezone_aware(tick_date, tz)
+    
+    return downloader._create_future_jobs(
+        futures_code=futures_code,
+        instr=symbol,
+        start=tz_aware_start,
+        end=tz_aware_end,
+        periods=periods,
+        tick_date=tick_date,
+        roll_cycle=roll_cycle,
+        days_count=days_count,
+        tz=tz
+    )
+
+
+def _create_simple_instrument_jobs(downloader, symbol: str, config, periods: List, start_date: datetime, end_date: datetime, tz):
+    """Create jobs for stocks and forex instruments."""
+    from vortex.services.download_job import DownloadJob
+    
+    # Create appropriate instrument based on asset class
+    instrument = _create_instrument_from_config(symbol, config)
+    
+    # Create jobs for each period
+    jobs = []
+    for period in periods:
+        tz_aware_start_date = _to_timezone_aware(start_date, tz)
+        tz_aware_end_date = _to_timezone_aware(end_date, tz)
         
-        # Create jobs for each period
-        for period in periods:
-            # Use timezone-aware dates for consistency with Future contract handling
-            tz_aware_start_date = tz.localize(start_date.replace(tzinfo=None)) if start_date.tzinfo is None else start_date.astimezone(tz)
-            tz_aware_end_date = tz.localize(end_date.replace(tzinfo=None)) if end_date.tzinfo is None else end_date.astimezone(tz)
-            
-            job = DownloadJob(
-                data_provider=downloader.data_provider,
-                data_storage=downloader.data_storage,
-                instrument=instrument,
-                period=period,
-                start_date=tz_aware_start_date,
-                end_date=tz_aware_end_date
-            )
-            jobs.append(job)
+        job = DownloadJob(
+            data_provider=downloader.data_provider,
+            data_storage=downloader.data_storage,
+            instrument=instrument,
+            period=period,
+            start_date=tz_aware_start_date,
+            end_date=tz_aware_end_date
+        )
+        jobs.append(job)
     
     return jobs
+
+
+def _create_instrument_from_config(symbol: str, config):
+    """Create appropriate instrument based on configuration."""
+    if config and hasattr(config, 'asset_class'):
+        asset_class = config.asset_class.lower()
+        instrument_code = config.code if hasattr(config, 'code') else symbol
+        
+        if asset_class == 'forex':
+            from vortex.models.forex import Forex
+            return Forex(id=symbol, symbol=instrument_code)
+        elif asset_class == 'stock':
+            from vortex.models.stock import Stock
+            return Stock(id=symbol, symbol=instrument_code)
+        else:
+            # Fallback to stock for unknown asset classes
+            from vortex.models.stock import Stock
+            return Stock(id=symbol, symbol=instrument_code)
+    else:
+        # Default to stock when no asset_class is available
+        from vortex.models.stock import Stock
+        instrument_code = config.code if config and hasattr(config, 'code') else symbol
+        return Stock(id=symbol, symbol=instrument_code)
+
+
+def _to_timezone_aware(dt: datetime, tz):
+    """Convert datetime to timezone-aware using the specified timezone."""
+    if dt.tzinfo is None:
+        return tz.localize(dt)
+    else:
+        return dt.astimezone(tz)
 
 
 # DEPRECATED: The old manual instrument creation logic has been replaced

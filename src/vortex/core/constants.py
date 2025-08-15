@@ -119,8 +119,19 @@ class NetworkConstants:
     
     # HTTP settings
     DEFAULT_USER_AGENT = 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:86.0) Gecko/20100101 Firefox/86.0'
+    SIMPLE_USER_AGENT = 'Mozilla/5.0'
     DEFAULT_REQUEST_TIMEOUT = 30
+    SHORT_REQUEST_TIMEOUT = 10
+    LONG_REQUEST_TIMEOUT = 60
+    LOGIN_REQUEST_TIMEOUT = 30
     MAX_REDIRECTS = 5
+    
+    # HTTP Status Codes
+    HTTP_OK = 200
+    HTTP_UNAUTHORIZED = 401
+    HTTP_FORBIDDEN = 403
+    HTTP_NOT_FOUND = 404
+    HTTP_SERVER_ERROR = 500
     
     # Retry settings
     DEFAULT_MAX_RETRIES = 3

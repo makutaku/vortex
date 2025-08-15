@@ -12,15 +12,15 @@ import requests
 
 from vortex.models.period import FrequencyAttributes
 from vortex.utils.logging_utils import LoggingContext, LoggingConfiguration
-from vortex.core.constants import ProviderConstants
+from vortex.core.constants import ProviderConstants, NetworkConstants
 from .auth import BarchartAuth
 
 
 class BarchartClient:
     """HTTP client for Barchart data downloads and API requests."""
     
-    BARCHART_URL = 'https://www.barchart.com'
-    BARCHART_DOWNLOAD_URL = BARCHART_URL + '/my/download'
+    BARCHART_URL = ProviderConstants.Barchart.BASE_URL
+    BARCHART_DOWNLOAD_URL = BARCHART_URL + ProviderConstants.Barchart.DOWNLOAD_ENDPOINT
     BARCHART_USAGE_URL = BARCHART_DOWNLOAD_URL
     
     def __init__(self, auth: BarchartAuth):
@@ -34,7 +34,7 @@ class BarchartClient:
         headers = self._build_download_request_headers(xsrf_token, url)
         payload = self._build_download_request_payload(history_csrf_token, symbol, frequency_attributes,
                                                       start_date, end_date)
-        resp = self.session.post(self.BARCHART_DOWNLOAD_URL, headers=headers, data=payload, timeout=60)
+        resp = self.session.post(self.BARCHART_DOWNLOAD_URL, headers=headers, data=payload, timeout=NetworkConstants.LONG_REQUEST_TIMEOUT)
         logging.debug(f"POST {self.BARCHART_DOWNLOAD_URL}, "
                      f"status: {resp.status_code}, "
                      f"data length: {len(resp.content)}")
@@ -47,7 +47,7 @@ class BarchartClient:
         with LoggingContext(config):
             headers = self._build_usage_request_headers(url, xsrf_token)
             payload = self._build_usage_payload()
-            resp = self.session.post(self.BARCHART_USAGE_URL, headers=headers, data=payload, timeout=30)
+            resp = self.session.post(self.BARCHART_USAGE_URL, headers=headers, data=payload, timeout=NetworkConstants.DEFAULT_REQUEST_TIMEOUT)
             xsrf_token = self.auth.get_xsrf_token()
             usage_data = json.loads(resp.text)
             logging.debug(f"usage data: {usage_data}")

@@ -8,12 +8,13 @@ import requests
 from bs4 import BeautifulSoup
 
 from vortex.utils.logging_utils import LoggingContext, LoggingConfiguration
+from vortex.core.constants import NetworkConstants, ProviderConstants
 
 
 class BarchartAuth:
     """Handles Barchart authentication and session management."""
     
-    BARCHART_URL = 'https://www.barchart.com'
+    BARCHART_URL = ProviderConstants.Barchart.BASE_URL
     BARCHART_LOGIN_URL = BARCHART_URL + '/login'
     BARCHART_LOGOUT_URL = BARCHART_URL + '/logout'
     
@@ -30,7 +31,7 @@ class BarchartAuth:
         session = requests.Session()
         # Use the same User-Agent as the working bc-utils project
         session.headers.update({
-            'User-Agent': 'Mozilla/5.0'
+            'User-Agent': NetworkConstants.SIMPLE_USER_AGENT
         })
         return session
     
@@ -39,7 +40,7 @@ class BarchartAuth:
         config = LoggingConfiguration(entry_msg="Logging in ...", success_msg="Logged in.")
         with LoggingContext(config):
             # First, get the login page to establish session (with timeout to prevent hanging)
-            resp = self.session.get(self.BARCHART_LOGIN_URL, timeout=30)
+            resp = self.session.get(self.BARCHART_LOGIN_URL, timeout=NetworkConstants.LOGIN_REQUEST_TIMEOUT)
             
             # Extract CSRF token from the page using bc-utils approach
             soup = BeautifulSoup(resp.text, 'html.parser')
@@ -67,7 +68,7 @@ class BarchartAuth:
             }
             
             # Post login credentials (with timeout to prevent hanging)
-            resp = self.session.post(self.BARCHART_LOGIN_URL, data=payload, allow_redirects=True, timeout=30)
+            resp = self.session.post(self.BARCHART_LOGIN_URL, data=payload, allow_redirects=True, timeout=NetworkConstants.LOGIN_REQUEST_TIMEOUT)
             
             # Check if login was successful (bc-utils approach)
             if 'login' in resp.url.lower():
@@ -75,7 +76,7 @@ class BarchartAuth:
                 raise AuthenticationError('barchart', 'Invalid Barchart credentials or login failed')
             
             # Verify status code is OK
-            if resp.status_code != 200:
+            if resp.status_code != NetworkConstants.HTTP_OK:
                 from vortex.exceptions.providers import AuthenticationError
                 raise AuthenticationError('barchart', f'Login failed with status code: {resp.status_code}')
                 
@@ -90,12 +91,12 @@ class BarchartAuth:
         """Logout from Barchart session."""
         config = LoggingConfiguration(entry_msg="Logging out ...", success_msg="Logged out.")
         with LoggingContext(config):
-            self.session.get(self.BARCHART_LOGOUT_URL, timeout=10)
+            self.session.get(self.BARCHART_LOGOUT_URL, timeout=NetworkConstants.SHORT_REQUEST_TIMEOUT)
     
     def get_api_headers(self) -> dict:
         """Get headers required for API requests (bc-utils methodology)."""
         headers = {
-            'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:86.0) Gecko/20100101 Firefox/86.0',
+            'User-Agent': NetworkConstants.DEFAULT_USER_AGENT,
             'Accept': 'application/json',
             'Content-Type': 'application/json',
             'X-Requested-With': 'XMLHttpRequest'
@@ -120,7 +121,7 @@ class BarchartAuth:
         logger.info("No XSRF token in cookies, attempting to obtain one")
         
         # Visit main page to get XSRF token
-        resp = self.session.get(self.BARCHART_URL, timeout=30)
+        resp = self.session.get(self.BARCHART_URL, timeout=NetworkConstants.LOGIN_REQUEST_TIMEOUT)
         
         if 'XSRF-TOKEN' in self.session.cookies:
             return unquote(self.session.cookies['XSRF-TOKEN'])
@@ -137,9 +138,9 @@ class BarchartAuth:
         
         try:
             if params:
-                response = self.session.get(url, headers=headers, params=params, timeout=30)
+                response = self.session.get(url, headers=headers, params=params, timeout=NetworkConstants.DEFAULT_REQUEST_TIMEOUT)
             else:
-                response = self.session.get(url, headers=headers, timeout=30)
+                response = self.session.get(url, headers=headers, timeout=NetworkConstants.DEFAULT_REQUEST_TIMEOUT)
             
             response.raise_for_status()
             

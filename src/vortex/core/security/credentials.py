@@ -157,12 +157,12 @@ class CredentialManager:
 # .env.local is excluded from git for security
 
 # Barchart.com credentials
-VORTEX_BARCHART_USERNAME=your_barchart_username
-VORTEX_BARCHART_PASSWORD=your_barchart_password
+VORTEX_BARCHART_USERNAME=<YOUR_BARCHART_USERNAME_HERE>
+VORTEX_BARCHART_PASSWORD=<YOUR_BARCHART_PASSWORD_HERE>
 
 # Other provider credentials can be added here
-# VORTEX_IBKR_HOST=localhost
-# VORTEX_IBKR_PORT=7497
+# VORTEX_IBKR_HOST=<YOUR_IBKR_HOST_HERE>
+# VORTEX_IBKR_PORT=<YOUR_IBKR_PORT_HERE>
 """
         
         env_example_path = Path.cwd() / '.env.example'
@@ -176,13 +176,13 @@ VORTEX_BARCHART_PASSWORD=your_barchart_password
         credentials_example = {
             "providers": {
                 "barchart": {
-                    "username": "your_barchart_username",
-                    "password": "your_barchart_password"
+                    "username": "<YOUR_BARCHART_USERNAME_HERE>",
+                    "password": "<YOUR_BARCHART_PASSWORD_HERE>"
                 },
                 "ibkr": {
-                    "host": "localhost",
-                    "port": 7497,
-                    "client_id": 1
+                    "host": "<YOUR_IBKR_HOST_HERE>",
+                    "port": "<YOUR_IBKR_PORT_HERE>",
+                    "client_id": "<YOUR_CLIENT_ID_HERE>"
                 }
             }
         }

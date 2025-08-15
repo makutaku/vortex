@@ -2,11 +2,11 @@
 Main Barchart data provider implementation.
 
 Orchestrates authentication, data fetching, and parsing for Barchart.com financial data.
+Refactored to use composition and single responsibility principle.
 """
 
 import logging
 from datetime import timedelta
-from functools import singledispatchmethod
 from typing import Optional
 
 import pandas as pd
@@ -28,6 +28,8 @@ from vortex.core.constants import ProviderConstants
 from .auth import BarchartAuth
 from .client import BarchartClient  
 from .parser import BarchartParser
+from .usage_checker import BarchartUsageChecker
+from .url_generator import BarchartURLGenerator
 
 
 class BarchartDataProvider(DataProvider):
@@ -67,6 +69,10 @@ class BarchartDataProvider(DataProvider):
         self.client = BarchartClient(self.auth)
         self.parser = parser or BarchartParser()
         self._http_client = http_client or BarchartHTTPClient(self.auth.session)
+        
+        # Initialize specialized components using composition
+        self.usage_checker = BarchartUsageChecker(self.auth, self.client, config.daily_limit)
+        self.url_generator = BarchartURLGenerator()
         
         self.logger.info(
             f"Initialized {self.PROVIDER_NAME} provider",
@@ -150,8 +156,8 @@ class BarchartDataProvider(DataProvider):
         return ['username', 'password']
 
     def _fetch_usage(self, url: str, xsrf_token: str) -> tuple[dict, str]:
-        """Check download usage count (delegated to client)."""
-        return self.client.fetch_usage(url, xsrf_token)
+        """Check download usage count (delegated to usage checker)."""
+        return self.usage_checker.fetch_usage_data(url, xsrf_token)
 
     def get_daily_limit(self) -> int:
         """Get the configured daily download limit for informational purposes."""
@@ -167,76 +173,8 @@ class BarchartDataProvider(DataProvider):
             )
 
     def _check_server_usage(self) -> Optional[int]:
-        """Check current download usage count using exact bc-utils methodology."""
-        import logging
-        import json
-        logger = logging.getLogger(__name__)
-        
-        try:
-            # Use exact bc-utils approach: GET home page for CSRF token, then POST with onlyCheckPermissions
-            home_response = self.auth.session.get(self.config.base_url, timeout=self.config.request_timeout)
-            
-            if home_response.status_code != 200:
-                logger.debug(f"Cannot access home page for usage check: {home_response.status_code}")
-                return None
-            
-            # Extract CSRF token using shared method
-            csrf_token = self._extract_csrf_token(home_response)
-            if not csrf_token:
-                logger.debug("No CSRF token found for usage check")
-                return None
-            
-            # Prepare bc-utils usage check payload
-            payload = {
-                'onlyCheckPermissions': 'true'  # This is the bc-utils secret!
-            }
-            
-            # Prepare headers (same as working download)
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:86.0) Gecko/20100101 Firefox/86.0',
-                'Accept': 'application/json, text/javascript, */*; q=0.01',
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'Origin': self.config.base_url,
-                'Referer': self.config.base_url,
-                'X-CSRF-TOKEN': csrf_token
-            }
-            
-            # Use bc-utils /my/download endpoint with onlyCheckPermissions
-            download_url = f"{self.config.base_url}{self.config.download_endpoint}"
-            logger.debug(f"bc-utils usage check payload: {payload}")
-            response = self.auth.session.post(download_url, data=payload, headers=headers, timeout=self.config.request_timeout)
-            
-            logger.debug(f"Usage check response status: {response.status_code}")
-            logger.debug(f"Usage check response: {response.text[:200]}...")
-            
-            if response.status_code == 200:
-                usage_data = json.loads(response.text)
-                logger.debug(f"Parsed usage data: {usage_data}")
-                
-                # Check for error (bc-utils approach)
-                if usage_data.get("error") is not None:
-                    logger.debug(f"Usage check error: {usage_data.get('error')}")
-                    return None
-                
-                # Check for success and count (bc-utils approach)
-                if usage_data.get("success"):
-                    current_count = int(usage_data.get('count', '0'))
-                    logger.debug(f"bc-utils usage success: {usage_data['success']}, count: {current_count}")
-                    return current_count
-                else:
-                    logger.debug(f"Usage check unsuccessful: {usage_data}")
-                    return None
-            else:
-                logger.debug(f"Usage check failed with status: {response.status_code}")
-                return None
-                
-        except Exception as e:
-            # Use standardized error handling - return None for optional operations
-            return self._handle_provider_error(
-                e,
-                "check_server_usage",
-                strategy=ErrorHandlingStrategy.RETURN_NONE
-            )
+        """Check current download usage count (delegated to usage checker)."""
+        return self.usage_checker.check_server_usage()
 
     def _get_frequency_attributes(self) -> list[FrequencyAttributes]:
         """Get supported frequency attributes for this provider."""
@@ -281,29 +219,29 @@ class BarchartDataProvider(DataProvider):
                               {'max_bars': self.config.max_bars_per_download, 'frequency_name': 'minute'}),
         ]
 
-    @singledispatchmethod
-    def _fetch_historical_data(self, instrument: Future, frequency_attributes: FrequencyAttributes,
+    def _fetch_historical_data(self, instrument, frequency_attributes: FrequencyAttributes,
                               start_date, end_date) -> Optional[DataFrame]:
-        """Fetch historical data for futures."""
-        url = self.get_historical_quote_url(instrument)
-        return self._fetch_historical_data_(instrument.get_symbol(), frequency_attributes,
-                                           start_date, end_date, url, FUTURES_SOURCE_TIME_ZONE)
-
-    @_fetch_historical_data.register
-    def _(self, instrument: Stock, frequency_attributes: FrequencyAttributes,
-          start_date, end_date) -> Optional[DataFrame]:
-        """Fetch historical data for stocks."""
-        url = self.get_historical_quote_url(instrument)
-        return self._fetch_historical_data_(instrument.get_symbol(), frequency_attributes,
-                                           start_date, end_date, url, STOCK_SOURCE_TIME_ZONE)
-
-    @_fetch_historical_data.register
-    def _(self, instrument: Forex, frequency_attributes: FrequencyAttributes,
-          start_date, end_date) -> Optional[DataFrame]:
-        """Fetch historical data for forex."""
-        url = self.get_historical_quote_url(instrument)
-        return self._fetch_historical_data_(instrument.get_symbol(), frequency_attributes,
-                                           start_date, end_date, url, FUTURES_SOURCE_TIME_ZONE)
+        """Fetch historical data using instrument-specific logic."""
+        if isinstance(instrument, Future):
+            symbol = instrument.get_symbol() if hasattr(instrument, 'get_symbol') else str(instrument)
+            url = self.get_historical_quote_url(instrument)
+            return self._fetch_historical_data_(symbol, frequency_attributes,
+                                               start_date, end_date, url, FUTURES_SOURCE_TIME_ZONE)
+        elif isinstance(instrument, Stock):
+            symbol = instrument.get_symbol() if hasattr(instrument, 'get_symbol') else str(instrument)
+            url = self.get_historical_quote_url(instrument)
+            return self._fetch_historical_data_(symbol, frequency_attributes,
+                                               start_date, end_date, url, STOCK_SOURCE_TIME_ZONE)
+        elif isinstance(instrument, Forex):
+            symbol = instrument.get_symbol() if hasattr(instrument, 'get_symbol') else str(instrument)
+            url = self.get_historical_quote_url(instrument)
+            return self._fetch_historical_data_(symbol, frequency_attributes,
+                                               start_date, end_date, url, FUTURES_SOURCE_TIME_ZONE)
+        else:
+            # Create a generic instrument to get the URL
+            url = f"{ProviderConstants.Barchart.BASE_URL}/quotes/{str(instrument)}/historical-quotes"
+            return self._fetch_historical_data_(str(instrument), frequency_attributes,
+                                               start_date, end_date, url, STOCK_SOURCE_TIME_ZONE)
 
     def _fetch_historical_data_(self, instrument: str, frequency_attributes: FrequencyAttributes,
                                start_date, end_date, url: str, tz: str) -> Optional[DataFrame]:
@@ -563,20 +501,6 @@ class BarchartDataProvider(DataProvider):
             )
 
 
-    @singledispatchmethod
-    def get_historical_quote_url(self, future: Future) -> str:
-        """Get historical quote URL for futures."""
-        symbol = future.get_symbol()
-        return f"{self.config.base_url}/futures/quotes/{symbol}/historical-download"
-
-    @get_historical_quote_url.register
-    def _(self, stock: Stock) -> str:
-        """Get historical quote URL for stocks."""
-        symbol = stock.get_symbol()
-        return f"{self.config.base_url}/stocks/quotes/{symbol}/historical-download"
-
-    @get_historical_quote_url.register
-    def _(self, forex: Forex) -> str:
-        """Get historical quote URL for forex."""
-        symbol = forex.get_symbol()
-        return f"{self.config.base_url}/forex/quotes/{symbol}/historical-download"
+    def get_historical_quote_url(self, instrument) -> str:
+        """Get historical quote URL (delegated to URL generator)."""
+        return self.url_generator.get_historical_quote_url(instrument)
