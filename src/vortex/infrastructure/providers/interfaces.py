@@ -5,10 +5,13 @@ This module defines protocols and interfaces for provider dependencies
 to enable proper dependency injection and loose coupling.
 """
 
+import logging
 from abc import ABC, abstractmethod
 from typing import Protocol, Optional, Dict, Any
 from datetime import datetime
 from pandas import DataFrame
+
+logger = logging.getLogger(__name__)
 
 
 class CacheManagerProtocol(Protocol):
@@ -94,7 +97,8 @@ class IBKRConnectionManager:
             time.sleep(timeout)  # Allow connection to stabilize
             self._connected = True
             return True
-        except Exception:
+        except Exception as e:
+            logger.warning(f"IBKR connection failed: {e}")
             self._connected = False
             return False
     

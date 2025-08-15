@@ -132,8 +132,9 @@ def show_providers_list(config_manager: ConfigManager) -> None:
                             auth_info = "TWS/Gateway"
                         else:
                             auth_info = "Authentication required"
-                except Exception:
-                    pass  # Use default auth_info
+                except (KeyError, AttributeError, TypeError) as e:
+                    logger.debug(f"Could not determine auth info for {provider_name}: {e}")
+                    # Use default auth_info
                 
                 # Format rate limits
                 rate_limits = plugin_info.get("rate_limits", "Not specified")
@@ -335,12 +336,24 @@ def check_single_provider(config_manager: ConfigManager, provider: str) -> dict:
         host = provider_config.get("host", "localhost")
         port = provider_config.get("port", 7497)
         
-        # TODO: Implement actual IBKR connectivity test
-        # For now, just check if configuration exists
+        # Test IBKR connectivity 
         if not host:
             return {"success": False, "message": "No host configured"}
         
-        return {"success": True, "message": f"Configuration ready for {host}:{port}"}
+        try:
+            import socket
+            # Test basic socket connectivity to IBKR host/port
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(5)  # 5 second timeout
+            result = sock.connect_ex((host, port))
+            sock.close()
+            
+            if result == 0:
+                return {"success": True, "message": f"Successfully connected to {host}:{port}"}
+            else:
+                return {"success": False, "message": f"Cannot connect to {host}:{port} - ensure TWS/Gateway is running"}
+        except Exception as e:
+            return {"success": False, "message": f"Connection test failed: {e}"}
     
     return {"success": False, "message": "Unknown provider"}
 

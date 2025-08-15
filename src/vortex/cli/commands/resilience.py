@@ -120,7 +120,8 @@ def _show_table(ux, stats: Dict[str, Dict[str, Any]]):
             try:
                 dt = datetime.fromisoformat(last_failure.replace('Z', '+00:00'))
                 last_failure = dt.strftime('%H:%M:%S')
-            except:
+            except (ValueError, TypeError) as e:
+                # Handle malformed datetime strings gracefully
                 last_failure = last_failure[:19] if len(last_failure) > 19 else last_failure
         else:
             last_failure = "Never"

@@ -2,7 +2,7 @@
 
 from abc import ABC, abstractmethod
 from typing import Dict, List, Tuple
-from .columns import DATETIME_INDEX_NAME, REQUIRED_DATA_COLUMNS
+from .column_constants import DATETIME_INDEX_NAME, REQUIRED_DATA_COLUMNS
 
 
 class ProviderColumnMapping(ABC):

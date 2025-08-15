@@ -112,7 +112,8 @@ class YahooDataProvider(DataProvider):
             except (OSError, IOError):
                 return False
                 
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Yahoo provider validation failed: {e}")
             return False
 
     def get_required_config_fields(self) -> list[str]:

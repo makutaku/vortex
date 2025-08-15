@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional, TYPE_CHECKING
 
-from .base import VortexError
+from .base import VortexError, ExceptionContext
 from .templates import ErrorMessageTemplates, RecoverySuggestions, ErrorCodes
 
 if TYPE_CHECKING:
@@ -20,7 +20,6 @@ class DataProviderError(VortexError):
     """Base class for data provider-related errors."""
     
     def __init__(self, provider: str, message: str, help_text: Optional[str] = None, error_code: Optional[str] = None):
-        from .base import ExceptionContext
         self.provider = provider
         full_message = ErrorMessageTemplates.PROVIDER_ERROR.format(provider=provider, message=message)
         context = ExceptionContext(

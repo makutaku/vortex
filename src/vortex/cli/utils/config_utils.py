@@ -5,6 +5,7 @@ This module extracts shared configuration logic to prevent circular dependencies
 between CLI command modules.
 """
 
+import logging
 from pathlib import Path
 from typing import Dict, Any, Optional, Tuple
 from datetime import datetime, timedelta
@@ -12,6 +13,8 @@ from datetime import datetime, timedelta
 from vortex.core.config import ConfigManager
 from vortex.exceptions import ConfigurationError
 from vortex.core.constants import ProviderConstants
+
+logger = logging.getLogger(__name__)
 
 
 def get_or_create_config_manager(config_file: Optional[Path] = None) -> ConfigManager:
@@ -73,7 +76,8 @@ def get_provider_config_with_defaults(
     """
     try:
         config = config_manager.get_provider_config(provider)
-    except Exception:
+    except Exception as e:
+        logger.debug(f"Could not get config for provider '{provider}': {e}")
         # Return defaults if config not found
         config = {}
     

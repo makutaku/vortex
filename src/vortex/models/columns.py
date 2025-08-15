@@ -1,21 +1,13 @@
 # Internal Vortex standard index and column names
 
-# Index name (for DataFrames in memory - this is the pandas index name)
-DATETIME_INDEX_NAME = 'Datetime'
+# Import shared constants to avoid circular imports
+from .column_constants import (
+    DATETIME_INDEX_NAME, OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, 
+    CLOSE_COLUMN, VOLUME_COLUMN, STANDARD_OHLCV_COLUMNS, REQUIRED_DATA_COLUMNS
+)
 
 # Column name (for CSV files and raw data - this is a regular DataFrame column)  
 DATETIME_COLUMN_NAME = 'Datetime'
-
-# Standard OHLCV column names (these are actual DataFrame columns)
-OPEN_COLUMN = "Open"
-HIGH_COLUMN = "High"
-LOW_COLUMN = "Low"
-CLOSE_COLUMN = "Close"
-VOLUME_COLUMN = "Volume"
-
-# Standard OHLCV column sets for validation (NO index name included)
-STANDARD_OHLCV_COLUMNS = [OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, CLOSE_COLUMN, VOLUME_COLUMN]
-REQUIRED_DATA_COLUMNS = STANDARD_OHLCV_COLUMNS  # Only actual data columns, not index
 
 # CSV file column sets (includes datetime column since it's stored as a column in CSV)
 CSV_REQUIRED_COLUMNS = [DATETIME_COLUMN_NAME] + REQUIRED_DATA_COLUMNS

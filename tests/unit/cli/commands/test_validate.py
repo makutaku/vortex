@@ -11,12 +11,15 @@ import pandas as pd
 
 from vortex.cli.commands.validate import (
     validate, get_files_to_validate, run_validation, 
-    validate_single_file, validate_csv_file, validate_parquet_file,
-    attempt_fixes, display_results,
-    display_table_results, display_json_results, display_csv_results,
-    show_validation_summary, show_detailed_issues, format_file_size,
-    ProviderFormatValidator
+    validate_single_file, validate_csv_file, validate_parquet_file
 )
+from vortex.cli.commands.validation_fixes import attempt_fixes
+from vortex.cli.commands.validation_display import (
+    display_results, display_table_results, display_json_results, 
+    display_csv_results, show_validation_summary, show_detailed_issues, 
+    format_file_size
+)
+from vortex.cli.commands.validation_formats import ProviderFormatValidator
 from vortex.models.columns import (
     DATETIME_COLUMN_NAME, OPEN_COLUMN, HIGH_COLUMN, LOW_COLUMN, 
     CLOSE_COLUMN, VOLUME_COLUMN
@@ -52,7 +55,7 @@ class TestValidateCommand:
             mock_console.print.assert_any_call("[yellow]No data files found to validate[/yellow]")
     
     @patch('vortex.cli.commands.validate.run_validation')
-    @patch('vortex.cli.commands.validate.display_results')
+    @patch('vortex.cli.commands.validation_display.display_results')
     @patch('vortex.cli.commands.validate.show_validation_summary')
     @patch('vortex.cli.commands.validate.get_files_to_validate')
     @patch('vortex.cli.commands.validate.console')
@@ -74,7 +77,7 @@ class TestValidateCommand:
             mock_summary.assert_called_once_with(mock_results)
     
     @patch('vortex.cli.commands.validate.run_validation')
-    @patch('vortex.cli.commands.validate.display_results')
+    @patch('vortex.cli.commands.validation_display.display_results')
     @patch('vortex.cli.commands.validate.show_validation_summary')
     @patch('vortex.cli.commands.validate.get_files_to_validate')
     @patch('vortex.cli.commands.validate.console')
@@ -698,21 +701,21 @@ class TestAttemptFixes:
 class TestDisplayResults:
     """Test display result functions."""
     
-    @patch('vortex.cli.commands.validate.display_table_results')
+    @patch('vortex.cli.commands.validation_display.display_table_results')
     def test_display_results_table(self, mock_display_table):
         """Test display results in table format."""
         results = [{"file": Path("test.csv"), "valid": True}]
         display_results(results, True, "table")
         mock_display_table.assert_called_once_with(results, True)
     
-    @patch('vortex.cli.commands.validate.display_json_results')
+    @patch('vortex.cli.commands.validation_display.display_json_results')
     def test_display_results_json(self, mock_display_json):
         """Test display results in JSON format."""
         results = [{"file": Path("test.csv"), "valid": True}]
         display_results(results, False, "json")
         mock_display_json.assert_called_once_with(results)
     
-    @patch('vortex.cli.commands.validate.display_csv_results')
+    @patch('vortex.cli.commands.validation_display.display_csv_results')
     def test_display_results_csv(self, mock_display_csv):
         """Test display results in CSV format."""
         results = [{"file": Path("test.csv"), "valid": True}]

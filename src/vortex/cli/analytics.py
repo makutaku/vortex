@@ -16,6 +16,7 @@ from typing import Dict, Any, Optional
 from uuid import uuid4
 
 from vortex.core.logging_integration import get_module_logger
+from vortex.cli.ux import get_ux
 
 logger = get_module_logger()
 
@@ -273,8 +274,6 @@ def analytics_cmd():
 @analytics_cmd.command()
 def status():
     """Show analytics status."""
-    from vortex.cli.ux import get_ux
-    
     ux = get_ux()
     status = analytics.get_status()
     
@@ -301,8 +300,6 @@ def status():
 @analytics_cmd.command()
 def enable():
     """Enable analytics."""
-    from vortex.cli.ux import get_ux
-    
     ux = get_ux()
     analytics.enable()
     ux.print_success("✓ Analytics enabled")
@@ -312,8 +309,6 @@ def enable():
 @analytics_cmd.command() 
 def disable():
     """Disable analytics."""
-    from vortex.cli.ux import get_ux
-    
     ux = get_ux()
     analytics.disable()
     ux.print_success("✓ Analytics disabled")

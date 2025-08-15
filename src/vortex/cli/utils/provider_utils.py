@@ -142,7 +142,8 @@ def get_provider_display_name(provider: str) -> str:
         registry = get_provider_registry()
         plugin_info = registry.get_plugin_info(provider)
         return plugin_info["display_name"]
-    except Exception:
+    except Exception as e:
+        logger.debug(f"Could not get display name for provider '{provider}': {e}")
         return provider.title()
 
 

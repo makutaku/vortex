@@ -14,6 +14,7 @@ import click
 
 from vortex.core.config import ConfigManager
 from vortex.core.logging_integration import get_module_logger
+from vortex.cli.ux import get_ux
 from vortex.constants import (
     ALL_COMMON_SYMBOLS, MAX_COMPLETION_SUGGESTIONS, MAX_RECENT_SYMBOLS,
     DEFAULT_COMPLETION_LIMIT, SUPPORTED_CONFIG_EXTENSIONS, DAYS_IN_MONTH_APPROX
@@ -326,8 +327,6 @@ complete -c vortex -f -a "(env _VORTEX_COMPLETE=complete_fish COMP_WORDS=(comman
 )
 def install_completion(shell: Optional[str], show_script: bool):
     """Install shell completion for Vortex commands."""
-    from vortex.cli.ux import get_ux
-    
     ux = get_ux()
     
     if not shell:
