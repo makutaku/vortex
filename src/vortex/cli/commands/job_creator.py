@@ -58,16 +58,18 @@ def _create_futures_jobs(downloader, symbol: str, config, periods: List,
     
     # Create Future instrument
     future = Future(
-        symbol=symbol,
-        exchange=getattr(config, 'exchange', 'CME'),  # Default exchange
-        cycle=getattr(config, 'cycle', None),
-        tick_date=getattr(config, 'tick_date', None)
+        id=symbol,
+        futures_code=getattr(config, 'code', symbol),
+        year=getattr(config, 'year', datetime.now().year),
+        month_code=getattr(config, 'month_code', 'M'),  # Default to June
+        tick_date=getattr(config, 'tick_date', datetime.now()),
+        days_count=getattr(config, 'days_count', 365)
     )
     
     for period in periods:
         try:
-            # Use downloader's job creation logic
-            instrument_jobs = downloader.create_jobs(future, period, start_date, end_date)
+            # Use downloader's job creation logic for dated instruments (futures)
+            instrument_jobs = downloader.create_jobs_for_dated_instrument(future, [period], start_date, end_date, tz)
             jobs.extend(instrument_jobs)
             logging.debug(f"Created {len(instrument_jobs)} futures jobs for {symbol} {period}")
         except Exception as e:
@@ -87,8 +89,10 @@ def _create_simple_instrument_jobs(downloader, symbol: str, config, periods: Lis
     
     for period in periods:
         try:
-            # Use downloader's job creation logic
-            instrument_jobs = downloader.create_jobs(instrument, period, start_date, end_date)
+            # Use downloader's job creation logic for undated instruments
+            instrument_jobs = downloader.create_jobs_for_undated_instrument(
+                instrument, start_date, end_date, [period], None
+            )
             jobs.extend(instrument_jobs)
             logging.debug(f"Created {len(instrument_jobs)} jobs for {symbol} {period}")
         except Exception as e:
@@ -105,29 +109,29 @@ def _create_instrument_from_config(symbol: str, config):
         
         if asset_class in ['stock', 'stocks', 'equity']:
             return Stock(
-                symbol=symbol,
-                exchange=getattr(config, 'exchange', 'NASDAQ'),
-                tick_date=getattr(config, 'tick_date', None)
+                id=symbol,
+                symbol=symbol
             )
         elif asset_class in ['forex', 'fx', 'currency']:
             return Forex(
-                symbol=symbol,
-                exchange=getattr(config, 'exchange', 'FX'),
-                tick_date=getattr(config, 'tick_date', None)
+                id=symbol,
+                symbol=symbol
             )
         elif asset_class in ['future', 'futures']:
+            # Future needs specific parameters - use simplified approach
             return Future(
-                symbol=symbol,
-                exchange=getattr(config, 'exchange', 'CME'),
-                cycle=getattr(config, 'cycle', None),
-                tick_date=getattr(config, 'tick_date', None)
+                id=symbol,
+                futures_code=getattr(config, 'code', symbol),
+                year=getattr(config, 'year', datetime.now().year),
+                month_code=getattr(config, 'month_code', 'M'),  # Default to June
+                tick_date=getattr(config, 'tick_date', datetime.now()),
+                days_count=getattr(config, 'days_count', 365)
             )
     
     # Default to Stock if no asset class specified
     return Stock(
-        symbol=symbol,
-        exchange='NASDAQ',
-        tick_date=None
+        id=symbol,
+        symbol=symbol
     )
 
 
