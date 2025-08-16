@@ -1,21 +1,26 @@
 # Data Processing Implementation Details
 
-**Version:** 1.0  
-**Date:** 2025-01-08  
+**Version:** 2.0  
+**Date:** 2025-08-16  
 **Related:** [Data Flow Design](../hld/03-data-flow-design.md)
 
 ## 1. Data Fetching Implementation
 
-### 1.1 Data Fetching Algorithm
+### 1.1 Provider-Based Data Fetching Algorithm
+
+Vortex implements a sophisticated data fetching system using dependency injection and protocol-based abstractions for multiple financial data providers.
 
 **Core Fetching Workflow:**
 ```
-1. CHECK rate limits → IF limited, wait
-2. BUILD request parameters from job
-3. EXECUTE request with provider
-4. VALIDATE response format
-5. RECORD request for rate limiting
-6. RETURN structured response
+1. INITIALIZE provider with dependency injection
+2. SET correlation context for request tracking
+3. VALIDATE instrument and date range parameters
+4. APPLY circuit breaker protection
+5. EXECUTE provider-specific fetch with retry logic
+6. VALIDATE fetched data schema and business rules
+7. CONVERT to standard OHLCV format
+8. RECORD metrics and correlation data
+9. RETURN validated DataFrame
 ```
 
 **Error Recovery Strategy:**
@@ -26,7 +31,7 @@
 | Connection | Exponential backoff | Max 3 retries |
 | Unknown | Log and fail | No retry |
 
-**Source Reference:** `src/vortex/data_processing/fetcher.py`
+**Source Reference:** `src/vortex/infrastructure/providers/base.py`
 
 ### 1.2 Rate Limiting Algorithm
 
@@ -56,7 +61,7 @@ FOR each request:
 - Automatic cleanup of expired requests
 - Supports configurable limits per time window
 
-**Source Reference:** `src/vortex/data_processing/rate_limiter.py`
+**Source Reference:** `src/vortex/infrastructure/resilience/retry.py`
 
 ## 2. Data Validation Implementation
 
@@ -96,7 +101,7 @@ score *= data_completeness_factor
 final_score = clamp(score, 0.0, 1.0)
 ```
 
-**Source Reference:** `src/vortex/data_processing/validator.py`
+**Source Reference:** `src/vortex/models/column_constants.py`
 
 ## 3. Data Transformation Implementation
 
