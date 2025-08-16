@@ -161,10 +161,18 @@ def _create_simple_instrument_jobs(downloader, symbol: str, config, periods: Lis
                 instrument, tz_start_date, tz_end_date, [period], None
             )
             jobs.extend(instrument_jobs)
-            logging.debug(f"Created {len(instrument_jobs)} jobs for {symbol} {period}")
+            # Show instrument type to help debug classification issues
+            instrument_type = instrument.__class__.__name__.lower()
+            logging.debug(f"Created {len(instrument_jobs)} {instrument_type} jobs for {symbol} {period}")
         except Exception as e:
             logging.warning(f"Failed to create jobs for {symbol} {period}: {e}")
             continue
+    
+    # Add summary logging for non-futures instruments like futures have
+    if jobs and hasattr(jobs[0], 'instrument'):
+        instrument_type = jobs[0].instrument.__class__.__name__.lower()
+        total_periods = len(set(job.period for job in jobs))
+        logging.info(f"Created {len(jobs)} total {instrument_type} jobs for {symbol} across {total_periods} periods")
     
     return jobs
 

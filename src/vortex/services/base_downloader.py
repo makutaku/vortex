@@ -240,6 +240,7 @@ class BaseDownloader(ABC):
                 job = DownloadJob(self.data_provider, self.data_storage,
                                   instrument, period, step_start_date, step_end_date,
                                   backup_data_storage=self.backup_data_storage)
+                logging.debug(f"Created: {job}")
                 jobs.append(job)
 
         return jobs
