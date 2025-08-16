@@ -100,11 +100,51 @@ The code above would:
 - CSV and Parquet storage formats
 - Configurable date ranges and chunking
 
+**Production Monitoring:**
+- Prometheus metrics collection for observability
+- Grafana dashboards for visual monitoring
+- Circuit breaker monitoring and alerting
+- Provider performance and success rate tracking
+- Docker monitoring stack with Node Exporter
+
 **Configuration Options:**
 - Interactive credential setup
 - TOML configuration files
 - Environment variable support
 - Multiple configuration precedence
+
+## 📊 Production Monitoring
+
+Vortex includes comprehensive monitoring capabilities for production deployments:
+
+### Quick Setup
+```bash
+# Start monitoring stack
+docker compose -f docker/docker-compose.monitoring.yml up -d
+
+# Enable metrics in Vortex
+export VORTEX_METRICS_ENABLED=true
+# or set in config.toml: [general.metrics] enabled = true
+
+# Access dashboards
+open http://localhost:3000  # Grafana (admin/admin)
+open http://localhost:9090  # Prometheus
+```
+
+### Available Metrics
+- **Provider Performance**: Request duration, success rates, error tracking
+- **Download Metrics**: Row counts, download volumes, completion rates  
+- **Circuit Breaker Status**: State monitoring and failure tracking
+- **System Health**: Active operations, memory/CPU usage, storage performance
+- **Business Logic**: Authentication failures, quota exceeded alerts
+
+### CLI Monitoring Commands
+```bash
+vortex metrics status          # Check metrics system status
+vortex metrics endpoint        # Show metrics URL
+vortex metrics test            # Generate test metrics
+vortex metrics dashboard       # Show dashboard URLs
+```
 
 ## 📖 Documentation
 
