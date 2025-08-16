@@ -134,7 +134,6 @@ def _create_futures_jobs(downloader, symbol: str, config, periods: List,
                     tz_end_date = _to_timezone_aware(end_date, tz)
                     instrument_jobs = downloader.create_jobs_for_dated_instrument(future, [period], tz_start_date, tz_end_date, tz)
                     jobs.extend(instrument_jobs)
-                    logging.debug(f"Created {len(instrument_jobs)} futures jobs for {symbol}{month_code}{Future.get_code_for_year(year)} {period}")
                 except Exception as e:
                     logging.warning(f"Failed to create futures jobs for {symbol}{month_code}{Future.get_code_for_year(year)} {period}: {e}")
                     continue
@@ -161,9 +160,6 @@ def _create_simple_instrument_jobs(downloader, symbol: str, config, periods: Lis
                 instrument, tz_start_date, tz_end_date, [period], None
             )
             jobs.extend(instrument_jobs)
-            # Show instrument type to help debug classification issues
-            instrument_type = instrument.__class__.__name__.lower()
-            logging.debug(f"Created {len(instrument_jobs)} {instrument_type} jobs for {symbol} {period}")
         except Exception as e:
             logging.warning(f"Failed to create jobs for {symbol} {period}: {e}")
             continue

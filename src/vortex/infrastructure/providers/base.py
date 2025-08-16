@@ -92,8 +92,6 @@ class DataProvider(ABC):
         
         # Initialize metrics collector for this provider
         self._metrics_collector = get_metrics_collector(self.get_name().lower())
-        
-        self.logger.debug(f"Initialized {self.get_name()} provider with circuit breaker and metrics")
 
     def _log_with_context(self, level: str, message: str, **extra_data):
         """Log message with context, handling both structured and standard loggers."""
