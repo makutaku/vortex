@@ -77,7 +77,16 @@ class UpdatingDownloader(BaseDownloader):
                 pass
 
             self.pretend_not_a_bot()
-            new_download = job.fetch()
+            try:
+                new_download = job.fetch()
+            except ValueError as e:
+                # Handle invalid data from provider
+                logging.error(f"Provider returned invalid data: {str(e)}")
+                if self._metrics:
+                    provider_name = getattr(self.data_provider, '__class__', type(self.data_provider)).__name__.lower().replace('dataprovider', '')
+                    self._metrics.record_download(provider_name, job.instrument.symbol, 0, False)
+                return HistoricalDataResult.NONE
+            
             if not new_download:
                 # Record failed download
                 if self._metrics:

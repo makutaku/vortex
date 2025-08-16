@@ -11,6 +11,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 
+import pandas as pd
+
 from .columns import VOLUME_COLUMN
 from .period import Period
 
@@ -36,8 +38,17 @@ class Metadata:
     def create_metadata(df, provider_name, symbol, period: Period, start, end):
         """Create metadata from DataFrame and parameters."""
         df = df.sort_index()
+        
+        # Validate that we have valid datetime indices before creating metadata
+        if df.empty or df.index.isna().all():
+            raise ValueError(f"Cannot create metadata for {symbol}: DataFrame has no valid datetime indices")
+        
         first_row_date = df.index[0].to_pydatetime()
         last_row_date = df.index[-1].to_pydatetime()
+        
+        # Additional check for NaT values after conversion
+        if pd.isna(first_row_date) or pd.isna(last_row_date):
+            raise ValueError(f"Cannot create metadata for {symbol}: DataFrame index contains invalid datetime values")
         expiration_date = None
         if df[VOLUME_COLUMN].iloc[-1] == 0:
             logging.debug(

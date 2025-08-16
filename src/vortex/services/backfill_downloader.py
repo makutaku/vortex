@@ -16,7 +16,13 @@ class BackfillDownloader(BaseDownloader):
             success_level=logging.DEBUG
         )
         with LoggingContext(config):
-            new_download = job.fetch()
+            try:
+                new_download = job.fetch()
+            except ValueError as e:
+                # Handle invalid data from provider
+                logging.error(f"Provider returned invalid data: {str(e)}")
+                return HistoricalDataResult.NONE
+            
             if not new_download:
                 return HistoricalDataResult.NONE
             logging.info(f"Fetched remote data: {new_download}")

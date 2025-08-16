@@ -48,11 +48,18 @@ class DownloadJob(ABC):
     def fetch(self) -> PriceSeries:
         df = self.data_provider.fetch_historical_data(
             self.instrument, self.period, self.start_date, self.end_date)
-        metadata = Metadata.create_metadata(
-            df,
-            self.data_provider.get_name(),
-            self.instrument.get_symbol(),
-            self.period,
-            self.start_date,
-            self.end_date)
+        
+        try:
+            metadata = Metadata.create_metadata(
+                df,
+                self.data_provider.get_name(),
+                self.instrument.get_symbol(),
+                self.period,
+                self.start_date,
+                self.end_date)
+        except ValueError as e:
+            # Handle invalid data from provider
+            raise ValueError(f"Provider {self.data_provider.get_name()} returned invalid data for "
+                           f"{self.instrument.get_symbol()} {self.period}: {str(e)}")
+        
         return PriceSeries(df, metadata)

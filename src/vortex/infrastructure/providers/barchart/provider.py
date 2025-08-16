@@ -233,7 +233,9 @@ class BarchartDataProvider(DataProvider):
             return self._fetch_historical_data_(symbol, frequency_attributes,
                                                start_date, end_date, url, STOCK_SOURCE_TIME_ZONE)
         elif isinstance(instrument, Forex):
-            symbol = instrument.get_symbol() if hasattr(instrument, 'get_symbol') else str(instrument)
+            base_symbol = instrument.get_symbol() if hasattr(instrument, 'get_symbol') else str(instrument)
+            # Barchart requires caret prefix for forex symbols in API requests
+            symbol = f"^{base_symbol}" if not base_symbol.startswith('^') else base_symbol
             url = self.get_historical_quote_url(instrument)
             return self._fetch_historical_data_(symbol, frequency_attributes,
                                                start_date, end_date, url, FUTURES_SOURCE_TIME_ZONE)
@@ -357,8 +359,8 @@ class BarchartDataProvider(DataProvider):
         
         # Configure fields and type based on frequency following bc-utils methodology
         if frequency_attributes.frequency == Period('1d'):
-            # Daily data: Use bc-utils daily format (date only)
-            payload['fields'] = 'tradeTime.format(Y-m-d),openPrice,highPrice,lowPrice,lastPrice,volume'
+            # Daily data: Use exact format from working manual payload
+            payload['fields'] = 'tradeTime.format(m/d/Y),openPrice,highPrice,lowPrice,lastPrice,priceChange,percentChange,volume'
             payload['type'] = 'eod'
             payload['period'] = 'daily'
         else:
