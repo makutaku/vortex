@@ -83,18 +83,22 @@ def standard_error_handler(
             except expected_errors as e:
                 logger.warning(
                     f"{operation_name} failed with expected error: {e}",
-                    operation=operation_name,
-                    error_type=type(e).__name__,
-                    error_message=str(e)
+                    extra={
+                        'operation': operation_name,
+                        'error_type': type(e).__name__,
+                        'error_message': str(e)
+                    }
                 )
                 raise  # Re-raise expected errors for proper handling
             except Exception as e:
                 if log_unexpected:
                     logger.error(
                         f"{operation_name} failed with unexpected error: {e}",
-                        operation=operation_name,
-                        error_type=type(e).__name__,
-                        error_message=str(e),
+                        extra={
+                            'operation': operation_name,
+                            'error_type': type(e).__name__,
+                            'error_message': str(e)
+                        },
                         exc_info=True
                     )
                 
@@ -131,15 +135,19 @@ def safe_operation(
                 log_func = getattr(logger, log_level)
                 log_func(
                     f"{operation_name} failed (expected): {e}",
-                    operation=operation_name,
-                    error_type=type(e).__name__
+                    extra={
+                        'operation': operation_name,
+                        'error_type': type(e).__name__
+                    }
                 )
                 return default_return
             except Exception as e:
                 logger.error(
                     f"{operation_name} failed (unexpected): {e}",
-                    operation=operation_name,
-                    error_type=type(e).__name__,
+                    extra={
+                        'operation': operation_name,
+                        'error_type': type(e).__name__
+                    },
                     exc_info=True
                 )
                 return default_return
@@ -166,15 +174,19 @@ def validation_error_handler(field_name: str) -> Callable[[F], F]:
             except (ValueError, TypeError) as e:
                 logger.info(
                     f"Validation failed for {field_name}: {e}",
-                    field=field_name,
-                    error_type=type(e).__name__
+                    extra={
+                        'field': field_name,
+                        'error_type': type(e).__name__
+                    }
                 )
                 raise ConfigurationValidationError([f"Invalid {field_name}: {e}"])
             except Exception as e:
                 logger.error(
                     f"Unexpected validation error for {field_name}: {e}",
-                    field=field_name,
-                    error_type=type(e).__name__,
+                    extra={
+                        'field': field_name,
+                        'error_type': type(e).__name__
+                    },
                     exc_info=True
                 )
                 raise ConfigurationValidationError([f"Validation error for {field_name}: {e}"])
@@ -207,17 +219,21 @@ def provider_operation_handler(provider_name: str) -> Callable[[F], F]:
             except (ValueError, TypeError, KeyError) as e:
                 logger.warning(
                     f"Provider {provider_name} operation failed: {e}",
-                    provider=provider_name,
-                    operation=func.__name__,
-                    error_type=type(e).__name__
+                    extra={
+                        'provider': provider_name,
+                        'operation': func.__name__,
+                        'error_type': type(e).__name__
+                    }
                 )
                 raise DataProviderError(provider_name, f"Operation failed: {e}")
             except Exception as e:
                 logger.error(
                     f"Unexpected error in provider {provider_name}: {e}",
-                    provider=provider_name,
-                    operation=func.__name__,
-                    error_type=type(e).__name__,
+                    extra={
+                        'provider': provider_name,
+                        'operation': func.__name__,
+                        'error_type': type(e).__name__
+                    },
                     exc_info=True
                 )
                 raise DataProviderError(provider_name, f"Unexpected error: {e}")
@@ -248,16 +264,20 @@ def cli_command_handler(command_name: str) -> Callable[[F], F]:
             except VortexError as e:
                 logger.error(
                     f"CLI command '{command_name}' failed: {e.message}",
-                    command=command_name,
-                    error_type=type(e).__name__,
-                    correlation_id=getattr(e, 'correlation_id', None)
+                    extra={
+                        'command': command_name,
+                        'error_type': type(e).__name__,
+                        'correlation_id': getattr(e, 'correlation_id', None)
+                    }
                 )
                 raise
             except Exception as e:
                 logger.error(
                     f"Unexpected error in CLI command '{command_name}': {e}",
-                    command=command_name,
-                    error_type=type(e).__name__,
+                    extra={
+                        'command': command_name,
+                        'error_type': type(e).__name__
+                    },
                     exc_info=True
                 )
                 import click
@@ -283,18 +303,22 @@ class ErrorHandlingMixin:
         """Handle expected errors with appropriate logging."""
         self.logger.warning(
             f"{self.component_name} {operation} failed: {error}",
-            component=self.component_name,
-            operation=operation,
-            error_type=type(error).__name__
+            extra={
+                'component': self.component_name,
+                'operation': operation,
+                'error_type': type(error).__name__
+            }
         )
     
     def handle_unexpected_error(self, error: Exception, operation: str) -> None:
         """Handle unexpected errors with detailed logging."""
         self.logger.error(
             f"{self.component_name} {operation} unexpected error: {error}",
-            component=self.component_name,
-            operation=operation,
-            error_type=type(error).__name__,
+            extra={
+                'component': self.component_name,
+                'operation': operation,
+                'error_type': type(error).__name__
+            },
             exc_info=True
         )
     

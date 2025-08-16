@@ -104,6 +104,9 @@ class BarchartDataFetcher:
             # Perform actual download with bc-utils methodology
             return self._perform_bc_utils_download(instrument, frequency_attributes, start_date, end_date, csrf_token)
             
+        except DataNotFoundError:
+            # Re-raise DataNotFoundError to be handled by caller
+            raise
         except Exception as e:
             self.logger.error(f"Error in bc-utils download for {instrument}: {e}")
             raise DataProviderError("barchart", f"Failed to fetch data for {instrument}: {e}")
@@ -158,7 +161,8 @@ class BarchartDataFetcher:
             if resp.status_code != NetworkConstants.HTTP_OK:
                 if resp.status_code == NetworkConstants.HTTP_NOT_FOUND:
                     self.logger.info(f"Data not found for {instrument} (404)")
-                    raise DataNotFoundError(instrument, f"No data available for {instrument}")
+                    raise DataNotFoundError("barchart", instrument, frequency_attributes.frequency, 
+                                           start_date, end_date, resp.status_code)
                 else:
                     self.logger.error(f"Download failed for {instrument}: {resp.status_code}")
                     return None
@@ -167,6 +171,9 @@ class BarchartDataFetcher:
             frequency = self._get_barchart_period(frequency_attributes.frequency)
             return self._process_bc_utils_csv_response(resp.text, frequency, STOCK_SOURCE_TIME_ZONE)
             
+        except DataNotFoundError:
+            # Re-raise DataNotFoundError to be handled by caller
+            raise
         except Exception as e:
             self.logger.error(f"Error downloading {instrument}: {e}")
             return None
@@ -200,9 +207,9 @@ class BarchartDataFetcher:
             'hourly': 'hourly',
             '1h': 'hourly',
             'weekly': 'weekly',
-            '1W': 'weekly',
+            '1w': 'weekly',
             'monthly': 'monthly',
-            '1M': 'monthly'
+            '1m': 'monthly'
         }
         
         if hasattr(period, 'value'):
@@ -225,9 +232,9 @@ class BarchartDataFetcher:
             'hourly': 'hourly', 
             '1h': 'hourly',
             'weekly': 'weekly',
-            '1W': 'weekly',
+            '1w': 'weekly',
             'monthly': 'monthly',
-            '1M': 'monthly'
+            '1m': 'monthly'
         }
         
         return period_mapping.get(period_str.lower(), 'daily')

@@ -118,21 +118,25 @@ def test(samples: int):
             duration = 0.5 + (i * 0.1)  # Varying durations
             success = i % 4 != 0  # 75% success rate
             
-            # Record test metrics
-            metrics_instance.record_provider_request(
-                provider=provider,
-                operation=operation,
-                duration=duration,
-                success=success
-            )
-            
-            if success:
-                # Record download metrics for successful requests
-                rows = 100 + (i * 50)
-                metrics_instance.record_download_rows(provider, f"TEST{i}", rows)
-                metrics_instance.record_download_success(provider, f"TEST{i}")
-            else:
-                metrics_instance.record_download_failure(provider, f"TEST{i}", "TestError")
+            # Record test metrics with error handling
+            try:
+                metrics_instance.record_provider_request(
+                    provider=provider,
+                    operation=operation,
+                    duration=duration,
+                    success=success
+                )
+                
+                if success:
+                    # Record download metrics for successful requests
+                    rows = 100 + (i * 50)
+                    metrics_instance.record_download_rows(provider, f"TEST{i}", rows)
+                    metrics_instance.record_download_success(provider, f"TEST{i}")
+                else:
+                    metrics_instance.record_download_failure(provider, f"TEST{i}", "TestError")
+            except Exception:
+                # Continue generating other test metrics even if one fails
+                pass
             
             status.update(f"Generated test metric {i+1}/{samples}")
             time.sleep(0.1)  # Small delay for realism

@@ -180,7 +180,7 @@ class DownloadExecutor:
         
         # Create storage
         csv_storage = CsvStorage(str(self.config.output_dir), self.config.dry_run)
-        parquet_storage = ParquetStorage(str(self.config.output_dir)) if self.config.backup_enabled else None
+        parquet_storage = ParquetStorage(str(self.config.output_dir), self.config.dry_run) if self.config.backup_enabled else None
         
         # Create downloader
         if self.config.mode == 'updating':
@@ -197,9 +197,7 @@ class DownloadExecutor:
                 data_storage=csv_storage,
                 data_provider=provider,
                 backup_data_storage=parquet_storage,
-                force_backup=self.config.force_backup,
-                random_sleep_in_sec=self.config.random_sleep,
-                dry_run=self.config.dry_run
+                force_backup=self.config.force_backup
             )
 
 
