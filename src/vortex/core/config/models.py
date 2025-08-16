@@ -128,6 +128,39 @@ class LoggingConfig(BaseModel):
         return v
 
 
+class RawConfig(BaseModel):
+    """Raw data storage configuration for compliance and debugging."""
+    enabled: bool = Field(True, description="Enable raw data storage for provider responses")
+    base_directory: Path = Field(
+        Path("./raw"), 
+        description="Base directory for raw data files"
+    )
+    retention_days: Optional[int] = Field(
+        30, 
+        ge=1, 
+        le=365, 
+        description="Number of days to retain raw data files (None for unlimited)"
+    )
+    compress: bool = Field(True, description="Compress raw data files with gzip")
+    include_metadata: bool = Field(True, description="Include request metadata with raw data files")
+    
+    @field_validator('base_directory')
+    @classmethod
+    def validate_raw_directory(cls, v: Path) -> Path:
+        """Validate and prepare raw data directory."""
+        if isinstance(v, str):
+            v = Path(v)
+        
+        # Expand user home directory
+        v = v.expanduser()
+        
+        # Make path absolute
+        if not v.is_absolute():
+            v = Path.cwd() / v
+            
+        return v
+
+
 class GeneralConfig(BaseModel):
     """General application configuration."""
     output_directory: Path = Field(
@@ -136,6 +169,7 @@ class GeneralConfig(BaseModel):
     )
     logging: LoggingConfig = Field(default_factory=LoggingConfig, description="Logging configuration")
     metrics: MetricsConfig = Field(default_factory=MetricsConfig, description="Metrics configuration")
+    raw: RawConfig = Field(default_factory=RawConfig, description="Raw data storage configuration")
     backup_enabled: bool = Field(False, description="Enable Parquet backup files")
     force_backup: bool = Field(False, description="Force backup even if files exist")
     dry_run: bool = Field(False, description="Perform dry run without downloading")
@@ -232,6 +266,13 @@ class VortexSettings(BaseSettings):
     # Metrics settings
     vortex_metrics_enabled: Optional[bool] = Field(None, alias="VORTEX_METRICS_ENABLED")
     vortex_metrics_port: Optional[int] = Field(None, alias="VORTEX_METRICS_PORT")
+    
+    # Raw data storage settings
+    vortex_raw_enabled: Optional[bool] = Field(None, alias="VORTEX_RAW_ENABLED")
+    vortex_raw_base_directory: Optional[str] = Field(None, alias="VORTEX_RAW_BASE_DIRECTORY")
+    vortex_raw_retention_days: Optional[int] = Field(None, alias="VORTEX_RAW_RETENTION_DAYS")
+    vortex_raw_compress: Optional[bool] = Field(None, alias="VORTEX_RAW_COMPRESS")
+    vortex_raw_include_metadata: Optional[bool] = Field(None, alias="VORTEX_RAW_INCLUDE_METADATA")
     
     model_config = SettingsConfigDict(
         env_file=".env",

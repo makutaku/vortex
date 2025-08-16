@@ -11,6 +11,7 @@ from abc import ABC, abstractmethod
 from .config import BarchartProviderConfig, YahooProviderConfig, IBKRProviderConfig
 from ..resilience.circuit_breaker import CircuitBreakerConfig
 from .interfaces import HTTPClientProtocol, CacheManagerProtocol, DataFetcherProtocol, ConnectionManagerProtocol
+from vortex.infrastructure.storage.raw_storage import RawDataStorage
 from .barchart import BarchartDataProvider
 from .yahoo import YahooDataProvider  
 from .ibkr import IbkrDataProvider
@@ -44,6 +45,7 @@ class BarchartProviderBuilder(ProviderBuilder):
         self._http_client: Optional[HTTPClientProtocol] = None
         self._parser = None
         self._circuit_breaker_config: Optional[CircuitBreakerConfig] = None
+        self._raw_storage: Optional[RawDataStorage] = None
         return self
     
     def with_config(self, config: BarchartProviderConfig):
@@ -80,6 +82,11 @@ class BarchartProviderBuilder(ProviderBuilder):
     def with_circuit_breaker_config(self, config: CircuitBreakerConfig):
         """Configure circuit breaker settings."""
         self._circuit_breaker_config = config
+        return self
+    
+    def with_raw_storage(self, raw_storage: RawDataStorage):
+        """Inject raw data storage for data trail."""
+        self._raw_storage = raw_storage
         return self
     
     def with_timeouts(self, request_timeout: int = 30, download_timeout: int = 60):
@@ -125,7 +132,8 @@ class BarchartProviderBuilder(ProviderBuilder):
             auth_handler=auth,
             http_client=http_client,
             parser=parser,
-            circuit_breaker_config=cb_config
+            circuit_breaker_config=cb_config,
+            raw_storage=self._raw_storage
         )
         
         return provider
@@ -143,6 +151,7 @@ class YahooProviderBuilder(ProviderBuilder):
         self._cache_manager: Optional[CacheManagerProtocol] = None
         self._data_fetcher: Optional[DataFetcherProtocol] = None
         self._circuit_breaker_config: Optional[CircuitBreakerConfig] = None
+        self._raw_storage: Optional[RawDataStorage] = None
         return self
     
     def with_config(self, config: YahooProviderConfig):
@@ -183,6 +192,11 @@ class YahooProviderBuilder(ProviderBuilder):
         self._config.repair_data = repair_data
         return self
     
+    def with_raw_storage(self, raw_storage: RawDataStorage):
+        """Inject raw data storage for data trail."""
+        self._raw_storage = raw_storage
+        return self
+    
     def build(self) -> YahooDataProvider:
         """Build configured Yahoo provider."""
         # Use default config if none provided
@@ -207,7 +221,8 @@ class YahooProviderBuilder(ProviderBuilder):
             config=config,
             cache_manager=cache_manager,
             data_fetcher=data_fetcher,
-            circuit_breaker_config=cb_config
+            circuit_breaker_config=cb_config,
+            raw_storage=self._raw_storage
         )
         
         return provider
@@ -224,6 +239,7 @@ class IBKRProviderBuilder(ProviderBuilder):
         self._config: Optional[IBKRProviderConfig] = None
         self._connection_manager: Optional[ConnectionManagerProtocol] = None
         self._circuit_breaker_config: Optional[CircuitBreakerConfig] = None
+        self._raw_storage: Optional[RawDataStorage] = None
         return self
     
     def with_config(self, config: IBKRProviderConfig):
@@ -250,6 +266,11 @@ class IBKRProviderBuilder(ProviderBuilder):
     def with_circuit_breaker_config(self, config: CircuitBreakerConfig):
         """Configure circuit breaker settings."""
         self._circuit_breaker_config = config
+        return self
+    
+    def with_raw_storage(self, raw_storage: RawDataStorage):
+        """Inject raw data storage for data trail."""
+        self._raw_storage = raw_storage
         return self
     
     def with_timeout_settings(self, connection_timeout: int = 30, data_timeout: int = 120):
@@ -295,7 +316,8 @@ class IBKRProviderBuilder(ProviderBuilder):
         provider = IbkrDataProvider(
             config=config,
             connection_manager=self._connection_manager,
-            circuit_breaker_config=cb_config
+            circuit_breaker_config=cb_config,
+            raw_storage=self._raw_storage
         )
         
         return provider

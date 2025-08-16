@@ -167,6 +167,7 @@ class ConfigManager:
         self._initialize_config_sections(config_data)
         self._apply_general_env_overrides(config_data, settings)
         self._apply_logging_env_overrides(config_data, settings)
+        self._apply_raw_env_overrides(config_data, settings)
         self._apply_provider_env_overrides(config_data, settings)
         
         return config_data
@@ -181,6 +182,8 @@ class ConfigManager:
             config_data["providers"]["barchart"] = {}
         if "ibkr" not in config_data["providers"]:
             config_data["providers"]["ibkr"] = {}
+        if "raw" not in config_data["general"]:
+            config_data["general"]["raw"] = {}
     
     def _apply_general_env_overrides(
         self, 
@@ -213,6 +216,21 @@ class ConfigManager:
             logging_config["output"] = outputs
         if settings.vortex_logging_file_path:
             logging_config["file_path"] = settings.vortex_logging_file_path
+    
+    def _apply_raw_env_overrides(self, config_data: Dict[str, Any], settings: VortexSettings) -> None:
+        """Apply raw data storage environment variable overrides."""
+        raw_config = config_data["general"]["raw"]
+        
+        if settings.vortex_raw_enabled is not None:
+            raw_config["enabled"] = settings.vortex_raw_enabled
+        if settings.vortex_raw_base_directory:
+            raw_config["base_directory"] = settings.vortex_raw_base_directory
+        if settings.vortex_raw_retention_days is not None:
+            raw_config["retention_days"] = settings.vortex_raw_retention_days
+        if settings.vortex_raw_compress is not None:
+            raw_config["compress"] = settings.vortex_raw_compress
+        if settings.vortex_raw_include_metadata is not None:
+            raw_config["include_metadata"] = settings.vortex_raw_include_metadata
     
     def _apply_provider_env_overrides(self, config_data: Dict[str, Any], settings: VortexSettings) -> None:
         """Apply provider-specific environment variable overrides."""

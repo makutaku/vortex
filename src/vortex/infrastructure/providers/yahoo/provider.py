@@ -27,7 +27,8 @@ class YahooDataProvider(DataProvider):
                  config: Optional[YahooProviderConfig] = None,
                  cache_manager: Optional[CacheManagerProtocol] = None, 
                  data_fetcher: Optional[DataFetcherProtocol] = None,
-                 circuit_breaker_config: Optional[CircuitBreakerConfig] = None) -> None:
+                 circuit_breaker_config: Optional[CircuitBreakerConfig] = None,
+                 raw_storage: Optional['RawDataStorage'] = None) -> None:
         """Initialize Yahoo provider with configuration and dependency injection.
         
         Args:
@@ -35,9 +36,10 @@ class YahooDataProvider(DataProvider):
             cache_manager: Optional cache manager (will be created if not provided)
             data_fetcher: Optional data fetcher (will be created if not provided)
             circuit_breaker_config: Optional circuit breaker configuration
+            raw_storage: Optional raw data storage for raw data trail
         """
-        # Initialize base with circuit breaker config
-        super().__init__(circuit_breaker_config)
+        # Initialize base with circuit breaker config and raw data storage
+        super().__init__(circuit_breaker_config, raw_storage)
         
         # Store configuration  
         self.config = config or YahooProviderConfig()
@@ -196,6 +198,33 @@ class YahooDataProvider(DataProvider):
         try:
             # Use injected data fetcher
             df = self._data_fetcher.fetch_historical_data(symbol, interval, start_date, end_date)
+
+            # Save raw data for data trail before any processing
+            if self._raw_storage and not df.empty:
+                try:
+                    # Convert DataFrame to CSV string for raw data storage
+                    raw_csv = df.to_csv()
+                    
+                    # Create instrument for raw data storage
+                    from vortex.models.stock import Stock
+                    raw_instrument = Stock(id=symbol, symbol=symbol)
+                    
+                    request_metadata = {
+                        'data_source': 'yfinance',
+                        'interval': interval,
+                        'start_date': start_date.isoformat(),
+                        'end_date': end_date.isoformat(),
+                        'original_columns': list(df.columns),
+                        'data_shape': list(df.shape)
+                    }
+                    
+                    self._save_raw_data(
+                        instrument=raw_instrument,
+                        raw_response=raw_csv,
+                        request_metadata=request_metadata
+                    )
+                except Exception as raw_error:
+                    logger.warning(f"Failed to save Yahoo data trail: {raw_error}")
 
             # Return raw data - validation will be handled by _validate_fetched_data()
             if df.empty:

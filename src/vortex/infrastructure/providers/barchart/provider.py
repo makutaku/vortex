@@ -46,7 +46,8 @@ class BarchartDataProvider(DataProvider):
                  auth_handler: Optional[BarchartAuth] = None,
                  http_client: Optional[HTTPClientProtocol] = None,
                  parser: Optional[BarchartParser] = None,
-                 circuit_breaker_config: Optional[CircuitBreakerConfig] = None):
+                 circuit_breaker_config: Optional[CircuitBreakerConfig] = None,
+                 raw_storage: Optional['RawDataStorage'] = None):
         """Initialize Barchart provider with dependency injection.
         
         Args:
@@ -55,9 +56,10 @@ class BarchartDataProvider(DataProvider):
             http_client: Optional HTTP client (will be created if not provided)
             parser: Optional parser (will be created if not provided)
             circuit_breaker_config: Optional circuit breaker configuration
+            raw_storage: Optional raw data storage for raw data trail
         """
-        # Initialize base with circuit breaker config
-        super().__init__(circuit_breaker_config)
+        # Initialize base with circuit breaker config and raw data storage
+        super().__init__(circuit_breaker_config, raw_storage)
         
         # Store configuration
         self.config = config
@@ -419,6 +421,33 @@ class BarchartDataProvider(DataProvider):
             post_download_usage = self._check_server_usage()
             if post_download_usage is not None:
                 logger.info(f"bc-utils server usage after download: {post_download_usage} downloads used today (configured limit: {self.get_daily_limit()})")
+            
+            # Save raw response for raw data trail before processing
+            if self._raw_storage:
+                try:
+                    # Create a temporary instrument object for raw data storage
+                    from vortex.models.stock import Stock
+                    raw_instrument = Stock(id=instrument, symbol=instrument)
+                    
+                    request_metadata = {
+                        'url': download_url,
+                        'method': 'POST',
+                        'payload': payload,
+                        'response_status': response.status_code,
+                        'response_headers': dict(response.headers),
+                        'frequency': str(frequency_attributes.frequency),
+                        'start_date': start_date.isoformat(),
+                        'end_date': end_date.isoformat(),
+                        'timezone': tz
+                    }
+                    
+                    self._save_raw_data(
+                        instrument=raw_instrument,
+                        raw_response=response.text,
+                        request_metadata=request_metadata
+                    )
+                except Exception as raw_error:
+                    logger.warning(f"Failed to save Barchart raw data trail: {raw_error}")
             
             return self._process_bc_utils_csv_response(response.text, frequency_attributes.frequency, tz)
         else:

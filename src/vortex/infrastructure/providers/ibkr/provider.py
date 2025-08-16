@@ -35,16 +35,18 @@ class IbkrDataProvider(DataProvider):
     def __init__(self, 
                  config: Optional[IBKRProviderConfig] = None,
                  connection_manager: Optional[ConnectionManagerProtocol] = None,
-                 circuit_breaker_config: Optional[CircuitBreakerConfig] = None):
+                 circuit_breaker_config: Optional[CircuitBreakerConfig] = None,
+                 raw_storage: Optional['RawDataStorage'] = None):
         """Initialize IBKR provider with configuration and dependency injection.
         
         Args:
             config: Provider configuration (uses defaults if not provided)
             connection_manager: Optional connection manager (will be created if not provided)
             circuit_breaker_config: Optional circuit breaker configuration
+            raw_storage: Optional raw data storage for raw data trail
         """
-        # Initialize base with circuit breaker config
-        super().__init__(circuit_breaker_config)
+        # Initialize base with circuit breaker config and raw data storage
+        super().__init__(circuit_breaker_config, raw_storage)
         
         # Store configuration
         self.config = config or IBKRProviderConfig()
@@ -198,6 +200,38 @@ class IbkrDataProvider(DataProvider):
             
             df = util.df(bars)
             logging.debug(f"Received data {df.shape} from {self.get_name()}")
+            
+            # Save raw data for data trail before processing
+            if self._raw_storage and not df.empty:
+                try:
+                    # Convert raw DataFrame to CSV for raw data storage
+                    raw_csv = df.to_csv()
+                    
+                    # Create instrument for raw data storage
+                    from vortex.models.stock import Stock
+                    symbol = getattr(contract, 'symbol', str(contract))
+                    raw_instrument = Stock(id=symbol, symbol=symbol)
+                    
+                    request_metadata = {
+                        'data_source': 'ibkr_tws',
+                        'contract_type': contract.__class__.__name__,
+                        'exchange': getattr(contract, 'exchange', 'SMART'),
+                        'currency': getattr(contract, 'currency', 'USD'),
+                        'duration': frequency_attributes.properties['duration'],
+                        'bar_size': frequency_attributes.properties['bar_size'],
+                        'what_to_show': what_to_show,
+                        'use_rth': self.config.use_rth_only,
+                        'original_columns': list(df.columns),
+                        'data_shape': list(df.shape)
+                    }
+                    
+                    self._save_raw_data(
+                        instrument=raw_instrument,
+                        raw_response=raw_csv,
+                        request_metadata=request_metadata
+                    )
+                except Exception as raw_error:
+                    logging.warning(f"Failed to save IBKR data trail: {raw_error}")
 
             # Process data without validation - validation will be handled by _validate_fetched_data()
             if df.empty:

@@ -10,6 +10,7 @@ from typing import Any, Callable, Dict, Optional, Type
 from vortex.core.config import ConfigManager
 from vortex.exceptions.plugins import PluginNotFoundError
 from vortex.infrastructure.providers.protocol import DataProviderProtocol
+from vortex.infrastructure.storage.raw_storage import RawDataStorage
 
 from .barchart import BarchartDataProvider
 from .yahoo import YahooDataProvider
@@ -27,13 +28,17 @@ from .interfaces import (
 class ProviderFactory:
     """Enhanced factory for creating data provider instances with comprehensive DI support."""
     
-    def __init__(self, config_manager: Optional[ConfigManager] = None):
-        """Initialize the factory with optional configuration manager.
+    def __init__(self, 
+                 config_manager: Optional[ConfigManager] = None,
+                 raw_storage: Optional[RawDataStorage] = None):
+        """Initialize the factory with optional configuration manager and raw data storage.
         
         Args:
             config_manager: Configuration manager for provider settings
+            raw_storage: Raw data storage for data trail
         """
         self.config_manager = config_manager or ConfigManager()
+        self.raw_storage = raw_storage or self._create_raw_storage_from_config()
         self._providers: Dict[str, Type[DataProviderProtocol]] = {
             'barchart': BarchartDataProvider,
             'yahoo': YahooDataProvider,
@@ -142,6 +147,10 @@ class ProviderFactory:
         builder = BarchartProviderBuilder()
         builder.with_config(config)
         
+        # Inject raw data storage if available
+        if self.raw_storage:
+            builder.with_raw_storage(self.raw_storage)
+        
         # Apply any injected dependencies from config_override
         if config_override:
             if 'http_client' in config_override:
@@ -170,6 +179,10 @@ class ProviderFactory:
         builder = YahooProviderBuilder()
         builder.with_config(config)
         
+        # Inject raw data storage if available
+        if self.raw_storage:
+            builder.with_raw_storage(self.raw_storage)
+        
         # Apply any injected dependencies from config_override
         if config_override:
             if 'cache_manager' in config_override:
@@ -190,6 +203,10 @@ class ProviderFactory:
         # Use builder for complex construction
         builder = IBKRProviderBuilder()
         builder.with_config(config)
+        
+        # Inject raw data storage if available
+        if self.raw_storage:
+            builder.with_raw_storage(self.raw_storage)
         
         # Apply any injected dependencies from config_override
         if config_override:
@@ -275,3 +292,28 @@ class ProviderFactory:
         }
         
         return provider_info.get(name, {})
+    
+    def _create_raw_storage_from_config(self) -> Optional[RawDataStorage]:
+        """Create raw data storage instance based on configuration.
+        
+        Returns:
+            RawDataStorage instance if raw data storage is enabled, None otherwise
+        """
+        try:
+            config = self.config_manager.load_config()
+            raw_config = config.general.raw
+            
+            if not raw_config.enabled:
+                return None
+            
+            # Create raw data storage with configuration
+            return RawDataStorage(
+                base_dir=str(raw_config.base_directory),
+                enabled=raw_config.enabled,
+                retention_days=raw_config.retention_days,
+                compress=raw_config.compress,
+                include_metadata=raw_config.include_metadata
+            )
+        except Exception:
+            # If configuration loading fails, return None to disable raw data storage
+            return None

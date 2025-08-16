@@ -2,7 +2,7 @@ import enum
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Optional, List, Any
+from typing import Optional, List, Any, Dict
 
 from pandas import DataFrame
 
@@ -18,6 +18,7 @@ from vortex.core.error_handling.strategies import (
 from vortex.infrastructure.resilience.circuit_breaker import get_circuit_breaker, CircuitBreakerConfig
 from vortex.core.correlation import with_correlation, CorrelationIdManager
 from .metrics import get_metrics_collector, ProviderMetricsCollector
+from vortex.infrastructure.storage.raw_storage import RawDataStorage
 from retrying import retry
 import logging
 
@@ -71,7 +72,9 @@ class DataProvider(ABC):
     consistency between interface definition and implementation.
     """
 
-    def __init__(self, circuit_breaker_config: Optional[CircuitBreakerConfig] = None):
+    def __init__(self, 
+                 circuit_breaker_config: Optional[CircuitBreakerConfig] = None,
+                 raw_storage: Optional[RawDataStorage] = None):
         """Initialize the data provider with enhanced capabilities."""
         self.logger = logging.getLogger(self.__class__.__name__)
         self._error_handler = StandardizedErrorHandler(self.logger)
@@ -92,6 +95,9 @@ class DataProvider(ABC):
         
         # Initialize metrics collector for this provider
         self._metrics_collector = get_metrics_collector(self.get_name().lower())
+        
+        # Initialize raw data storage for raw data trail
+        self._raw_storage = raw_storage
 
     def _log_with_context(self, level: str, message: str, **extra_data):
         """Log message with context, handling both structured and standard loggers."""
@@ -589,6 +595,33 @@ class DataProvider(ABC):
     def reset_metrics(self):
         """Reset provider metrics (useful for testing)."""
         self._metrics_collector.reset_metrics()
+    
+    def _save_raw_data(self, 
+                            instrument: Instrument,
+                            raw_response: str,
+                            request_metadata: Optional[Dict[str, Any]] = None,
+                            correlation_id: Optional[str] = None) -> Optional[str]:
+        """Save raw provider response for data trail.
+        
+        Args:
+            instrument: Instrument that was requested
+            raw_response: Raw response data as string
+            request_metadata: Optional metadata about the request
+            correlation_id: Optional correlation ID for tracking
+            
+        Returns:
+            Path to saved raw data file, or None if raw data storage disabled
+        """
+        if self._raw_storage is None:
+            return None
+            
+        return self._raw_storage.save_raw_response(
+            provider=self.get_name().lower(),
+            instrument=instrument,
+            raw_data=raw_response,
+            request_metadata=request_metadata,
+            correlation_id=correlation_id
+        )
 
     def _get_frequency_attr_dict(self) -> dict:
         """Build a dictionary mapping periods to their frequency attributes.
