@@ -138,8 +138,8 @@ class TestCreateInstrumentFromConfig:
         
         assert isinstance(instrument, Forex)
         assert instrument.id == "EURUSD"
-        assert instrument.symbol == "EURUSD"
-        assert str(instrument) == "C|EURUSD|EURUSD"
+        assert instrument.symbol == "EURUSD=X"  # Now correctly uses the code field
+        assert str(instrument) == "C|EURUSD|EURUSD=X"
     
     def test_create_future_from_dict_config_with_cycle_should_error(self):
         """Test that _create_instrument_from_config raises error for futures."""
@@ -481,7 +481,7 @@ class TestSimpleInstrumentJobCreation:
         
         assert isinstance(instrument, Forex)
         assert instrument.id == "EURUSD"
-        assert instrument.symbol == "EURUSD"
+        assert instrument.symbol == "EURUSD=X"  # Now correctly uses the code field
     
     @patch('vortex.cli.commands.job_creator.logging')
     def test_create_simple_jobs_handles_exceptions(self, mock_logging):

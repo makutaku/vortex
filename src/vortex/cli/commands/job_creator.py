@@ -177,10 +177,16 @@ def _create_instrument_from_config(symbol: str, config):
     """Create appropriate instrument instance based on configuration."""
     # Handle both dict and object configs
     asset_class = None
+    provider_code = None
+    
     if isinstance(config, dict):
         asset_class = config.get('asset_class')
+        provider_code = config.get('code', symbol)  # Use code field if available, fallback to symbol
     elif hasattr(config, 'asset_class'):
         asset_class = config.asset_class
+        provider_code = getattr(config, 'code', symbol)  # Use code field if available, fallback to symbol
+    else:
+        provider_code = symbol  # Fallback if no config
     
     if asset_class:
         asset_class = asset_class.lower()
@@ -188,12 +194,12 @@ def _create_instrument_from_config(symbol: str, config):
         if asset_class in ['stock', 'stocks', 'equity']:
             return Stock(
                 id=symbol,
-                symbol=symbol
+                symbol=provider_code  # Use provider-specific code for API calls
             )
         elif asset_class in ['forex', 'fx', 'currency']:
             return Forex(
                 id=symbol,
-                symbol=symbol
+                symbol=provider_code  # Use provider-specific code for API calls
             )
         elif asset_class in ['future', 'futures']:
             # ERROR: This method should NOT be used for futures!
@@ -206,7 +212,7 @@ def _create_instrument_from_config(symbol: str, config):
     # Default to Stock if no asset class specified
     return Stock(
         id=symbol,
-        symbol=symbol
+        symbol=provider_code  # Use provider-specific code for API calls
     )
 
 

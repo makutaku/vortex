@@ -2,7 +2,7 @@
   "forex": {
     "AUDUSD": {"code": "^AUDUSD", "tick_date": "2000-01-01", "start_date": "2000-01-01", "periods": ""},
     "CADUSD": {"code": "CADUSD=X", "tick_date": "2000-01-01", "start_date": "2000-01-01", "periods": "1d"},
-    "CHFUSD": {"code": "^AUDUSD", "tick_date": "2000-01-01", "start_date": "2000-01-01", "periods": ""}
+    "CHFUSD": {"code": "CHFUSD=X", "tick_date": "2000-01-01", "start_date": "2000-01-01", "periods": ""}
   },
   "future": {
     "AEX": {"code": "AE", "cycle": "FGHJKMNQUVXZ", "tick_date": "2008-05-05", "start_date": "2005-09-01", "periods": ""},
@@ -11,8 +11,8 @@
   },
   "stock": {
     "SPY": {"code": "SPY", "tick_date": "1993-01-29", "start_date": "1993-01-29", "periods": null},
-    "DIA": {"code": "SPY", "tick_date": "1998-01-14", "start_date": "1998-01-14", "periods": null},
-    "QQQ": {"code": "SPY", "tick_date": "1999-03-10", "start_date": "1999-03-10", "periods": null},
-    "SOXX": {"code": "SPY", "tick_date": "2001-03-01", "start_date": "2001-03-01", "periods": null}
+    "DIA": {"code": "DIA", "tick_date": "1998-01-14", "start_date": "1998-01-14", "periods": null},
+    "QQQ": {"code": "QQQ", "tick_date": "1999-03-10", "start_date": "1999-03-10", "periods": null},
+    "SOXX": {"code": "SOXX", "tick_date": "2001-03-01", "start_date": "2001-03-01", "periods": null}
   }
 }
