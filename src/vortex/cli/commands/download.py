@@ -92,6 +92,11 @@ class DownloadConfig:
     help="Output directory. Default: ./data"
 )
 @click.option(
+    "--raw-dir",
+    type=click.Path(path_type=Path),
+    help="Raw data directory for audit trail. Default: ./raw"
+)
+@click.option(
     "--backup/--no-backup",
     default=False,
     help="Create Parquet backup files"
@@ -122,6 +127,7 @@ def download(
     start_date: Optional[datetime],
     end_date: Optional[datetime],
     output_dir: Optional[Path],
+    raw_dir: Optional[Path],
     backup: bool,
     force: bool,
     chunk_size: int,
@@ -136,6 +142,7 @@ def download(
         vortex download --symbols-file symbols.txt          # Uses yahoo (default)
         vortex download -p barchart -s GCM25 --start-date 2024-01-01  
         vortex download -p ibkr -s TSLA --start-date 2024-01-01
+        vortex download -s AAPL --output-dir ./custom --raw-dir ./audit
         
     \b
     Default Assets:
@@ -157,6 +164,14 @@ def download(
     """
     # Setup
     config_manager = get_or_create_config_manager(ctx.obj.get('config_file'))
+    
+    # Apply CLI overrides early (before any provider creation)
+    if raw_dir is not None:
+        config = config_manager.load_config()
+        config.general.raw_directory = raw_dir
+        raw_dir.mkdir(parents=True, exist_ok=True)
+        # Update the cached config so factory uses the override
+        config_manager._config = config
     
     # Resolve provider (use default if not specified)
     if provider is None:
@@ -213,7 +228,7 @@ def download(
     )
     
     # Execute download using extracted module
-    executor = DownloadExecutor(download_config)
+    executor = DownloadExecutor(download_config, config_manager)
     start_time = time.time()
     
     try:

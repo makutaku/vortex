@@ -207,10 +207,8 @@ class IbkrDataProvider(DataProvider):
                     # Convert raw DataFrame to CSV for raw data storage
                     raw_csv = df.to_csv()
                     
-                    # Create instrument for raw data storage
-                    from vortex.models.stock import Stock
-                    symbol = getattr(contract, 'symbol', str(contract))
-                    raw_instrument = Stock(id=symbol, symbol=symbol)
+                    # Use the original instrument for raw data storage
+                    raw_instrument = instrument
                     
                     request_metadata = {
                         'data_source': 'ibkr_tws',

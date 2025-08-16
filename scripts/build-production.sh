@@ -40,7 +40,7 @@ show_usage() {
     echo "Build and optionally push Vortex Docker image to Docker Hub"
     echo ""
     echo "Arguments:"
-    echo "  VERSION                 Version tag (default: latest)"
+    echo "  VERSION                 Version tag (default: reads from pyproject.toml)"
     echo ""
     echo "Options:"
     echo "  -u, --username USERNAME Docker Hub username (default: $DEFAULT_USERNAME)"
@@ -64,8 +64,18 @@ show_usage() {
     echo ""
 }
 
+# Get version from pyproject.toml
+get_project_version() {
+    python3 -c "
+import tomllib
+with open('pyproject.toml', 'rb') as f:
+    data = tomllib.load(f)
+print(data['project']['version'])
+"
+}
+
 # Parse command line arguments
-VERSION="latest"
+VERSION=$(get_project_version)  # Default to project version instead of "latest"
 REGISTRY="${DOCKER_REGISTRY:-$DEFAULT_REGISTRY}"
 USERNAME="${DOCKER_USERNAME:-$DEFAULT_USERNAME}"
 PUSH=false

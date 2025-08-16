@@ -228,27 +228,27 @@ class BarchartDataProvider(DataProvider):
             symbol = instrument.get_symbol() if hasattr(instrument, 'get_symbol') else str(instrument)
             url = self.get_historical_quote_url(instrument)
             return self._fetch_historical_data_(symbol, frequency_attributes,
-                                               start_date, end_date, url, FUTURES_SOURCE_TIME_ZONE)
+                                               start_date, end_date, url, FUTURES_SOURCE_TIME_ZONE, instrument)
         elif isinstance(instrument, Stock):
             symbol = instrument.get_symbol() if hasattr(instrument, 'get_symbol') else str(instrument)
             url = self.get_historical_quote_url(instrument)
             return self._fetch_historical_data_(symbol, frequency_attributes,
-                                               start_date, end_date, url, STOCK_SOURCE_TIME_ZONE)
+                                               start_date, end_date, url, STOCK_SOURCE_TIME_ZONE, instrument)
         elif isinstance(instrument, Forex):
             base_symbol = instrument.get_symbol() if hasattr(instrument, 'get_symbol') else str(instrument)
             # Barchart requires caret prefix for forex symbols in API requests
             symbol = f"^{base_symbol}" if not base_symbol.startswith('^') else base_symbol
             url = self.get_historical_quote_url(instrument)
             return self._fetch_historical_data_(symbol, frequency_attributes,
-                                               start_date, end_date, url, FUTURES_SOURCE_TIME_ZONE)
+                                               start_date, end_date, url, FUTURES_SOURCE_TIME_ZONE, instrument)
         else:
             # Create a generic instrument to get the URL
             url = f"{ProviderConstants.Barchart.BASE_URL}/quotes/{str(instrument)}/historical-quotes"
             return self._fetch_historical_data_(str(instrument), frequency_attributes,
-                                               start_date, end_date, url, STOCK_SOURCE_TIME_ZONE)
+                                               start_date, end_date, url, STOCK_SOURCE_TIME_ZONE, instrument)
 
     def _fetch_historical_data_(self, instrument: str, frequency_attributes: FrequencyAttributes,
-                               start_date, end_date, url: str, tz: str) -> Optional[DataFrame]:
+                               start_date, end_date, url: str, tz: str, original_instrument=None) -> Optional[DataFrame]:
         """Internal method to fetch historical data using exact bc-utils methodology."""
         import logging
         logger = logging.getLogger(__name__)
@@ -264,7 +264,7 @@ class BarchartDataProvider(DataProvider):
             # Use exact bc-utils approach: /my/download endpoint
             # Note: bc-utils relies on server-side usage enforcement (250 paid/5 free per day)
             logger.info(f"Attempting bc-utils download for {instrument}")
-            df = self._fetch_via_bc_utils_download(instrument, frequency_attributes, start_date, end_date, tz)
+            df = self._fetch_via_bc_utils_download(instrument, frequency_attributes, start_date, end_date, tz, original_instrument)
             if df is not None:
                 # Barchart-specific: Check minimum data points requirement before validation
                 if len(df) < self.config.min_required_data_points:
@@ -290,13 +290,13 @@ class BarchartDataProvider(DataProvider):
             raise
 
     def _fetch_via_bc_utils_download(self, instrument: str, frequency_attributes: FrequencyAttributes,
-                                    start_date, end_date, tz: str) -> Optional[DataFrame]:
+                                    start_date, end_date, tz: str, original_instrument=None) -> Optional[DataFrame]:
         """Fetch data using exact bc-utils /my/download methodology with standardized error handling."""
         import logging
         logger = logging.getLogger(__name__)
         
         try:
-            return self._perform_bc_utils_download(instrument, frequency_attributes, start_date, end_date, tz)
+            return self._perform_bc_utils_download(instrument, frequency_attributes, start_date, end_date, tz, original_instrument)
         except Exception as e:
             # Use standardized error handling - return None for optional operations
             return self._handle_provider_error(
@@ -308,7 +308,7 @@ class BarchartDataProvider(DataProvider):
             )
     
     def _perform_bc_utils_download(self, instrument: str, frequency_attributes: FrequencyAttributes,
-                                  start_date, end_date, tz: str) -> DataFrame:
+                                  start_date, end_date, tz: str, original_instrument=None) -> DataFrame:
         """Internal method that performs the actual bc-utils download."""
         import logging
         logger = logging.getLogger(__name__)
@@ -425,9 +425,12 @@ class BarchartDataProvider(DataProvider):
             # Save raw response for raw data trail before processing
             if self._raw_storage:
                 try:
-                    # Create a temporary instrument object for raw data storage
-                    from vortex.models.stock import Stock
-                    raw_instrument = Stock(id=instrument, symbol=instrument)
+                    # Use original instrument if available, otherwise create Stock as fallback
+                    if original_instrument is not None:
+                        raw_instrument = original_instrument
+                    else:
+                        from vortex.models.stock import Stock
+                        raw_instrument = Stock(id=instrument, symbol=instrument)
                     
                     request_metadata = {
                         'url': download_url,

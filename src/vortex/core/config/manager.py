@@ -194,6 +194,7 @@ class ConfigManager:
         override = EnvironmentOverride(config_data["general"], settings)
         
         override.apply_string_if_set("vortex_output_directory", "output_directory")
+        override.apply_string_if_set("vortex_raw_directory", "raw_directory")
         override.apply_string_if_set("vortex_log_level", "log_level")
         override.apply_if_set("vortex_backup_enabled", "backup_enabled")
         override.apply_if_set("vortex_dry_run", "dry_run")
@@ -223,8 +224,6 @@ class ConfigManager:
         
         if settings.vortex_raw_enabled is not None:
             raw_config["enabled"] = settings.vortex_raw_enabled
-        if settings.vortex_raw_base_directory:
-            raw_config["base_directory"] = settings.vortex_raw_base_directory
         if settings.vortex_raw_retention_days is not None:
             raw_config["retention_days"] = settings.vortex_raw_retention_days
         if settings.vortex_raw_compress is not None:

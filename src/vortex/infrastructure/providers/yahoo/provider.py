@@ -167,7 +167,7 @@ class YahooDataProvider(DataProvider):
             
             interval = frequency_attributes.properties.get('interval')
             df = self._fetch_data_using_injected_fetcher(
-                instrument.get_symbol(), interval, start, end
+                instrument.get_symbol(), interval, start, end, instrument
             )
             
             # Apply standardized validation - this is handled by the base class wrapper
@@ -190,7 +190,7 @@ class YahooDataProvider(DataProvider):
                 end_date=end
             )
     
-    def _fetch_data_using_injected_fetcher(self, symbol: str, interval: str, start_date: datetime, end_date: datetime) -> DataFrame:
+    def _fetch_data_using_injected_fetcher(self, symbol: str, interval: str, start_date: datetime, end_date: datetime, instrument: Instrument) -> DataFrame:
         """Fetch data using the injected data fetcher with basic processing."""
         import logging
         logger = logging.getLogger(__name__)
@@ -205,9 +205,8 @@ class YahooDataProvider(DataProvider):
                     # Convert DataFrame to CSV string for raw data storage
                     raw_csv = df.to_csv()
                     
-                    # Create instrument for raw data storage
-                    from vortex.models.stock import Stock
-                    raw_instrument = Stock(id=symbol, symbol=symbol)
+                    # Use the original instrument for raw data storage
+                    raw_instrument = instrument
                     
                     request_metadata = {
                         'data_source': 'yfinance',

@@ -131,10 +131,6 @@ class LoggingConfig(BaseModel):
 class RawConfig(BaseModel):
     """Raw data storage configuration for compliance and debugging."""
     enabled: bool = Field(True, description="Enable raw data storage for provider responses")
-    base_directory: Path = Field(
-        Path("./raw"), 
-        description="Base directory for raw data files"
-    )
     retention_days: Optional[int] = Field(
         30, 
         ge=1, 
@@ -143,22 +139,6 @@ class RawConfig(BaseModel):
     )
     compress: bool = Field(True, description="Compress raw data files with gzip")
     include_metadata: bool = Field(True, description="Include request metadata with raw data files")
-    
-    @field_validator('base_directory')
-    @classmethod
-    def validate_raw_directory(cls, v: Path) -> Path:
-        """Validate and prepare raw data directory."""
-        if isinstance(v, str):
-            v = Path(v)
-        
-        # Expand user home directory
-        v = v.expanduser()
-        
-        # Make path absolute
-        if not v.is_absolute():
-            v = Path.cwd() / v
-            
-        return v
 
 
 class GeneralConfig(BaseModel):
@@ -166,6 +146,10 @@ class GeneralConfig(BaseModel):
     output_directory: Path = Field(
         Path("./data"), 
         description="Directory for downloaded data files"
+    )
+    raw_directory: Path = Field(
+        Path("./raw"), 
+        description="Directory for raw data audit trail files"
     )
     logging: LoggingConfig = Field(default_factory=LoggingConfig, description="Logging configuration")
     metrics: MetricsConfig = Field(default_factory=MetricsConfig, description="Metrics configuration")
@@ -185,10 +169,10 @@ class GeneralConfig(BaseModel):
     )
     
     
-    @field_validator('output_directory')
+    @field_validator('output_directory', 'raw_directory')
     @classmethod
-    def validate_output_directory(cls, v: Path) -> Path:
-        """Validate and create output directory if needed."""
+    def validate_directories(cls, v: Path) -> Path:
+        """Validate and prepare directories."""
         if isinstance(v, str):
             v = Path(v)
         
@@ -242,6 +226,7 @@ class VortexSettings(BaseSettings):
     
     # General settings
     vortex_output_directory: Optional[str] = Field(None, alias="VORTEX_OUTPUT_DIR")
+    vortex_raw_directory: Optional[str] = Field(None, alias="VORTEX_RAW_DIR")
     vortex_log_level: Optional[str] = Field(None, alias="VORTEX_LOG_LEVEL")
     vortex_backup_enabled: Optional[bool] = Field(None, alias="VORTEX_BACKUP_ENABLED")
     vortex_dry_run: Optional[bool] = Field(None, alias="VORTEX_DRY_RUN")

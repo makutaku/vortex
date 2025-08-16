@@ -33,8 +33,9 @@ class JobExecutionContext:
 class DownloadExecutor:
     """Executes download operations with progress tracking and error handling."""
     
-    def __init__(self, config):
+    def __init__(self, config, config_manager=None):
         self.config = config
+        self.config_manager = config_manager
         self.logger = logging.getLogger(__name__)
     
     def execute_downloads(self, symbols: List[str], instrument_configs: Dict[str, Any]) -> tuple[int, int]:
@@ -174,8 +175,8 @@ class DownloadExecutor:
         from vortex.infrastructure.storage.csv_storage import CsvStorage
         from vortex.infrastructure.storage.parquet_storage import ParquetStorage
         
-        # Create provider
-        factory = ProviderFactory()
+        # Create provider with updated config_manager if available
+        factory = ProviderFactory(config_manager=self.config_manager)
         provider = factory.create_provider(self.config.provider, self.config.download_config)
         
         # Create storage

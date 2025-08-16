@@ -15,6 +15,8 @@ from vortex.core.correlation import get_correlation_manager
 from vortex.models.instrument import Instrument
 import logging
 
+from vortex import __version__ as VORTEX_VERSION
+
 logger = logging.getLogger(__name__)
 
 
@@ -44,7 +46,7 @@ class RawDataStorage:
         self.correlation_manager = get_correlation_manager()
         
         # Always define raw_dir property for consistent interface
-        self.raw_dir = self.base_dir / "raw"
+        self.raw_dir = self.base_dir
         
         if self.enabled:
             # Create raw data directory structure only when enabled
@@ -132,7 +134,7 @@ class RawDataStorage:
     def _generate_raw_file_path(self, provider: str, instrument: Instrument) -> Path:
         """Generate standardized raw data file path.
         
-        Format: raw/{provider}/{year}/{month}/{instrument_type}/{symbol}_{timestamp}.csv.gz
+        Format: raw/{year}/{month}/{instrument_type}/{symbol}_{timestamp}.csv.gz
         
         Args:
             provider: Provider name
@@ -151,9 +153,8 @@ class RawDataStorage:
         # Choose file extension based on compression setting
         file_extension = ".csv.gz" if self.compress else ".csv"
         
-        # Organize by provider/year/month/instrument_type for easy browsing
+        # Organize by year/month/instrument_type for easy browsing (no provider since deployments are single-provider)
         return (self.raw_dir / 
-                provider.lower() / 
                 str(now.year) / 
                 f"{now.month:02d}" / 
                 instrument_type / 
@@ -181,7 +182,7 @@ class RawDataStorage:
             'raw_info': {
                 'created_at': datetime.now().isoformat(),
                 'correlation_id': correlation_id,
-                'vortex_version': '2.0.0'  # Should be dynamic in production
+                'vortex_version': VORTEX_VERSION
             },
             'provider_info': {
                 'name': provider,
@@ -244,9 +245,8 @@ class RawDataStorage:
         symbol = getattr(instrument, 'symbol', str(instrument))
         instrument_type = instrument.__class__.__name__.lower()
         
-        # Search pattern
+        # Search pattern (no provider directory since deployments are single-provider)
         search_pattern = (self.raw_dir / 
-                         provider.lower() / 
                          "**" / 
                          instrument_type / 
                          f"{symbol}_*.csv.gz")

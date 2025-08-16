@@ -1,0 +1,43 @@
+{
+  "raw_info": {
+    "created_at": "2025-08-16T07:08:17.112842",
+    "correlation_id": "21a8da5d",
+    "vortex_version": "0.1.3"
+  },
+  "provider_info": {
+    "name": "yahoofinance",
+    "data_source": "external_api"
+  },
+  "instrument_info": {
+    "symbol": "AAPL",
+    "type": "stock",
+    "period": null,
+    "periods": null
+  },
+  "request_info": {
+    "data_source": "yfinance",
+    "interval": "1d",
+    "start_date": "2025-07-26T00:00:00+00:00",
+    "end_date": "2025-08-16T00:00:00+00:00",
+    "original_columns": [
+      "Open",
+      "High",
+      "Low",
+      "Close",
+      "Volume",
+      "Dividends",
+      "Stock Splits",
+      "Repaired?"
+    ],
+    "data_shape": [
+      15,
+      8
+    ]
+  },
+  "data_info": {
+    "raw_size_bytes": 1905,
+    "raw_lines": 16,
+    "is_csv": true,
+    "encoding": "utf-8"
+  }
+}

@@ -1,0 +1,67 @@
+{
+  "raw_info": {
+    "created_at": "2025-08-16T07:07:45.938892",
+    "correlation_id": "83ee2dba",
+    "vortex_version": "0.1.3"
+  },
+  "provider_info": {
+    "name": "barchart",
+    "data_source": "external_api"
+  },
+  "instrument_info": {
+    "symbol": "AAPL",
+    "type": "stock",
+    "period": null,
+    "periods": null
+  },
+  "request_info": {
+    "url": "https://www.barchart.com/my/download",
+    "method": "POST",
+    "payload": {
+      "_token": "QNbGjTkGa8OBmgUELCKQv6WNaAtHK4f6MW6i69RL",
+      "fileName": "AAPL_Daily_Historical+Data",
+      "symbol": "AAPL",
+      "startDate": "2025-08-05",
+      "endDate": "2025-08-15",
+      "type": "eod",
+      "orderBy": "tradeTime",
+      "orderDir": "desc",
+      "method": "historical",
+      "limit": "10000",
+      "period": "daily",
+      "customView": "true",
+      "exclude": "",
+      "customGetParameters": "",
+      "pageTitle": "Historical+Data",
+      "fields": "tradeTime.format(m/d/Y),openPrice,highPrice,lowPrice,lastPrice,priceChange,percentChange,volume"
+    },
+    "response_status": 200,
+    "response_headers": {
+      "Content-Type": "text/csv;charset=UTF-8",
+      "Transfer-Encoding": "chunked",
+      "Connection": "keep-alive",
+      "Date": "Sat, 16 Aug 2025 07:07:45 GMT",
+      "Content-Security-Policy": "frame-ancestors 'self' http://info.barchart.com",
+      "Strict-Transport-Security": "max-age=31536000;",
+      "Server": "nginx",
+      "Content-Disposition": "attachment;filename=\"aapl_daily_historical+data-08-16-2025.csv\"",
+      "X-Cache": "Miss from cloudfront",
+      "Via": "1.1 ea4c9c5039feabdd451c28f403d0cc92.cloudfront.net (CloudFront)",
+      "X-Amz-Cf-Pop": "BNA50-P2",
+      "X-Amz-Cf-Id": "XiQiH5vbxUpN43LzgoyZWYw1bfxIyItmjPi5EOJ1adsty5JhydDzXQ==",
+      "Cache-Control": "no-cache, no-store, max-age=0, must-revalidate",
+      "Expires": "Fri, 01 Jan 1990 00:00:00 GMT",
+      "Pragma": "no-cache"
+    },
+    "frequency": "1d",
+    "start_date": "2025-08-05T00:00:00+00:00",
+    "end_date": "2025-08-15T00:00:00+00:00",
+    "timezone": "America/New_York"
+  },
+  "data_info": {
+    "raw_size_bytes": 640,
+    "raw_lines": 11,
+    "is_csv": true,
+    "encoding": "utf-8"
+  }
+}

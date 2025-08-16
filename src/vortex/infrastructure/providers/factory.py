@@ -308,7 +308,7 @@ class ProviderFactory:
             
             # Create raw data storage with configuration
             return RawDataStorage(
-                base_dir=str(raw_config.base_directory),
+                base_dir=str(config.general.raw_directory),
                 enabled=raw_config.enabled,
                 retention_days=raw_config.retention_days,
                 compress=raw_config.compress,

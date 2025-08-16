@@ -212,7 +212,7 @@ class TestRawDataStorage:
             file_path = raw_storage_enabled._generate_raw_file_path("yahoo", stock_instrument)
             
             expected_path = (raw_storage_enabled.raw_dir / 
-                           "yahoo" / "2024" / "08" / "stock" / "AAPL_20240816_143045_123.csv.gz")
+                           "2024" / "08" / "stock" / "AAPL_20240816_143045_123.csv.gz")
             assert file_path == expected_path
 
     def test_generate_raw_file_path_future(self, raw_storage_enabled, future_instrument):
@@ -225,7 +225,7 @@ class TestRawDataStorage:
             file_path = raw_storage_enabled._generate_raw_file_path("barchart", future_instrument)
             
             expected_path = (raw_storage_enabled.raw_dir / 
-                           "barchart" / "2024" / "08" / "future" / "GCZ24_20240816_143045_123.csv.gz")
+                           "2024" / "08" / "future" / "GCZ24_20240816_143045_123.csv.gz")
             assert file_path == expected_path
 
     def test_generate_raw_file_path_uncompressed(self, temp_dir, stock_instrument):
@@ -244,7 +244,7 @@ class TestRawDataStorage:
             file_path = storage._generate_raw_file_path("yahoo", stock_instrument)
             
             expected_path = (storage.raw_dir / 
-                           "yahoo" / "2024" / "08" / "stock" / "AAPL_20240816_143045_123.csv")
+                           "2024" / "08" / "stock" / "AAPL_20240816_143045_123.csv")
             assert file_path == expected_path
 
     def test_create_raw_metadata(self, raw_storage_enabled, stock_instrument, sample_metadata):
@@ -299,25 +299,36 @@ class TestRawDataStorage:
             )
         
         # Verify directory structure
-        expected_dir = raw_storage_enabled.raw_dir / "yahoo" / "2024" / "08" / "stock"
+        expected_dir = raw_storage_enabled.raw_dir / "2024" / "08" / "stock"
         assert expected_dir.exists()
         assert expected_dir.is_dir()
 
-    def test_different_providers_separate_directories(self, raw_storage_enabled, stock_instrument, sample_raw_data):
-        """Test that different providers create separate directories."""
+    def test_multiple_providers_same_directory_structure(self, raw_storage_enabled, stock_instrument, sample_raw_data):
+        """Test that all providers use the same directory structure (since deployments are single-provider)."""
+        import time
         providers = ["yahoo", "barchart", "ibkr"]
+        file_paths = []
         
-        for provider in providers:
-            raw_storage_enabled.save_raw_response(
+        for i, provider in enumerate(providers):
+            file_path = raw_storage_enabled.save_raw_response(
                 provider=provider,
                 instrument=stock_instrument,
                 raw_data=sample_raw_data
             )
+            file_paths.append(file_path)
+            if i < len(providers) - 1:  # Don't sleep after last iteration
+                time.sleep(0.001)  # 1ms delay to ensure different timestamps
         
-        # Verify each provider has its own directory
-        for provider in providers:
-            provider_dir = raw_storage_enabled.raw_dir / provider
-            assert provider_dir.exists()
+        # Verify all use the same year/month/instrument_type structure without provider prefix
+        year_dir = raw_storage_enabled.raw_dir / "2025" / "08" / "stock"
+        assert year_dir.exists()
+        
+        # All file paths should be unique (different timestamps)
+        assert len(set(file_paths)) == len(providers)
+        
+        # Count files in the directory - should have one file per provider
+        files = list(year_dir.glob("*.csv.gz"))
+        assert len(files) == len(providers)
 
     def test_correlation_id_injection(self, raw_storage_enabled, stock_instrument, sample_raw_data):
         """Test correlation ID is properly injected in metadata."""
