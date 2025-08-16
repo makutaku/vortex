@@ -9,6 +9,13 @@ from vortex.models.price_series import LOW_DATA_THRESHOLD
 from vortex.utils.logging_utils import LoggingContext, LoggingConfiguration
 from vortex.utils.utils import random_sleep
 
+# Optional metrics - graceful fallback if not available
+try:
+    from vortex.infrastructure.metrics import get_metrics
+    _metrics_available = True
+except ImportError:
+    _metrics_available = False
+
 
 class UpdatingDownloader(BaseDownloader):
 
@@ -24,6 +31,7 @@ class UpdatingDownloader(BaseDownloader):
         super().__init__(data_storage, data_provider, backup_data_storage, force_backup)
         self.dry_run = dry_run
         self.random_sleep_in_sec = random_sleep_in_sec if random_sleep_in_sec is not None and random_sleep_in_sec > 0 else None
+        self._metrics = get_metrics() if _metrics_available else None
 
     def _process_job(self, job: DownloadJob) -> HistoricalDataResult:
         config = LoggingConfiguration(
@@ -71,8 +79,18 @@ class UpdatingDownloader(BaseDownloader):
             self.pretend_not_a_bot()
             new_download = job.fetch()
             if not new_download:
+                # Record failed download
+                if self._metrics:
+                    provider_name = getattr(self.data_provider, '__class__', type(self.data_provider)).__name__.lower().replace('dataprovider', '')
+                    self._metrics.record_download(provider_name, job.instrument.symbol, 0, False)
                 return HistoricalDataResult.NONE
             logging.info(f"Fetched remote data: {new_download}")
+
+            # Record successful download metrics
+            if self._metrics and new_download.df is not None:
+                provider_name = getattr(self.data_provider, '__class__', type(self.data_provider)).__name__.lower().replace('dataprovider', '')
+                row_count = len(new_download.df)
+                self._metrics.record_download(provider_name, job.instrument.symbol, row_count, True)
 
             merged_download = new_download.merge(existing_download)
             job.persist(merged_download)

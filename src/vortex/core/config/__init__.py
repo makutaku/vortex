@@ -47,6 +47,11 @@ from ...exceptions.config import (
     ConfigurationValidationError
 )
 
+# Convenience function for getting config manager
+def get_config_manager(config_file=None):
+    """Get a config manager instance."""
+    return ConfigManager(config_file)
+
 __all__ = [
     # Configuration models
     'VortexConfig',
@@ -63,6 +68,7 @@ __all__ = [
     # Configuration management
     'ConfigManager',
     'VortexSettings',
+    'get_config_manager',
     
     # Exceptions
     'ConfigurationError',

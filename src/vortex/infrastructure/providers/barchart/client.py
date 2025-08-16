@@ -6,6 +6,7 @@ Handles all HTTP requests, downloads, and usage checking for Barchart data.
 
 import json
 import logging
+import time
 from datetime import datetime
 
 import requests
@@ -14,6 +15,13 @@ from vortex.models.period import FrequencyAttributes
 from vortex.utils.logging_utils import LoggingContext, LoggingConfiguration
 from vortex.core.constants import ProviderConstants, NetworkConstants
 from .auth import BarchartAuth
+
+# Optional metrics - graceful fallback if not available
+try:
+    from vortex.infrastructure.metrics import get_metrics
+    _metrics_available = True
+except ImportError:
+    _metrics_available = False
 
 
 class BarchartClient:
@@ -26,32 +34,72 @@ class BarchartClient:
     def __init__(self, auth: BarchartAuth):
         self.auth = auth
         self.session = auth.session
+        self._metrics = get_metrics() if _metrics_available else None
     
     def request_download(self, xsrf_token: str, history_csrf_token: str, symbol: str,
                         frequency_attributes: FrequencyAttributes, url: str,
                         start_date: datetime, end_date: datetime) -> requests.Response:
         """Request data download from Barchart."""
-        headers = self._build_download_request_headers(xsrf_token, url)
-        payload = self._build_download_request_payload(history_csrf_token, symbol, frequency_attributes,
-                                                      start_date, end_date)
-        resp = self.session.post(self.BARCHART_DOWNLOAD_URL, headers=headers, data=payload, timeout=NetworkConstants.LONG_REQUEST_TIMEOUT)
-        logging.debug(f"POST {self.BARCHART_DOWNLOAD_URL}, "
-                     f"status: {resp.status_code}, "
-                     f"data length: {len(resp.content)}")
-        return resp
+        start_time = time.time()
+        
+        try:
+            headers = self._build_download_request_headers(xsrf_token, url)
+            payload = self._build_download_request_payload(history_csrf_token, symbol, frequency_attributes,
+                                                          start_date, end_date)
+            resp = self.session.post(self.BARCHART_DOWNLOAD_URL, headers=headers, data=payload, timeout=NetworkConstants.LONG_REQUEST_TIMEOUT)
+            
+            # Record success metrics
+            duration = time.time() - start_time
+            if self._metrics:
+                self._metrics.record_provider_request('barchart', 'download', duration, True)
+                if hasattr(resp, 'content') and resp.content:
+                    # Estimate row count from response size (rough approximation)
+                    estimated_rows = len(resp.content) // 50  # ~50 bytes per row estimate
+                    self._metrics.record_download('barchart', symbol, estimated_rows, True)
+            
+            logging.debug(f"POST {self.BARCHART_DOWNLOAD_URL}, "
+                         f"status: {resp.status_code}, "
+                         f"data length: {len(resp.content)}")
+            return resp
+            
+        except Exception as e:
+            # Record failure metrics
+            duration = time.time() - start_time
+            if self._metrics:
+                self._metrics.record_provider_request('barchart', 'download', duration, False)
+                self._metrics.record_download('barchart', symbol, 0, False)
+                self._metrics.record_error(type(e).__name__, 'barchart', 'download')
+            raise
     
     def fetch_usage(self, url: str, xsrf_token: str) -> tuple[dict, str]:
         """Check download usage count."""
+        start_time = time.time()
         config = LoggingConfiguration(entry_msg="Checking usage", 
                                      success_msg="Checked usage")
-        with LoggingContext(config):
-            headers = self._build_usage_request_headers(url, xsrf_token)
-            payload = self._build_usage_payload()
-            resp = self.session.post(self.BARCHART_USAGE_URL, headers=headers, data=payload, timeout=NetworkConstants.DEFAULT_REQUEST_TIMEOUT)
-            xsrf_token = self.auth.get_xsrf_token()
-            usage_data = json.loads(resp.text)
-            logging.debug(f"usage data: {usage_data}")
-            return usage_data, xsrf_token
+        
+        try:
+            with LoggingContext(config):
+                headers = self._build_usage_request_headers(url, xsrf_token)
+                payload = self._build_usage_payload()
+                resp = self.session.post(self.BARCHART_USAGE_URL, headers=headers, data=payload, timeout=NetworkConstants.DEFAULT_REQUEST_TIMEOUT)
+                xsrf_token = self.auth.get_xsrf_token()
+                usage_data = json.loads(resp.text)
+                logging.debug(f"usage data: {usage_data}")
+                
+                # Record success metrics
+                duration = time.time() - start_time
+                if self._metrics:
+                    self._metrics.record_provider_request('barchart', 'usage_check', duration, True)
+                
+                return usage_data, xsrf_token
+                
+        except Exception as e:
+            # Record failure metrics
+            duration = time.time() - start_time
+            if self._metrics:
+                self._metrics.record_provider_request('barchart', 'usage_check', duration, False)
+                self._metrics.record_error(type(e).__name__, 'barchart', 'usage_check')
+            raise
     
     def _build_download_request_payload(self, history_csrf_token: str, symbol: str, 
                                        frequency_attributes: FrequencyAttributes, 

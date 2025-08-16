@@ -253,6 +253,8 @@ def register_commands():
             cli.add_command(commands['providers'])
         if commands.get('validate'):
             cli.add_command(commands['validate'])
+        if commands.get('metrics'):
+            cli.add_command(commands['metrics'])
         if commands.get('help_command'):
             cli.add_command(commands['help_command'])
         if commands.get('install_completion'):
@@ -281,6 +283,12 @@ def register_commands():
         def validate():
             """Validate data (requires dependencies)."""
             click.echo("❌ Validate command unavailable - missing dependencies.")
+            click.echo("💡 Install with: pip install -e . or uv pip install -e .")
+        
+        @cli.command()
+        def metrics():
+            """View and manage metrics (requires dependencies)."""
+            click.echo("❌ Metrics command unavailable - missing dependencies.")
             click.echo("💡 Install with: pip install -e . or uv pip install -e .")
     
     # Add resilience commands if available

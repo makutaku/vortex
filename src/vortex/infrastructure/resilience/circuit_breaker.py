@@ -23,6 +23,13 @@ except ImportError:
     import logging
     logger = logging.getLogger(__name__)
 
+# Optional metrics - graceful fallback if not available
+try:
+    from vortex.infrastructure.metrics import get_metrics
+    _metrics_available = True
+except ImportError:
+    _metrics_available = False
+
 
 class CircuitState(Enum):
     """Circuit breaker states."""
@@ -83,6 +90,11 @@ class CircuitBreaker:
         self._total_calls = 0
         self._total_failures = 0
         self._circuit_opened_count = 0
+        
+        # Initialize metrics
+        self._metrics = get_metrics() if _metrics_available else None
+        if self._metrics:
+            self._metrics.record_circuit_breaker_state(name, self._state.value)
         
         logger.info(f"Circuit breaker '{name}' initialized", 
                    failure_threshold=self.config.failure_threshold,
@@ -157,23 +169,40 @@ class CircuitBreaker:
                 result = func(*args, **kwargs)
                 call_success = True
                 self._record_success()
+                
+                # Record success metrics
+                duration = time.time() - start_time
+                if self._metrics:
+                    self._metrics.record_provider_request(self.name, 'call', duration, True)
+                
                 logger.debug(f"Circuit breaker '{self.name}' call succeeded", 
-                           duration=time.time() - start_time)
+                           duration=duration)
                 return result
                 
             except Exception as e:
                 exception = e
                 call_success = False
+                duration = time.time() - start_time
                 
                 # Only record as failure if it's a monitored exception
                 if isinstance(e, self.config.monitored_exceptions):
                     self._record_failure(e)
+                    
+                    # Record failure metrics
+                    if self._metrics:
+                        self._metrics.record_provider_request(self.name, 'call', duration, False)
+                        self._metrics.record_circuit_breaker_failure(self.name)
+                        self._metrics.record_error(type(e).__name__, self.name, 'circuit_breaker_call')
+                    
                     logger.warning(f"Circuit breaker '{self.name}' recorded failure",
                                  exception_type=type(e).__name__,
                                  failure_count=self._failure_count)
                 else:
                     # Still record the call result but don't count as failure
                     self._record_call_result(True, time.time() - start_time)
+                    if self._metrics:
+                        self._metrics.record_provider_request(self.name, 'call', duration, True)
+                    
                     logger.debug(f"Circuit breaker '{self.name}' non-monitored exception",
                                exception_type=type(e).__name__)
                 
@@ -239,6 +268,10 @@ class CircuitBreaker:
         """Transition circuit to new state."""
         old_state = self._state
         self._state = new_state
+        
+        # Record state change in metrics
+        if self._metrics:
+            self._metrics.record_circuit_breaker_state(self.name, new_state.value)
         
         if new_state == CircuitState.OPEN:
             self._circuit_opened_count += 1

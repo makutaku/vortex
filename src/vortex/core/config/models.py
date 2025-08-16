@@ -86,6 +86,13 @@ class ProvidersConfig(BaseModel):
     ibkr: IBKRConfig = Field(default_factory=IBKRConfig)
 
 
+class MetricsConfig(BaseModel):
+    """Metrics configuration."""
+    enabled: bool = Field(True, description="Enable Prometheus metrics collection")
+    port: int = Field(8000, ge=1024, le=65535, description="Metrics server port")
+    path: str = Field("/metrics", description="Metrics endpoint path")
+
+
 class LoggingConfig(BaseModel):
     """Logging configuration."""
     level: LogLevel = Field(LogLevel.INFO, description="Logging level")
@@ -128,6 +135,7 @@ class GeneralConfig(BaseModel):
         description="Directory for downloaded data files"
     )
     logging: LoggingConfig = Field(default_factory=LoggingConfig, description="Logging configuration")
+    metrics: MetricsConfig = Field(default_factory=MetricsConfig, description="Metrics configuration")
     backup_enabled: bool = Field(False, description="Enable Parquet backup files")
     force_backup: bool = Field(False, description="Force backup even if files exist")
     dry_run: bool = Field(False, description="Perform dry run without downloading")
@@ -220,6 +228,10 @@ class VortexSettings(BaseSettings):
     vortex_ibkr_host: Optional[str] = Field(None, alias="VORTEX_IBKR_HOST")
     vortex_ibkr_port: Optional[int] = Field(None, alias="VORTEX_IBKR_PORT")
     vortex_ibkr_client_id: Optional[int] = Field(None, alias="VORTEX_IBKR_CLIENT_ID")
+    
+    # Metrics settings
+    vortex_metrics_enabled: Optional[bool] = Field(None, alias="VORTEX_METRICS_ENABLED")
+    vortex_metrics_port: Optional[int] = Field(None, alias="VORTEX_METRICS_PORT")
     
     model_config = SettingsConfigDict(
         env_file=".env",

@@ -1,0 +1,189 @@
+# Vortex Financial Data Automation with Prometheus + Grafana Monitoring
+#
+# This docker-compose.yml provides a complete monitoring stack with:
+# - Vortex application with metrics enabled
+# - Prometheus for metrics collection
+# - Grafana for visualization and dashboards
+# - Node Exporter for system metrics
+#
+# Quick Start:
+#   docker compose -f docker/docker-compose.monitoring.yml up -d
+#
+# Access:
+#   - Grafana: http://localhost:3000 (admin/admin123)
+#   - Prometheus: http://localhost:9090
+#   - Vortex Metrics: http://localhost:8000/metrics
+#   - Vortex Application: Standard functionality
+
+version: '3.8'
+
+services:
+  vortex:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: vortex-monitored
+    restart: unless-stopped
+    environment:
+      # Enable metrics
+      VORTEX_METRICS_ENABLED: "true"
+      VORTEX_METRICS_PORT: "8000"
+      
+      # Container runtime settings
+      VORTEX_OUTPUT_DIR: /data
+      VORTEX_SCHEDULE: ${VORTEX_SCHEDULE:-0 8 * * *}
+      VORTEX_RUN_ON_STARTUP: ${VORTEX_RUN_ON_STARTUP:-true}
+      VORTEX_DOWNLOAD_ARGS: ${VORTEX_DOWNLOAD_ARGS:---yes}
+      VORTEX_LOG_LEVEL: ${VORTEX_LOG_LEVEL:-INFO}
+      
+      # Provider configuration (optional - use config/config.toml instead)
+      # VORTEX_DEFAULT_PROVIDER: ${VORTEX_DEFAULT_PROVIDER:-yahoo}
+      # VORTEX_BARCHART_USERNAME: ${VORTEX_BARCHART_USERNAME:-}
+      # VORTEX_BARCHART_PASSWORD: ${VORTEX_BARCHART_PASSWORD:-}
+    
+    ports:
+      - "8000:8000"  # Metrics endpoint
+    
+    volumes:
+      # Data and configuration
+      - ${DATA_DIR:-./data}:/data
+      - ${CONFIG_DIR:-./config}:/home/vortex/.config/vortex
+      - ${LOGS_DIR:-./logs}:/home/vortex/logs
+    
+    # Health check using modern CLI
+    healthcheck:
+      test: ["CMD-SHELL", "vortex config --show > /dev/null || exit 1"]
+      interval: 1h
+      timeout: 30s
+      retries: 3
+      start_period: 30s
+    
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    
+    networks:
+      - monitoring
+    
+    labels:
+      - "prometheus.io/scrape=true"
+      - "prometheus.io/port=8000"
+      - "prometheus.io/path=/metrics"
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/alerts:/etc/prometheus/alerts:ro
+      - prometheus_data:/prometheus
+    networks:
+      - monitoring
+    depends_on:
+      - vortex
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    restart: unless-stopped
+    environment:
+      # Security settings
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin123}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      
+      # Dashboard settings
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/vortex-overview.json
+      
+      # Provisioning
+      GF_PATHS_PROVISIONING: /etc/grafana/provisioning
+      
+      # Performance
+      GF_DATABASE_WAL: "true"
+      GF_LOG_LEVEL: warn
+    
+    ports:
+      - "3000:3000"
+    
+    volumes:
+      # Persistent data
+      - grafana_data:/var/lib/grafana
+      
+      # Provisioning configuration
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      
+      # Dashboards
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    
+    networks:
+      - monitoring
+    
+    depends_on:
+      - prometheus
+
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: node-exporter
+    restart: unless-stopped
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.rootfs=/rootfs'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+      - '--collector.cpu'
+      - '--collector.meminfo'
+      - '--collector.diskstats'
+      - '--collector.filesystem'
+      - '--collector.loadavg'
+      - '--collector.netdev'
+    ports:
+      - "9100:9100"
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    networks:
+      - monitoring
+
+  # Optional: AlertManager for notifications
+  # alertmanager:
+  #   image: prom/alertmanager:latest
+  #   container_name: alertmanager
+  #   restart: unless-stopped
+  #   ports:
+  #     - "9093:9093"
+  #   volumes:
+  #     - ./monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+  #     - alertmanager_data:/alertmanager
+  #   networks:
+  #     - monitoring
+
+networks:
+  monitoring:
+    driver: bridge
+    name: vortex-monitoring
+
+volumes:
+  prometheus_data:
+    name: vortex-prometheus-data
+  grafana_data:
+    name: vortex-grafana-data
+  # alertmanager_data:
+  #   name: vortex-alertmanager-data

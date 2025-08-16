@@ -5,6 +5,7 @@ from .download import download
 from .providers import providers
 from .validate import validate
 from .resilience import resilience
+from .metrics import metrics
 
 __all__ = [
     "config",
@@ -12,4 +13,5 @@ __all__ = [
     "providers",
     "validate",
     "resilience",
+    "metrics",
 ]

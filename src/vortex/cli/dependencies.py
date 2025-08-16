@@ -156,7 +156,7 @@ def _import_rich():
 
 def _import_commands():
     """Import command modules."""
-    from .commands import download, config, providers, validate
+    from .commands import download, config, providers, validate, metrics
     from .help import help as help_command
     from .completion import install_completion
     return {
@@ -164,6 +164,7 @@ def _import_commands():
         'config': config,
         'providers': providers,
         'validate': validate,
+        'metrics': metrics,
         'help_command': help_command,
         'install_completion': install_completion
     }

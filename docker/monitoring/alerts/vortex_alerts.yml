@@ -1,0 +1,177 @@
+# Vortex Financial Data Automation - Alert Rules
+groups:
+  - name: vortex_alerts
+    rules:
+      # Provider performance alerts
+      - alert: VortexProviderErrorRateHigh
+        expr: rate(vortex_provider_requests_total{status="error"}[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+          service: vortex
+        annotations:
+          summary: "Vortex provider {{ $labels.provider }} error rate high"
+          description: "Provider {{ $labels.provider }} has error rate above 10% for 2 minutes (current: {{ $value | humanizePercentage }})"
+          runbook_url: "https://github.com/your-org/vortex/wiki/runbooks#provider-errors"
+
+      - alert: VortexProviderSlowRequests
+        expr: histogram_quantile(0.95, rate(vortex_provider_request_duration_seconds_bucket[5m])) > 30
+        for: 5m
+        labels:
+          severity: warning
+          service: vortex
+        annotations:
+          summary: "Vortex provider {{ $labels.provider }} slow requests"
+          description: "95th percentile request duration for {{ $labels.provider }} is {{ $value }}s (threshold: 30s)"
+
+      # Circuit breaker alerts
+      - alert: VortexCircuitBreakerOpen
+        expr: vortex_circuit_breaker_state == 1
+        for: 1m
+        labels:
+          severity: critical
+          service: vortex
+        annotations:
+          summary: "Vortex circuit breaker open for {{ $labels.provider }}"
+          description: "Circuit breaker for provider {{ $labels.provider }} has been open for 1 minute"
+          runbook_url: "https://github.com/your-org/vortex/wiki/runbooks#circuit-breaker-open"
+
+      - alert: VortexCircuitBreakerFailureSpike
+        expr: rate(vortex_circuit_breaker_failures_total[5m]) > 0.5
+        for: 2m
+        labels:
+          severity: warning
+          service: vortex
+        annotations:
+          summary: "High circuit breaker failure rate for {{ $labels.provider }}"
+          description: "Circuit breaker failures for {{ $labels.provider }} are occurring at {{ $value }} per second"
+
+      # Download performance alerts
+      - alert: VortexDownloadFailureRateHigh
+        expr: rate(vortex_downloads_total{status="error"}[10m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          service: vortex
+        annotations:
+          summary: "High download failure rate"
+          description: "Download failure rate is {{ $value | humanizePercentage }} over 10 minutes (threshold: 5%)"
+
+      - alert: VortexNoDataDownloaded
+        expr: rate(vortex_downloads_total[1h]) == 0
+        for: 1h
+        labels:
+          severity: warning
+          service: vortex
+        annotations:
+          summary: "No data downloaded in 1 hour"
+          description: "Vortex hasn't successfully downloaded any data in the last hour"
+
+      - alert: VortexLowDataVolume
+        expr: histogram_quantile(0.50, rate(vortex_download_rows_bucket[1h])) < 10
+        for: 30m
+        labels:
+          severity: warning
+          service: vortex
+        annotations:
+          summary: "Low data volume in downloads"
+          description: "Median download size is only {{ $value }} rows over the last hour"
+
+      # System health alerts
+      - alert: VortexHighErrorRate
+        expr: rate(vortex_errors_total[5m]) > 0.1
+        for: 3m
+        labels:
+          severity: warning
+          service: vortex
+        annotations:
+          summary: "High error rate in Vortex"
+          description: "Error rate is {{ $value }} errors per second for the last 5 minutes"
+
+      - alert: VortexStorageOperationFailures
+        expr: rate(vortex_storage_operations_total{status="error"}[5m]) > 0.05
+        for: 2m
+        labels:
+          severity: warning
+          service: vortex
+        annotations:
+          summary: "Storage operation failures"
+          description: "Storage operations failing at {{ $value }} per second for {{ $labels.storage_type }}"
+
+      # Configuration alerts
+      - alert: VortexConfigurationErrors
+        expr: rate(vortex_config_loads_total{status="error"}[10m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+          service: vortex
+        annotations:
+          summary: "Configuration loading errors"
+          description: "Configuration is failing to load - application may not start properly"
+
+  - name: vortex_system_alerts
+    rules:
+      # Container health
+      - alert: VortexContainerDown
+        expr: up{job="vortex"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: vortex
+        annotations:
+          summary: "Vortex container is down"
+          description: "Vortex application container has been down for 1 minute"
+
+      - alert: VortexHighMemoryUsage
+        expr: (container_memory_usage_bytes{name="vortex-monitored"} / container_spec_memory_limit_bytes{name="vortex-monitored"}) > 0.9
+        for: 5m
+        labels:
+          severity: warning
+          service: vortex
+        annotations:
+          summary: "Vortex high memory usage"
+          description: "Vortex container memory usage is {{ $value | humanizePercentage }} of limit"
+
+      - alert: VortexHighCPUUsage
+        expr: rate(container_cpu_usage_seconds_total{name="vortex-monitored"}[5m]) > 0.8
+        for: 10m
+        labels:
+          severity: warning
+          service: vortex
+        annotations:
+          summary: "Vortex high CPU usage"
+          description: "Vortex container CPU usage is {{ $value | humanizePercentage }} for 10 minutes"
+
+  - name: vortex_business_alerts
+    rules:
+      # Business logic alerts
+      - alert: VortexBarchartQuotaExceeded
+        expr: increase(vortex_errors_total{error_type="AllowanceLimitExceededError"}[1h]) > 0
+        for: 1m
+        labels:
+          severity: warning
+          service: vortex
+          provider: barchart
+        annotations:
+          summary: "Barchart daily quota exceeded"
+          description: "Barchart daily download allowance has been exceeded"
+
+      - alert: VortexProviderAuthenticationFailure
+        expr: increase(vortex_errors_total{error_type="AuthenticationError"}[5m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+          service: vortex
+        annotations:
+          summary: "Provider authentication failure"
+          description: "Authentication failed for provider {{ $labels.provider }} - check credentials"
+
+      - alert: VortexMissingScheduledDownload
+        expr: time() - vortex_downloads_total > 86400  # 24 hours
+        for: 1h
+        labels:
+          severity: warning
+          service: vortex
+        annotations:
+          summary: "Scheduled download missing"
+          description: "No downloads have occurred in the last 24 hours - check scheduler"

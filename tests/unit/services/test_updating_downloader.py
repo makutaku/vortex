@@ -173,13 +173,18 @@ class TestUpdatingDownloader:
         mock_job.start_date = datetime(2023, 1, 1)
         mock_job.end_date = datetime(2023, 12, 31)
         mock_job.__str__ = Mock(return_value="Test Job")
+        mock_job.instrument = Mock()
+        mock_job.instrument.symbol = "TEST"
         
         # Mock load to raise FileNotFoundError (no existing data)
         mock_job.load.side_effect = FileNotFoundError("No existing data")
         
         # Mock fetch to return new data
         mock_new_data = Mock()
-        mock_new_data.df.shape = (100, 5)
+        mock_df = Mock()
+        mock_df.shape = (100, 5)
+        mock_df.__len__ = Mock(return_value=100)
+        mock_new_data.df = mock_df
         mock_new_data.merge.return_value = mock_new_data
         mock_job.fetch.return_value = mock_new_data
         mock_job.persist = Mock()
@@ -249,6 +254,8 @@ class TestUpdatingDownloaderEdgeCases:
         mock_job.start_date = datetime(2023, 1, 1)
         mock_job.end_date = datetime(2023, 12, 31)
         mock_job.__str__ = Mock(return_value="Test Job")
+        mock_job.instrument = Mock()
+        mock_job.instrument.symbol = "TEST"
         
         # Create mock existing download that needs more data
         mock_existing = Mock()
@@ -260,6 +267,9 @@ class TestUpdatingDownloaderEdgeCases:
         
         # Mock fetch to return new data
         mock_new_data = Mock()
+        mock_df = Mock()
+        mock_df.__len__ = Mock(return_value=75)
+        mock_new_data.df = mock_df
         mock_merged_data = Mock()
         mock_new_data.merge.return_value = mock_merged_data
         mock_job.fetch.return_value = mock_new_data
@@ -284,6 +294,8 @@ class TestUpdatingDownloaderEdgeCases:
         mock_job.start_date = datetime(2022, 1, 1)
         mock_job.end_date = datetime(2022, 12, 31)
         mock_job.__str__ = Mock(return_value="Test Job")
+        mock_job.instrument = Mock()
+        mock_job.instrument.symbol = "TEST"
         
         # Create mock existing download with later start date
         mock_existing = Mock()
@@ -295,6 +307,9 @@ class TestUpdatingDownloaderEdgeCases:
         
         # Mock fetch to return new data
         mock_new_data = Mock()
+        mock_df = Mock()
+        mock_df.__len__ = Mock(return_value=75)
+        mock_new_data.df = mock_df
         mock_merged_data = Mock()
         mock_new_data.merge.return_value = mock_merged_data
         mock_job.fetch.return_value = mock_new_data
@@ -316,6 +331,8 @@ class TestUpdatingDownloaderEdgeCases:
         mock_job.start_date = datetime(2023, 1, 1) 
         mock_job.end_date = datetime(2023, 12, 31)
         mock_job.__str__ = Mock(return_value="Test Job")
+        mock_job.instrument = Mock()
+        mock_job.instrument.symbol = "TEST"
         
         # Mock load to raise FileNotFoundError
         mock_job.load.side_effect = FileNotFoundError("No existing data")

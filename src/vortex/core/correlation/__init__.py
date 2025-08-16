@@ -50,6 +50,11 @@ from .utils import (
     clear_correlation_id
 )
 
+# Alias for backwards compatibility
+def get_correlation_manager():
+    """Get the global correlation manager instance."""
+    return CorrelationIdManager
+
 __all__ = [
     # Core classes
     'CorrelationIdManager',
@@ -67,4 +72,5 @@ __all__ = [
     'generate_correlation_id',
     'clear_correlation_id',
     'get_request_tracker',
+    'get_correlation_manager',
 ]
