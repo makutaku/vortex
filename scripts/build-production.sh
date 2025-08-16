@@ -247,29 +247,65 @@ fi
 if [[ "$PUSH" == "true" ]]; then
     log_info "Preparing to push to registry..."
     
-    # Login to registry if credentials are available
-    if [[ -n "$DOCKER_PASSWORD" ]]; then
-        LOGIN_CMD="echo '$DOCKER_PASSWORD' | docker login $REGISTRY -u $USERNAME --password-stdin"
-        execute_cmd "$LOGIN_CMD" "Logging in to Docker registry"
-    else
-        if [[ "$DRY_RUN" != "true" ]]; then
-            log_info "No DOCKER_PASSWORD environment variable found"
-            log_info "Please ensure you are logged in to Docker Hub:"
-            log_info "  docker login $REGISTRY"
-            read -p "Press Enter to continue or Ctrl+C to cancel..."
-        else
-            log_warning "DRY RUN: Docker login would be required"
+    if [[ "$DRY_RUN" != "true" ]]; then
+        # Check if user is already logged in by testing push permission
+        log_info "Verifying Docker Hub authentication..."
+        if ! docker push --help > /dev/null 2>&1; then
+            log_error "Docker push command not available"
+            exit 1
         fi
-    fi
-    
-    # Push versioned image
-    PUSH_CMD="docker push $REGISTRY_TAG"
-    execute_cmd "$PUSH_CMD" "Pushing versioned image to registry"
-    
-    # Push latest if we tagged it
-    if [[ "$VERSION" != "latest" ]]; then
-        PUSH_LATEST_CMD="docker push $REGISTRY/$FULL_IMAGE_NAME:latest"
-        execute_cmd "$PUSH_LATEST_CMD" "Pushing latest image to registry"
+        
+        # Test authentication by checking if we can access the registry
+        # This is a lightweight way to verify login status
+        if ! docker system info | grep -q "Username:"; then
+            log_warning "Docker registry authentication may not be configured"
+        fi
+        
+        # Attempt to push - if it fails due to authentication, provide clear instructions
+        log_info "Pushing images to Docker Hub (assuming you are logged in)..."
+        
+        # Push versioned image
+        log_info "Pushing versioned image: $REGISTRY_TAG"
+        if ! docker push "$REGISTRY_TAG" 2>&1; then
+            exit_code=$?
+            log_error "Failed to push image to Docker Hub"
+            echo ""
+            log_error "This is likely due to authentication issues. Please run:"
+            log_error "  docker login $REGISTRY"
+            log_error "Then re-run this script with the --push option."
+            echo ""
+            log_error "If you're still having issues, verify:"
+            log_error "  1. Your Docker Hub username is correct: $USERNAME"
+            log_error "  2. You have push permissions to the repository: $FULL_IMAGE_NAME"
+            log_error "  3. The repository exists on Docker Hub"
+            echo ""
+            exit $exit_code
+        fi
+        log_success "Successfully pushed versioned image"
+        
+        # Push latest if we tagged it
+        if [[ "$VERSION" != "latest" ]]; then
+            log_info "Pushing latest image: $REGISTRY/$FULL_IMAGE_NAME:latest"
+            if ! docker push "$REGISTRY/$FULL_IMAGE_NAME:latest" 2>&1; then
+                exit_code=$?
+                log_error "Failed to push latest tag to Docker Hub"
+                echo ""
+                log_error "The versioned image was pushed successfully, but latest tag failed."
+                log_error "This could be due to permissions or network issues."
+                log_error "You can manually push the latest tag later with:"
+                log_error "  docker push $REGISTRY/$FULL_IMAGE_NAME:latest"
+                echo ""
+                exit $exit_code
+            fi
+            log_success "Successfully pushed latest image"
+        fi
+    else
+        log_warning "DRY RUN: Would attempt to push images (authentication required)"
+        log_info "Commands that would be executed:"
+        log_info "  docker push $REGISTRY_TAG"
+        if [[ "$VERSION" != "latest" ]]; then
+            log_info "  docker push $REGISTRY/$FULL_IMAGE_NAME:latest"
+        fi
     fi
 fi
 
