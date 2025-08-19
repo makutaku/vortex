@@ -96,3 +96,72 @@ The modern Vortex configuration system uses `VORTEX_*` environment variables. Le
 | BCU_BACKUP_DATA         | VORTEX_BACKUP_ENABLED          |
 | BCU_DRY_RUN             | VORTEX_DRY_RUN                 |
 | BCU_DOWNLOADER          | VORTEX_DEFAULT_PROVIDER        |
+
+## New Environment Variables (v0.1.4)
+
+The following environment variables were added in version 0.1.4 for enhanced functionality:
+
+### Raw Data Storage
+| Variable | Description | Default |
+|----------|-------------|---------|
+| VORTEX_RAW_ENABLED | Enable raw data audit trail | false |
+| VORTEX_RAW_RETENTION_DAYS | Days to retain raw files (1-365) | None (unlimited) |
+| VORTEX_RAW_BASE_DIRECTORY | Base directory for raw files | ./raw |
+| VORTEX_RAW_COMPRESS | Enable gzip compression | true |
+| VORTEX_RAW_INCLUDE_METADATA | Include .meta.json files | true |
+
+### Monitoring & Metrics
+| Variable | Description | Default |
+|----------|-------------|---------|
+| VORTEX_METRICS_ENABLED | Enable Prometheus metrics | false |
+| VORTEX_METRICS_PORT | Metrics server port | 8000 |
+| VORTEX_METRICS_PATH | Metrics endpoint path | /metrics |
+| VORTEX_METRICS_AUTH_USERNAME | Basic auth username | None |
+| VORTEX_METRICS_AUTH_PASSWORD | Basic auth password | None |
+
+### Enhanced Logging
+| Variable | Description | Default |
+|----------|-------------|---------|
+| VORTEX_LOGGING_FORMAT | Log format (console, json, structured) | console |
+| VORTEX_LOGGING_OUTPUT | Output destinations (console,file,syslog) | console |
+| VORTEX_LOGGING_FILE_PATH | Log file path | None |
+| VORTEX_LOGGING_FILE_ROTATION | Rotation interval (1d, 1w, 1M) | None |
+| VORTEX_LOGGING_FILE_RETENTION | Retention period (30d, 1M, 1y) | None |
+| VORTEX_LOGGING_FILE_MAX_SIZE | Max file size before rotation | 100MB |
+
+## Configuration Validation
+
+Vortex validates all environment variables at startup. Invalid values will cause the application to exit with a clear error message:
+
+```bash
+# Invalid retention days
+export VORTEX_RAW_RETENTION_DAYS=400  # Error: Must be 1-365
+
+# Invalid log level
+export VORTEX_LOG_LEVEL=TRACE  # Error: Must be DEBUG, INFO, WARNING, ERROR
+
+# Invalid metrics port
+export VORTEX_METRICS_PORT=99999  # Error: Port must be 1-65535
+```
+
+## Best Practices
+
+### Production Environment
+1. **Use TOML configuration** for complex setups
+2. **Store secrets separately** using EnvironmentFile in systemd
+3. **Enable monitoring** with VORTEX_METRICS_ENABLED=true
+4. **Configure raw data retention** based on compliance requirements
+5. **Set up log rotation** to prevent disk space issues
+
+### Development Environment
+1. **Use .env files** for local development
+2. **Enable debug logging** with VORTEX_LOG_LEVEL=DEBUG
+3. **Disable raw data storage** to save disk space
+4. **Use shorter retention periods** for testing
+
+### Security Considerations
+1. **Never log sensitive environment variables**
+2. **Use file-based credential storage** for production
+3. **Restrict file permissions** on credential files (600)
+4. **Rotate credentials regularly**
+5. **Monitor access** to configuration files

@@ -13,7 +13,7 @@ Architecture Overview:
 - Shared: Cross-cutting concerns like logging, exceptions, and resilience
 """
 
-__version__ = "0.1.3"
+__version__ = "0.1.4"
 
 # Public API exports
 try:

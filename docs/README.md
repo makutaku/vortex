@@ -23,12 +23,31 @@ Describes how the system is architected and implemented.
 - **[Deployment Architecture](design/hld/07-deployment-architecture.md)** - Container deployment and scaling
 - **[Integration Design](design/hld/08-integration-design.md)** - External system interfaces and protocols
 
-### 🔧 Additional Documentation
-- **[Low-Level Design (LLD)](design/lld/)** - Detailed implementation specifications *(future)*
-- **[Architecture Decision Records (ADR)](design/adr/)** - Design decisions and rationale *(future)*
-- **[API Documentation](api/)** - Interface specifications and examples *(future)*
-- **[Deployment Guides](deployment/)** - Installation, configuration, and operations *(future)*
-- **[User Documentation](user/)** - End-user guides and tutorials *(future)*
+### 🔧 Operational Documentation
+
+**Production Guides:**
+- **[Monitoring Guide](MONITORING.md)** - Complete Prometheus + Grafana monitoring setup
+- **[Raw Data Storage](RAW_DATA_STORAGE.md)** - Compliance audit trail and data governance
+- **[Docker Guide](DOCKER.md)** - Container deployment and troubleshooting
+- **[Error Handling](ERROR_HANDLING.md)** - Error patterns and resolution strategies
+
+**User Guides:**
+- **[Installation Guide](user/installation.md)** - Comprehensive setup instructions
+- **[Quick Start Guide](user/quickstart.md)** - Getting started with Vortex
+- **[Environment Variables](user/environment-variables.md)** - Configuration reference
+- **[Troubleshooting Guide](user/troubleshooting.md)** - Common issues and solutions
+
+**Development Documentation:**
+- **[Architecture Guide](development/architecture.md)** - Development architecture overview
+- **[Testing Guide](development/testing.md)** - Testing strategies and practices
+- **[Contributing Guide](development/contributing.md)** - Contribution guidelines
+- **[Dependency Management](development/dependency-management.md)** - Managing project dependencies
+
+**Technical Documentation:**
+- **[Low-Level Design (LLD)](design/lld/)** - Detailed implementation specifications
+- **[Architecture Decision Records (ADR)](adr/)** - Design decisions and rationale
+- **[Security Guide](security/CREDENTIAL-MANAGEMENT.md)** - Credential management and security
+- **[Plugin System](plugins.md)** - Provider plugin architecture
 
 ## 🎯 Quick Start Guide
 
@@ -44,9 +63,11 @@ Describes how the system is architected and implemented.
 4. Review [Security Design](design/hld/06-security-design.md) for security considerations
 
 ### For DevOps and Infrastructure
-1. Focus on [Deployment Architecture](design/hld/07-deployment-architecture.md)
-2. Review [Security Design](design/hld/06-security-design.md) for operational security
-3. Check [Integration Design](design/hld/08-integration-design.md) for external dependencies
+1. Start with [Docker Guide](DOCKER.md) for container deployment
+2. Set up [Monitoring](MONITORING.md) with Prometheus and Grafana
+3. Configure [Raw Data Storage](RAW_DATA_STORAGE.md) for compliance
+4. Review [Deployment Architecture](design/hld/07-deployment-architecture.md) for scaling
+5. Study [Security Design](design/hld/06-security-design.md) for operational security
 
 ### For Integration Developers
 1. Start with [Provider Abstraction](design/hld/04-provider-abstraction.md)
@@ -58,6 +79,10 @@ Describes how the system is architected and implemented.
 ### Coverage Status
 - **Product Requirements:** ✅ Complete (3/3 documents)
 - **High-Level Design:** ✅ Complete (8/8 documents)
+- **Operational Guides:** ✅ Complete (4/4 documents)
+- **User Documentation:** ✅ Complete (4/4 documents)
+- **Development Guides:** ✅ Complete (4/4 documents)
+- **Technical Documentation:** ✅ Complete (4/4 documents)
 - **Cross-references:** ✅ Complete
 - **Diagrams:** ✅ All documents include Mermaid diagrams
 - **Code Examples:** ✅ All technical documents include implementation examples
@@ -67,7 +92,11 @@ Describes how the system is architected and implemented.
 |----------|-----------|-------------|--------------|
 | PRD | 3 | ~45 pages | 2025-01-08 |
 | HLD | 8 | ~120 pages | 2025-01-08 |
-| **Total** | **11** | **~165 pages** | **2025-01-08** |
+| Operational | 4 | ~65 pages | 2025-08-18 |
+| User Guides | 4 | ~25 pages | 2025-08-18 |
+| Development | 4 | ~35 pages | 2025-01-08 |
+| Technical | 4 | ~40 pages | 2025-01-08 |
+| **Total** | **27** | **~330 pages** | **2025-08-18** |
 
 ## 🔄 Maintenance and Updates
 
@@ -96,6 +125,7 @@ Describes how the system is architected and implemented.
 
 ---
 
-**Documentation Version:** 1.0  
-**Last Updated:** 2025-01-08  
-**Next Review:** 2025-02-08
+**Documentation Version:** 2.0  
+**Last Updated:** 2025-08-18  
+**Next Review:** 2025-09-18  
+**Major Updates:** Added monitoring, raw data storage, and enhanced configuration documentation

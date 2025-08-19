@@ -279,6 +279,21 @@ vortex providers --info barchart
 # Validate data
 vortex validate --path ./data
 vortex validate --path ./data/GC.csv --provider barchart
+vortex validate --enhanced  # Advanced validation with new formats
+vortex validate --summary   # Validation summary display
+
+# Monitoring and metrics (NEW)
+vortex metrics status        # Check metrics system status
+vortex metrics endpoint      # Show metrics URL
+vortex metrics test          # Generate test metrics
+vortex metrics summary       # Show metrics activity summary
+vortex metrics dashboard     # Show dashboard URLs
+
+# System resilience (NEW)
+vortex resilience status     # Circuit breaker status
+vortex resilience reset      # Reset all circuit breakers
+vortex resilience recovery   # Error recovery statistics
+vortex resilience health     # Overall system health
 ```
 
 
@@ -310,6 +325,10 @@ Vortex follows **Clean Architecture** principles with distinct separation of con
 - **Storage** (`storage/`): Data persistence implementations
   - `CsvStorage`: Primary CSV format storage
   - `ParquetStorage`: Backup Parquet format storage
+  - `RawDataStorage`: Compliance audit trail with gzipped raw data storage
+- **Metrics** (`metrics/`): Production monitoring and observability
+  - `VortexMetrics`: Prometheus metrics collection for all operations
+  - Circuit breaker monitoring and provider performance tracking
 - **Resilience** (`resilience/`): Failure handling and recovery
   - Circuit breaker patterns, retry logic, error recovery
 
@@ -339,13 +358,18 @@ Vortex follows **Clean Architecture** principles with distinct separation of con
 ### Key Files
 
 - `vortex/cli/commands/download.py`: Modern CLI download command with integrated downloader factory logic
+- `vortex/cli/commands/metrics.py`: Monitoring and metrics management commands
+- `vortex/cli/commands/resilience.py`: System resilience and circuit breaker commands
 - `vortex/cli/main.py`: Modern CLI entry point using Click framework
 - `vortex/core/config/`: Consolidated configuration management system
 - `vortex/core/correlation/`: Unified correlation and request tracking system
 - `vortex/infrastructure/providers/interfaces.py`: Dependency injection protocols and default implementations
 - `vortex/infrastructure/providers/factory.py`: Provider factory with dependency injection support
+- `vortex/infrastructure/storage/raw_storage.py`: Raw data audit trail storage
+- `vortex/infrastructure/metrics/prometheus_metrics.py`: Comprehensive metrics collection
 - `vortex/infrastructure/`: External integrations (providers, storage, resilience)
 - `config/assets/`: Default instrument definitions directory
+- `docker/docker-compose.monitoring.yml`: Complete monitoring stack deployment
 
 ### Configuration Management
 
@@ -367,6 +391,19 @@ backup_enabled = true
 level = "INFO"
 format = "console"
 output = ["console"]
+
+# Raw data storage configuration (NEW)
+[general.raw]
+enabled = true                    # Enable raw data storage
+retention_days = 30              # Days to retain (1-365, None for unlimited)
+compress = true                  # Gzip compression
+include_metadata = true          # Include .meta.json files
+
+# Monitoring and metrics configuration (NEW)
+[general.metrics]
+enabled = true                   # Enable Prometheus metrics
+port = 8000                     # Metrics server port
+path = "/metrics"                # Metrics endpoint path
 
 [providers.barchart]
 username = "your_username"
@@ -391,9 +428,22 @@ vortex config --provider ibkr --set-credentials
 
 **Environment Variables (Override TOML):**
 ```bash
+# Core configuration
 export VORTEX_DEFAULT_PROVIDER=yahoo
 export VORTEX_BARCHART_USERNAME="your_username"
 export VORTEX_LOGGING_LEVEL=DEBUG
+
+# Raw data storage (NEW)
+export VORTEX_RAW_ENABLED=true
+export VORTEX_RAW_RETENTION_DAYS=30
+export VORTEX_RAW_BASE_DIRECTORY=./raw
+export VORTEX_RAW_COMPRESS=true
+export VORTEX_RAW_INCLUDE_METADATA=true
+
+# Monitoring and metrics (NEW)
+export VORTEX_METRICS_ENABLED=true
+export VORTEX_METRICS_PORT=8000
+export VORTEX_METRICS_PATH="/metrics"
 ```
 
 ### Assets Configuration
@@ -467,10 +517,14 @@ Each assets file defines futures, forex, and stock instruments with metadata lik
 ### Data Flow
 
 1. Configuration loaded from `assets/` directory and environment variables
-2. Appropriate downloader created based on data provider
-3. Instrument definitions processed to generate download jobs
-4. Data downloaded and stored in both CSV (primary) and Parquet (backup) formats
-5. Existing data checked to avoid duplicate downloads
+2. Correlation ID generated for end-to-end request tracking
+3. Appropriate downloader created based on data provider with dependency injection
+4. Instrument definitions processed to generate download jobs
+5. Data downloaded with metrics collection and circuit breaker protection
+6. Raw provider responses stored in compressed audit trail (if enabled)
+7. Data processed and stored in both CSV (primary) and Parquet (backup) formats
+8. Existing data checked to avoid duplicate downloads
+9. Metrics exported to Prometheus for monitoring and alerting
 
 ### CLI Features
 

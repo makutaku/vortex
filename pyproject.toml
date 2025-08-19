@@ -1,6 +1,6 @@
 [project]
 name = "vortex"
-version = "0.1.3"
+version = "0.1.4"
 description = "Financial data automation tool for multiple providers (Barchart, Yahoo Finance, Interactive Brokers)"
 authors = [{name = "Andy Geach", email = "andy@bugorfeature.net"}]
 license = {text = "BSD-3-Clause"}

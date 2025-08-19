@@ -98,60 +98,111 @@ The code above would:
 - Incremental downloads (skip existing data)
 - Data validation and integrity checks
 - CSV and Parquet storage formats
+- **Raw data audit trail** with compressed storage for compliance
 - Configurable date ranges and chunking
+- **Correlation tracking** for end-to-end request monitoring
 
 **Production Monitoring:**
-- Prometheus metrics collection for observability
-- Grafana dashboards for visual monitoring
-- Circuit breaker monitoring and alerting
-- Provider performance and success rate tracking
+- **Complete Prometheus + Grafana monitoring stack**
+- Real-time provider performance and success rate tracking
+- **17+ pre-configured alert rules** for system health
+- Circuit breaker monitoring and automatic recovery
+- **Professional Grafana dashboards** with business metrics
 - Docker monitoring stack with Node Exporter
+- **Correlation ID tracking** across all operations
 
 **Configuration Options:**
-- Interactive credential setup
-- TOML configuration files
-- Environment variable support
-- Multiple configuration precedence
+- Interactive credential setup with guided wizards
+- **Enhanced TOML configuration** with validation
+- **Complete environment variable override** support
+- Multiple configuration precedence (ENV > TOML > Defaults)
+- **Raw data storage configuration** for audit trails
+- **Metrics and monitoring configuration**
 
 ## 📊 Production Monitoring
 
-Vortex includes comprehensive monitoring capabilities for production deployments:
+Vortex includes enterprise-grade monitoring capabilities for production deployments:
 
 ### Quick Setup
 ```bash
-# Start monitoring stack
+# Start complete monitoring stack
 docker compose -f docker/docker-compose.monitoring.yml up -d
 
-# Enable metrics in Vortex
+# Enable metrics in Vortex  
 export VORTEX_METRICS_ENABLED=true
 # or set in config.toml: [general.metrics] enabled = true
 
 # Access dashboards
-open http://localhost:3000  # Grafana (admin/admin)
-open http://localhost:9090  # Prometheus
+open http://localhost:3000  # Grafana (admin/admin123)
+open http://localhost:9090  # Prometheus  
+open http://localhost:8000/metrics  # Vortex metrics endpoint
 ```
 
 ### Available Metrics
-- **Provider Performance**: Request duration, success rates, error tracking
-- **Download Metrics**: Row counts, download volumes, completion rates  
-- **Circuit Breaker Status**: State monitoring and failure tracking
+- **Provider Performance**: Request duration, success rates, error tracking by provider
+- **Download Metrics**: Row counts, download volumes, completion rates per symbol
+- **Circuit Breaker Status**: Real-time state monitoring and failure tracking  
 - **System Health**: Active operations, memory/CPU usage, storage performance
-- **Business Logic**: Authentication failures, quota exceeded alerts
+- **Business Logic**: Authentication failures, quota exceeded alerts, raw data storage
+- **Correlation Tracking**: End-to-end request monitoring with unique correlation IDs
+- **Raw Data Audit**: Storage metrics, compression ratios, retention compliance
 
 ### CLI Monitoring Commands
 ```bash
+# Metrics Management
 vortex metrics status          # Check metrics system status
-vortex metrics endpoint        # Show metrics URL
+vortex metrics endpoint        # Show metrics URL  
 vortex metrics test            # Generate test metrics
+vortex metrics summary         # Show metrics activity summary
 vortex metrics dashboard       # Show dashboard URLs
+
+# System Resilience
+vortex resilience status       # Circuit breaker status
+vortex resilience reset        # Reset all circuit breakers
+vortex resilience recovery     # Error recovery statistics
+vortex resilience health       # Overall system health
+
+# Enhanced Validation
+vortex validate --enhanced     # Advanced validation with new formats
+vortex validate --summary      # Validation summary display
 ```
 
 ## 📖 Documentation
 
-- [Installation Guide](INSTALLATION.md) - Comprehensive setup instructions
-- [CLI Reference](CLAUDE.md#modern-cli-usage) - Command examples and usage
+- [Installation Guide](docs/user/installation.md) - Comprehensive setup instructions
+- [CLI Reference](CLAUDE.md#modern-cli-usage) - Command examples and usage  
 - [Configuration Guide](CLAUDE.md#configuration-management) - Setup and credentials
 - [Development Guide](CLAUDE.md#development-commands) - Contributing and development
+- [Monitoring Guide](docs/DOCKER.md#monitoring) - Production monitoring setup
+- [Docker Guide](docs/DOCKER.md) - Container deployment and troubleshooting
+- [Security Guide](docs/security/CREDENTIAL-MANAGEMENT.md) - Credential management
+
+## 🗂️ Raw Data Storage & Compliance
+
+Vortex automatically maintains audit trails of all provider responses:
+
+### Features
+- **Compliance Ready**: Untampered raw data storage for regulatory requirements
+- **Compressed Storage**: Automatic gzip compression for efficient storage
+- **Rich Metadata**: Correlation IDs, request parameters, timestamps
+- **Configurable Retention**: Set retention periods from 1-365 days or unlimited
+- **Structured Organization**: `raw/{year}/{month}/{instrument_type}/{symbol}_{timestamp}.csv.gz`
+
+### Configuration
+```toml
+[general.raw]
+enabled = true                    # Enable raw data storage
+retention_days = 30              # Days to retain (1-365, None for unlimited)
+compress = true                  # Gzip compression  
+include_metadata = true          # Include .meta.json files
+```
+
+```bash
+# Environment variables
+export VORTEX_RAW_ENABLED=true
+export VORTEX_RAW_RETENTION_DAYS=30
+export VORTEX_RAW_BASE_DIRECTORY=./raw
+```
 
 ## 🔧 Alternative Installation Methods
 
@@ -172,8 +223,10 @@ uv pip install vortex
 
 ## 🏗️ Requirements
 
-- Python 3.8+
+- **Python 3.9+** (updated from 3.8+)
 - Valid credentials for chosen data provider(s)
 - For Barchart: Paid subscribers get 150 downloads/day, free users get 5
 - For IBKR: Active account and TWS/Gateway running
+- **Optional**: Docker for containerized deployment and monitoring
+- **Optional**: 1GB+ storage for raw data audit trails (with retention)
 
