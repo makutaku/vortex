@@ -11,7 +11,7 @@ from rich.prompt import Prompt, Confirm
 from vortex.exceptions import ConfigurationError, InvalidConfigurationError, MissingArgumentError
 from vortex.core.config import ConfigManager
 from vortex.constants import DEFAULT_IBKR_PORT
-from vortex.core.constants import ProviderConstants
+from vortex.constants import ProviderConstants
 from vortex.core.logging_integration import get_module_logger
 from ..utils.config_utils import (
     validate_provider_configuration,

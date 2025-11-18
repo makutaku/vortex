@@ -11,7 +11,7 @@ import requests
 from bs4 import BeautifulSoup
 
 from vortex.utils.logging_utils import LoggingContext, LoggingConfiguration
-from vortex.core.constants import NetworkConstants, ProviderConstants
+from vortex.constants import NetworkConstants, ProviderConstants
 from vortex.core.security.validation import CredentialSanitizer
 
 

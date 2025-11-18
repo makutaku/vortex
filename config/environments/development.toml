@@ -9,30 +9,19 @@ log_level = "DEBUG"
 [general.logging]
 level = "DEBUG"
 format = "console"
-output = "console"
+output = ["console"]
+
+[general.metrics]
+enabled = true
+port = 8000
+path = "/metrics"
 
 [providers.barchart]
 # Barchart development settings
 daily_limit = 50  # Lower limit for development
-timeout = 30
-retry_attempts = 2
-
-[providers.yahoo]
-# Yahoo Finance development settings  
-timeout = 15
-retry_attempts = 3
-rate_limit_delay = 1.0
 
 [providers.ibkr]
 # Interactive Brokers development settings
 host = "localhost"
 port = 7497  # Paper trading port
 client_id = 1
-timeout = 30
-
-[development]
-# Development-specific settings
-mock_external_calls = false
-verbose_logging = true
-debug_mode = true
-test_data_enabled = true

@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 
 from vortex.core.config import ConfigManager
 from vortex.exceptions import ConfigurationError
-from vortex.core.constants import ProviderConstants
+from vortex.constants import ProviderConstants
 
 logger = logging.getLogger(__name__)
 
