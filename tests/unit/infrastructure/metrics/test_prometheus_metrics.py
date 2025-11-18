@@ -135,19 +135,29 @@ class TestVortexMetrics:
 
     def test_get_vortex_version_success(self, metrics):
         """Test _get_vortex_version returns version."""
-        with patch('pkg_resources.get_distribution') as mock_dist:
-            mock_dist.return_value.version = '1.2.3'
+        # Create mock pkg_resources module
+        mock_pkg_resources = MagicMock()
+        mock_distribution = Mock()
+        mock_distribution.version = '1.2.3'
+        mock_pkg_resources.get_distribution.return_value = mock_distribution
 
+        import sys
+        with patch.dict(sys.modules, {'pkg_resources': mock_pkg_resources}):
             version = metrics._get_vortex_version()
 
-            assert version == '1.2.3'
+        assert version == '1.2.3'
 
     def test_get_vortex_version_fallback(self, metrics):
         """Test _get_vortex_version returns 'development' on error."""
-        with patch('pkg_resources.get_distribution', side_effect=Exception("Not found")):
+        # Create mock pkg_resources that raises exception
+        mock_pkg_resources = MagicMock()
+        mock_pkg_resources.get_distribution.side_effect = Exception("Not found")
+
+        import sys
+        with patch.dict(sys.modules, {'pkg_resources': mock_pkg_resources}):
             version = metrics._get_vortex_version()
 
-            assert version == 'development'
+        assert version == 'development'
 
     def test_record_provider_request_not_initialized(self, metrics):
         """Test record_provider_request when not initialized."""
