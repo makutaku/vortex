@@ -1,6 +1,6 @@
 # Simple root-less Dockerfile using traditional pip (no uv dependency)
 # Follows security best practices by running as non-root user throughout
-FROM python:3.11-slim
+FROM python:3.13-slim
 
 # Install system dependencies (supervisord instead of cron for security)
 RUN apt-get update && apt-get install -y --no-install-recommends \

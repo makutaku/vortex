@@ -2,7 +2,9 @@
 Pytest configuration and shared fixtures for Vortex tests.
 """
 
+import asyncio
 import os
+import sys
 import tempfile
 import warnings
 from pathlib import Path
@@ -10,6 +12,16 @@ from typing import Dict, Any
 from unittest.mock import Mock
 
 import pytest
+
+# Python 3.14 compatibility: Create event loop before any imports that need it
+# This prevents "RuntimeError: There is no current event loop" from ib_insync/eventkit
+if sys.version_info >= (3, 14):
+    try:
+        asyncio.get_event_loop()
+    except RuntimeError:
+        # No event loop exists, create one
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
 
 # Note: There is a cosmetic Click warning during pytest collection that cannot be suppressed.
 # This is a known pytest limitation where collection warnings occur before configuration loads.
