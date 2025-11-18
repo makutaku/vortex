@@ -104,13 +104,15 @@ class TestVortexMetrics:
 
     def test_set_system_info_success(self, metrics):
         """Test _set_system_info sets metrics correctly."""
-        # Mock provider registry - patch where it's imported
-        with patch('vortex.infrastructure.metrics.prometheus_metrics.get_provider_registry') as mock_registry:
-            mock_reg = Mock()
-            mock_reg.list_plugins.return_value = ["yahoo", "barchart", "ibkr"]
-            mock_registry.return_value = mock_reg
+        # Create mock plugins module since get_provider_registry is imported inside the function
+        mock_plugins_module = MagicMock()
+        mock_registry = Mock()
+        mock_registry.list_plugins.return_value = ["yahoo", "barchart", "ibkr"]
+        mock_plugins_module.get_provider_registry.return_value = mock_registry
 
-            # Mock _get_vortex_version
+        # Inject mock module into sys.modules so the import finds it
+        import sys
+        with patch.dict(sys.modules, {'vortex.plugins': mock_plugins_module}):
             with patch.object(metrics, '_get_vortex_version', return_value='1.0.0'):
                 metrics._set_system_info()
 
@@ -119,10 +121,12 @@ class TestVortexMetrics:
 
     def test_set_system_info_error_fallback(self, metrics):
         """Test _set_system_info handles errors gracefully."""
-        # Mock provider registry to raise exception
-        with patch('vortex.infrastructure.metrics.prometheus_metrics.get_provider_registry') as mock_registry:
-            mock_registry.side_effect = Exception("Registry error")
+        # Create mock plugins module that raises exception
+        mock_plugins_module = MagicMock()
+        mock_plugins_module.get_provider_registry.side_effect = Exception("Registry error")
 
+        import sys
+        with patch.dict(sys.modules, {'vortex.plugins': mock_plugins_module}):
             # Should not raise, should use fallback
             metrics._set_system_info()
 
