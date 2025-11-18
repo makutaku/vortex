@@ -1,5 +1,5 @@
 # Multi-stage build for secure root-less vortex image
-FROM python:3.11-slim AS builder
+FROM python:3.13-slim AS builder
 
 # Install build dependencies in single layer
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -23,7 +23,7 @@ COPY src/ ./src/
 RUN uv pip install --system --no-cache-dir -e .
 
 # Runtime stage - use minimal base image with supervisord
-FROM python:3.11-slim
+FROM python:3.13-slim
 
 # Install runtime dependencies (supervisord instead of cron)
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -39,7 +39,7 @@ RUN groupadd -g 1000 vortex \
     && chown -R vortex:vortex /data /config /home/vortex
 
 # Copy installed packages from builder
-COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+COPY --from=builder /usr/local/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages
 COPY --from=builder /usr/local/bin/vortex /usr/local/bin/
 
 # Set working directory and switch to vortex user
