@@ -3,7 +3,8 @@ Tests for core constants functionality.
 """
 
 import pytest
-from vortex.core.constants import get_provider_constants, ProviderConstants
+
+from vortex.constants import ProviderConstants, get_provider_constants
 
 
 class TestGetProviderConstants:

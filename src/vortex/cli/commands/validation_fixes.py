@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 def attempt_fixes(path: Path, errors: List[str]) -> bool:
     """Attempt to fix common validation issues."""
     fixed = False
-    
+
     try:
         # Simple fix attempts for common issues
         for error in errors:
@@ -25,11 +25,11 @@ def attempt_fixes(path: Path, errors: List[str]) -> bool:
                 # For now, we don't implement automatic fixes
                 # This is a placeholder for future enhancement
                 logger.info(f"No automatic fix available for: {error}")
-        
+
         # Return False as no actual fixes are implemented yet
         # In a real implementation, this would attempt actual file modifications
-        
+
     except Exception as e:
         logger.exception(f"Error attempting fixes for {path}: {e}")
-    
+
     return fixed

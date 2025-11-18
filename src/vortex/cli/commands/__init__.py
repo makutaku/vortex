@@ -1,15 +1,15 @@
 """CLI commands for Vortex."""
 
 from .config import config
-from .download import download  
-from .providers import providers
-from .validate import validate
-from .resilience import resilience
+from .download import download
 from .metrics import metrics
+from .providers import providers
+from .resilience import resilience
+from .validate import validate
 
 __all__ = [
     "config",
-    "download", 
+    "download",
     "providers",
     "validate",
     "resilience",

@@ -6,7 +6,6 @@ from vortex.models.price_series import PriceSeries
 
 
 class DataStorage(ABC):
-
     def __init__(self, dry_run: bool):
         self.dry_run = dry_run
 
@@ -15,5 +14,7 @@ class DataStorage(ABC):
         pass
 
     @abstractmethod
-    def persist(self, downloaded_data: PriceSeries, contract: Instrument, period: Period):
+    def persist(
+        self, downloaded_data: PriceSeries, contract: Instrument, period: Period
+    ):
         pass

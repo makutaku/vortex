@@ -1,3 +1,5 @@
+from typing import Any, Dict
+
 """
 Application-wide constants for Vortex.
 
@@ -29,7 +31,7 @@ BARCHART_MAX_HISTORICAL_YEARS_DAILY = 25
 BARCHART_MAX_HISTORICAL_YEARS_INTRADAY = 2
 BARCHART_MAX_BARS_PER_DOWNLOAD = 20000
 
-# IBKR timeout and connection constants  
+# IBKR timeout and connection constants
 IBKR_HISTORICAL_DATA_TIMEOUT_SECONDS = 120
 IBKR_DEFAULT_CLIENT_ID = 998
 IBKR_CONNECTION_TIMEOUT_SECONDS = 20
@@ -81,7 +83,7 @@ MAX_TABLE_DISPLAY_ROWS = 50
 
 # Time intervals (minutes)
 MINUTE_10 = 10
-MINUTE_15 = 15  
+MINUTE_15 = 15
 MINUTE_20 = 20
 MINUTE_30 = 30
 
@@ -103,35 +105,79 @@ DEFAULT_DIR_PERMISSIONS = 0o755  # Standard directory permissions
 # Common symbols for auto-completion
 COMMON_STOCK_SYMBOLS = [
     # Major stocks
-    "AAPL", "GOOGL", "MSFT", "AMZN", "TSLA", "META", "NVDA", "NFLX",
-    "BRKB", "JPM", "JNJ", "V", "PG", "UNH", "HD", "MA", "DIS", "PYPL"
+    "AAPL",
+    "GOOGL",
+    "MSFT",
+    "AMZN",
+    "TSLA",
+    "META",
+    "NVDA",
+    "NFLX",
+    "BRKB",
+    "JPM",
+    "JNJ",
+    "V",
+    "PG",
+    "UNH",
+    "HD",
+    "MA",
+    "DIS",
+    "PYPL",
 ]
 
 COMMON_ETF_SYMBOLS = [
     # Major indices/ETFs
-    "SPY", "QQQ", "IWM", "VTI", "VOO", "VEA", "VWO", "AGG", "BND"
+    "SPY",
+    "QQQ",
+    "IWM",
+    "VTI",
+    "VOO",
+    "VEA",
+    "VWO",
+    "AGG",
+    "BND",
 ]
 
 COMMON_FUTURES_SYMBOLS = [
     # Futures (Barchart)
-    "ES", "NQ", "YM", "RTY",  # Equity indices
-    "GC", "SI", "HG", "PL",   # Metals
-    "CL", "NG", "RB", "HO",   # Energy
-    "ZC", "ZS", "ZW", "ZM",   # Agriculture
-    "6E", "6B", "6J", "6A",   # Currencies
+    "ES",
+    "NQ",
+    "YM",
+    "RTY",  # Equity indices
+    "GC",
+    "SI",
+    "HG",
+    "PL",  # Metals
+    "CL",
+    "NG",
+    "RB",
+    "HO",  # Energy
+    "ZC",
+    "ZS",
+    "ZW",
+    "ZM",  # Agriculture
+    "6E",
+    "6B",
+    "6J",
+    "6A",  # Currencies
 ]
 
 COMMON_FOREX_SYMBOLS = [
     # Forex pairs
-    "EURUSD", "GBPUSD", "USDJPY", "USDCHF", "AUDUSD", "USDCAD"
+    "EURUSD",
+    "GBPUSD",
+    "USDJPY",
+    "USDCHF",
+    "AUDUSD",
+    "USDCAD",
 ]
 
 # All common symbols combined for convenience
 ALL_COMMON_SYMBOLS = (
-    COMMON_STOCK_SYMBOLS + 
-    COMMON_ETF_SYMBOLS + 
-    COMMON_FUTURES_SYMBOLS + 
-    COMMON_FOREX_SYMBOLS
+    COMMON_STOCK_SYMBOLS
+    + COMMON_ETF_SYMBOLS
+    + COMMON_FUTURES_SYMBOLS
+    + COMMON_FOREX_SYMBOLS
 )
 
 # Supported file extensions
@@ -147,8 +193,6 @@ USER_ABORT_EXIT_CODE = 2
 # ==============================================================================
 # Class-based constant organization (for backward compatibility)
 # ==============================================================================
-
-from typing import Dict, Any
 
 
 class ProviderConstants:
@@ -171,19 +215,19 @@ class ProviderConstants:
         MIN_REQUIRED_DATA_POINTS = 4
 
         # URLs
-        BASE_URL = 'https://www.barchart.com'
-        DOWNLOAD_ENDPOINT = '/my/download'
+        BASE_URL = "https://www.barchart.com"
+        DOWNLOAD_ENDPOINT = "/my/download"
 
         # Download request payload defaults
-        DEFAULT_ORDER = 'asc'
-        DEFAULT_DIVIDENDS = 'false'
-        DEFAULT_BACKADJUST = 'false'
+        DEFAULT_ORDER = "asc"
+        DEFAULT_DIVIDENDS = "false"
+        DEFAULT_BACKADJUST = "false"
         DEFAULT_DBAR = 1
-        DEFAULT_CUSTOMBAR = ''
-        DEFAULT_VOLUME = 'true'
-        DEFAULT_OPEN_INTEREST = 'true'
-        DEFAULT_SPLITS = 'true'
-        DEFAULT_USAGE_TYPE = 'quotes'
+        DEFAULT_CUSTOMBAR = ""
+        DEFAULT_VOLUME = "true"
+        DEFAULT_OPEN_INTEREST = "true"
+        DEFAULT_SPLITS = "true"
+        DEFAULT_USAGE_TYPE = "quotes"
 
     class Yahoo:
         """Yahoo Finance provider constants."""
@@ -207,7 +251,7 @@ class ProviderConstants:
         """Interactive Brokers provider constants."""
 
         # Connection settings
-        DEFAULT_HOST = 'localhost'
+        DEFAULT_HOST = "localhost"
         DEFAULT_PORT = 7497
         DEFAULT_CLIENT_ID = 1
         CONNECTION_TIMEOUT_SECONDS = 10
@@ -230,7 +274,7 @@ class DataValidationConstants:
 
     # Data quality thresholds
     MAX_MISSING_DATA_PERCENTAGE = 0.05  # 5%
-    MAX_ZERO_VOLUME_PERCENTAGE = 0.20   # 20%
+    MAX_ZERO_VOLUME_PERCENTAGE = 0.20  # 20%
 
     # Price validation
     MIN_VALID_PRICE = 0.01
@@ -241,28 +285,32 @@ class FileSystemConstants:
     """Constants for file system operations."""
 
     # Directory names
-    DEFAULT_OUTPUT_DIR = './data'
-    DEFAULT_CONFIG_DIR = './config'
-    DEFAULT_LOG_DIR = './logs'
+    DEFAULT_OUTPUT_DIR = "./data"
+    DEFAULT_CONFIG_DIR = "./config"
+    DEFAULT_LOG_DIR = "./logs"
 
     # File extensions
-    CSV_EXTENSION = '.csv'
-    PARQUET_EXTENSION = '.parquet'
-    JSON_EXTENSION = '.json'
-    LOG_EXTENSION = '.log'
+    CSV_EXTENSION = ".csv"
+    PARQUET_EXTENSION = ".parquet"
+    JSON_EXTENSION = ".json"
+    LOG_EXTENSION = ".log"
 
     # File permissions (octal)
     SECURE_FILE_PERMISSIONS = 0o600  # Read/write for owner only
     DEFAULT_FILE_PERMISSIONS = 0o644  # Read/write for owner, read for others
-    DEFAULT_DIR_PERMISSIONS = 0o755   # Read/write/execute for owner, read/execute for others
+    DEFAULT_DIR_PERMISSIONS = (
+        0o755  # Read/write/execute for owner, read/execute for others
+    )
 
 
 class NetworkConstants:
     """Constants for network operations."""
 
     # HTTP settings
-    DEFAULT_USER_AGENT = 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:86.0) Gecko/20100101 Firefox/86.0'
-    SIMPLE_USER_AGENT = 'Mozilla/5.0'
+    DEFAULT_USER_AGENT = (
+        "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:86.0) Gecko/20100101 Firefox/86.0"
+    )
+    SIMPLE_USER_AGENT = "Mozilla/5.0"
     DEFAULT_REQUEST_TIMEOUT = 30
     SHORT_REQUEST_TIMEOUT = 10
     LONG_REQUEST_TIMEOUT = 60
@@ -286,11 +334,13 @@ class LoggingConstants:
     """Constants for logging configuration."""
 
     # Log levels
-    DEFAULT_LOG_LEVEL = 'INFO'
+    DEFAULT_LOG_LEVEL = "INFO"
 
     # Log formats
-    CONSOLE_FORMAT = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    FILE_FORMAT = '%(asctime)s - %(name)s - %(levelname)s - %(filename)s:%(lineno)d - %(message)s'
+    CONSOLE_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    FILE_FORMAT = (
+        "%(asctime)s - %(name)s - %(levelname)s - %(filename)s:%(lineno)d - %(message)s"
+    )
 
     # Log rotation
     MAX_LOG_FILE_SIZE_MB = 10
@@ -301,14 +351,14 @@ class TimeConstants:
     """Constants for time-related operations."""
 
     # Datetime formats
-    ISO_DATE_FORMAT = '%Y-%m-%d'
-    ISO_DATETIME_FORMAT = '%Y-%m-%dT%H:%M:%S'
-    US_DATE_FORMAT = '%m/%d/%Y'
+    ISO_DATE_FORMAT = "%Y-%m-%d"
+    ISO_DATETIME_FORMAT = "%Y-%m-%dT%H:%M:%S"
+    US_DATE_FORMAT = "%m/%d/%Y"
 
     # Time periods (in days)
     DEFAULT_LOOKBACK_DAYS = 365
     MAX_HISTORICAL_DATA_DAYS = 365 * 25  # 25 years
-    MIN_INTRADAY_DATA_DAYS = 365 * 2     # 2 years
+    MIN_INTRADAY_DATA_DAYS = 365 * 2  # 2 years
 
     # Rate limiting
     MIN_REQUEST_INTERVAL_SECONDS = 1.0
@@ -326,9 +376,9 @@ def get_provider_constants(provider_name: str) -> Dict[str, Any]:
         Dictionary of constants for the provider
     """
     provider_map = {
-        'barchart': ProviderConstants.Barchart,
-        'yahoo': ProviderConstants.Yahoo,
-        'ibkr': ProviderConstants.IBKR
+        "barchart": ProviderConstants.Barchart,
+        "yahoo": ProviderConstants.Yahoo,
+        "ibkr": ProviderConstants.IBKR,
     }
 
     provider_class = provider_map.get(provider_name.lower())
@@ -339,5 +389,5 @@ def get_provider_constants(provider_name: str) -> Dict[str, Any]:
     return {
         key: value
         for key, value in provider_class.__dict__.items()
-        if not key.startswith('_')
+        if not key.startswith("_")
     }

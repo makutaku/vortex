@@ -5,10 +5,10 @@ This module provides utilities for configuring and managing financial instrument
 including futures, stocks, and forex pairs.
 """
 
-from .config import InstrumentConfig, InstrumentType, DEFAULT_CONTRACT_DURATION_IN_DAYS
+from .config import DEFAULT_CONTRACT_DURATION_IN_DAYS, InstrumentConfig, InstrumentType
 
 __all__ = [
-    'InstrumentConfig',
-    'InstrumentType', 
-    'DEFAULT_CONTRACT_DURATION_IN_DAYS',
+    "InstrumentConfig",
+    "InstrumentType",
+    "DEFAULT_CONTRACT_DURATION_IN_DAYS",
 ]

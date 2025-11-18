@@ -17,60 +17,56 @@ Usage:
     from vortex.core.correlation import (
         CorrelationIdManager, with_correlation, get_correlation_id
     )
-    
+
     # Basic usage
     correlation_id = CorrelationIdManager.generate_id()
-    
+
     # Context management
     with CorrelationIdManager.correlation_context(operation="download"):
         # Operation is tracked with correlation
         pass
-    
+
     # Decorator usage
     @with_correlation(operation="process_data", provider="yahoo")
     def process_data():
         pass
 """
 
+from .decorators import track_operation, with_correlation, with_provider_correlation
 from .manager import (
-    CorrelationIdManager,
     CorrelationContext,
+    CorrelationIdManager,
     RequestTracker,
-    get_request_tracker
-)
-from .decorators import (
-    with_correlation,
-    with_provider_correlation,
-    track_operation
+    get_request_tracker,
 )
 from .utils import (
+    clear_correlation_id,
+    generate_correlation_id,
     get_correlation_id,
     set_correlation_id,
-    generate_correlation_id,
-    clear_correlation_id
 )
+
 
 # Alias for backwards compatibility
 def get_correlation_manager():
     """Get the global correlation manager instance."""
     return CorrelationIdManager
 
+
 __all__ = [
     # Core classes
-    'CorrelationIdManager',
-    'CorrelationContext', 
-    'RequestTracker',
-    
+    "CorrelationIdManager",
+    "CorrelationContext",
+    "RequestTracker",
     # Decorators
-    'with_correlation',
-    'with_provider_correlation',
-    'track_operation',
-    
+    "with_correlation",
+    "with_provider_correlation",
+    "track_operation",
     # Utilities
-    'get_correlation_id',
-    'set_correlation_id',
-    'generate_correlation_id',
-    'clear_correlation_id',
-    'get_request_tracker',
-    'get_correlation_manager',
+    "get_correlation_id",
+    "set_correlation_id",
+    "generate_correlation_id",
+    "clear_correlation_id",
+    "get_request_tracker",
+    "get_correlation_manager",
 ]

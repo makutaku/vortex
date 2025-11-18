@@ -1,22 +1,23 @@
 import logging
-import json
 import traceback
-from typing import Dict, Any, Optional
-from uuid import uuid4
-from datetime import datetime
 from dataclasses import dataclass
+from datetime import datetime
+from typing import Any, Dict, Optional
+from uuid import uuid4
 
 
 def init_logging(level=logging.INFO):
     logging.basicConfig(
         level=level,
-        format='%(asctime)s %(levelname)s %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S')
+        format="%(asctime)s %(levelname)s %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
 
 
 @dataclass
 class LoggingConfiguration:
     """Configuration for LoggingContext."""
+
     entry_msg: Optional[str] = None
     success_msg: Optional[str] = None
     failure_msg: Optional[str] = None
@@ -31,6 +32,7 @@ class LoggingConfiguration:
 @dataclass
 class ErrorLoggingContext:
     """Context for structured error logging."""
+
     error: Exception
     message: str
     correlation_id: Optional[str] = None
@@ -42,9 +44,7 @@ class ErrorLoggingContext:
 
 
 class LoggingContext:
-
     def __init__(self, config: Optional[LoggingConfiguration] = None):
-        
         if config is not None:
             self.entry_msg = config.entry_msg
             self.success_msg = config.success_msg
@@ -84,21 +84,21 @@ class LoggingContext:
 
 class StructuredErrorLogger:
     """Enhanced error logging with structured context and correlation IDs."""
-    
+
     def __init__(self, logger_name: str = "vortex.error"):
         """Initialize the structured error logger.
-        
+
         Args:
             logger_name: Name of the logger to use
         """
         self.logger = logging.getLogger(logger_name)
-    
+
     def log_error(self, error_context: ErrorLoggingContext) -> str:
         """Log an error with structured context.
-        
+
         Args:
             error_context: Context object containing error and related information
-            
+
         Returns:
             The correlation ID used for this error
         """
@@ -110,10 +110,10 @@ class StructuredErrorLogger:
         actual_operation = error_context.operation
         actual_provider = error_context.provider
         actual_include_traceback = error_context.include_traceback
-        
+
         if actual_correlation_id is None:
             actual_correlation_id = self.generate_correlation_id()
-        
+
         error_data = {
             "timestamp": datetime.utcnow().isoformat(),
             "correlation_id": actual_correlation_id,
@@ -122,7 +122,7 @@ class StructuredErrorLogger:
             "message": actual_message,
             "context": actual_context or {},
         }
-        
+
         # Add optional fields
         if actual_user_id:
             error_data["user_id"] = actual_user_id
@@ -130,74 +130,78 @@ class StructuredErrorLogger:
             error_data["operation"] = actual_operation
         if actual_provider:
             error_data["provider"] = actual_provider
-        
+
         # Add VortexError specific fields if available
-        if hasattr(actual_error, 'correlation_id'):
+        if hasattr(actual_error, "correlation_id"):
             error_data["vortex_correlation_id"] = actual_error.correlation_id
-        if hasattr(actual_error, 'error_code'):
+        if hasattr(actual_error, "error_code"):
             error_data["error_code"] = actual_error.error_code
-        if hasattr(actual_error, 'context'):
+        if hasattr(actual_error, "context"):
             error_data["vortex_context"] = actual_error.context
-        
+
         # Add traceback if requested
         if actual_include_traceback:
             error_data["traceback"] = traceback.format_exc()
-        
+
         # Log as structured JSON for better parsing
         self.logger.error(
             f"{actual_message} [ID: {actual_correlation_id}]",
             extra={
                 "error_data": error_data,
                 "correlation_id": actual_correlation_id,
-                "structured": True
-            }
+                "structured": True,
+            },
         )
-        
+
         return actual_correlation_id
-    
-    def log_operation_start(self, 
-                           operation: str,
-                           correlation_id: Optional[str] = None,
-                           context: Optional[Dict[str, Any]] = None) -> str:
+
+    def log_operation_start(
+        self,
+        operation: str,
+        correlation_id: Optional[str] = None,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> str:
         """Log the start of an operation.
-        
+
         Args:
             operation: Operation being started
             correlation_id: Existing correlation ID or None to generate new one
             context: Additional context data
-            
+
         Returns:
             The correlation ID for this operation
         """
         if correlation_id is None:
             correlation_id = self.generate_correlation_id()
-        
+
         operation_data = {
             "timestamp": datetime.utcnow().isoformat(),
             "correlation_id": correlation_id,
             "operation": operation,
             "status": "started",
-            "context": context or {}
+            "context": context or {},
         }
-        
+
         self.logger.info(
             f"Operation started: {operation} [ID: {correlation_id}]",
             extra={
                 "operation_data": operation_data,
                 "correlation_id": correlation_id,
-                "structured": True
-            }
+                "structured": True,
+            },
         )
-        
+
         return correlation_id
-    
-    def log_operation_success(self, 
-                             operation: str,
-                             correlation_id: str,
-                             duration_ms: Optional[float] = None,
-                             context: Optional[Dict[str, Any]] = None) -> None:
+
+    def log_operation_success(
+        self,
+        operation: str,
+        correlation_id: str,
+        duration_ms: Optional[float] = None,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> None:
         """Log successful completion of an operation.
-        
+
         Args:
             operation: Operation that completed
             correlation_id: Correlation ID from operation start
@@ -209,29 +213,31 @@ class StructuredErrorLogger:
             "correlation_id": correlation_id,
             "operation": operation,
             "status": "completed",
-            "context": context or {}
+            "context": context or {},
         }
-        
+
         if duration_ms is not None:
             operation_data["duration_ms"] = duration_ms
-        
+
         self.logger.info(
             f"Operation completed: {operation} [ID: {correlation_id}]",
             extra={
                 "operation_data": operation_data,
                 "correlation_id": correlation_id,
-                "structured": True
-            }
+                "structured": True,
+            },
         )
-    
-    def log_operation_failure(self, 
-                             operation: str,
-                             correlation_id: str,
-                             error: Exception,
-                             duration_ms: Optional[float] = None,
-                             context: Optional[Dict[str, Any]] = None) -> None:
+
+    def log_operation_failure(
+        self,
+        operation: str,
+        correlation_id: str,
+        error: Exception,
+        duration_ms: Optional[float] = None,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> None:
         """Log failure of an operation.
-        
+
         Args:
             operation: Operation that failed
             correlation_id: Correlation ID from operation start
@@ -246,21 +252,21 @@ class StructuredErrorLogger:
             "status": "failed",
             "error_type": type(error).__name__,
             "error_message": str(error),
-            "context": context or {}
+            "context": context or {},
         }
-        
+
         if duration_ms is not None:
             operation_data["duration_ms"] = duration_ms
-        
+
         self.logger.error(
             f"Operation failed: {operation} [ID: {correlation_id}]",
             extra={
                 "operation_data": operation_data,
                 "correlation_id": correlation_id,
-                "structured": True
-            }
+                "structured": True,
+            },
         )
-    
+
     @staticmethod
     def generate_correlation_id() -> str:
         """Generate a unique correlation ID."""
@@ -270,6 +276,7 @@ class StructuredErrorLogger:
 # Global structured logger instance
 _structured_logger = None
 
+
 def get_structured_logger() -> StructuredErrorLogger:
     """Get the global structured error logger instance."""
     global _structured_logger
@@ -278,23 +285,17 @@ def get_structured_logger() -> StructuredErrorLogger:
     return _structured_logger
 
 
-def log_error_with_context(error: Exception, 
-                          message: str,
-                          **context) -> str:
+def log_error_with_context(error: Exception, message: str, **context) -> str:
     """Convenience function to log an error with context.
-    
+
     Args:
         error: The exception that occurred
         message: Human-readable error message
         **context: Additional context as keyword arguments
-        
+
     Returns:
         The correlation ID for this error
     """
     logger = get_structured_logger()
-    error_context = ErrorLoggingContext(
-        error=error,
-        message=message,
-        context=context
-    )
+    error_context = ErrorLoggingContext(error=error, message=message, context=context)
     return logger.log_error(error_context)

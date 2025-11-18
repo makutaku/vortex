@@ -14,34 +14,31 @@ This package replaces the monolithic logging.py module with focused components:
 
 # Core logging interfaces
 from .config import LoggingConfig
-from .manager import LoggingManager, configure_logging, logging_manager
-from .loggers import VortexLogger, get_logger
-from .performance import PerformanceLogger, get_performance_logger, timed, TimedOperation
 from .context import LoggingContext, logged
 from .formatters import StructuredFormatter
+from .loggers import VortexLogger
+from .manager import LoggingManager, configure_logging, logging_manager
+from .performance import PerformanceLogger, TimedOperation, timed
 
-# Also make logging manager available directly
+# Make logging manager methods available directly
 get_logger = logging_manager.get_logger
 get_performance_logger = logging_manager.get_performance_logger
 
 __all__ = [
     # Core interfaces
-    'LoggingConfig',
-    'LoggingManager', 
-    'configure_logging',
-    'VortexLogger',
-    'get_logger',
-    
+    "LoggingConfig",
+    "LoggingManager",
+    "configure_logging",
+    "VortexLogger",
+    "get_logger",
     # Performance tracking
-    'PerformanceLogger',
-    'get_performance_logger', 
-    'timed',
-    'TimedOperation',
-    
+    "PerformanceLogger",
+    "get_performance_logger",
+    "timed",
+    "TimedOperation",
     # Context management
-    'LoggingContext',
-    'logged',
-    
+    "LoggingContext",
+    "logged",
     # Formatters
-    'StructuredFormatter',
+    "StructuredFormatter",
 ]
