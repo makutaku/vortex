@@ -2,7 +2,6 @@ import enum
 import json
 import logging
 from datetime import datetime, timedelta
-from typing import Optional
 
 import pytz
 
@@ -13,7 +12,7 @@ from vortex.utils.utils import convert_date_strings_to_datetime
 DEFAULT_CONTRACT_DURATION_IN_DAYS = 360
 
 
-class InstrumentType(str, enum.Enum):
+class InstrumentType(enum.StrEnum):
     Forex = "forex"
     Future = "future"
     Stock = "stock"
@@ -25,11 +24,11 @@ class InstrumentConfig:
         asset_class: str,
         name: str,
         code: str,
-        tick_date: Optional[datetime] = None,
-        start_date: Optional[datetime] = None,
+        tick_date: datetime | None = None,
+        start_date: datetime | None = None,
         periods: str = None,
-        cycle: Optional[str] = None,
-        days_count: Optional[int] = None,
+        cycle: str | None = None,
+        days_count: int | None = None,
     ):
         self.name = name
         self.code = code

@@ -1,7 +1,6 @@
 import enum
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Optional, Union
 
 from vortex.constants import (
     DAYS_IN_MONTH_APPROX,
@@ -106,11 +105,11 @@ class Period(enum.Enum):
 @dataclass
 class FrequencyAttributes:
     frequency: Period
-    min_start: Optional[Union[timedelta, datetime]] = None
-    max_window: Optional[timedelta] = None
-    properties: Optional[dict] = None
+    min_start: timedelta | datetime | None = None
+    max_window: timedelta | None = None
+    properties: dict | None = None
 
-    def get_min_start(self) -> Optional[datetime]:
+    def get_min_start(self) -> datetime | None:
         min_start = self.min_start
         if not min_start:
             return None
