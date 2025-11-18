@@ -2,6 +2,7 @@ import enum
 import json
 import logging
 from datetime import datetime, timedelta
+from typing import Optional
 
 import pytz
 
@@ -24,11 +25,11 @@ class InstrumentConfig:
         asset_class: str,
         name: str,
         code: str,
-        tick_date: datetime | None = None,
-        start_date: datetime | None = None,
+        tick_date: Optional[datetime] = None,
+        start_date: Optional[datetime] = None,
         periods: str = None,
-        cycle: str | None = None,
-        days_count: int | None = None,
+        cycle: Optional[str] = None,
+        days_count: Optional[int] = None,
     ):
         self.name = name
         self.code = code
