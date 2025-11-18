@@ -9,39 +9,19 @@ log_level = "ERROR"
 [general.logging]
 level = "ERROR"
 format = "console"
-output = "console"
+output = ["console"]
+
+[general.metrics]
+enabled = false
+port = 8000
+path = "/metrics"
 
 [providers.barchart]
 # Barchart testing settings
 daily_limit = 10
-timeout = 5
-retry_attempts = 1
-mock_responses = true
-
-[providers.yahoo]
-# Yahoo Finance testing settings
-timeout = 5
-retry_attempts = 1
-mock_responses = true
 
 [providers.ibkr]
 # Interactive Brokers testing settings
 host = "localhost"
 port = 7497
 client_id = 999  # Test client ID
-timeout = 5
-mock_responses = true
-
-[testing]
-# Testing-specific settings
-mock_all_external_calls = true
-fast_mode = true
-cleanup_after_tests = true
-parallel_execution = true
-test_data_fixtures = "./tests/fixtures"
-
-[fixtures]
-# Test fixture settings
-use_cached_responses = true
-response_cache_ttl = 3600  # 1 hour
-generate_test_data = false

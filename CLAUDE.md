@@ -279,8 +279,8 @@ vortex providers --info barchart
 # Validate data
 vortex validate --path ./data
 vortex validate --path ./data/GC.csv --provider barchart
-vortex validate --enhanced  # Advanced validation with new formats
-vortex validate --summary   # Validation summary display
+vortex validate --path ./data --detailed  # Show detailed validation results
+vortex validate --path ./data --format json  # Output as JSON format
 
 # Monitoring and metrics (NEW)
 vortex metrics status        # Check metrics system status

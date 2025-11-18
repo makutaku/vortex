@@ -242,15 +242,21 @@ class VortexSettings(BaseSettings):
     vortex_barchart_username: Optional[str] = Field(None, alias="VORTEX_BARCHART_USERNAME")
     vortex_barchart_password: Optional[str] = Field(None, alias="VORTEX_BARCHART_PASSWORD")
     vortex_barchart_daily_limit: Optional[int] = Field(None, alias="VORTEX_BARCHART_DAILY_LIMIT")
-    
+    vortex_barchart_timeout: Optional[int] = Field(None, alias="VORTEX_BARCHART_TIMEOUT")
+
+    # Yahoo settings
+    vortex_yahoo_timeout: Optional[int] = Field(None, alias="VORTEX_YAHOO_TIMEOUT")
+
     # IBKR settings
     vortex_ibkr_host: Optional[str] = Field(None, alias="VORTEX_IBKR_HOST")
     vortex_ibkr_port: Optional[int] = Field(None, alias="VORTEX_IBKR_PORT")
     vortex_ibkr_client_id: Optional[int] = Field(None, alias="VORTEX_IBKR_CLIENT_ID")
-    
+    vortex_ibkr_timeout: Optional[int] = Field(None, alias="VORTEX_IBKR_TIMEOUT")
+
     # Metrics settings
     vortex_metrics_enabled: Optional[bool] = Field(None, alias="VORTEX_METRICS_ENABLED")
     vortex_metrics_port: Optional[int] = Field(None, alias="VORTEX_METRICS_PORT")
+    vortex_metrics_path: Optional[str] = Field(None, alias="VORTEX_METRICS_PATH")
     
     # Raw data storage settings
     vortex_raw_enabled: Optional[bool] = Field(None, alias="VORTEX_RAW_ENABLED")

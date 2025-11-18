@@ -10,7 +10,7 @@ from functools import singledispatchmethod
 from vortex.models.forex import Forex
 from vortex.models.future import Future
 from vortex.models.stock import Stock
-from vortex.core.constants import ProviderConstants
+from vortex.constants import ProviderConstants
 
 
 class BarchartURLGenerator:
