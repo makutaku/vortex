@@ -165,7 +165,7 @@ class BarchartAuth:
         logger.info("No XSRF token in cookies, attempting to obtain one")
 
         # Visit main page to get XSRF token
-        _resp = self.session.get(
+        self.session.get(
             self.BARCHART_URL, timeout=NetworkConstants.LOGIN_REQUEST_TIMEOUT
         )
 

@@ -286,7 +286,7 @@ class ErrorRecoveryManager:
             attempt_count += 1
 
             try:
-                _result = self._execute_recovery_action(
+                self._execute_recovery_action(
                     action, operation, context, *args, **kwargs
                 )
 
