@@ -1,36 +1,40 @@
 import logging
-from datetime import timedelta
 from typing import Optional
 
 from vortex.infrastructure.providers.base import HistoricalDataResult
+from vortex.models.price_series import LOW_DATA_THRESHOLD
+from vortex.utils.logging_utils import LoggingConfiguration, LoggingContext
+from vortex.utils.utils import random_sleep
+
 from .base_downloader import BaseDownloader
 from .download_job import DownloadJob
-from vortex.models.price_series import LOW_DATA_THRESHOLD
-from vortex.utils.logging_utils import LoggingContext, LoggingConfiguration
-from vortex.utils.utils import random_sleep
 
 # Optional metrics - graceful fallback if not available
 try:
     from vortex.infrastructure.metrics import get_metrics
+
     _metrics_available = True
 except ImportError:
     _metrics_available = False
 
 
 class UpdatingDownloader(BaseDownloader):
-
     def __init__(
-        self, 
-        data_storage, 
-        data_provider, 
-        backup_data_storage=None, 
+        self,
+        data_storage,
+        data_provider,
+        backup_data_storage=None,
         force_backup: bool = False,
-        random_sleep_in_sec: Optional[float] = None, 
-        dry_run: bool = False
+        random_sleep_in_sec: Optional[float] = None,
+        dry_run: bool = False,
     ) -> None:
         super().__init__(data_storage, data_provider, backup_data_storage, force_backup)
         self.dry_run = dry_run
-        self.random_sleep_in_sec = random_sleep_in_sec if random_sleep_in_sec is not None and random_sleep_in_sec > 0 else None
+        self.random_sleep_in_sec = (
+            random_sleep_in_sec
+            if random_sleep_in_sec is not None and random_sleep_in_sec > 0
+            else None
+        )
         self._metrics = get_metrics() if _metrics_available else None
 
     def _process_job(self, job: DownloadJob) -> HistoricalDataResult:
@@ -38,10 +42,9 @@ class UpdatingDownloader(BaseDownloader):
             entry_msg=f"Processing {job}",
             entry_level=logging.INFO,
             success_msg=f"Processed {job}",
-            success_level=logging.DEBUG
+            success_level=logging.DEBUG,
         )
         with LoggingContext(config):
-
             start_date = job.start_date
             end_date = job.end_date
 
@@ -51,20 +54,26 @@ class UpdatingDownloader(BaseDownloader):
                 existing_download = job.load()
                 logging.debug(f"Loaded existing data: {existing_download}")
                 if existing_download.is_data_coverage_acceptable(start_date, end_date):
-                    logging.info(f"Existing data {existing_download.df.shape} satisfies requested range. "
-                                 f"Skipping download.")
+                    logging.info(
+                        f"Existing data {existing_download.df.shape} satisfies requested range. "
+                        "Skipping download."
+                    )
 
                     if self.force_backup and self.backup_data_storage:
                         job.persist(existing_download)
 
                     return HistoricalDataResult.EXISTS
-                logging.debug(f"Existing data {existing_download.df.shape} does NOT satisfy requested range. "
-                              f"Getting more data.")
+                logging.debug(
+                    f"Existing data {existing_download.df.shape} does NOT satisfy requested range. "
+                    "Getting more data."
+                )
 
                 # In order to avoid fetching data that we already have, and also to avoid creating holes,
                 # we use last row date as a magnet for new job start date, subtracting some days to avoid
                 # missing any data:
-                new_start = existing_download.metadata.last_row_date - LOW_DATA_THRESHOLD
+                new_start = (
+                    existing_download.metadata.last_row_date - LOW_DATA_THRESHOLD
+                )
                 if job.start_date >= existing_download.metadata.start_date:
                     job.start_date = new_start
 
@@ -72,9 +81,8 @@ class UpdatingDownloader(BaseDownloader):
                 if job.end_date < existing_download.metadata.start_date:
                     job.end_date = existing_download.metadata.start_date
 
-            except FileNotFoundError as e:
-                logging.debug(f"Existing data was NOT found. Starting fresh download.")
-                pass
+            except FileNotFoundError:
+                logging.debug("Existing data was NOT found. Starting fresh download.")
 
             self.pretend_not_a_bot()
             try:
@@ -83,23 +91,45 @@ class UpdatingDownloader(BaseDownloader):
                 # Handle invalid data from provider
                 logging.error(f"Provider returned invalid data: {str(e)}")
                 if self._metrics:
-                    provider_name = getattr(self.data_provider, '__class__', type(self.data_provider)).__name__.lower().replace('dataprovider', '')
-                    self._metrics.record_download(provider_name, job.instrument.symbol, 0, False)
+                    provider_name = (
+                        getattr(
+                            self.data_provider, "__class__", type(self.data_provider)
+                        )
+                        .__name__.lower()
+                        .replace("dataprovider", "")
+                    )
+                    self._metrics.record_download(
+                        provider_name, job.instrument.symbol, 0, False
+                    )
                 return HistoricalDataResult.NONE
-            
+
             if not new_download:
                 # Record failed download
                 if self._metrics:
-                    provider_name = getattr(self.data_provider, '__class__', type(self.data_provider)).__name__.lower().replace('dataprovider', '')
-                    self._metrics.record_download(provider_name, job.instrument.symbol, 0, False)
+                    provider_name = (
+                        getattr(
+                            self.data_provider, "__class__", type(self.data_provider)
+                        )
+                        .__name__.lower()
+                        .replace("dataprovider", "")
+                    )
+                    self._metrics.record_download(
+                        provider_name, job.instrument.symbol, 0, False
+                    )
                 return HistoricalDataResult.NONE
             logging.info(f"Fetched remote data: {new_download}")
 
             # Record successful download metrics
             if self._metrics and new_download.df is not None:
-                provider_name = getattr(self.data_provider, '__class__', type(self.data_provider)).__name__.lower().replace('dataprovider', '')
+                provider_name = (
+                    getattr(self.data_provider, "__class__", type(self.data_provider))
+                    .__name__.lower()
+                    .replace("dataprovider", "")
+                )
                 row_count = len(new_download.df)
-                self._metrics.record_download(provider_name, job.instrument.symbol, row_count, True)
+                self._metrics.record_download(
+                    provider_name, job.instrument.symbol, row_count, True
+                )
 
             merged_download = new_download.merge(existing_download)
             job.persist(merged_download)
@@ -112,4 +142,3 @@ class UpdatingDownloader(BaseDownloader):
             random_sleep(self.random_sleep_in_sec)
         else:
             logging.warning("Random sleep is disabled. Enable to avoid bot detection.")
-

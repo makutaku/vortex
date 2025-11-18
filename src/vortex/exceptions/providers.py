@@ -1,16 +1,16 @@
 """
 Data provider-related exceptions.
 
-All exceptions related to data provider authentication, connection, 
+All exceptions related to data provider authentication, connection,
 and data retrieval operations.
 """
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
-from .base import VortexError, ExceptionContext
-from .templates import ErrorMessageTemplates, RecoverySuggestions, ErrorCodes
+from .base import ExceptionContext, VortexError
+from .templates import ErrorCodes, ErrorMessageTemplates, RecoverySuggestions
 
 if TYPE_CHECKING:
     from vortex.models.period import Period
@@ -18,45 +18,65 @@ if TYPE_CHECKING:
 
 class DataProviderError(VortexError):
     """Base class for data provider-related errors."""
-    
-    def __init__(self, provider: str, message: str, help_text: Optional[str] = None, error_code: Optional[str] = None):
+
+    def __init__(
+        self,
+        provider: str,
+        message: str,
+        help_text: Optional[str] = None,
+        error_code: Optional[str] = None,
+    ):
         self.provider = provider
-        full_message = ErrorMessageTemplates.PROVIDER_ERROR.format(provider=provider, message=message)
-        context = ExceptionContext(
-            help_text=help_text,
-            error_code=error_code
-        ) if help_text or error_code else None
+        full_message = ErrorMessageTemplates.PROVIDER_ERROR.format(
+            provider=provider, message=message
+        )
+        context = (
+            ExceptionContext(help_text=help_text, error_code=error_code)
+            if help_text or error_code
+            else None
+        )
         super().__init__(full_message, context)
 
 
 class AuthenticationError(DataProviderError):
     """Raised when authentication with a data provider fails."""
-    
-    def __init__(self, provider: str, details: Optional[str] = None, http_code: Optional[int] = None):
-        message = f"Authentication failed"
+
+    def __init__(
+        self,
+        provider: str,
+        details: Optional[str] = None,
+        http_code: Optional[int] = None,
+    ):
+        message = "Authentication failed"
         if details:
             message += f" - {details}"
-        
+
         # Use standardized recovery suggestions
         recovery_suggestions = RecoverySuggestions.for_auth_error(provider)
-        help_text = recovery_suggestions[0] if recovery_suggestions else f"Verify your {provider} credentials"
+        help_text = (
+            recovery_suggestions[0]
+            if recovery_suggestions
+            else f"Verify your {provider} credentials"
+        )
         user_action = f"Run: vortex config --provider {provider} --set-credentials"
-        
+
         context = {"provider": provider}
         if http_code:
             context["http_code"] = http_code
-            
+
         technical_details = None
         if http_code == 401:
             technical_details = "HTTP 401 Unauthorized - Invalid credentials"
         elif http_code == 403:
-            technical_details = "HTTP 403 Forbidden - Valid credentials but insufficient permissions"
+            technical_details = (
+                "HTTP 403 Forbidden - Valid credentials but insufficient permissions"
+            )
         elif http_code == 429:
-            technical_details = "HTTP 429 Too Many Requests - Authentication rate limited"
-            
-        super().__init__(
-            provider, message, help_text, ErrorCodes.PROVIDER_AUTH_FAILED
-        )
+            technical_details = (
+                "HTTP 429 Too Many Requests - Authentication rate limited"
+            )
+
+        super().__init__(provider, message, help_text, ErrorCodes.PROVIDER_AUTH_FAILED)
         self.context.update(context)
         self.user_action = user_action
         self.technical_details = technical_details
@@ -64,28 +84,33 @@ class AuthenticationError(DataProviderError):
 
 class RateLimitError(DataProviderError):
     """Raised when API rate limits are exceeded."""
-    
-    def __init__(self, provider: str, wait_time: Optional[int] = None, daily_limit: Optional[int] = None):
+
+    def __init__(
+        self,
+        provider: str,
+        wait_time: Optional[int] = None,
+        daily_limit: Optional[int] = None,
+    ):
         message = "Rate limit exceeded"
         if daily_limit:
             message += f" (daily limit: {daily_limit})"
-        
+
         help_text = "Wait before retrying"
         if wait_time:
             help_text += f" (suggested wait: {wait_time} seconds)"
         help_text += f" or check your {provider} subscription limits"
-        
+
         super().__init__(provider, message, help_text, "RATE_LIMIT")
 
 
 class VortexConnectionError(DataProviderError):
     """Raised when connection to data provider fails."""
-    
+
     def __init__(self, provider: str, details: Optional[str] = None):
         message = "Connection failed"
         if details:
             message += f": {details}"
-        
+
         help_text = f"Check your internet connection and {provider} service status"
         super().__init__(provider, message, help_text, "CONNECTION_FAILED")
 
@@ -93,33 +118,44 @@ class VortexConnectionError(DataProviderError):
 @dataclass
 class DataNotFoundError(DataProviderError):
     """Raised when requested data is not available from the provider."""
-    
-    def __init__(self, provider: str, symbol: str, period: "Period", 
-                 start_date: datetime, end_date: datetime, http_code: Optional[int] = None):
+
+    def __init__(
+        self,
+        provider: str,
+        symbol: str,
+        period: "Period",
+        start_date: datetime,
+        end_date: datetime,
+        http_code: Optional[int] = None,
+    ):
         self.symbol = symbol
         self.period = period
         self.start_date = start_date
         self.end_date = end_date
         self.http_code = http_code
-        
+
         # Handle both datetime and date objects
-        start_str = start_date.date() if hasattr(start_date, 'date') else start_date
-        end_str = end_date.date() if hasattr(end_date, 'date') else end_date
+        start_str = start_date.date() if hasattr(start_date, "date") else start_date
+        end_str = end_date.date() if hasattr(end_date, "date") else end_date
         message = f"No data found for {symbol} ({period}) from {start_str} to {end_str}"
         if http_code:
             message += f" (HTTP {http_code})"
-        
+
         help_text = f"Verify that {symbol} is valid and data exists for the requested date range on {provider}"
         super().__init__(provider, message, help_text, "DATA_NOT_FOUND")
 
 
 class AllowanceLimitExceededError(DataProviderError):
     """Raised when API usage/quota limits are exceeded."""
-    
+
     def __init__(self, provider: str, current_usage: int, daily_limit: int):
         self.current_usage = current_usage
         self.daily_limit = daily_limit
-        
-        message = f"Daily usage limit exceeded: {current_usage}/{daily_limit} downloads used"
-        help_text = f"Wait for daily reset (midnight) or upgrade your {provider} subscription"
+
+        message = (
+            f"Daily usage limit exceeded: {current_usage}/{daily_limit} downloads used"
+        )
+        help_text = (
+            f"Wait for daily reset (midnight) or upgrade your {provider} subscription"
+        )
         super().__init__(provider, message, help_text, "USAGE_LIMIT_EXCEEDED")

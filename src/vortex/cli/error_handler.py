@@ -5,26 +5,36 @@ This module provides a unified error handling system that ensures consistent
 error reporting, logging, and user experience across all CLI commands.
 """
 
-import sys
 import logging
-from typing import Optional, Any
-
-from vortex.utils.logging_utils import get_structured_logger
+import sys
+from typing import Any, Optional
 
 from vortex.exceptions import (
-    VortexError, CLIError, ConfigurationError, DataProviderError,
-    DataStorageError, InstrumentError, AuthenticationError,
-    VortexConnectionError, VortexPermissionError
+    AuthenticationError,
+    CLIError,
+    ConfigurationError,
+    DataProviderError,
+    DataStorageError,
+    InstrumentError,
+    VortexConnectionError,
+    VortexError,
+    VortexPermissionError,
 )
+from vortex.utils.logging_utils import get_structured_logger
 
 
 class CLIErrorHandler:
     """Centralized error handler for Vortex CLI operations."""
-    
-    def __init__(self, rich_available: bool = False, console: Any = None, 
-                 config_available: bool = False, get_logger_func: Optional[callable] = None):
+
+    def __init__(
+        self,
+        rich_available: bool = False,
+        console: Any = None,
+        config_available: bool = False,
+        get_logger_func: Optional[callable] = None,
+    ):
         """Initialize the error handler.
-        
+
         Args:
             rich_available: Whether Rich library is available for enhanced output
             console: Rich console instance if available
@@ -36,7 +46,7 @@ class CLIErrorHandler:
         self.config_available = config_available
         self.get_logger = get_logger_func
         self.structured_logger = get_structured_logger()
-        
+
     def handle_keyboard_interrupt(self) -> None:
         """Handle user cancellation (Ctrl+C)."""
         if self.rich_available and self.console:
@@ -44,7 +54,7 @@ class CLIErrorHandler:
         else:
             print("\nOperation cancelled by user")
         sys.exit(1)
-    
+
     def handle_authentication_error(self, error: AuthenticationError) -> None:
         """Handle authentication failures with comprehensive context."""
         if self.rich_available and self.console:
@@ -63,10 +73,10 @@ class CLIErrorHandler:
             if error.user_action:
                 print(f"🔧 Action: {error.user_action}")
             print(f"🔍 Error ID: {error.correlation_id}")
-        
+
         self._log_error("Authentication error occurred", error)
         sys.exit(2)
-    
+
     def handle_configuration_error(self, error: ConfigurationError) -> None:
         """Handle configuration issues with specific guidance."""
         if self.rich_available and self.console:
@@ -77,10 +87,12 @@ class CLIErrorHandler:
             print(f"⚙️  Configuration Error: {error.message}")
             if error.help_text:
                 print(f"💡 {error.help_text}")
-        
-        self._log_simple_error(f"Configuration error ({error.error_code}): {error.message}")
+
+        self._log_simple_error(
+            f"Configuration error ({error.error_code}): {error.message}"
+        )
         sys.exit(3)
-    
+
     def handle_connection_error(self, error: VortexConnectionError) -> None:
         """Handle network/connection issues."""
         if self.rich_available and self.console:
@@ -91,10 +103,12 @@ class CLIErrorHandler:
             print(f"🌐 Connection Error: {error.message}")
             if error.help_text:
                 print(f"💡 {error.help_text}")
-        
-        self._log_simple_error(f"Connection error for provider {error.provider}: {error.message}")
+
+        self._log_simple_error(
+            f"Connection error for provider {error.provider}: {error.message}"
+        )
         sys.exit(4)
-    
+
     def handle_permission_error(self, error: VortexPermissionError) -> None:
         """Handle permission/file access issues."""
         if self.rich_available and self.console:
@@ -105,10 +119,12 @@ class CLIErrorHandler:
             print(f"🔒 Permission Error: {error.message}")
             if error.help_text:
                 print(f"💡 {error.help_text}")
-        
-        self._log_simple_error(f"Permission error ({error.error_code}): {error.message}")
+
+        self._log_simple_error(
+            f"Permission error ({error.error_code}): {error.message}"
+        )
         sys.exit(5)
-    
+
     def handle_storage_error(self, error: DataStorageError) -> None:
         """Handle data storage issues."""
         if self.rich_available and self.console:
@@ -119,10 +135,10 @@ class CLIErrorHandler:
             print(f"💾 Storage Error: {error.message}")
             if error.help_text:
                 print(f"💡 {error.help_text}")
-        
+
         self._log_simple_error(f"Storage error ({error.error_code}): {error.message}")
         sys.exit(6)
-    
+
     def handle_provider_error(self, error: DataProviderError) -> None:
         """Handle data provider issues."""
         if self.rich_available and self.console:
@@ -133,10 +149,12 @@ class CLIErrorHandler:
             print(f"📊 Provider Error: {error.message}")
             if error.help_text:
                 print(f"💡 {error.help_text}")
-        
-        self._log_simple_error(f"Data provider error for {error.provider} ({error.error_code}): {error.message}")
+
+        self._log_simple_error(
+            f"Data provider error for {error.provider} ({error.error_code}): {error.message}"
+        )
         sys.exit(7)
-    
+
     def handle_instrument_error(self, error: InstrumentError) -> None:
         """Handle instrument/symbol issues."""
         if self.rich_available and self.console:
@@ -147,10 +165,12 @@ class CLIErrorHandler:
             print(f"📈 Instrument Error: {error.message}")
             if error.help_text:
                 print(f"💡 {error.help_text}")
-        
-        self._log_simple_error(f"Instrument error ({error.error_code}): {error.message}")
+
+        self._log_simple_error(
+            f"Instrument error ({error.error_code}): {error.message}"
+        )
         sys.exit(8)
-    
+
     def handle_cli_error(self, error: CLIError) -> None:
         """Handle CLI usage errors."""
         if self.rich_available and self.console:
@@ -161,10 +181,10 @@ class CLIErrorHandler:
             print(f"⌨️  Command Error: {error.message}")
             if error.help_text:
                 print(f"💡 {error.help_text}")
-        
+
         self._log_simple_error(f"CLI error ({error.error_code}): {error.message}")
         sys.exit(9)
-    
+
     def handle_vortex_error(self, error: VortexError) -> None:
         """Handle any other Vortex exceptions with full context."""
         if self.rich_available and self.console:
@@ -174,9 +194,13 @@ class CLIErrorHandler:
             if error.user_action:
                 self.console.print(f"[green]🔧 Action: {error.user_action}[/green]")
             if error.context:
-                context_items = [f"{k}: {v}" for k, v in error.context.items() if v is not None]
+                context_items = [
+                    f"{k}: {v}" for k, v in error.context.items() if v is not None
+                ]
                 if context_items:
-                    self.console.print(f"[dim]📋 Context: {', '.join(context_items)}[/dim]")
+                    self.console.print(
+                        f"[dim]📋 Context: {', '.join(context_items)}[/dim]"
+                    )
             self.console.print(f"[dim]🔍 Error ID: {error.correlation_id}[/dim]")
         else:
             print(f"❌ Error: {error.message}")
@@ -185,77 +209,87 @@ class CLIErrorHandler:
             if error.user_action:
                 print(f"🔧 Action: {error.user_action}")
             print(f"🔍 Error ID: {error.correlation_id}")
-        
+
         self._log_error("Vortex error occurred", error)
         sys.exit(10)
-    
+
     def handle_system_error(self, error: Exception) -> None:
         """Handle system-level file/network errors."""
         if self.rich_available and self.console:
             self.console.print(f"[red]💻 System Error: {error}[/red]")
-            self.console.print("[blue]💡 Check file permissions, disk space, and network connectivity[/blue]")
+            self.console.print(
+                "[blue]💡 Check file permissions, disk space, and network connectivity[/blue]"
+            )
         else:
             print(f"💻 System Error: {error}")
             print("💡 Check file permissions, disk space, and network connectivity")
-        
+
         self._log_simple_error(f"System error: {error}")
         sys.exit(11)
-    
+
     def handle_import_error(self, error: ImportError) -> None:
         """Handle missing dependencies."""
         if self.rich_available and self.console:
             self.console.print(f"[red]📦 Dependency Error: {error}[/red]")
-            self.console.print("[blue]💡 Try running: uv pip install -e . or pip install -e .[/blue]")
+            self.console.print(
+                "[blue]💡 Try running: uv pip install -e . or pip install -e .[/blue]"
+            )
         else:
             print(f"📦 Dependency Error: {error}")
             print("💡 Try running: uv pip install -e . or pip install -e .")
-        
+
         self._log_simple_error(f"Import error: {error}")
         sys.exit(12)
-    
+
     def handle_unexpected_error(self, error: Exception) -> None:
         """Handle unexpected exceptions."""
         if self.rich_available and self.console:
             self.console.print(f"[red]🐛 Unexpected Error: {error}[/red]")
-            self.console.print("[yellow]This may be a bug. Please report it at: https://github.com/makutaku/vortex/issues[/yellow]")
+            self.console.print(
+                "[yellow]This may be a bug. Please report it at: https://github.com/makutaku/vortex/issues[/yellow]"
+            )
         else:
             print(f"🐛 Unexpected Error: {error}")
-            print("This may be a bug. Please report it at: https://github.com/makutaku/vortex/issues")
-        
+            print(
+                "This may be a bug. Please report it at: https://github.com/makutaku/vortex/issues"
+            )
+
         logging.exception("Unexpected error occurred")
         sys.exit(1)
-    
+
     def _log_error(self, message: str, error: VortexError) -> None:
         """Log error with full context using structured logging."""
         try:
             # Use structured logging for enhanced error tracking
             context = {
-                "error_code": getattr(error, 'error_code', None),
-                "provider": getattr(error, 'provider', None),
-                "operation": getattr(error, 'operation', None),
+                "error_code": getattr(error, "error_code", None),
+                "provider": getattr(error, "provider", None),
+                "operation": getattr(error, "operation", None),
             }
-            
+
             try:
                 self.structured_logger.log_error(
                     error=error,
                     message=message,
-                    correlation_id=getattr(error, 'correlation_id', None),
+                    correlation_id=getattr(error, "correlation_id", None),
                     context=context,
-                    operation="cli_operation"
+                    operation="cli_operation",
                 )
             except Exception as structured_error:
                 # If structured logging fails, fall back to basic logging
                 logging.error(f"{message}: {getattr(error, 'message', str(error))}")
                 logging.debug(f"Structured logging failed: {structured_error}")
                 return
-            
+
             # Also try advanced logging if available
             if self.config_available and self.get_logger:
                 try:
                     logger = self.get_logger("vortex.cli.error")
-                    logger.error(message, 
-                               error_dict=error.to_dict(),
-                               correlation_id=error.correlation_id)
+                    logger.error(
+                        message,
+                        error_dict=error.to_dict(),
+                        correlation_id=error.correlation_id,
+                    )
                 except (AttributeError, TypeError, ValueError) as logging_error:
                     # If advanced logging fails, fall back to basic logging
                     logging.debug(f"Advanced logging failed: {logging_error}")
@@ -263,37 +297,43 @@ class CLIErrorHandler:
             # Ultimate fallback to basic logging
             logging.error(f"{message}: {getattr(error, 'message', str(error))}")
             logging.debug(f"Error handler fallback triggered: {fallback_error}")
-    
+
     def _log_simple_error(self, message: str) -> None:
         """Log simple error message."""
         logging.error(message)
 
 
-def create_error_handler(rich_available: bool = False, console: Any = None, 
-                        config_available: bool = False, get_logger_func: Optional[callable] = None) -> CLIErrorHandler:
+def create_error_handler(
+    rich_available: bool = False,
+    console: Any = None,
+    config_available: bool = False,
+    get_logger_func: Optional[callable] = None,
+) -> CLIErrorHandler:
     """Factory function to create a configured error handler."""
     return CLIErrorHandler(
         rich_available=rich_available,
         console=console,
         config_available=config_available,
-        get_logger_func=get_logger_func
+        get_logger_func=get_logger_func,
     )
 
 
-def handle_cli_exceptions(error_handler: CLIErrorHandler, func: callable, *args, **kwargs) -> Any:
+def handle_cli_exceptions(
+    error_handler: CLIErrorHandler, func: callable, *args, **kwargs
+) -> Any:
     """
     Universal exception handler wrapper for CLI operations.
-    
+
     This function wraps CLI operations and handles all exceptions consistently.
-    
+
     Args:
         error_handler: Configured error handler instance
         func: Function to execute
         *args, **kwargs: Arguments to pass to the function
-        
+
     Returns:
         The result of the function call
-        
+
     Raises:
         SystemExit: On any handled exception
     """

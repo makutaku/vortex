@@ -1,9 +1,9 @@
 import logging
 import os
 import time
-from datetime import timezone, datetime, date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from random import randint
-from typing import Dict, Any, List, Optional, Tuple, Union, Generator
+from typing import Any, Dict, Generator, List, Optional, Tuple, Union
 
 from dateutil import parser
 
@@ -28,17 +28,20 @@ def create_full_path(file_path: str) -> str:
     return file_path
 
 
-def get_first_and_last_day_of_years(start_year: int, end_year: int, tz: timezone = timezone.utc) -> Tuple[datetime, datetime]:
+def get_first_and_last_day_of_years(
+    start_year: int, end_year: int, tz: timezone = timezone.utc
+) -> Tuple[datetime, datetime]:
     start_date = datetime(start_year, 1, 1, tzinfo=tz)
     end_date = datetime(end_year, 12, 31, 23, 59, 59, tzinfo=tz)
 
     return start_date, end_date
 
 
-def date_range_generator(start_date: datetime, end_date: datetime, delta: Optional[timedelta]) -> Generator[Tuple[datetime, datetime], None, None]:
-
+def date_range_generator(
+    start_date: datetime, end_date: datetime, delta: Optional[timedelta]
+) -> Generator[Tuple[datetime, datetime], None, None]:
     if start_date > end_date:
-        raise ValueError(f"start_date must come before end_date")
+        raise ValueError("start_date must come before end_date")
 
     if delta is None:
         yield start_date, end_date
@@ -50,8 +53,9 @@ def date_range_generator(start_date: datetime, end_date: datetime, delta: Option
         current_date += delta
 
 
-def reverse_date_range_generator(start_date: datetime, end_date: datetime, delta: Optional[timedelta]) -> Generator[Tuple[datetime, datetime], None, None]:
-
+def reverse_date_range_generator(
+    start_date: datetime, end_date: datetime, delta: Optional[timedelta]
+) -> Generator[Tuple[datetime, datetime], None, None]:
     if delta is None:
         yield start_date, end_date
         return
@@ -87,17 +91,23 @@ def convert_date_strings_to_datetime(input_dict: Dict[str, Any]) -> Dict[str, An
         if key.endswith("_date"):
             try:
                 # Convert the value to a datetime object
-                value = parser.isoparse(value).astimezone(timezone.utc) if value else None
+                value = (
+                    parser.isoparse(value).astimezone(timezone.utc) if value else None
+                )
             except ValueError:
                 # Handle invalid datetime strings gracefully
-                logging.warning(f"Unable to convert '{value}' to datetime for key '{key}'")
+                logging.warning(
+                    f"Unable to convert '{value}' to datetime for key '{key}'"
+                )
         elif key == "period":
             try:
                 # Convert the value to a datetime object
                 value = Period(value) if value else None
             except ValueError:
                 # Handle invalid datetime strings gracefully
-                logging.warning(f"Unable to convert '{value}' to Period for key '{key}'")
+                logging.warning(
+                    f"Unable to convert '{value}' to Period for key '{key}'"
+                )
 
         output_dict[key] = value
 
@@ -138,7 +148,9 @@ def total_elements_in_dict_of_lists(dictionary: Dict[str, List[Any]]) -> int:
     return total_elements
 
 
-def generate_year_month_tuples(start_date: Union[datetime, date], end_date: Union[datetime, date]) -> Generator[Tuple[int, int], None, None]:
+def generate_year_month_tuples(
+    start_date: Union[datetime, date], end_date: Union[datetime, date]
+) -> Generator[Tuple[int, int], None, None]:
     # Ensure both start_date and end_date are of type datetime.date
     if isinstance(start_date, datetime):
         start_date = start_date.date()

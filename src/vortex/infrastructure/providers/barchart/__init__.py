@@ -8,11 +8,12 @@ This package contains modular components for the Barchart data provider:
 - provider: Main BarchartDataProvider class
 """
 
-from .provider import BarchartDataProvider
-from .column_mapping import BarchartColumnMapping
 from vortex.models.column_registry import register_provider_column_mapping
+
+from .column_mapping import BarchartColumnMapping
+from .provider import BarchartDataProvider
 
 # Auto-register column mapping when module is imported
 register_provider_column_mapping(BarchartColumnMapping())
 
-__all__ = ['BarchartDataProvider']
+__all__ = ["BarchartDataProvider"]

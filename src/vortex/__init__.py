@@ -18,30 +18,30 @@ __version__ = "0.1.4"
 # Public API exports
 try:
     # Core domain models
-    from .models import Instrument, Future, Stock, Forex, PriceSeries
-    
-    # Services 
-    from .services import UpdatingDownloader, BackfillDownloader, DownloadJob
-    
+    from .core.config import VortexConfig
+
+    # Configuration and exceptions
+    from .exceptions import VortexError
+
     # Infrastructure interfaces
     from .infrastructure.providers.base import DataProvider
     from .infrastructure.storage.data_storage import DataStorage
-    
-    # Configuration and exceptions
-    from .exceptions import VortexError
-    from .core.config import VortexConfig
+    from .models import Forex, Future, Instrument, PriceSeries, Stock
+
+    # Services
+    from .services import BackfillDownloader, DownloadJob, UpdatingDownloader
 except ImportError:
     # Gracefully handle missing dependencies for CLI-only usage
     pass
 
 __all__ = [
     "Instrument",
-    "Future", 
+    "Future",
     "Stock",
     "Forex",
     "PriceSeries",
     "UpdatingDownloader",
-    "BackfillDownloader", 
+    "BackfillDownloader",
     "DownloadJob",
     "DataProvider",
     "DataStorage",

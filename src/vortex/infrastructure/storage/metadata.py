@@ -17,18 +17,23 @@ from vortex.utils.utils import convert_date_strings_to_datetime
 class MetadataHandler:
     def __init__(self, file_path):
         self.file_path = file_path
-        self.metadata_file = os.path.join(os.path.dirname(file_path), f'{os.path.basename(file_path)}.json')
+        self.metadata_file = os.path.join(
+            os.path.dirname(file_path), f"{os.path.basename(file_path)}.json"
+        )
 
     def set_metadata(self, new_metadata: Metadata):
         # Save the new metadata to the file (overwriting previous metadata)
-        with open(self.metadata_file, 'w') as json_file:
-            json.dump(asdict(new_metadata), json_file, default=default_serializer, indent=2)
+        with open(self.metadata_file, "w") as json_file:
+            json.dump(
+                asdict(new_metadata), json_file, default=default_serializer, indent=2
+            )
 
     def get_metadata(self) -> Metadata:
-        with open(self.metadata_file, 'r') as json_file:
+        with open(self.metadata_file, "r") as json_file:
             metadata_dict = json.load(json_file)
             metadata_dict = convert_date_strings_to_datetime(metadata_dict)
             return Metadata(**metadata_dict)
+
 
 #
 # # Example usage:

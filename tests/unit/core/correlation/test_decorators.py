@@ -269,7 +269,7 @@ class TestTrackOperation:
                 correlation_id='test-correlation-id',
                 context={
                     'function': 'test_function',
-                    'module': 'test_decorators',
+                    'module': 'tests.unit.core.correlation.test_decorators',
                     'args_count': 0,
                     'kwargs_keys': []
                 }

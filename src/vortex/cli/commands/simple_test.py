@@ -2,6 +2,7 @@
 
 import click
 
+
 @click.command()
 def simple_test():
     """Test command to verify CLI structure."""

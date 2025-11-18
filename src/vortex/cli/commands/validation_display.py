@@ -1,9 +1,10 @@
 """Display functionality for validation results."""
 
-import json
 import csv
 import io
+import json
 from typing import List
+
 from rich.console import Console
 from rich.table import Table
 
@@ -14,7 +15,7 @@ console = Console()
 
 def display_results(results: List[dict], detailed: bool, output_format: str) -> None:
     """Display validation results."""
-    
+
     if output_format == "table":
         display_table_results(results, detailed)
     elif output_format == "json":
@@ -31,30 +32,24 @@ def display_table_results(results: List[dict], detailed: bool) -> None:
     table.add_column("Size")
     table.add_column("Rows")
     table.add_column("Issues")
-    
+
     for result in results:
         file_path = result["file"]
         status = "✓ Valid" if result["valid"] else "✗ Invalid"
-        
+
         if result["fixed"]:
             status += " (Fixed)"
-        
+
         size = format_file_size(file_path.stat().st_size)
         rows = str(result["metrics"].get("rows", "Unknown"))
-        
+
         issues = len(result["errors"]) + len(result["warnings"])
         issues_str = str(issues) if issues > 0 else "-"
-        
-        table.add_row(
-            file_path.name,
-            status,
-            size,
-            rows,
-            issues_str
-        )
-    
+
+        table.add_row(file_path.name, status, size, rows, issues_str)
+
     console.print(table)
-    
+
     # Show detailed issues if requested
     if detailed:
         show_detailed_issues(results)
@@ -65,10 +60,10 @@ def show_detailed_issues(results: List[dict]) -> None:
     for result in results:
         if result["errors"] or result["warnings"]:
             console.print(f"\n[bold]{result['file'].name}[/bold]")
-            
+
             for error in result["errors"]:
                 console.print(f"  [red]✗ Error: {error}[/red]")
-            
+
             for warning in result["warnings"]:
                 console.print(f"  [yellow]⚠ Warning: {warning}[/yellow]")
 
@@ -81,7 +76,7 @@ def display_json_results(results: List[dict]) -> None:
         json_result = result.copy()
         json_result["file"] = str(result["file"])
         json_results.append(json_result)
-    
+
     console.print(json.dumps(json_results, indent=2))
 
 
@@ -89,21 +84,23 @@ def display_csv_results(results: List[dict]) -> None:
     """Display results in CSV format."""
     output = io.StringIO()
     writer = csv.writer(output)
-    
+
     # Header
     writer.writerow(["File", "Valid", "Errors", "Warnings", "Rows", "Columns"])
-    
+
     # Data
     for result in results:
-        writer.writerow([
-            str(result["file"]),
-            result["valid"],
-            len(result["errors"]),
-            len(result["warnings"]),
-            result["metrics"].get("rows", ""),
-            result["metrics"].get("columns", "")
-        ])
-    
+        writer.writerow(
+            [
+                str(result["file"]),
+                result["valid"],
+                len(result["errors"]),
+                len(result["warnings"]),
+                result["metrics"].get("rows", ""),
+                result["metrics"].get("columns", ""),
+            ]
+        )
+
     console.print(output.getvalue())
 
 
@@ -114,18 +111,18 @@ def show_validation_summary(results: List[dict]) -> None:
     fixed_files = sum(1 for r in results if r["fixed"])
     total_errors = sum(len(r["errors"]) for r in results)
     total_warnings = sum(len(r["warnings"]) for r in results)
-    
-    console.print(f"\n[bold]Validation Summary[/bold]")
+
+    console.print("\n[bold]Validation Summary[/bold]")
     console.print(f"Total files: {total_files}")
     console.print(f"Valid files: [green]{valid_files}[/green]")
     console.print(f"Invalid files: [red]{total_files - valid_files}[/red]")
-    
+
     if fixed_files > 0:
         console.print(f"Fixed files: [blue]{fixed_files}[/blue]")
-    
+
     if total_errors > 0:
         console.print(f"Total errors: [red]{total_errors}[/red]")
-    
+
     if total_warnings > 0:
         console.print(f"Total warnings: [yellow]{total_warnings}[/yellow]")
 
