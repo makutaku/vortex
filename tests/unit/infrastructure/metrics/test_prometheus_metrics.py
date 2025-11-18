@@ -102,28 +102,29 @@ class TestVortexMetrics:
         with pytest.raises(Exception, match="Port in use"):
             metrics._start_server_thread(8000)
 
-    @patch('vortex.plugins.get_provider_registry')
-    def test_set_system_info_success(self, mock_registry, metrics):
+    def test_set_system_info_success(self, metrics):
         """Test _set_system_info sets metrics correctly."""
-        # Mock provider registry
-        mock_reg = Mock()
-        mock_reg.list_plugins.return_value = ["yahoo", "barchart", "ibkr"]
-        mock_registry.return_value = mock_reg
+        # Mock provider registry - patch where it's imported
+        with patch('vortex.infrastructure.metrics.prometheus_metrics.get_provider_registry') as mock_registry:
+            mock_reg = Mock()
+            mock_reg.list_plugins.return_value = ["yahoo", "barchart", "ibkr"]
+            mock_registry.return_value = mock_reg
 
-        # Mock _get_vortex_version
-        with patch.object(metrics, '_get_vortex_version', return_value='1.0.0'):
-            metrics._set_system_info()
+            # Mock _get_vortex_version
+            with patch.object(metrics, '_get_vortex_version', return_value='1.0.0'):
+                metrics._set_system_info()
 
         # system_info.info() should have been called
         metrics.system_info.info.assert_called_once()
 
-    @patch('vortex.plugins.get_provider_registry')
-    def test_set_system_info_error_fallback(self, mock_registry, metrics):
+    def test_set_system_info_error_fallback(self, metrics):
         """Test _set_system_info handles errors gracefully."""
-        mock_registry.side_effect = Exception("Registry error")
+        # Mock provider registry to raise exception
+        with patch('vortex.infrastructure.metrics.prometheus_metrics.get_provider_registry') as mock_registry:
+            mock_registry.side_effect = Exception("Registry error")
 
-        # Should not raise, should use fallback
-        metrics._set_system_info()
+            # Should not raise, should use fallback
+            metrics._set_system_info()
 
         # Should still call info with fallback data
         metrics.system_info.info.assert_called_once()
