@@ -305,27 +305,38 @@ class TestRawDataStorage:
 
     def test_multiple_providers_same_directory_structure(self, raw_storage_enabled, stock_instrument, sample_raw_data):
         """Test that all providers use the same directory structure (since deployments are single-provider)."""
-        import time
         providers = ["yahoo", "barchart", "ibkr"]
         file_paths = []
-        
-        for i, provider in enumerate(providers):
-            file_path = raw_storage_enabled.save_raw_response(
-                provider=provider,
-                instrument=stock_instrument,
-                raw_data=sample_raw_data
-            )
-            file_paths.append(file_path)
-            if i < len(providers) - 1:  # Don't sleep after last iteration
-                time.sleep(0.001)  # 1ms delay to ensure different timestamps
-        
+
+        with patch('vortex.infrastructure.storage.raw_storage.datetime') as mock_datetime:
+            # Use side_effect to return different timestamps for each call
+            # Note: save_raw_response calls datetime.now() twice (in _generate_raw_file_path and _create_raw_metadata)
+            # So we need 2 datetime values per provider (3 providers x 2 calls = 6 total)
+            mock_datetime.now.side_effect = [
+                datetime(2025, 8, 16, 14, 30, 45, 123000),  # Provider 1 - file path
+                datetime(2025, 8, 16, 14, 30, 45, 123000),  # Provider 1 - metadata
+                datetime(2025, 8, 16, 14, 30, 46, 123000),  # Provider 2 - file path
+                datetime(2025, 8, 16, 14, 30, 46, 123000),  # Provider 2 - metadata
+                datetime(2025, 8, 16, 14, 30, 47, 123000),  # Provider 3 - file path
+                datetime(2025, 8, 16, 14, 30, 47, 123000),  # Provider 3 - metadata
+            ]
+            mock_datetime.strftime = datetime.strftime
+
+            for provider in providers:
+                file_path = raw_storage_enabled.save_raw_response(
+                    provider=provider,
+                    instrument=stock_instrument,
+                    raw_data=sample_raw_data
+                )
+                file_paths.append(file_path)
+
         # Verify all use the same year/month/instrument_type structure without provider prefix
         year_dir = raw_storage_enabled.raw_dir / "2025" / "08" / "stock"
         assert year_dir.exists()
-        
+
         # All file paths should be unique (different timestamps)
         assert len(set(file_paths)) == len(providers)
-        
+
         # Count files in the directory - should have one file per provider
         files = list(year_dir.glob("*.csv.gz"))
         assert len(files) == len(providers)

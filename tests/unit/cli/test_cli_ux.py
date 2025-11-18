@@ -88,6 +88,81 @@ class TestCliUX:
         result = ux.choice("Choose:", choices, default="option2")
         assert result == "option2"
 
+    @patch('builtins.input', return_value='')
+    def test_prompt_default(self, mock_input, ux):
+        """Test prompt with default value."""
+        result = ux.prompt("Enter name:", default="John")
+        assert result == "John"
+
+    @patch('builtins.input', return_value='Alice')
+    def test_prompt_custom_value(self, mock_input, ux):
+        """Test prompt with custom input."""
+        result = ux.prompt("Enter name:", default="John")
+        assert result == "Alice"
+
+    @patch('getpass.getpass', return_value='secret123')
+    def test_prompt_password(self, mock_getpass, ux):
+        """Test prompt with password mode."""
+        # Temporarily disable rich for fallback path
+        original_console = ux.console
+        ux.console = None
+
+        result = ux.prompt("Enter password:", password=True)
+        assert result == "secret123"
+
+        ux.console = original_console
+
+    @patch('builtins.input', side_effect=['maybe', 'perhaps', 'y'])
+    def test_confirm_invalid_then_valid(self, mock_input, ux):
+        """Test confirm with invalid input then valid."""
+        # Temporarily disable rich for fallback path
+        original_console = ux.console
+        ux.console = None
+
+        result = ux.confirm("Continue?", default=False)
+        assert result is True
+
+        ux.console = original_console
+
+    @patch('builtins.input', return_value='no')
+    def test_confirm_no(self, mock_input, ux):
+        """Test confirm returns False."""
+        # Temporarily disable rich for fallback path
+        original_console = ux.console
+        ux.console = None
+
+        result = ux.confirm("Continue?", default=True)
+        assert result is False
+
+        ux.console = original_console
+
+    def test_print_panel_without_rich(self, ux, capfd):
+        """Test print_panel fallback without rich."""
+        # Temporarily disable rich
+        original_console = ux.console
+        ux.console = None
+
+        ux.print_panel("Test content", title="Test Title")
+
+        captured = capfd.readouterr()
+        assert "Test Title" in captured.out
+        assert "Test content" in captured.out
+
+        ux.console = original_console
+
+    def test_print_without_rich(self, ux, capfd):
+        """Test print method without rich."""
+        # Temporarily disable rich
+        original_console = ux.console
+        ux.console = None
+
+        ux.print("Simple message")
+
+        captured = capfd.readouterr()
+        assert "Simple message" in captured.out
+
+        ux.console = original_console
+
 
 @pytest.mark.unit
 class TestProgressContext:
@@ -137,6 +212,41 @@ class TestTableBuilder:
         table = ux.table("Empty Table")
         table.print()  # Should not raise an exception
 
+    def test_table_without_rich(self, ux, capfd):
+        """Test table fallback without rich."""
+        # Temporarily disable rich
+        original_console = ux.console
+        ux.console = None
+
+        table = ux.table("Fallback Table")
+        table.add_column("Name")
+        table.add_column("Value")
+        table.add_row("Item 1", "100")
+        table.add_row("Item 2", "200")
+        table.print()
+
+        captured = capfd.readouterr()
+        assert "Fallback Table" in captured.out
+        assert "Name" in captured.out
+        assert "Value" in captured.out
+        assert "Item 1" in captured.out
+
+        ux.console = original_console
+
+    def test_table_quiet_mode(self, ux, capfd):
+        """Test table respects quiet mode."""
+        ux.set_quiet(True)
+
+        table = ux.table("Test Table")
+        table.add_column("Name")
+        table.add_row("Value")
+        table.print()
+
+        captured = capfd.readouterr()
+        assert captured.out == ""
+
+        ux.set_quiet(False)
+
 
 @pytest.mark.unit
 class TestTreeBuilder:
@@ -152,9 +262,40 @@ class TestTreeBuilder:
         tree = ux.tree("Test Tree")
         tree.add_item("Root Item", ["Child 1", "Child 2"])
         tree.add_item("Another Root", ["Child A", "Child B"])
-        
+
         # Should not raise an exception
         tree.print()
+
+    def test_tree_without_rich(self, ux, capfd):
+        """Test tree fallback without rich."""
+        # Temporarily disable rich
+        original_console = ux.console
+        ux.console = None
+
+        tree = ux.tree("Fallback Tree")
+        tree.add_item("Root 1", ["Child 1A", "Child 1B"])
+        tree.add_item("Root 2", ["Child 2A"])
+        tree.print()
+
+        captured = capfd.readouterr()
+        assert "Fallback Tree" in captured.out
+        assert "Root 1" in captured.out
+        assert "Child 1A" in captured.out
+
+        ux.console = original_console
+
+    def test_tree_quiet_mode(self, ux, capfd):
+        """Test tree respects quiet mode."""
+        ux.set_quiet(True)
+
+        tree = ux.tree("Test Tree")
+        tree.add_item("Item", ["Child"])
+        tree.print()
+
+        captured = capfd.readouterr()
+        assert captured.out == ""
+
+        ux.set_quiet(False)
 
 
 @pytest.mark.unit
@@ -198,6 +339,68 @@ class TestCommandWizard:
     @patch('vortex.cli.ux.CliUX.choice')
     @patch('vortex.cli.ux.CliUX.prompt')
     @patch('vortex.cli.ux.CliUX.confirm')
+    def test_download_wizard_symbols_file(self, mock_confirm, mock_prompt, mock_choice, wizard):
+        """Test download wizard with symbols file."""
+        mock_choice.side_effect = [
+            "barchart",  # provider
+            "Use symbols file",  # symbol method
+            "Last 90 days",  # date range
+        ]
+        mock_prompt.return_value = "symbols.txt"
+        mock_confirm.side_effect = [False, False, False]  # backup, force, execute
+
+        config = wizard.run_download_wizard()
+
+        assert config["provider"] == "barchart"
+        assert config["symbols_file"] == "symbols.txt"
+        assert "start_date" in config
+
+    @patch('vortex.cli.ux.CliUX.choice')
+    @patch('vortex.cli.ux.CliUX.prompt')
+    @patch('vortex.cli.ux.CliUX.confirm')
+    def test_download_wizard_default_assets(self, mock_confirm, mock_prompt, mock_choice, wizard):
+        """Test download wizard with default assets."""
+        mock_choice.side_effect = [
+            "yahoo",  # provider
+            "Use default assets",  # symbol method
+            "This year",  # date range
+        ]
+        mock_confirm.side_effect = [True, True, True]  # backup, force, execute
+
+        config = wizard.run_download_wizard()
+
+        assert config["provider"] == "yahoo"
+        assert config["use_defaults"] is True
+        assert config["backup"] is True
+        assert config["force"] is True
+        assert config["execute"] is True
+
+    @patch('vortex.cli.ux.CliUX.choice')
+    @patch('vortex.cli.ux.CliUX.prompt')
+    @patch('vortex.cli.ux.CliUX.confirm')
+    def test_download_wizard_custom_date_range(self, mock_confirm, mock_prompt, mock_choice, wizard):
+        """Test download wizard with custom date range."""
+        mock_choice.side_effect = [
+            "ibkr",  # provider
+            "Enter symbols manually",  # symbol method
+            "Custom range",  # date range
+        ]
+        mock_prompt.side_effect = [
+            "EURUSD",  # symbols
+            "2023-01-01",  # start date
+            "2023-12-31",  # end date
+        ]
+        mock_confirm.side_effect = [False, False, False]  # backup, force, execute
+
+        config = wizard.run_download_wizard()
+
+        assert config["provider"] == "ibkr"
+        assert config["start_date"] == "2023-01-01"
+        assert config["end_date"] == "2023-12-31"
+
+    @patch('vortex.cli.ux.CliUX.choice')
+    @patch('vortex.cli.ux.CliUX.prompt')
+    @patch('vortex.cli.ux.CliUX.confirm')
     def test_config_wizard(self, mock_confirm, mock_prompt, mock_choice, wizard):
         """Test configuration wizard."""
         # Mock user inputs
@@ -212,13 +415,57 @@ class TestCommandWizard:
             "./data",  # output dir
         ]
         mock_confirm.side_effect = [True, False]  # configure general settings, backup enabled
-        
+
         config = wizard.run_config_wizard()
-        
+
         assert config["provider"] == "barchart"
         assert config["username"] == "test@example.com"
         assert config["password"] == "password123"
         assert config["daily_limit"] == "150"
+
+    @patch('vortex.cli.ux.CliUX.choice')
+    @patch('vortex.cli.ux.CliUX.prompt')
+    @patch('vortex.cli.ux.CliUX.confirm')
+    def test_config_wizard_ibkr_provider(self, mock_confirm, mock_prompt, mock_choice, wizard):
+        """Test configuration wizard with IBKR provider."""
+        mock_choice.side_effect = ["ibkr", "DEBUG"]  # provider, log level
+        mock_prompt.side_effect = [
+            "127.0.0.1",  # host
+            "7497",  # port
+            "2",  # client_id
+            "./ibkr_data",  # output dir
+        ]
+        mock_confirm.side_effect = [True, True]  # configure general settings, backup
+
+        config = wizard.run_config_wizard()
+
+        assert config["provider"] == "ibkr"
+        assert config["host"] == "127.0.0.1"
+        assert config["port"] == "7497"
+        assert config["client_id"] == "2"
+
+    @patch('vortex.cli.ux.CliUX.choice')
+    @patch('vortex.cli.ux.CliUX.confirm')
+    def test_config_wizard_yahoo_provider(self, mock_confirm, mock_choice, wizard):
+        """Test configuration wizard with Yahoo provider."""
+        mock_choice.side_effect = ["yahoo"]  # provider
+        mock_confirm.return_value = False  # skip general settings
+
+        config = wizard.run_config_wizard()
+
+        assert config["provider"] == "yahoo"
+        # Yahoo requires no credentials
+
+    @patch('vortex.cli.ux.CliUX.choice')
+    @patch('vortex.cli.ux.CliUX.confirm')
+    def test_config_wizard_skip_provider(self, mock_confirm, mock_choice, wizard):
+        """Test configuration wizard skipping provider."""
+        mock_choice.side_effect = ["skip"]  # provider
+        mock_confirm.return_value = False  # skip general settings
+
+        config = wizard.run_config_wizard()
+
+        assert "provider" not in config
 
 
 @pytest.mark.unit
@@ -256,19 +503,19 @@ class TestErrorHandler:
 @pytest.mark.unit
 class TestValidation:
     """Test input validation functions."""
-    
+
     def test_validate_symbols(self):
         """Test symbol validation."""
         # Valid symbols
         symbols = ["AAPL", "googl", "MSFT"]
         result = validate_symbols(symbols)
         assert result == ["AAPL", "GOOGL", "MSFT"]
-        
+
         # Empty and invalid symbols
         symbols = ["", "AAPL", "  ", "GOOGL"]
         result = validate_symbols(symbols)
         assert result == ["AAPL", "GOOGL"]
-    
+
     def test_validate_symbols_special_characters(self):
         """Test symbol validation with special characters."""
         symbols = ["SPY", "BRK-B", "BF.B", "^GSPC"]
@@ -277,6 +524,58 @@ class TestValidation:
         assert "SPY" in result
         assert "BRK-B" in result
         assert "BF.B" in result
+
+    def test_validate_symbols_invalid_characters(self):
+        """Test symbol validation rejects invalid characters."""
+        from vortex.cli.ux import validate_symbols
+        symbols = ["AAPL", "INVALID$SYMBOL!", "GOOGL"]
+        # Should warn but still include (warning tested via capfd in live test)
+        result = validate_symbols(symbols)
+        assert "AAPL" in result
+        assert "GOOGL" in result
+
+
+@pytest.mark.unit
+class TestCommandSuggestions:
+    """Test command suggestion utilities."""
+
+    def test_suggest_command_fixes_substring_match(self):
+        """Test suggest_command_fixes with substring matches."""
+        from vortex.cli.ux import suggest_command_fixes
+
+        available = ["download", "config", "providers", "validate"]
+        suggestions = suggest_command_fixes("down", available)
+
+        assert "download" in suggestions
+
+    def test_suggest_command_fixes_typo(self):
+        """Test suggest_command_fixes with typos."""
+        from vortex.cli.ux import suggest_command_fixes
+
+        available = ["download", "config", "providers", "validate"]
+        suggestions = suggest_command_fixes("downlaod", available)
+
+        # Should suggest download (1 character difference)
+        assert "download" in suggestions
+
+    def test_suggest_command_fixes_short_command(self):
+        """Test suggest_command_fixes with short commands."""
+        from vortex.cli.ux import suggest_command_fixes
+
+        available = ["download", "config", "providers"]
+        suggestions = suggest_command_fixes("co", available)
+
+        assert "config" in suggestions
+
+    def test_suggest_command_fixes_no_matches(self):
+        """Test suggest_command_fixes with no matches."""
+        from vortex.cli.ux import suggest_command_fixes
+
+        available = ["download", "config", "providers"]
+        suggestions = suggest_command_fixes("xyz", available)
+
+        # Should return empty or very few suggestions
+        assert len(suggestions) <= 3
 
 
 @pytest.mark.unit

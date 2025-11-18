@@ -11,7 +11,7 @@ Exception Hierarchy:
     │   ├── InvalidConfigurationError
     │   ├── MissingConfigurationError
     │   └── ConfigurationValidationError
-    ├── DataProviderError  
+    ├── DataProviderError
     │   ├── AuthenticationError
     │   ├── RateLimitError
     │   ├── ConnectionError
@@ -41,33 +41,16 @@ This package provides focused exception components:
 # Import all exceptions
 from .base import VortexError
 
+# CLI exceptions
+from .cli import CLIError, InvalidCommandError, MissingArgumentError, UserAbortError
+
 # Configuration exceptions
 from .config import (
     ConfigurationError,
+    ConfigurationValidationError,
     InvalidConfigurationError,
     MissingConfigurationError,
-    ConfigurationValidationError,
 )
-
-# Data provider exceptions
-from .providers import (
-    DataProviderError,
-    AuthenticationError,
-    RateLimitError,
-    VortexConnectionError,
-    DataNotFoundError,
-    AllowanceLimitExceededError,
-)
-
-
-# Storage exceptions
-from .storage import (
-    DataStorageError,
-    FileStorageError,
-    VortexPermissionError,
-    DiskSpaceError,
-)
-
 
 # Instrument exceptions
 from .instruments import (
@@ -76,64 +59,66 @@ from .instruments import (
     UnsupportedInstrumentError,
 )
 
-# CLI exceptions
-from .cli import (
-    CLIError,
-    InvalidCommandError,
-    MissingArgumentError,
-    UserAbortError,
-)
-
 # Plugin exceptions
 from .plugins import (
+    PluginConfigurationError,
     PluginError,
+    PluginLoadError,
     PluginNotFoundError,
     PluginValidationError,
-    PluginConfigurationError,
-    PluginLoadError,
 )
 
+# Data provider exceptions
+from .providers import (
+    AllowanceLimitExceededError,
+    AuthenticationError,
+    DataNotFoundError,
+    DataProviderError,
+    RateLimitError,
+    VortexConnectionError,
+)
+
+# Storage exceptions
+from .storage import (
+    DataStorageError,
+    DiskSpaceError,
+    FileStorageError,
+    VortexPermissionError,
+)
 
 __all__ = [
     # Base
-    'VortexError',
-    
+    "VortexError",
     # Configuration
-    'ConfigurationError',
-    'InvalidConfigurationError',
-    'MissingConfigurationError',
-    'ConfigurationValidationError',
-    
+    "ConfigurationError",
+    "InvalidConfigurationError",
+    "MissingConfigurationError",
+    "ConfigurationValidationError",
     # Data providers
-    'DataProviderError',
-    'AuthenticationError',
-    'RateLimitError',
-    'VortexConnectionError',
-    'DataNotFoundError',
-    'AllowanceLimitExceededError',
-    
+    "DataProviderError",
+    "AuthenticationError",
+    "RateLimitError",
+    "VortexConnectionError",
+    "DataNotFoundError",
+    "AllowanceLimitExceededError",
     # Storage
-    'DataStorageError',
-    'FileStorageError',
-    'VortexPermissionError',
-    'DiskSpaceError',
-    
+    "DataStorageError",
+    "FileStorageError",
+    "VortexPermissionError",
+    "DiskSpaceError",
     # Instruments
-    'InstrumentError',
-    'InvalidInstrumentError',
-    'UnsupportedInstrumentError',
-    
+    "InstrumentError",
+    "InvalidInstrumentError",
+    "UnsupportedInstrumentError",
     # CLI
-    'CLIError',
-    'InvalidCommandError',
-    'MissingArgumentError',
-    'UserAbortError',
-    
+    "CLIError",
+    "InvalidCommandError",
+    "MissingArgumentError",
+    "UserAbortError",
     # Plugins
-    'PluginError',
-    'PluginNotFoundError',
-    'PluginValidationError',
-    'PluginConfigurationError',
-    'PluginLoadError',
-    
+    "PluginError",
+    "PluginNotFoundError",
+    "PluginValidationError",
+    "PluginConfigurationError",
+    "PluginLoadError",
 ]

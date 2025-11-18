@@ -180,7 +180,8 @@ class TestProviderDownloaderIntegration:
             assert loaded_data.metadata.symbol == sample_stock.symbol
             
             # Verify expected columns are present
-            from vortex.models.columns import STANDARD_OHLCV_COLUMNS
+            from vortex.models import STANDARD_OHLCV_COLUMNS
+
             expected_columns = STANDARD_OHLCV_COLUMNS
             for col in expected_columns:
                 assert col in loaded_data.df.columns, f"Missing expected column: {col}"

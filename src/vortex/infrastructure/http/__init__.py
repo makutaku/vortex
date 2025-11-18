@@ -1,5 +1,5 @@
 """HTTP infrastructure components."""
 
-from .client import HttpClient, AuthenticatedHttpClient
+from .client import AuthenticatedHttpClient, HttpClient
 
-__all__ = ['HttpClient', 'AuthenticatedHttpClient']
+__all__ = ["HttpClient", "AuthenticatedHttpClient"]

@@ -2,15 +2,13 @@ import calendar
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
-import pytz
 
 from .instrument import Instrument
-from .price_series import EXPIRATION_THRESHOLD
 
 
 @dataclass
 class Future(Instrument):
-    MONTH_LIST = ['F', 'G', 'H', 'J', 'K', 'M', 'N', 'Q', 'U', 'V', 'X', 'Z']
+    MONTH_LIST = ["F", "G", "H", "J", "K", "M", "N", "Q", "U", "V", "X", "Z"]
 
     futures_code: str
     year: int
@@ -45,7 +43,7 @@ class Future(Instrument):
 
         # let's add some days to end,
         # so that we can detect later that there's no need to update the data:
-        end = end #+ EXPIRATION_THRESHOLD
+        end = end  # + EXPIRATION_THRESHOLD
 
         # assumption no.2: lets set start date at <duration> days before end date
         duration = timedelta(days=self.days_count)

@@ -20,6 +20,7 @@ from .period import Period
 @dataclass
 class Metadata:
     """Metadata for price series data."""
+
     symbol: str
     period: Period
     start_date: datetime
@@ -31,32 +32,46 @@ class Metadata:
     created_date: datetime = datetime.utcnow()
 
     def __str__(self):
-        return (f"{self.symbol}, {self.period.value}, "
-                f"{self.start_date.strftime('%Y-%m-%d')}, {self.end_date.strftime('%Y-%m-%d')}")
+        return (
+            f"{self.symbol}, {self.period.value}, "
+            f"{self.start_date.strftime('%Y-%m-%d')}, {self.end_date.strftime('%Y-%m-%d')}"
+        )
 
     @staticmethod
     def create_metadata(df, provider_name, symbol, period: Period, start, end):
         """Create metadata from DataFrame and parameters."""
         df = df.sort_index()
-        
+
         # Validate that we have valid datetime indices before creating metadata
         if df.empty or df.index.isna().all():
-            raise ValueError(f"Cannot create metadata for {symbol}: DataFrame has no valid datetime indices")
-        
+            raise ValueError(
+                f"Cannot create metadata for {symbol}: DataFrame has no valid datetime indices"
+            )
+
         first_row_date = df.index[0].to_pydatetime()
         last_row_date = df.index[-1].to_pydatetime()
-        
+
         # Additional check for NaT values after conversion
         if pd.isna(first_row_date) or pd.isna(last_row_date):
-            raise ValueError(f"Cannot create metadata for {symbol}: DataFrame index contains invalid datetime values")
+            raise ValueError(
+                f"Cannot create metadata for {symbol}: DataFrame index contains invalid datetime values"
+            )
         expiration_date = None
         if df[VOLUME_COLUMN].iloc[-1] == 0:
             logging.debug(
-                f"Detected possible contract expiration: last bar has volume 0. Adjusting expected end date.")
+                "Detected possible contract expiration: last bar has volume 0. Adjusting expected end date."
+            )
             expiration_date = last_row_date
-        metadata = Metadata(symbol, period, start, end, first_row_date, last_row_date,
-                            data_provider=provider_name,
-                            expiration_date=expiration_date)
+        metadata = Metadata(
+            symbol,
+            period,
+            start,
+            end,
+            first_row_date,
+            last_row_date,
+            data_provider=provider_name,
+            expiration_date=expiration_date,
+        )
         return metadata
 
 

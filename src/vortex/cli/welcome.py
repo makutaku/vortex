@@ -21,10 +21,11 @@ def show_welcome(ux):
         "• `vortex providers --list` - Show all data providers\n"
         "• `vortex help quickstart` - Quick start guide",
         title="Welcome to Vortex - Free Data Ready!",
-        style="green"
+        style="green",
     )
-    
+
     # Show helpful tips
     from .help import get_help_system
+
     help_system = get_help_system()
     help_system.show_tips(2)
