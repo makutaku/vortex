@@ -5,7 +5,7 @@ description = "Financial data automation tool for multiple providers (Barchart, 
 authors = [{name = "Andy Geach", email = "andy@bugorfeature.net"}]
 license = {text = "BSD-3-Clause"}
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.13"
 keywords = ["trading", "finance", "data", "automation", "barchart", "yahoo", "ibkr"]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -14,9 +14,8 @@ classifiers = [
     "Intended Audience :: Developers",
     "Operating System :: OS Independent",
     "Programming Language :: Python",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Scientific/Engineering",
     "Topic :: Software Development :: Libraries",
     "License :: OSI Approved :: BSD License",
