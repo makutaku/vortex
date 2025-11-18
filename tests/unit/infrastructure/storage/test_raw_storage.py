@@ -305,24 +305,25 @@ class TestRawDataStorage:
 
     def test_multiple_providers_same_directory_structure(self, raw_storage_enabled, stock_instrument, sample_raw_data):
         """Test that all providers use the same directory structure (since deployments are single-provider)."""
-        import time
         providers = ["yahoo", "barchart", "ibkr"]
         file_paths = []
 
         with patch('vortex.infrastructure.storage.raw_storage.datetime') as mock_datetime:
-            mock_now = datetime(2025, 8, 16, 14, 30, 45, 123000)
-            mock_datetime.now.return_value = mock_now
+            # Use side_effect to return different timestamps for each call
+            mock_datetime.now.side_effect = [
+                datetime(2025, 8, 16, 14, 30, 45, 123000),
+                datetime(2025, 8, 16, 14, 30, 46, 123000),
+                datetime(2025, 8, 16, 14, 30, 47, 123000),
+            ]
             mock_datetime.strftime = datetime.strftime
 
-            for i, provider in enumerate(providers):
+            for provider in providers:
                 file_path = raw_storage_enabled.save_raw_response(
                     provider=provider,
                     instrument=stock_instrument,
                     raw_data=sample_raw_data
                 )
                 file_paths.append(file_path)
-                if i < len(providers) - 1:  # Don't sleep after last iteration
-                    time.sleep(0.001)  # 1ms delay to ensure different timestamps
 
         # Verify all use the same year/month/instrument_type structure without provider prefix
         year_dir = raw_storage_enabled.raw_dir / "2025" / "08" / "stock"
