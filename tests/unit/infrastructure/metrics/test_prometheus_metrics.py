@@ -102,7 +102,7 @@ class TestVortexMetrics:
         with pytest.raises(Exception, match="Port in use"):
             metrics._start_server_thread(8000)
 
-    @patch('vortex.infrastructure.metrics.prometheus_metrics.get_provider_registry')
+    @patch('vortex.plugins.get_provider_registry')
     def test_set_system_info_success(self, mock_registry, metrics):
         """Test _set_system_info sets metrics correctly."""
         # Mock provider registry
@@ -117,7 +117,7 @@ class TestVortexMetrics:
         # system_info.info() should have been called
         metrics.system_info.info.assert_called_once()
 
-    @patch('vortex.infrastructure.metrics.prometheus_metrics.get_provider_registry')
+    @patch('vortex.plugins.get_provider_registry')
     def test_set_system_info_error_fallback(self, mock_registry, metrics):
         """Test _set_system_info handles errors gracefully."""
         mock_registry.side_effect = Exception("Registry error")
