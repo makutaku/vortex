@@ -13,7 +13,7 @@ from vortex.utils.utils import convert_date_strings_to_datetime
 DEFAULT_CONTRACT_DURATION_IN_DAYS = 360
 
 
-class InstrumentType(enum.StrEnum):
+class InstrumentType(str, enum.Enum):
     Forex = "forex"
     Future = "future"
     Stock = "stock"
