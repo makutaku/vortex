@@ -13,7 +13,7 @@ import requests
 
 from vortex.models.period import FrequencyAttributes
 from vortex.utils.logging_utils import LoggingContext, LoggingConfiguration
-from vortex.core.constants import ProviderConstants, NetworkConstants
+from vortex.constants import ProviderConstants, NetworkConstants
 from .auth import BarchartAuth
 
 # Optional metrics - graceful fallback if not available

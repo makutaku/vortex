@@ -15,7 +15,7 @@ from vortex.exceptions.providers import DataNotFoundError, VortexConnectionError
 from vortex.core.error_handling.strategies import ErrorHandlingStrategy
 from vortex.models.instrument import Instrument
 from vortex.models.period import Period, FrequencyAttributes
-from vortex.core.constants import ProviderConstants, TimeConstants
+from vortex.constants import ProviderConstants, TimeConstants
 
 
 class YahooDataProvider(DataProvider):

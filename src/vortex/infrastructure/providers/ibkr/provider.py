@@ -26,7 +26,7 @@ from vortex.models.future import Future
 from vortex.models.period import Period, FrequencyAttributes
 from vortex.models.price_series import FUTURES_SOURCE_TIME_ZONE
 from vortex.models.stock import Stock
-from vortex.core.constants import ProviderConstants
+from vortex.constants import ProviderConstants
 
 
 class IbkrDataProvider(DataProvider):

@@ -9,7 +9,7 @@ import logging
 from typing import Optional, Tuple
 
 from vortex.exceptions.providers import AllowanceLimitExceededError
-from vortex.core.constants import ProviderConstants, NetworkConstants
+from vortex.constants import ProviderConstants, NetworkConstants
 
 from .auth import BarchartAuth
 from .client import BarchartClient
