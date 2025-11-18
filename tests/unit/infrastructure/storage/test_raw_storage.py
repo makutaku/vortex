@@ -310,10 +310,15 @@ class TestRawDataStorage:
 
         with patch('vortex.infrastructure.storage.raw_storage.datetime') as mock_datetime:
             # Use side_effect to return different timestamps for each call
+            # Note: save_raw_response calls datetime.now() twice (in _generate_raw_file_path and _create_raw_metadata)
+            # So we need 2 datetime values per provider (3 providers x 2 calls = 6 total)
             mock_datetime.now.side_effect = [
-                datetime(2025, 8, 16, 14, 30, 45, 123000),
-                datetime(2025, 8, 16, 14, 30, 46, 123000),
-                datetime(2025, 8, 16, 14, 30, 47, 123000),
+                datetime(2025, 8, 16, 14, 30, 45, 123000),  # Provider 1 - file path
+                datetime(2025, 8, 16, 14, 30, 45, 123000),  # Provider 1 - metadata
+                datetime(2025, 8, 16, 14, 30, 46, 123000),  # Provider 2 - file path
+                datetime(2025, 8, 16, 14, 30, 46, 123000),  # Provider 2 - metadata
+                datetime(2025, 8, 16, 14, 30, 47, 123000),  # Provider 3 - file path
+                datetime(2025, 8, 16, 14, 30, 47, 123000),  # Provider 3 - metadata
             ]
             mock_datetime.strftime = datetime.strftime
 
