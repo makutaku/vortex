@@ -38,4 +38,4 @@ jobs:
         VORTEX_BARCHART_USERNAME: ${{ secrets.VORTEX_BARCHART_USERNAME }}
         VORTEX_BARCHART_PASSWORD: ${{ secrets.VORTEX_BARCHART_PASSWORD }}
       run: |
-        ./run-all-tests.sh --fast
+        pytest tests/unit tests/integration tests/e2e -v --tb=short
