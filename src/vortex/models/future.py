@@ -60,7 +60,13 @@ class Future(Instrument):
 
     @staticmethod
     def get_month_from_code(month_code: str) -> int:
-        return Future.MONTH_LIST.index(month_code) + 1
+        try:
+            return Future.MONTH_LIST.index(month_code) + 1
+        except ValueError:
+            raise ValueError(
+                f"Invalid month code '{month_code}'. "
+                f"Valid codes are: {', '.join(Future.MONTH_LIST)}"
+            )
 
     @staticmethod
     def get_code_for_year(year: int) -> str:
