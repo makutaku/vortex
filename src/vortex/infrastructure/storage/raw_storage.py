@@ -14,6 +14,7 @@ from typing import Any, Dict, Optional
 
 from vortex import __version__ as VORTEX_VERSION
 from vortex.core.correlation import get_correlation_manager
+from vortex.core.security.sanitizer import SensitiveDataSanitizer
 from vortex.models.instrument import Instrument
 
 logger = logging.getLogger(__name__)
@@ -135,7 +136,7 @@ class RawDataStorage:
             return None
 
     def _generate_raw_file_path(self, provider: str, instrument: Instrument) -> Path:
-        """Generate standardized raw data file path.
+        """Generate standardized raw data file path with security validation.
 
         Format: raw/{year}/{month}/{instrument_type}/{symbol}_{timestamp}.csv.gz
 
@@ -145,10 +146,17 @@ class RawDataStorage:
 
         Returns:
             Path object for the raw data file
+
+        Raises:
+            ValueError: If path validation fails (path traversal attempt detected)
         """
         now = datetime.now(timezone.utc)
         symbol = getattr(instrument, "symbol", str(instrument))
         instrument_type = instrument.__class__.__name__.lower()
+
+        # Security: Validate symbol and instrument_type to prevent path traversal
+        self._validate_path_component(symbol, "symbol")
+        self._validate_path_component(instrument_type, "instrument_type")
 
         # Create timestamp for unique filename
         timestamp = now.strftime("%Y%m%d_%H%M%S_%f")[:-3]  # Include milliseconds
@@ -157,13 +165,83 @@ class RawDataStorage:
         file_extension = ".csv.gz" if self.compress else ".csv"
 
         # Organize by year/month/instrument_type for easy browsing (no provider since deployments are single-provider)
-        return (
+        raw_file_path = (
             self.raw_dir
             / str(now.year)
             / f"{now.month:02d}"
             / instrument_type
             / f"{symbol}_{timestamp}{file_extension}"
         )
+
+        # Security: Validate final path is within base directory (prevent traversal)
+        self._validate_path_within_base(raw_file_path)
+
+        return raw_file_path
+
+    def _validate_path_component(self, component: str, component_name: str) -> None:
+        """Validate a path component to prevent path traversal attacks.
+
+        Args:
+            component: The path component to validate (e.g., symbol, instrument_type)
+            component_name: Name of the component for error messages
+
+        Raises:
+            ValueError: If component contains path traversal sequences or invalid characters
+        """
+        if not component or not component.strip():
+            raise ValueError(f"Path component '{component_name}' cannot be empty")
+
+        # Check for null bytes (common in path traversal attacks)
+        if "\0" in component:
+            raise ValueError(
+                f"Path component '{component_name}' contains null bytes - "
+                f"potential path traversal attack detected"
+            )
+
+        # Check for path traversal sequences
+        dangerous_patterns = ["..", "/", "\\", "\x00"]
+        for pattern in dangerous_patterns:
+            if pattern in component:
+                raise ValueError(
+                    f"Path component '{component_name}' contains dangerous pattern '{pattern}' - "
+                    f"potential path traversal attack detected"
+                )
+
+        # Check for URL-encoded traversal attempts
+        url_encoded_patterns = ["%2e", "%2f", "%5c", "%00"]
+        component_lower = component.lower()
+        for pattern in url_encoded_patterns:
+            if pattern in component_lower:
+                raise ValueError(
+                    f"Path component '{component_name}' contains URL-encoded traversal pattern - "
+                    f"potential path traversal attack detected"
+                )
+
+    def _validate_path_within_base(self, file_path: Path) -> None:
+        """Validate that the file path is within the allowed base directory.
+
+        Args:
+            file_path: The file path to validate
+
+        Raises:
+            ValueError: If path escapes the base directory
+        """
+        try:
+            # Resolve to absolute path and resolve symlinks
+            resolved_path = file_path.resolve()
+            resolved_base = self.raw_dir.resolve()
+
+            # Check if resolved path is within base directory
+            # Use resolve() to handle symlinks and normalize paths
+            if not str(resolved_path).startswith(str(resolved_base)):
+                raise ValueError(
+                    f"Path traversal detected: Generated path '{resolved_path}' "
+                    f"is outside allowed base directory '{resolved_base}'"
+                )
+
+        except (OSError, RuntimeError) as e:
+            # Handle symlink loops, permission errors, etc.
+            raise ValueError(f"Path validation failed: {e}") from e
 
     def _create_raw_metadata(
         self,
@@ -185,6 +263,14 @@ class RawDataStorage:
         Returns:
             Dictionary with raw data metadata
         """
+        # Sanitize request metadata to remove sensitive data (passwords, tokens, cookies)
+        sanitized_request_metadata = {}
+        if request_metadata:
+            sanitized_request_metadata = SensitiveDataSanitizer.sanitize_request_metadata(
+                request_metadata
+            )
+            logger.debug("Sanitized request metadata for raw storage to prevent credential leakage")
+
         return {
             "raw_info": {
                 "created_at": datetime.now(timezone.utc).isoformat(),
@@ -198,7 +284,7 @@ class RawDataStorage:
                 "period": getattr(instrument, "period", None),
                 "periods": getattr(instrument, "periods", None),
             },
-            "request_info": request_metadata or {},
+            "request_info": sanitized_request_metadata,  # ✅ SANITIZED - no credentials stored
             "data_info": {
                 "raw_size_bytes": len(raw_data.encode("utf-8")),
                 "raw_lines": len(raw_data.splitlines()),
