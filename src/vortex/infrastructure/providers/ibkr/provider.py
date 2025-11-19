@@ -191,7 +191,20 @@ class IbkrDataProvider(DataProvider):
     def _(
         self, future: Future, frequency_attributes: FrequencyAttributes, start, end
     ) -> DataFrame:
-        tokens = future.futures_code.split(".")
+        # Fixed: Validate futures_code format before splitting
+        if "." not in future.futures_code:
+            raise ValueError(
+                f"Invalid futures_code format for IBKR: '{future.futures_code}'. "
+                "Expected 'EXCHANGE.SYMBOL' (e.g., 'NYMEX.CL')"
+            )
+
+        tokens = future.futures_code.split(".", 1)  # Limit splits to 2 parts
+        if len(tokens) != 2:
+            raise ValueError(
+                f"Invalid futures_code format for IBKR: '{future.futures_code}'. "
+                "Expected 'EXCHANGE.SYMBOL' (e.g., 'NYMEX.CL')"
+            )
+
         exchange = tokens[0]
         symbol = tokens[1]
         last_contract_month = datetime(
