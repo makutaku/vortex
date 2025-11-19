@@ -54,6 +54,9 @@ dependencies = [
     
     # Metrics and monitoring
     "prometheus-client>=0.18.0,<1.0",
+
+    # Security and encryption
+    "cryptography>=41.0.0,<43.0",
 ]
 
 [project.optional-dependencies]
