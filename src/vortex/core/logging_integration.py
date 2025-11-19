@@ -108,8 +108,6 @@ def get_module_performance_logger(module_name: str = None) -> PerformanceLogger:
 
 def reconfigure_if_changed(config: VortexConfig):
     """Reconfigure logging if the configuration has changed."""
-    global _current_config
-
     if not _logging_configured or _current_config is None:
         configure_logging_from_config(config)
         return
