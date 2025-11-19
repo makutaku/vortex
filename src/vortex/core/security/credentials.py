@@ -2,16 +2,205 @@
 Secure credential management for Vortex.
 
 This module provides secure loading of credentials from environment variables
-and credential files, following security best practices.
+and credential files, with encryption support for credentials at rest.
 """
 
+import base64
 import json
 import logging
 import os
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 logger = logging.getLogger(__name__)
+
+
+class CredentialEncryption:
+    """Encrypt and decrypt credentials using Fernet symmetric encryption."""
+
+    def __init__(self, key_file: Optional[Path] = None):
+        """Initialize credential encryption.
+
+        Args:
+            key_file: Path to encryption key file (default: ~/.vortex/encryption.key)
+        """
+        self.key_file = key_file or Path.home() / ".vortex" / "encryption.key"
+        self._fernet = None
+
+    def _ensure_key_exists(self) -> bytes:
+        """Ensure encryption key exists, creating it if necessary.
+
+        Returns:
+            Encryption key bytes
+
+        Raises:
+            RuntimeError: If key file has insecure permissions
+        """
+        # Create key directory if it doesn't exist
+        self.key_file.parent.mkdir(parents=True, exist_ok=True)
+
+        if self.key_file.exists():
+            # Validate key file permissions (should be readable only by owner)
+            self._validate_key_permissions()
+
+            # Read existing key
+            with open(self.key_file, "rb") as f:
+                return f.read()
+        else:
+            # Generate new key
+            from cryptography.fernet import Fernet
+
+            key = Fernet.generate_key()
+
+            # Write key with secure permissions (0o600 = owner read/write only)
+            self.key_file.touch(mode=0o600)
+            with open(self.key_file, "wb") as f:
+                f.write(key)
+
+            logger.info(
+                f"Generated new encryption key at {self.key_file}",
+                extra={"key_file": str(self.key_file)},
+            )
+
+            return key
+
+    def _validate_key_permissions(self) -> None:
+        """Validate that key file has secure permissions.
+
+        Raises:
+            RuntimeError: If key file has insecure permissions
+        """
+        # Only validate on Unix-like systems
+        if os.name == "posix":
+            stat_info = self.key_file.stat()
+            # Check if file is readable by group or others (insecure)
+            if stat_info.st_mode & 0o077:
+                raise RuntimeError(
+                    f"Encryption key file {self.key_file} has insecure permissions. "
+                    f"Fix with: chmod 600 {self.key_file}"
+                )
+
+    def _get_fernet(self):
+        """Get or create Fernet cipher instance."""
+        if self._fernet is None:
+            from cryptography.fernet import Fernet
+
+            key = self._ensure_key_exists()
+            self._fernet = Fernet(key)
+        return self._fernet
+
+    def encrypt_credential(self, plaintext: str) -> str:
+        """Encrypt a credential (password, API key, etc.).
+
+        Args:
+            plaintext: The plaintext credential to encrypt
+
+        Returns:
+            Base64-encoded encrypted credential with "encrypted:" prefix
+        """
+        if not plaintext:
+            return plaintext
+
+        # Check if already encrypted
+        if plaintext.startswith("encrypted:"):
+            logger.debug("Credential already encrypted, skipping")
+            return plaintext
+
+        # Encrypt the credential
+        fernet = self._get_fernet()
+        encrypted_bytes = fernet.encrypt(plaintext.encode("utf-8"))
+
+        # Return as base64 string with prefix for identification
+        encrypted_str = base64.b64encode(encrypted_bytes).decode("utf-8")
+        return f"encrypted:{encrypted_str}"
+
+    def decrypt_credential(self, encrypted: str) -> str:
+        """Decrypt an encrypted credential.
+
+        Args:
+            encrypted: The encrypted credential (with or without "encrypted:" prefix)
+
+        Returns:
+            Decrypted plaintext credential
+
+        Raises:
+            ValueError: If decryption fails (invalid key or corrupted data)
+        """
+        if not encrypted:
+            return encrypted
+
+        # Handle plaintext credentials (backward compatibility during migration)
+        if not encrypted.startswith("encrypted:"):
+            logger.warning(
+                "Credential is not encrypted - storing plaintext is insecure. "
+                "Use encrypt_credential() to secure it."
+            )
+            return encrypted
+
+        # Remove prefix and decrypt
+        encrypted_b64 = encrypted.replace("encrypted:", "", 1)
+
+        try:
+            encrypted_bytes = base64.b64decode(encrypted_b64)
+            fernet = self._get_fernet()
+            decrypted_bytes = fernet.decrypt(encrypted_bytes)
+            return decrypted_bytes.decode("utf-8")
+
+        except Exception as e:
+            raise ValueError(
+                f"Failed to decrypt credential. The encryption key may have changed "
+                f"or the credential data is corrupted: {e}"
+            ) from e
+
+    def is_encrypted(self, credential: str) -> bool:
+        """Check if a credential is encrypted.
+
+        Args:
+            credential: The credential to check
+
+        Returns:
+            True if encrypted, False if plaintext
+        """
+        return bool(credential and credential.startswith("encrypted:"))
+
+    def migrate_plaintext_to_encrypted(self, plaintext: str) -> Tuple[str, bool]:
+        """Migrate a plaintext credential to encrypted format.
+
+        Args:
+            plaintext: The credential (may be plaintext or already encrypted)
+
+        Returns:
+            Tuple of (credential_value, was_migrated)
+            - credential_value: Encrypted credential
+            - was_migrated: True if migration occurred, False if already encrypted
+        """
+        if self.is_encrypted(plaintext):
+            return plaintext, False
+
+        encrypted = self.encrypt_credential(plaintext)
+        logger.info("Migrated plaintext credential to encrypted format")
+        return encrypted, True
+
+
+# Global credential encryptor instance
+_credential_encryptor: Optional[CredentialEncryption] = None
+
+
+def get_credential_encryptor(key_file: Optional[Path] = None) -> CredentialEncryption:
+    """Get or create global credential encryptor instance.
+
+    Args:
+        key_file: Optional custom key file path
+
+    Returns:
+        CredentialEncryption instance
+    """
+    global _credential_encryptor
+
+    if _credential_encryptor is None:
+        _credential_encryptor = CredentialEncryption(key_file)
+
+    return _credential_encryptor
 
 
 class CredentialManager:
@@ -23,21 +212,29 @@ class CredentialManager:
     3. User credential directory (~/.vortex/credentials.json)
 
     All credential files are excluded from version control.
+    Supports encrypted credentials with automatic decryption.
     """
 
-    def __init__(self):
+    def __init__(self, encryptor: Optional[CredentialEncryption] = None):
+        """Initialize credential manager.
+
+        Args:
+            encryptor: Optional CredentialEncryption instance (default: global instance)
+        """
         self.credential_sources = [
             self._load_from_env_vars,
             self._load_from_env_files,
             self._load_from_user_config,
         ]
+        self.encryptor = encryptor or get_credential_encryptor()
 
     def get_barchart_credentials(self) -> Optional[Dict[str, str]]:
         """
         Get Barchart credentials securely from available sources.
+        Automatically decrypts encrypted passwords.
 
         Returns:
-            Dict with 'username' and 'password' keys, or None if not found
+            Dict with 'username' and 'password' keys (decrypted), or None if not found
         """
         for source_loader in self.credential_sources:
             try:
@@ -49,9 +246,20 @@ class CredentialManager:
                 ):
                     source_name = getattr(source_loader, "__name__", str(source_loader))
                     logger.debug(f"Barchart credentials loaded from {source_name}")
+
+                    # Decrypt password if encrypted
+                    password = credentials["password"]
+                    if self.encryptor.is_encrypted(password):
+                        try:
+                            password = self.encryptor.decrypt_credential(password)
+                            logger.debug("Decrypted encrypted password")
+                        except ValueError as e:
+                            logger.error(f"Failed to decrypt password: {e}")
+                            continue  # Try next source
+
                     return {
                         "username": credentials["username"],
-                        "password": credentials["password"],
+                        "password": password,  # ✅ DECRYPTED
                     }
             except (
                 KeyError,
