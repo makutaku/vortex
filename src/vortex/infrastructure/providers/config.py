@@ -54,6 +54,9 @@ class BarchartProviderConfig:
                 self.download_timeout > 0,
                 self.max_retries >= 0,
                 self.daily_limit > 0,
+                # Fixed: Add validation for data validation parameters
+                self.min_required_data_points > 0,
+                self.max_bars_per_download > 0,
             ]
         )
 

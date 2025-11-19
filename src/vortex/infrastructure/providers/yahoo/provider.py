@@ -94,6 +94,10 @@ class YahooDataProvider(DataProvider):
 
     def _ensure_cache_initialized(self) -> None:
         """Ensure cache is initialized before data operations."""
+        # Fixed: Check if cache manager exists (None when cache disabled)
+        if self._cache_manager is None:
+            return  # Cache disabled, nothing to initialize
+
         if not self._cache_initialized:
             self._cache_manager.configure_cache(
                 os.path.join(tempfile.gettempdir(), ".cache", "py-yfinance")
