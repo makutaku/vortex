@@ -11,7 +11,7 @@ import threading
 import uuid
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
@@ -46,12 +46,12 @@ class CorrelationContext:
     parent_id: Optional[str] = None
     operation: Optional[str] = None
     provider: Optional[str] = None
-    start_time: datetime = field(default_factory=datetime.now)
+    start_time: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     metadata: Dict[str, Any] = field(default_factory=dict)
 
     def elapsed_seconds(self) -> float:
         """Get elapsed time since operation start."""
-        return (datetime.now() - self.start_time).total_seconds()
+        return (datetime.now(timezone.utc) - self.start_time).total_seconds()
 
 
 class CorrelationIdManager:
@@ -231,7 +231,7 @@ class RequestTracker:
         with self._lock:
             self._requests[correlation_id] = {
                 "operation": operation,
-                "start_time": datetime.now(),
+                "start_time": datetime.now(timezone.utc),
                 "metadata": metadata,
                 "status": "in_progress",
             }
@@ -243,7 +243,7 @@ class RequestTracker:
         with self._lock:
             if correlation_id in self._requests:
                 request = self._requests[correlation_id]
-                request["end_time"] = datetime.now()
+                request["end_time"] = datetime.now(timezone.utc)
                 request["duration"] = (
                     request["end_time"] - request["start_time"]
                 ).total_seconds()
@@ -267,7 +267,7 @@ class RequestTracker:
     def cleanup_old_requests(self, max_age_hours: int = 24):
         """Clean up old request tracking data."""
         with self._lock:
-            cutoff_time = datetime.now() - timedelta(hours=max_age_hours)
+            cutoff_time = datetime.now(timezone.utc) - timedelta(hours=max_age_hours)
             to_remove = [
                 cid
                 for cid, req in self._requests.items()

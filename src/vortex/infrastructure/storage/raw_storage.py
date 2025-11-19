@@ -8,7 +8,7 @@ from providers, compressed as gzipped CSV files for raw data trail purposes.
 import gzip
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -146,7 +146,7 @@ class RawDataStorage:
         Returns:
             Path object for the raw data file
         """
-        now = datetime.now()
+        now = datetime.now(timezone.utc)
         symbol = getattr(instrument, "symbol", str(instrument))
         instrument_type = instrument.__class__.__name__.lower()
 
@@ -187,7 +187,7 @@ class RawDataStorage:
         """
         return {
             "raw_info": {
-                "created_at": datetime.now().isoformat(),
+                "created_at": datetime.now(timezone.utc).isoformat(),
                 "correlation_id": correlation_id,
                 "vortex_version": VORTEX_VERSION,
             },
@@ -252,15 +252,15 @@ class RawDataStorage:
         instrument_type = instrument.__class__.__name__.lower()
 
         # Search pattern (no provider directory since deployments are single-provider)
-        search_pattern = self.raw_dir / "**" / instrument_type / f"{symbol}_*.csv.gz"
-
-        raw_files = list(search_pattern.parent.glob(search_pattern.name))
+        # Files are stored as: raw_dir/YEAR/MONTH/instrument_type/symbol_timestamp.csv.gz
+        pattern = f"*/*/{instrument_type}/{symbol}_*.csv.gz"
+        raw_files = list(self.raw_dir.glob(pattern))
 
         # Filter by date if provided
         if start_date or end_date:
             filtered_files = []
             for file_path in raw_files:
-                file_time = datetime.fromtimestamp(file_path.stat().st_mtime)
+                file_time = datetime.fromtimestamp(file_path.stat().st_mtime, tz=timezone.utc)
                 if start_date and file_time < start_date:
                     continue
                 if end_date and file_time > end_date:
@@ -282,7 +282,7 @@ class RawDataStorage:
         if not self.enabled:
             return 0
 
-        cutoff_time = datetime.now().timestamp() - (retention_days * 24 * 3600)
+        cutoff_time = datetime.now(timezone.utc).timestamp() - (retention_days * 24 * 3600)
         deleted_count = 0
 
         try:
