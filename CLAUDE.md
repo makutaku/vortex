@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+@.claude/policies/file-creation-policy.md
+
 # 🚨 CRITICAL WARNING: NO COMMITS WITHOUT PASSING TESTS
 **BEFORE doing ANYTHING else in this repository, understand this absolute rule:**
 - ⛔ **NEVER commit code unless ALL tests pass**
