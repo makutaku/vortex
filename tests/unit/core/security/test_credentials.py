@@ -488,3 +488,271 @@ class TestErrorHandling:
             credentials = manager.get_barchart_credentials()
             assert credentials is not None
             assert credentials['username'] == 'fallback_user'
+
+
+class TestCredentialEncryption:
+    """Test credential encryption and decryption functionality."""
+
+    def test_encrypt_credential_success(self):
+        """Test successful credential encryption."""
+        from vortex.core.security.credentials import CredentialEncryption
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            key_file = Path(tmpdir) / "test_key"
+            encryptor = CredentialEncryption(key_file=key_file)
+
+            plaintext = "my_secret_password"
+            encrypted = encryptor.encrypt_credential(plaintext)
+
+            assert encrypted.startswith("encrypted:")
+            assert encrypted != plaintext
+            assert len(encrypted) > len(plaintext)
+
+    def test_decrypt_credential_success(self):
+        """Test successful credential decryption."""
+        from vortex.core.security.credentials import CredentialEncryption
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            key_file = Path(tmpdir) / "test_key"
+            encryptor = CredentialEncryption(key_file=key_file)
+
+            plaintext = "my_secret_password"
+            encrypted = encryptor.encrypt_credential(plaintext)
+            decrypted = encryptor.decrypt_credential(encrypted)
+
+            assert decrypted == plaintext
+
+    def test_encrypt_empty_string(self):
+        """Test encryption of empty string."""
+        from vortex.core.security.credentials import CredentialEncryption
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            key_file = Path(tmpdir) / "test_key"
+            encryptor = CredentialEncryption(key_file=key_file)
+
+            encrypted = encryptor.encrypt_credential("")
+            assert encrypted == ""
+
+    def test_encrypt_none(self):
+        """Test encryption of None value."""
+        from vortex.core.security.credentials import CredentialEncryption
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            key_file = Path(tmpdir) / "test_key"
+            encryptor = CredentialEncryption(key_file=key_file)
+
+            encrypted = encryptor.encrypt_credential(None)
+            assert encrypted is None
+
+    def test_encrypt_already_encrypted(self):
+        """Test encrypting already encrypted credential."""
+        from vortex.core.security.credentials import CredentialEncryption
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            key_file = Path(tmpdir) / "test_key"
+            encryptor = CredentialEncryption(key_file=key_file)
+
+            plaintext = "password"
+            encrypted_once = encryptor.encrypt_credential(plaintext)
+            encrypted_twice = encryptor.encrypt_credential(encrypted_once)
+
+            # Should return same value if already encrypted
+            assert encrypted_twice == encrypted_once
+
+    def test_decrypt_plaintext_warning(self):
+        """Test decrypting plaintext credential shows warning."""
+        from vortex.core.security.credentials import CredentialEncryption
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            key_file = Path(tmpdir) / "test_key"
+            encryptor = CredentialEncryption(key_file=key_file)
+
+            plaintext = "not_encrypted_password"
+            # Should return plaintext unchanged but log warning
+            result = encryptor.decrypt_credential(plaintext)
+            assert result == plaintext
+
+    def test_is_encrypted_true(self):
+        """Test is_encrypted returns True for encrypted credentials."""
+        from vortex.core.security.credentials import CredentialEncryption
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            key_file = Path(tmpdir) / "test_key"
+            encryptor = CredentialEncryption(key_file=key_file)
+
+            encrypted = encryptor.encrypt_credential("password")
+            assert encryptor.is_encrypted(encrypted) is True
+
+    def test_is_encrypted_false(self):
+        """Test is_encrypted returns False for plaintext."""
+        from vortex.core.security.credentials import CredentialEncryption
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            key_file = Path(tmpdir) / "test_key"
+            encryptor = CredentialEncryption(key_file=key_file)
+
+            plaintext = "password"
+            assert encryptor.is_encrypted(plaintext) is False
+
+    def test_is_encrypted_empty_string(self):
+        """Test is_encrypted with empty string."""
+        from vortex.core.security.credentials import CredentialEncryption
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            key_file = Path(tmpdir) / "test_key"
+            encryptor = CredentialEncryption(key_file=key_file)
+
+            assert encryptor.is_encrypted("") is False
+            assert encryptor.is_encrypted(None) is False
+
+    def test_migrate_plaintext_to_encrypted(self):
+        """Test migration from plaintext to encrypted."""
+        from vortex.core.security.credentials import CredentialEncryption
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            key_file = Path(tmpdir) / "test_key"
+            encryptor = CredentialEncryption(key_file=key_file)
+
+            plaintext = "password123"
+            encrypted, was_migrated = encryptor.migrate_plaintext_to_encrypted(plaintext)
+
+            assert was_migrated is True
+            assert encryptor.is_encrypted(encrypted) is True
+            assert encryptor.decrypt_credential(encrypted) == plaintext
+
+    def test_migrate_already_encrypted(self):
+        """Test migration of already encrypted credential."""
+        from vortex.core.security.credentials import CredentialEncryption
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            key_file = Path(tmpdir) / "test_key"
+            encryptor = CredentialEncryption(key_file=key_file)
+
+            plaintext = "password123"
+            encrypted = encryptor.encrypt_credential(plaintext)
+
+            result, was_migrated = encryptor.migrate_plaintext_to_encrypted(encrypted)
+
+            assert was_migrated is False
+            assert result == encrypted
+
+    def test_key_file_created_automatically(self):
+        """Test that encryption key file is created automatically."""
+        from vortex.core.security.credentials import CredentialEncryption
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            key_file = Path(tmpdir) / "auto_key"
+            assert not key_file.exists()
+
+            encryptor = CredentialEncryption(key_file=key_file)
+            encryptor.encrypt_credential("test")
+
+            assert key_file.exists()
+
+    def test_key_file_permissions_unix(self):
+        """Test that key file has secure permissions on Unix systems."""
+        from vortex.core.security.credentials import CredentialEncryption
+
+        if os.name != 'posix':
+            pytest.skip("Unix-only test")
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            key_file = Path(tmpdir) / "secure_key"
+            encryptor = CredentialEncryption(key_file=key_file)
+            encryptor.encrypt_credential("test")
+
+            # Check file permissions are 0o600 (owner read/write only)
+            stat_info = key_file.stat()
+            permissions = stat_info.st_mode & 0o777
+            assert permissions == 0o600
+
+    def test_key_reuse_across_instances(self):
+        """Test that same key file works across multiple instances."""
+        from vortex.core.security.credentials import CredentialEncryption
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            key_file = Path(tmpdir) / "shared_key"
+
+            # First instance encrypts
+            encryptor1 = CredentialEncryption(key_file=key_file)
+            encrypted = encryptor1.encrypt_credential("shared_secret")
+
+            # Second instance decrypts
+            encryptor2 = CredentialEncryption(key_file=key_file)
+            decrypted = encryptor2.decrypt_credential(encrypted)
+
+            assert decrypted == "shared_secret"
+
+    def test_decrypt_with_wrong_key_fails(self):
+        """Test that decryption fails with wrong key."""
+        from vortex.core.security.credentials import CredentialEncryption
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            key_file1 = Path(tmpdir) / "key1"
+            key_file2 = Path(tmpdir) / "key2"
+
+            # Encrypt with first key
+            encryptor1 = CredentialEncryption(key_file=key_file1)
+            encrypted = encryptor1.encrypt_credential("secret")
+
+            # Try to decrypt with different key
+            encryptor2 = CredentialEncryption(key_file=key_file2)
+            with pytest.raises(ValueError, match="Failed to decrypt credential"):
+                encryptor2.decrypt_credential(encrypted)
+
+    def test_get_credential_encryptor_singleton(self):
+        """Test that get_credential_encryptor returns singleton."""
+        from vortex.core.security.credentials import get_credential_encryptor
+
+        encryptor1 = get_credential_encryptor()
+        encryptor2 = get_credential_encryptor()
+
+        assert encryptor1 is encryptor2
+
+
+class TestCredentialManagerWithEncryption:
+    """Test CredentialManager with encryption support."""
+
+    @patch.dict(os.environ, {
+        'VORTEX_BARCHART_USERNAME': 'test_user',
+        'VORTEX_BARCHART_PASSWORD': 'encrypted:dGVzdF9lbmNyeXB0ZWRfcGFzc3dvcmQ='
+    }, clear=True)
+    def test_get_credentials_decrypts_encrypted_password(self):
+        """Test that get_barchart_credentials decrypts encrypted passwords."""
+        from vortex.core.security.credentials import CredentialEncryption
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            key_file = Path(tmpdir) / "test_key"
+            encryptor = CredentialEncryption(key_file=key_file)
+
+            # Create encrypted password
+            plaintext_password = "my_secret_pass"
+            encrypted_password = encryptor.encrypt_credential(plaintext_password)
+
+            # Set up environment with encrypted password
+            with patch.dict(os.environ, {
+                'VORTEX_BARCHART_USERNAME': 'test_user',
+                'VORTEX_BARCHART_PASSWORD': encrypted_password
+            }):
+                manager = CredentialManager(encryptor=encryptor)
+                credentials = manager.get_barchart_credentials()
+
+                assert credentials is not None
+                assert credentials['username'] == 'test_user'
+                # Password should be decrypted
+                assert credentials['password'] == plaintext_password
+                assert credentials['password'] != encrypted_password
+
+    @patch.dict(os.environ, {
+        'VORTEX_BARCHART_USERNAME': 'test_user',
+        'VORTEX_BARCHART_PASSWORD': 'plaintext_password'
+    }, clear=True)
+    def test_get_credentials_handles_plaintext_password(self):
+        """Test that get_barchart_credentials handles plaintext passwords."""
+        manager = CredentialManager()
+        credentials = manager.get_barchart_credentials()
+
+        assert credentials is not None
+        assert credentials['username'] == 'test_user'
+        # Plaintext password should be returned as-is
+        assert credentials['password'] == 'plaintext_password'
