@@ -57,7 +57,8 @@ class Metadata:
                 f"Cannot create metadata for {symbol}: DataFrame index contains invalid datetime values"
             )
         expiration_date = None
-        if df[VOLUME_COLUMN].iloc[-1] == 0:
+        # Fixed: Check if VOLUME_COLUMN exists before accessing (not all instruments have volume)
+        if VOLUME_COLUMN in df.columns and df[VOLUME_COLUMN].iloc[-1] == 0:
             logging.debug(
                 "Detected possible contract expiration: last bar has volume 0. Adjusting expected end date."
             )
