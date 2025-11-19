@@ -9,7 +9,7 @@ import threading
 import time
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 
@@ -86,7 +86,7 @@ class ProviderMetrics:
     # Time window metrics (last hour)
     hourly_operations: int = 0
     hourly_failures: int = 0
-    last_reset: datetime = field(default_factory=datetime.now)
+    last_reset: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     def update(self, operation: OperationMetrics):
         """Update metrics with a completed operation."""
@@ -136,7 +136,7 @@ class ProviderMetrics:
 
     def _update_hourly_metrics(self, operation: OperationMetrics):
         """Update hourly metrics, resetting if an hour has passed."""
-        now = datetime.now()
+        now = datetime.now(timezone.utc)
 
         # Reset hourly metrics if an hour has passed
         if now - self.last_reset > timedelta(hours=1):

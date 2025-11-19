@@ -7,8 +7,8 @@ models layer as it's a core business entity.
 """
 
 import logging
-from dataclasses import dataclass
-from datetime import datetime
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from enum import Enum
 
 import pandas as pd
@@ -29,7 +29,7 @@ class Metadata:
     last_row_date: datetime
     data_provider: str = None
     expiration_date: datetime = None
-    created_date: datetime = datetime.utcnow()
+    created_date: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     def __str__(self):
         return (

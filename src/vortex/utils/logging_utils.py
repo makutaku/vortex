@@ -1,7 +1,7 @@
 import logging
 import traceback
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 from uuid import uuid4
 
@@ -115,7 +115,7 @@ class StructuredErrorLogger:
             actual_correlation_id = self.generate_correlation_id()
 
         error_data = {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "correlation_id": actual_correlation_id,
             "error_type": type(actual_error).__name__,
             "error_message": str(actual_error),
@@ -175,7 +175,7 @@ class StructuredErrorLogger:
             correlation_id = self.generate_correlation_id()
 
         operation_data = {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "correlation_id": correlation_id,
             "operation": operation,
             "status": "started",
@@ -209,7 +209,7 @@ class StructuredErrorLogger:
             context: Additional context data
         """
         operation_data = {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "correlation_id": correlation_id,
             "operation": operation,
             "status": "completed",
@@ -246,7 +246,7 @@ class StructuredErrorLogger:
             context: Additional context data
         """
         operation_data = {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "correlation_id": correlation_id,
             "operation": operation,
             "status": "failed",
