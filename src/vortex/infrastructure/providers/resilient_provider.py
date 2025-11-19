@@ -5,13 +5,10 @@ This module demonstrates how to use the new resilience system (circuit breakers,
 retry logic, correlation IDs, and error recovery) in data provider implementations.
 """
 
-import logging
 from datetime import datetime
 from typing import Any, Dict, Optional
 
 import pandas as pd
-
-logger = logging.getLogger(__name__)
 
 from vortex.core.correlation import CorrelationIdManager, with_correlation
 from vortex.exceptions.providers import (
