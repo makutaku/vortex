@@ -107,7 +107,8 @@ class BaseDownloader(ABC):
     def _create_jobs(
         self, configs, start_year: int, end_year: int
     ) -> List[DownloadJob]:
-        start, end = get_first_and_last_day_of_years(start_year, end_year - 1)
+        # Fixed: Removed incorrect -1 that was excluding the final year
+        start, end = get_first_and_last_day_of_years(start_year, end_year)
         jobs_per_instrument: Dict[str, List[DownloadJob]] = {}
 
         for instr in configs.keys():

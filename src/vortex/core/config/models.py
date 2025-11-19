@@ -233,9 +233,10 @@ class DateRangeConfig(BaseModel):
 
     @model_validator(mode="after")
     def validate_date_range(self) -> "DateRangeConfig":
-        if self.start_year >= self.end_year:
+        # Fixed: Changed >= to > to allow single-year downloads (consistent with DownloadConfiguration)
+        if self.start_year > self.end_year:
             raise ValueError(
-                f"start_year ({self.start_year}) must be less than end_year ({self.end_year})"
+                f"start_year ({self.start_year}) cannot be greater than end_year ({self.end_year})"
             )
         return self
 
