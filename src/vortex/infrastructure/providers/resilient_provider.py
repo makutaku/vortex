@@ -292,8 +292,18 @@ class ResilientDataProvider(DataProvider):
             )
 
         # Successful data fetch - return mock data
+        # Validate date range before generating dates
+        if start_date > end_date:
+            raise ValueError(
+                f"Invalid date range for {symbol}: start_date ({start_date}) "
+                f"is after end_date ({end_date})"
+            )
+
         dates = pd.date_range(start=start_date, end=end_date, freq="D")
         if len(dates) == 0:
+            logger.warning(
+                f"No dates generated for {symbol} in range {start_date} to {end_date}"
+            )
             return None
 
         # Create mock OHLCV data

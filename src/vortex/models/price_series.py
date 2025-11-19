@@ -124,6 +124,13 @@ class PriceSeries(ABC):
 
         merged_df = PriceSeries.df_merge(existing_download.df, self.df)
 
+        # Validate merged DataFrame is not empty
+        if len(merged_df) == 0:
+            raise ValueError(
+                f"Merged DataFrame is empty for {self.metadata.symbol} - "
+                "cannot create metadata. Check input data quality."
+            )
+
         merged_metadata = Metadata(
             self.metadata.symbol,
             self.metadata.period,
