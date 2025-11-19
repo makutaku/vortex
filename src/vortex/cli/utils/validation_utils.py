@@ -200,15 +200,17 @@ def _check_data_quality(df: pd.DataFrame) -> List[str]:
         freq = pd.infer_freq(df.index)
 
         # If frequency can't be inferred, try common frequencies for gap detection
-        if not freq:
+        if not freq and len(df) >= 2:
             # Check if data looks like daily data (common case)
+            # Need at least 2 rows to calculate diff
             time_diffs = df.index.to_series().diff()[1:]
-            most_common_diff = time_diffs.mode()
-            if len(most_common_diff) > 0:
-                common_diff = most_common_diff.iloc[0]
-                # If most common difference is around 1 day, assume daily frequency
-                if pd.Timedelta("23 hours") <= common_diff <= pd.Timedelta("25 hours"):
-                    freq = "D"
+            if len(time_diffs) > 0:
+                most_common_diff = time_diffs.mode()
+                if len(most_common_diff) > 0:
+                    common_diff = most_common_diff.iloc[0]
+                    # If most common difference is around 1 day, assume daily frequency
+                    if pd.Timedelta("23 hours") <= common_diff <= pd.Timedelta("25 hours"):
+                        freq = "D"
 
         if freq:
             expected_periods = pd.date_range(
@@ -233,8 +235,8 @@ def _check_data_quality(df: pd.DataFrame) -> List[str]:
 
             # Check for extreme price changes
             if len(df) > 1:
-                # Use pct_change without deprecated fill_method parameter
-                pct_change = df[col].pct_change(fill_method=None).abs()
+                # Calculate percentage change (removed deprecated fill_method parameter)
+                pct_change = df[col].pct_change().abs()
                 extreme_changes = pct_change[pct_change > 0.5]  # 50% change
                 if len(extreme_changes) > 0:
                     warnings.append(f"Extreme price changes (>50%) found in {col}")
